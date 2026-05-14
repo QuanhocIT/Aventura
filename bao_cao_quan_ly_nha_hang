@@ -291,11 +291,12 @@ Các tác nhân chính trong hệ thống:
  • Lập bảng tính lương ( trừ pha chế - bếp nếu cost âm vượt cho phép, trừ thu ngân nếu âm két, trừ vi phạm nếu có )
 
 
- + 2. Nhân viên order (Thu ngân / phục vụ)
+ + 2. Nhân viên thu ngân / phục vụ / order
  • tạo đơn hàng, thêm món, gửi order, add vocher
  ( Đề xuất: có thể loại bỏ để cho khách tự ord tại bàn để tiết kiệm nhân lực và giảm thiểu khả năng gian lận thương mại )
 • thanh toán ( chỉ tài khoản vai trò Thu ngân mới đc làm )
 • Xem trạng thái đơn hàng
+• Đăng ký lịch làm việc, xem lịch làm việc
 • Xem lịch sử đơn hàng
 • Xem doanh thu
 • Nhận đơn từ các app khác
@@ -388,24 +389,7 @@ Python cập nhật báo cáo
 ________________________________________
 11. Database chính
 - Lưu ý: hãy làm index cho các mục cốt yếu và dữ liệu lớn để tăng khả năng của hệ thống từ 40-70%
-•	users
-•	roles
-•	permissions
-•	restaurants
-•	restaurant_branches
-•	employees
-•	products
-•	product_recipes
-•	inventories
-•	inventory_transactions
-•	orders
-•	order_items
-•	payments
-•	schedules
-•	salaries
-•	customer_feedback
-•	violation_reports
-•	audit_logs
+
 ________________________________________
 12. Tính năng nâng cao
 •	Realtime Order
@@ -428,12 +412,12 @@ ________________________________________
 •	Uptime > 99%
 •	Backup dữ liệu định kỳ
 14. Các giao diện cần thiết
--Super Admin
--Khách của Super Admin
--Admin ( chủ doanh nghiệp)/quản lý nhà hàng
--Order/thu ngân/bếp
--Khách của nhà hàng/quán
--Nhà phân phối
+-Giao diện 1: Super Admin
+- Giao diện 2: Khách của Super Admin
+- Giao diện 3: Admin ( chủ doanh nghiệp)/quản lý nhà hàng
+- Giao diện 4: Order/thu ngân/bếp
+- Giao diện 5: Khách của nhà hàng
+- Giao diện 6: Nhà phân phối
 
 ! Các vị trí khác nhau tuy có thể dùng chung 1 giao diện nhưng vai trò/quyền tới đâu thì khả năng truy cập tới đấy
 ! Các tài khoản order sẽ được cài đặt khóa, chỉ mở trong thời gian ca làm để tránh cá nhân xấu tính làm loạn
@@ -576,11 +560,30 @@ Thứ tự phát triển
 
 =>Lợi ích, sẽ quản lý chặt chẽ nhân viên hơn trong quá trình làm việc cũng như dễ bề khai báo với các cơ quan chức năng ( khi: đóng thuế, đăng ký an toàn thực phẩm, làm việc với cơ quan chức năng địa phương khi cần )
 
--Quản lý doanh thu, lợi nhuận: Quản lý hoặc admin có thể chọn thời gian chốt ca hằng ngày, sau mỗi ca hệ thống sẽ yêu cầu chốt ca để xem âm hay đủ tiền(ví dụ ngày chốt ca 2 lần ca sáng lúc 16h, ca tối 21h, thì cứ cuối ca sẽ gửi tổng doanh thu và tiền ck ghi nhận được trong thời gian ca đó. Yêu cầu xác nhận số tiền mặt còn lại có đủ với tính toán của hệ thống ko, nếu có thu chi gì thì tài khoảng admin hoặc quản lý phải bổ sung vào phiếu đó rồi xác nhận. Thông tin người xác nhận sẽ lưu lại và gửi cho Admin vào cuối ngày ),hằng ngày sẽ gửi báo cáo doanh thu về email cho chủ doanh nghiệp vào lúc 23h59 ( doanh thu gồm: tổng doanh thu, Số chuyển khoản ghi nhận ( có link để xem chi tiết thông tin các chuyển khoản đó ), chốt ca theo từng ca trong ngày và thông tin người xác nhận, sau khi trừ các chi phí phát sinh thì số tiền mặt phải còn lại là... Nếu ko đủ tiền mặt thì sẽ mặc định tự đẩy thông tin số âm đó vào tài khoản của thu ngân ca đó ). Bổ sung: để tăng tính minh bạch thì mỗi khi chốt ca thì sẽ gửi gmail vào tài khoản thu ngân  ca đó để họ xác nhận và có chức năng khiếu nại nếu sai xót.
+-Quản lý doanh thu, lợi nhuận: Quản lý hoặc admin có thể chọn thời gian chốt ca hằng ngày, sau mỗi ca hệ thống sẽ yêu cầu chốt ca để xem âm hay đủ tiền(ví dụ ngày chốt ca 2 lần ca sáng lúc 16h, ca tối 21h, thì cứ cuối ca sẽ gửi tổng doanh thu và tiền ck ghi nhận được trong thời gian ca đó. Yêu cầu xác nhận số tiền mặt còn lại có đủ với tính toán của hệ thống ko, nếu
+
+có thu chi gì thì tài khoảng admin hoặc quản lý phải bổ sung vào phiếu đó rồi xác nhận. Thông tin người xác nhận sẽ lưu lại và gửi cho Admin vào cuối ngày ),hằng ngày sẽ gửi báo cáo doanh thu về email cho chủ doanh nghiệp vào lúc 23h59 ( doanh thu gồm: tổng doanh thu, Số chuyển khoản ghi nhận ( có link để xem chi tiết thông tin các chuyển khoản đó ), chốt ca theo từng ca trong ngày và thông tin người xác nhận, sau khi trừ các chi phí phát sinh thì số tiền mặt phải còn lại là... Nếu ko đủ tiền mặt thì sẽ mặc định tự đẩy thông tin số âm đó vào tài khoản của thu ngân ca đó ). Bổ sung: để tăng tính minh bạch thì mỗi khi chốt ca thì sẽ gửi gmail vào tài khoản thu ngân  ca đó để họ xác nhận và có chức năng khiếu nại nếu sai xót.
+
+15.4: Phát triển nhân viên quán ( order, thu ngân, bếp )
+15.4.1: Phát triển nhân viên order
+?  Tài khoản hoạt động khi nào: dựa vào bảng “Lịch làm mà chủ quán/quản lý” xếp, ví dụ: ca làm của tài khoản này là 16 giờ 00 đến 23 giờ 00 thứ 3 ngày... thì trong khoảng thời gian đó sẽ được mở, ngoài ra khung thời gian đó sẽ bị vô hiệu. => Mục đích: tránh vào đơn ko có thực khi ngoài giờ làm, ảnh hưởng tới người trực ca và doanh thu thực
+?Tài khoản này có thể thực hiện thanh toán không ? Không thể, chỉ có thể vào đơn và đánh dấu đơn đã thanh toán
+
+- Tạo đơn: Có 20 bàn trong 1 khu vực đánh số từ nhỏ tới lớn theo bảng chữ cái, ví dụ A1, A2, A3,....B1,B2,B3,....( có thể nhiều hơn tùy thuộc vào tùy chỉnh của quản lý/chủ ), nhân viên order cần chọn bàn nào đang trống để vào đơn, khi ấn vào bàn trống thì sẽ hiện lên danh mục món ăn/uống để chọn món, khi chọn sẽ hiển thị số bên cạnh mặc định là 1, mỗi khi chọn món thì biểu tượng giỏ hàng sẽ nảy số lượng tổng món, sau khi chọn thì ấn nút xác nhận và sẽ chuyển tới màn hình xác nhận, nơi đó sẽ có tất cả các món đã chọn mà và số lượng, tổng tiền, giá tiền từng món có thể xóa món hoặc điều chỉnh số lượng hoặc quay lại danh mục để thêm, đồ uống khi ở đây, khi này nút xác nhận sẽ chuyển thành thông báo, khi đã “thông báo” thì không thể xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm và tiếp tục gửi thông báo.
+- Xem doanh thu quán trong ngày
+- Xem lịch làm việc, đăng ký lịch làm
+- Chức năng khiếu nại ( luôn được hiển thị là ẩn danh đối với người xem )
+-Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc xóa tên hỏi hệ thống mà không cần đổi thủ công )
+15.4.2: Phát triển nhân viên thu ngân
+- Có đầy đủ các chức năng mà nhân viên order có
+- Có thể thanh toán đơn và tách đơn ra bàn trống ( nhưng đơn bị tách sẽ bị đánh dấu và gửi thông báo theo thời gian thực cho chủ/quản lý ) khi hết ca của tài khoản thu ngân đó thì đơn sẽ bị in ra và tính là âm số tiền đơn đã bị tách ( chỉ có chủ doanh nghiệp mới có thể vô hiệu khoản âm đơn đó ). Khi ấn thanh toán thì tổng tiền đơn đó sẽ cộng vào doanh thu, và đơn đó sẽ trống trở lại
+15.4.3: Phát triển nhân viên bếp
 
 
+15.5: Phát triển nhà cung cấp
 
 
+15.6: Phát triển khách của quán
 
 
 
