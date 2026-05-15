@@ -7,6 +7,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -62,5 +64,16 @@ class User extends Authenticatable
     public function processedPayments(): HasMany
     {
         return $this->hasMany(Payment::class, 'processed_by');
+    }
+
+    public function media(): MorphMany
+    {
+        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+    }
+
+    public function avatarAsset(): MorphOne
+    {
+        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+            ->where('collection', 'user_avatar');
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Restaurant extends Model
 {
@@ -43,6 +44,16 @@ class Restaurant extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function revenueSummaries(): HasMany
+    {
+        return $this->hasMany(\App\Models\RestaurantRevenueSummary::class);
+    }
+
+    public function media(): MorphMany
+    {
+        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
     }
 
     protected static function newFactory(): Factory
