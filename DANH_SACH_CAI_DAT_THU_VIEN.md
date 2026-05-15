@@ -2,69 +2,71 @@
 
 Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_quan_ly_nha_hang), doi chieu voi [composer.json](composer.json), [package.json](package.json) va mau bien moi truong trong [.env.example](.env.example).
 
-## 1) Tong quan: cai gi la bat buoc, cai gi la nang cao
+Để chạy dự án BepsoViet, bạn cần cài đặt một số thư viện và công cụ hỗ trợ. Dưới đây là danh sách chi tiết các yêu cầu hệ thống, thư viện đã có sẵn, thư viện cần cài thêm (nếu phát triển Python service), hướng dẫn cài đặt nhanh, cấu hình .env tối thiểu, cấu hình bổ sung cho các thành phần nâng cao, dịch vụ hệ thống cần chạy kèm và checklist kiểm tra sau khi cài đặt.
 
-### Bat buoc de chay du an hien tai
+Để test: mở terminal rồi chạy php artisan serve, sau đó truy cập http:// mà nó trả về
+
+
+## 1) Tổng quan: Yêu cầu hệ thống
+
+### Bắt buộc để chạy dự án
 
 - PHP 8.3+
 - Composer
-- Node.js 20+ (khuyen nghi 20/22 LTS)
-- npm hoac pnpm
-- MySQL 8+ (hoac sqlite de test nhanh)
-- Redis (neu dung queue/cache theo production)
+- Node.js 20+ (khuyên dùng 20/22 LTS)
+- npm hoặc pnpm
+- MySQL 8+ (hoặc sqlite để test nhanh)
+- Redis (nếu dùng queue/cache hoặc production)
 
-### Nang cao theo huong bao cao do an
+**Lưu ý:** Tất cả các package PHP/backend và frontend đã được khai báo trong composer.json và package.json. KHÔNG cần tự chạy các lệnh `composer require ...` hay `npm install ...` cho các package này.
 
-- Spatie Permission (RBAC)
-- Horizon + Pulse (queue/monitoring)
-- Scout + Meilisearch (full-text search)
+### Nâng cao (tùy chọn theo tính năng)
+
+- Meilisearch (full-text search)
 - Reverb (realtime websocket)
+- MinIO/S3/R2 (object storage)
+- Sentry (giám sát lỗi)
 - Python microservice (FastAPI + Pandas + Scikit-learn)
-- Sentry + MinIO/S3/R2
 
-## 2) Thu vien hien trang trong project
 
-### Backend (da co)
+## 2) Thư viện đã có sẵn trong dự án
+
+### Backend (composer.json)
 
 - laravel/framework (^13.7)
 - inertiajs/inertia-laravel (^3.0)
 - laravel/fortify (^1.34)
 - laravel/tinker (^3.0)
 - laravel/wayfinder (^0.1.14)
+- spatie/laravel-permission (^7.4)
+- laravel/horizon (^1.7)
+- laravel/pulse (^1.7)
+- laravel/scout (^11.2)
+- meilisearch/meilisearch-php (^1.16)
+- laravel/reverb (^1.10)
 
-### Frontend (da co)
+### Frontend (package.json)
 
 - vue (^3)
 - vite (^8)
 - @inertiajs/vue3
 - tailwindcss (^4)
+- pinia (^3)
 - @vitejs/plugin-vue
 
-## 3) Thu vien de cai them theo bao cao
 
-### Backend
+## 3) Thư viện cần cài thêm (nếu phát triển Python service)
 
-```bash
-composer require spatie/laravel-permission
-composer require laravel/horizon
-composer require laravel/pulse
-composer require laravel/scout meilisearch/meilisearch-php
-composer require laravel/reverb
-```
+### Python service (tùy chọn)
 
-### Frontend
-
-```bash
-npm install pinia
-```
-
-### Python service
+Nếu muốn chạy AI/microservice, cần cài Python 3.10+ và các package:
 
 ```bash
 pip install fastapi uvicorn pandas scikit-learn numpy pydantic python-dotenv httpx
 ```
 
-## 4) Cai dat nhanh de chay local (Windows/Laragon)
+
+## 4) Cài đặt nhanh để chạy local (Windows/Laragon)
 
 ```bash
 composer install
@@ -76,12 +78,14 @@ npm run dev
 php artisan serve
 ```
 
-Neu ban dung script composer san co:
+Hoặc dùng script composer có sẵn:
 
 ```bash
 composer run setup
 composer run dev
 ```
+
+**Lưu ý:** KHÔNG cần tự chạy các lệnh require/install cho các package đã có trong composer.json và package.json.
 
 ## 5) Cau hinh .env toi thieu (MySQL + Redis)
 
@@ -150,13 +154,14 @@ SENTRY_LARAVEL_DSN=
 SENTRY_TRACES_SAMPLE_RATE=0.2
 ```
 
-## 7) Dich vu he thong can chay kem
+
+## 7) Dịch vụ hệ thống cần chạy kèm
 
 - MySQL service
-- Redis service
-- Meilisearch service (neu da bat Scout)
-- Reverb server (neu dung realtime)
-- Python FastAPI service
+- Redis service (bắt buộc nếu dùng queue/cache)
+- Meilisearch service (nếu bật Scout)
+- Reverb server (nếu dùng realtime)
+- Python FastAPI service (nếu dùng AI/microservice)
 
 Lenh thuong dung:
 
@@ -189,15 +194,11 @@ npm run lint:check
 4. Phase 4 (phan tich AI): Python microservice + ket noi API/queue.
 5. Phase 5 (van hanh): sentry + object storage + monitor.
 
-## 10) Khoang trong so voi hien trang
 
-Nhung thanh phan bao cao yeu cau nhung chua thay trong dependency hien tai:
+## 10) Ghi chú bổ sung
 
-- pinia
-- spatie/laravel-permission
-- laravel/horizon
-- laravel/pulse
-- laravel/scout
-- meilisearch/meilisearch-php
-- laravel/reverb
-- bo thu vien python cho microservice
+Tất cả các package backend/frontend chính đã có trong composer.json và package.json. Nếu bạn cần phát triển AI/microservice, hãy cài Python và các package như hướng dẫn ở mục 3.
+
+Nếu gặp lỗi thiếu Redis khi migrate, hãy chắc chắn đã bật Redis service trên máy local (Laragon có thể bật Redis qua menu Services).
+
+Nếu gặp lỗi "table already exists" khi migrate, hãy kiểm tra lại database hoặc chạy lại lệnh migrate:fresh.
