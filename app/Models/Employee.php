@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Employee extends Model
 {
@@ -41,6 +43,29 @@ class Employee extends Model
     public function schedules(): HasMany
     {
         return $this->hasMany(ScheduleAssignment::class);
+    }
+
+    public function media(): MorphMany
+    {
+        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+    }
+
+    public function avatar(): MorphOne
+    {
+        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+            ->where('collection', 'employee_avatar');
+    }
+
+    public function citizenIdFront(): MorphOne
+    {
+        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+            ->where('collection', 'citizen_id_front');
+    }
+
+    public function citizenIdBack(): MorphOne
+    {
+        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+            ->where('collection', 'citizen_id_back');
     }
 
     protected static function newFactory(): Factory
