@@ -10,12 +10,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Traits\HasRoles;
 
 class Employee extends Model
 {
     use HasFactory;
+    use HasRoles;
 
     protected $guarded = [];
+
+    protected string $guard_name = 'web';
+
+    protected static function booted(): void
+    {
+        static::saved(function (self $employee): void {
+            // Keep Spatie pivot table consistent with employees.role_id.
+            if ($employee->role_id) {
+                $employee->syncRoles([$employee->role_id]);
+
+                return;
+            }
+
+            $employee->syncRoles([]);
+        });
+
+        static::deleted(function (self $employee): void {
+            $employee->syncRoles([]);
+        });
+    }
 
     protected function casts(): array
     {
@@ -38,6 +61,11 @@ class Employee extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
     }
 
     public function schedules(): HasMany

@@ -1,5 +1,5 @@
 BÁO CÁO DỰ ÁN: HỆ THỐNG QUẢN LÝ NHÀ HÀNG DẠNG SAAS
-Tên đề tài: F&BViet
+Tên đề tài: BepsoViet
 Chủ trương
 Đề cao khả năng quản lý toàn phần, tính minh bạch trong quản lý, giảm sự phụ thuộc và tính trung thực của nhân viên; tối ưu các chức năng chuyên môn cốt lõi cho doanh nghiệp; hỗ trợ xử lý kịp thời các vấn đề ảnh hưởng đến uy tín và sự vận hành của nhà hàng, tích hợp AI vào hệ thống để tăng khả năng phán đoán để đưa ra các quyết định sáng suốt nâng cao lợi nhuận của doanh nghiệp.
 ________________________________________
@@ -207,13 +207,14 @@ o	Thời gian: Thời điểm chính xác thực hiện hành động (Timestamp
 o	Dấu vết thiết bị: Địa chỉ IP của thiết bị thực hiện thao tác nhằm phát hiện các truy cập bất thường từ bên ngoài.
 o	Dữ liệu cũ & mới: (Bổ sung dựa trên logic Fraud Detection) So sánh giá trị trước và sau khi thay đổi để quản lý nắm bắt được nội dung chỉnh sửa.
 •	Tích hợp AI: Các dữ liệu Log này sẽ là nguồn đầu vào quan trọng cho Microservice Python để phân tích và phát hiện các hành vi gian lận (Fraud Detection) một cách tự động.
+•	Cơ chế trích xuất dữ liệu thay đổi tự động (Audit Log Pipeline): Để lưu trữ chính xác trạng thái thay đổi vào các trường old_values và new_values kiểu JSON mà không làm ảnh hưởng đến tốc độ phản hồi của API chính , hệ thống triển khai thông qua Laravel Model Observers kết hợp với Redis Queue. Khi một hành động nhạy cảm diễn ra, Model Observer sẽ lập tức kích hoạt đồng bộ để chớp lấy trạng thái cũ qua $model->getOriginal() và trạng thái mới qua $model->getAttributes(). Toàn bộ dữ liệu tĩnh này sau đó mới được parse thành chuỗi JSON và đẩy bất đồng bộ vào hàng đợi (Queue), giải phóng API bán hàng ngay lập tức.
 ________________________________________
-[!NOTE]
 Lưu ý kỹ thuật: Để tối ưu hiệu suất, dữ liệu Audit Log nên được lưu trữ và xử lý theo dạng Queue để không làm ảnh hưởng đến tốc độ phản hồi của API bán hàng chính.
 7.3 Tối ưu hóa hiệu suất dữ liệu
 Để đáp ứng KPI phục vụ hơn 100 nhà hàng và 10.000 người dùng đồng thời, kiến trúc dữ liệu tập trung vào:
 •	Chiến lược Indexing: Hệ thống thực hiện đánh chỉ mục (index) cho các mục cốt yếu và các bảng có dữ liệu lớn. Điều này giúp tăng khả năng xử lý của hệ thống từ 40% đến 70%.
 •	Truy vấn thông minh: Sử dụng kỹ thuật Eager Loading (ví dụ: Order::with('user')) để tránh lỗi query N+1, giúp giảm tải đáng kể cho Database.
+•	Đảm bảo dữ liệu: không sử dụng Delete database ở 1 số mắt xích quan trọng, khi có mục xóa thì thực chất dữ liệu đó chỉ được đánh dấu và ẩn đi khỏi giao diện chứ không bị xóa trong database.
 •	Chuẩn hóa Database: Dữ liệu được thiết kế theo chuẩn (sử dụng foreign key) để tránh dư thừa và dễ dàng mở rộng. Ví dụ: không lưu tên món ăn trực tiếp trong bảng orders mà thông qua bảng trung gian order_items liên kết với products.
 •	Phân tách lưu trữ: Các tệp tin vật lý (ảnh món ăn, hóa đơn) không lưu trực tiếp trong project mà sử dụng Cloud Storage (S3, R2, MinIO) để đảm bảo tốc độ tải và khả năng mở rộng.
 7.4 Danh mục thực thể chính (Database Schema)
@@ -298,7 +299,7 @@ Các tác nhân chính trong hệ thống:
 • Xem trạng thái đơn hàng
 • Đăng ký lịch làm việc, xem lịch làm việc
 • Xem lịch sử đơn hàng
-• Xem doanh thu 
+• Xem doanh thu
 • Nhận đơn từ các app khác
 
  + 3. Bếp (Kitchen)
@@ -321,8 +322,9 @@ Quyền:
 •	Sanctum: Là công cụ mặc định và rất nhẹ nhàng của Laravel. Nó cấp cho bạn một "tấm thẻ" (token) sau khi đăng nhập. Mỗi lần bạn muốn lấy dữ liệu (như xem danh sách bàn), bạn chỉ cần trình tấm thẻ này ra.
 •	Tại sao dùng? Vì hệ thống của bạn tách rời Backend (Laravel) và Frontend (Vue.js), Sanctum giúp hai bên nhận diện nhau mà không cần dùng đến Session truyền thống vốn rất phức tạp cho API.
 9.2 Authorization (RBAC)
-Đây là bước phân quyền để trả lời câu hỏi: "Bạn là ai, và bạn có quyền làm gì?".
+Đây là bước phân quyền để trả lời  câu hỏi: "Bạn là ai, và bạn có quyền làm gì?".
 •	RBAC (Role-Based Access Control): Bạn chia người dùng vào các nhóm như: Super Admin, Chủ quán, Thu ngân, Bếp.
+•	Nguyên tắc thiết kế hệ thống: BepsoViet áp dụng mô hình phân quyền hướng hành động (Permission-based Access). Toàn bộ logic nghiệp vụ ở cả Backend (Laravel API) và Frontend (Vue.js SPA) đều được rào chắn dựa trên các Permission tĩnh (như create_order, payment_order, view_report). Hệ thống hoàn toàn không hard-code tên vai trò (Role) trong mã nguồn, cho phép Chủ nhà hàng tùy biến hoặc nâng cấp, tước quyền của bất kỳ nhân sự nào một cách linh hoạt mà không cần can thiệp vào mã nguồn.
 •	Cách thức: Thay vì kiểm tra trực tiếp chức vụ, hệ thống kiểm tra "Quyền" (Permission).
 o	Ví dụ: Cả Quản lý và Chủ quán đều có quyền view_report, nhưng chỉ Chủ quán mới có quyền delete_restaurant.
 9.3 Chống SQL Injection
@@ -348,48 +350,1984 @@ Dữ liệu nhạy cảm nhất chính là Mật khẩu.
 •	Cách làm: Laravel tự động dùng thuật toán Bcrypt để băm (hash) mật khẩu. Nếu database có bị lộ, kẻ xấu cũng không thể biết mật khẩu thật là gì.
 =>Vì đang làm mô hình Multi-tenant, bảo mật quan trọng nhất mà bạn cần thực hiện tốt trong code là Global Scope. Hãy đảm bảo rằng mọi câu lệnh SELECT luôn có điều kiện WHERE restaurant_id = ... để nhà hàng A không bao giờ thấy thực đơn hay doanh thu của nhà hàng B.
 
-10. Workflow
+10. Chi tiết luồng nghiệp vụ hệ thống (Workflow)
 Workflow đặt món
 Khách/Thu ngân tạo đơn
-        ↓
-Bếp nhận order realtime
-        ↓
+         ↓
+[Kiểm tra & Khóa kho vật lý tạm thời] (Đồng bộ - Tránh trùng lặp đơn)
+         ↓
+Bếp nhận order Realtime
+         ↓
 Bếp hoàn thành món
-        ↓
-Thu ngân thanh toán
-        ↓
-Kho tự động trừ nguyên liệu
-        ↓
-Python cập nhật báo cáo
+         ↓
+Thu ngân bấm Thanh toán (Kích hoạt Database Transaction)
+         ↓
+┌───────────────────────────────────────┴───────────────────────────────────────┐
+▼ (Nhánh 1: Đồng bộ - Xử lý ngay lập tức)       ▼ (Nhánh 2: Bất đồng bộ - Đẩy vào Redis Queue)
+- Cắt/Trừ kho vật lý lõi (quantity_on_hand)    - Ghi lịch sử Audit Log chi tiết (Ai sửa, ai hủy)
+- Chuyển trạng thái bàn sang "Trống"            - Tạo file hóa đơn PDF/Excel, tự động gửi Email
+- Ghi nhận doanh thu tổng vào MySQL             - Ghi Nhật ký giao dịch kho (inventory_transactions)
+                                                - Đẩy dữ liệu qua FastAPI cho Python Analytics
+                                                                                ↓
+                                                                  Python cập nhật Dashboard Realtime
 
-1. Khách/Thu ngân tạo đơn
-•	Thực hiện: Khách quét mã QR tại bàn hoặc Thu ngân thao tác trên màn hình POS.
-•	Kỹ thuật: Vue.js gửi một HTTP Request (POST) chứa thông tin món ăn lên Laravel API.
-•	Bảo mật: Laravel sẽ kiểm tra quyền (Permission) của người dùng và xác thực tính hợp lệ của dữ liệu (ví dụ: món ăn có còn trong menu không).
-2. Bếp nhận order Realtime
-•	Cơ chế: Ngay khi Laravel lưu đơn hàng vào database MySQL , một Event sẽ được kích hoạt.
-•	Kỹ thuật: Thông qua Laravel Reverb hoặc WebSockets, thông báo này được đẩy thẳng xuống giao diện của nhân viên Bếp.
-•	Trải nghiệm: Màn hình Bếp tự động hiện món mới với đầy đủ thông tin (tên món, số lượng, thời gian vào đơn) mà không cần nhấn F5 (tải lại trang).
-3. Bếp hoàn thành món
-•	Thao tác: Nhân viên bếp nhấn "Hoàn thành" trên màn hình.
+Hệ thống vận hành dựa trên kiến trúc hướng sự kiện (Event-Driven Architecture), phân tách nghiêm ngặt giữa luồng nghiệp vụ cốt lõi (Đồng bộ) và các tác vụ hậu cần nặng (Bất đồng bộ). Sự kết hợp này đáp ứng tiêu chí xử lý mượt mà trong giờ cao điểm với phản hồi API < 2s.
+1. Khách / Thu ngân tạo đơn và Giữ kho tạm thời
+•	Thực hiện: Khách quét mã QR tại bàn để tự gọi món hoặc Thu ngân thao tác trực tiếp trên màn hình máy POS.
+•	Kỹ thuật (Đồng bộ): * Ứng dụng Vue.js gửi một HTTP Request (POST) chứa thông tin món ăn và số lượng lên Laravel API.
+o	Xử lý giữ kho lõi: Laravel lập tức đối chiếu bảng công thức định lượng (product_recipes) , áp dụng cơ chế Khóa bi quan (lockForUpdate) để kiểm tra và trừ tạm thời số lượng tồn kho lý thuyết trong bảng inventories. Nếu lượng nguyên liệu không đủ, hệ thống lập tức chặn lại và bắn lỗi trả về giao diện Vue.js để nhân viên hoặc khách dừng phục vụ món đó, triệt tiêu hoàn toàn nguy cơ kho bị âm (Over-selling).
+•	Bảo mật: Laravel kiểm tra quyền hạn chi tiết (Permission) của tài khoản thực hiện thao tác và xác thực tính hợp lệ của dữ liệu đầu vào.
+2. Bếp nhận order thời gian thực (Realtime)
+•	Cơ chế: Ngay khi Laravel xác thực kho đủ và lưu đơn hàng thành công vào database MySQL với trạng thái pending, một Event hệ thống sẽ lập tức được kích hoạt.
+•	Kỹ thuật: Thông qua hệ sinh thái Laravel Reverb (WebSocket Server bảo mật ở backend) và Laravel Echo ở frontend, tín hiệu được đẩy thẳng xuống giao diện của nhân viên Bếp.
+•	Trải nghiệm: Màn hình Bếp tự động hiển thị món ăn mới với đầy đủ thông tin (tên món, số lượng, số bàn/tầng, thời gian vào đơn) thời gian thực mà không cần nhân viên phải nhấn F5 để tải lại trang.
+3. Bếp chế biến và Hoàn thành món
+•	Thao tác: Nhân viên bếp thao tác trên màn hình chuyên dụng, nhấn chuyển trạng thái món ăn từ "Chưa làm" sang "Hoàn thành".
 •	Kỹ thuật: Trạng thái đơn hàng trong database được cập nhật từ preparing (đang làm) sang completed (hoàn thành).
-•	Thông báo: Một tín hiệu realtime khác lại được gửi ngược về cho Thu ngân hoặc hiển thị trên điện thoại của Khách để báo món đã sẵn sàng.
-4. Thu ngân thanh toán
-•	Thao tác: Thu ngân kiểm tra lại đơn, áp dụng mã giảm giá (nếu có) và nhấn "Thanh toán".
-•	Kỹ thuật: Laravel sử dụng Database Transaction để đảm bảo tính nguyên tử (Atomicity): Hóa đơn được tạo, doanh thu được ghi nhận, và trạng thái bàn được chuyển về "Trống". Nếu bất kỳ bước nào lỗi (ví dụ: mất kết nối thanh toán), hệ thống sẽ Rollback (hoàn tác) để tránh sai lệch tiền bạc.
-5. Kho tự động trừ nguyên liệu
-•	Cơ chế: Hệ thống dựa vào Công thức định lượng (Product Recipes) đã cài đặt sẵn.
-•	Kỹ thuật: Laravel tính toán lượng nguyên liệu cần trừ (ví dụ: 1 tô phở trừ 200g bánh phở, 100g thịt bò) và cập nhật bảng inventories.
-•	Lưu ý: Việc trừ kho này nên được xử lý qua Queue (Hàng đợi) để không làm chậm tốc độ phản hồi của màn hình thu ngân.
-6. Python cập nhật báo cáo
-•	Giao tiếp: Laravel gửi dữ liệu đơn hàng vừa hoàn tất sang Python Microservice.
-•	Xử lý: Python nhận dữ liệu qua FastAPI, sử dụng thư viện Pandas để tính toán lại các chỉ số lợi nhuận, cập nhật mô hình dự báo kho và kiểm tra xem có dấu hiệu gian lận nào không (ví dụ: thời gian làm món quá nhanh hoặc quá chậm bất thường).
-•	Kết quả: Các biểu đồ trên Dashboard của Chủ nhà hàng sẽ được cập nhật số liệu mới nhất để họ theo dõi từ xa.
+•	Thông báo: Một tín hiệu realtime hướng sự kiện khác lại được gửi ngược về cho Thu ngân hoặc hiển thị trực tiếp trên thiết bị di động của Khách để thông báo món ăn đã sẵn sàng đi đồ.
+4. Thu ngân thực hiện thủ tục thanh toán
+•	Thao tác: Thu ngân kiểm tra lại hóa đơn, áp dụng mã giảm giá, voucher (nếu có) và nhấn nút "Thanh toán".
+•	Kỹ thuật (Vòng đời Database Transaction): Laravel bắt buộc phải bọc luồng này trong DB::transaction để đảm bảo tính nguyên tử (Atomicity):
+o	Hóa đơn thanh toán được khởi tạo, trạng thái thanh toán chuyển thành paid.
+o	Doanh thu thực tế được ghi nhận vào hệ thống và trạng thái bàn ăn tự động chuyển về lại trạng thái "Trống" (available).
+o	Nếu xảy ra bất kỳ sự cố phát sinh nào (lỗi cổng thanh toán, mất mạng), toàn bộ quá trình sẽ được Rollback để tránh sai lệch dòng tiền và số liệu.
+5. Kích hoạt Pipeline xử lý nền bất đồng bộ (Redis Queue)
+Sau khi bước 4 (Database Transaction) hoàn tất thành công, API bán hàng chính thức được giải phóng để tiếp tục phục vụ các đơn hàng khác. Laravel lập tức đẩy các Job tác vụ nặng vào hệ thống hàng đợi ngầm (Redis Queue) do Laravel Horizon giám sát để xử lý ngầm:
+•	Bước 5.1 - Ghi nhận lịch sử kho nâng cao: Job ngầm tính toán lại giá vốn trung bình (average_cost) của nguyên liệu , đồng thời ghi nhận lịch sử chi tiết vào bảng nhật ký giao dịch kho (inventory_transactions) phục vụ đối soát.
+•	Bước 5.2 - Trích xuất Audit Log an toàn: Model Observer kích hoạt đồng bộ ngay trước đó để bóc tách mảng dữ liệu thay đổi cũ ($model->getOriginal()) và dữ liệu mới ($model->getAttributes()) tại tầng API nay sẽ được parse thành chuỗi JSON và lưu vào bảng audit_logs thông qua Queue để không làm chậm luồng bán hàng chính.
+6. Python Microservice phân tích dữ liệu và Cập nhật báo cáo nâng cao
+•	Giao tiếp: Queue Worker của Laravel đóng gói toàn bộ dữ liệu đơn hàng và lịch sử biến động kho sạch, phát một HTTP Request bất đồng bộ sang Python Microservice thông qua cầu nối API tốc độ cao của FastAPI.
+•	Xử lý: Python nhận dữ liệu, sử dụng các thư viện chuyên dụng (Pandas, Scikit-learn) để tính toán lại các chỉ số lợi nhuận, chạy mô hình dự báo lượng nguyên liệu cần nhập, so sánh sai số giữa "Tồn kho lý thuyết" và "Tồn kho thực tế", đồng thời kiểm tra thuật toán phát hiện gian lận (Fraud Detection) nếu có hành vi sửa/xóa đơn bất thường.
+•	Kết quả: Sau khi phân tích, Python gửi kết quả trả về, các biểu đồ thống kê nâng cao trên giao diện Dashboard của Chủ nhà hàng (Owner) và Quản lý (Manager) sẽ tự động cập nhật số liệu mới nhất để phục vụ ra quyết định kinh doanh kịp thời từ xa.
 
 ________________________________________
 11. Database chính
 - Lưu ý: hãy làm index cho các mục cốt yếu và dữ liệu lớn để tăng khả năng của hệ thống từ 40-70%
+-- phpMyAdmin SQL Dump
+-- version 5.2.2
+-- https://www.phpmyadmin.net/
+--
+-- Host: localhost:3306
+-- Generation Time: May 18, 2026 at 10:30 AM
+-- Server version: 8.4.3
+-- PHP Version: 8.3.16
 
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Database: `bepso_viet`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `areas`
+--
+
+CREATE TABLE `areas` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `display_order` int UNSIGNED NOT NULL DEFAULT '0',
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `audit_logs`
+--
+
+CREATE TABLE `audit_logs` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED DEFAULT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `user_id` bigint UNSIGNED DEFAULT NULL,
+  `user_role` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `event` enum('created','updated','deleted') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `action` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `subject_type` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `subject_id` bigint UNSIGNED DEFAULT NULL,
+  `old_values` json DEFAULT NULL,
+  `new_values` json DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cache`
+--
+
+CREATE TABLE `cache` (
+  `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `value` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expiration` bigint NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cache_locks`
+--
+
+CREATE TABLE `cache_locks` (
+  `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `owner` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expiration` bigint NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customers`
+--
+
+CREATE TABLE `customers` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `full_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `gender` enum('male','female','other') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_of_birth` date DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `loyalty_points` int UNSIGNED NOT NULL DEFAULT '0',
+  `last_order_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customer_feedback`
+--
+
+CREATE TABLE `customer_feedback` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `order_id` bigint UNSIGNED DEFAULT NULL,
+  `customer_id` bigint UNSIGNED DEFAULT NULL,
+  `submitted_by_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `submitted_by_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rating` tinyint UNSIGNED NOT NULL,
+  `content` text COLLATE utf8mb4_unicode_ci,
+  `is_anonymous` tinyint(1) NOT NULL DEFAULT '0',
+  `status` enum('new','reviewed','resolved') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `employees`
+--
+
+CREATE TABLE `employees` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `user_id` bigint UNSIGNED DEFAULT NULL,
+  `employee_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `full_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `date_of_birth` date DEFAULT NULL,
+  `gender` enum('male','female','other') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citizen_id_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citizen_id_front_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citizen_id_back_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `hire_date` date DEFAULT NULL,
+  `employment_type` enum('full_time','part_time','seasonal') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'full_time',
+  `job_title` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `base_salary` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `status` enum('active','inactive','terminated') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `role_id` bigint UNSIGNED NOT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `failed_jobs`
+--
+
+CREATE TABLE `failed_jobs` (
+  `id` bigint UNSIGNED NOT NULL,
+  `uuid` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `connection` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `queue` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `exception` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `failed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ingredients`
+--
+
+CREATE TABLE `ingredients` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `supplier_id` bigint UNSIGNED DEFAULT NULL,
+  `unit_id` bigint UNSIGNED NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sku` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `category_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `min_stock_level` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `reorder_level` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `average_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `inventories`
+--
+
+CREATE TABLE `inventories` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `ingredient_id` bigint UNSIGNED NOT NULL,
+  `quantity_on_hand` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `theoretical_quantity` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `last_counted_at` datetime DEFAULT NULL,
+  `last_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `updated_by` bigint UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `inventory_transactions`
+--
+
+CREATE TABLE `inventory_transactions` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `ingredient_id` bigint UNSIGNED NOT NULL,
+  `inventory_id` bigint UNSIGNED DEFAULT NULL,
+  `order_id` bigint UNSIGNED DEFAULT NULL,
+  `performed_by` bigint UNSIGNED DEFAULT NULL,
+  `supplier_id` bigint UNSIGNED DEFAULT NULL,
+  `type` enum('purchase','usage','adjustment','waste','return','stocktake') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `direction` enum('in','out') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `quantity` decimal(12,3) NOT NULL,
+  `unit_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `total_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `reference_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `invoice_file_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `occurred_at` datetime NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `jobs`
+--
+
+CREATE TABLE `jobs` (
+  `id` bigint UNSIGNED NOT NULL,
+  `queue` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `attempts` smallint UNSIGNED NOT NULL,
+  `reserved_at` int UNSIGNED DEFAULT NULL,
+  `available_at` int UNSIGNED NOT NULL,
+  `created_at` int UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `job_batches`
+--
+
+CREATE TABLE `job_batches` (
+  `id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `total_jobs` int NOT NULL,
+  `pending_jobs` int NOT NULL,
+  `failed_jobs` int NOT NULL,
+  `failed_job_ids` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `options` mediumtext COLLATE utf8mb4_unicode_ci,
+  `cancelled_at` int DEFAULT NULL,
+  `created_at` int NOT NULL,
+  `finished_at` int DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `leave_requests`
+--
+
+CREATE TABLE `leave_requests` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `employee_id` bigint UNSIGNED NOT NULL,
+  `requested_by` bigint UNSIGNED DEFAULT NULL,
+  `approved_by` bigint UNSIGNED DEFAULT NULL,
+  `leave_type` enum('annual','sick','unpaid','emergency','resignation') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'annual',
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `reason` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('pending','approved','rejected','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `media_assets`
+--
+
+CREATE TABLE `media_assets` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED DEFAULT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `uploaded_by` bigint UNSIGNED DEFAULT NULL,
+  `attachable_type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `attachable_id` bigint UNSIGNED DEFAULT NULL,
+  `collection` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'default',
+  `media_type` enum('image','document','video','other') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'image',
+  `disk` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'public',
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_path` varchar(2048) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mime_type` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `extension` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `size_bytes` bigint UNSIGNED NOT NULL DEFAULT '0',
+  `width` int UNSIGNED DEFAULT NULL,
+  `height` int UNSIGNED DEFAULT NULL,
+  `checksum_sha256` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_private` tinyint(1) NOT NULL DEFAULT '1',
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `migrations`
+--
+
+CREATE TABLE `migrations` (
+  `id` int UNSIGNED NOT NULL,
+  `migration` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `batch` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `migrations`
+--
+
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
+(1, '0001_01_01_000000_create_users_table', 1),
+(2, '0001_01_01_000001_create_cache_table', 1),
+(3, '0001_01_01_000002_create_jobs_table', 1),
+(4, '2025_08_14_170933_add_two_factor_columns_to_users_table', 1),
+(5, '2026_05_14_151320_create_permission_tables', 1),
+(6, '2026_05_14_151321_create_pulse_tables', 1),
+(7, '2026_05_15_041600_add_restaurant_columns_to_users_table', 1),
+(8, '2026_05_15_041700_create_subscription_plans_table', 1),
+(9, '2026_05_15_041710_create_restaurants_table', 1),
+(10, '2026_05_15_041720_create_restaurant_subscriptions_table', 1),
+(11, '2026_05_15_041730_create_restaurant_branches_table', 1),
+(12, '2026_05_15_041740_create_restaurant_settings_table', 1),
+(13, '2026_05_15_041800_create_employees_table', 1),
+(14, '2026_05_15_041900_create_restaurant_layout_tables', 1),
+(15, '2026_05_15_042000_create_inventory_catalog_tables', 1),
+(16, '2026_05_15_042100_create_order_tables', 1),
+(17, '2026_05_15_042200_create_shift_and_salary_tables', 1),
+(18, '2026_05_15_042300_create_feedback_and_audit_tables', 1),
+(19, '2026_05_15_042400_add_domain_foreign_keys', 1),
+(20, '2026_05_15_042500_seed_default_roles_and_permissions', 1),
+(21, '2026_05_15_043000_create_media_assets_table', 1),
+(22, '2026_05_15_043010_add_soft_deletes_to_domain_tables', 1),
+(23, '2026_05_15_043020_create_restaurant_revenue_summaries_table', 1),
+(24, '2026_05_18_090000_add_event_to_audit_logs_table', 2);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `model_has_permissions`
+--
+
+CREATE TABLE `model_has_permissions` (
+  `permission_id` bigint UNSIGNED NOT NULL,
+  `model_type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `model_id` bigint UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `model_has_roles`
+--
+
+CREATE TABLE `model_has_roles` (
+  `role_id` bigint UNSIGNED NOT NULL,
+  `model_type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `model_id` bigint UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `orders`
+--
+
+CREATE TABLE `orders` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `table_id` bigint UNSIGNED DEFAULT NULL,
+  `customer_id` bigint UNSIGNED DEFAULT NULL,
+  `created_by` bigint UNSIGNED DEFAULT NULL,
+  `cashier_user_id` bigint UNSIGNED DEFAULT NULL,
+  `order_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel` enum('dine_in','takeaway','delivery','qr') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'dine_in',
+  `status` enum('pending','confirmed','preparing','completed','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `payment_status` enum('unpaid','partial','paid','refunded') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unpaid',
+  `subtotal` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `service_charge` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `tax_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `total_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `confirmed_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
+  `cancelled_by` bigint UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `order_items`
+--
+
+CREATE TABLE `order_items` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `order_id` bigint UNSIGNED NOT NULL,
+  `product_id` bigint UNSIGNED NOT NULL,
+  `quantity` decimal(10,2) NOT NULL DEFAULT '1.00',
+  `unit_price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `line_total` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `status` enum('pending','sent','preparing','served','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `notes` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sent_to_kitchen_at` datetime DEFAULT NULL,
+  `prepared_at` datetime DEFAULT NULL,
+  `served_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `password_reset_tokens`
+--
+
+CREATE TABLE `password_reset_tokens` (
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `token` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payments`
+--
+
+CREATE TABLE `payments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `order_id` bigint UNSIGNED NOT NULL,
+  `processed_by` bigint UNSIGNED DEFAULT NULL,
+  `payment_method` enum('cash','bank_transfer','card','ewallet','mixed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'cash',
+  `status` enum('pending','paid','failed','refunded') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `cash_received` decimal(12,2) DEFAULT NULL,
+  `change_amount` decimal(12,2) DEFAULT NULL,
+  `transaction_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `paid_at` datetime DEFAULT NULL,
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `permissions`
+--
+
+CREATE TABLE `permissions` (
+  `id` bigint UNSIGNED NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `guard_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `permissions`
+--
+
+INSERT INTO `permissions` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
+(1, 'manage_tenants', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(2, 'manage_restaurants', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(3, 'manage_staff', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(4, 'manage_menu', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(5, 'manage_inventory', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(6, 'create_order', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(7, 'view_order', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(8, 'payment_order', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(9, 'view_kitchen_order', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(10, 'update_food_status', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(11, 'view_report', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(12, 'manage_salary', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(13, 'manage_schedule', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(14, 'manage_feedback', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(15, 'view_audit_log', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `products`
+--
+
+CREATE TABLE `products` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `category_id` bigint UNSIGNED DEFAULT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `image_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `cost_price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `preparation_time_minutes` int UNSIGNED DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `is_available` tinyint(1) NOT NULL DEFAULT '1',
+  `is_featured` tinyint(1) NOT NULL DEFAULT '0',
+  `track_inventory` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `product_categories`
+--
+
+CREATE TABLE `product_categories` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `display_order` int UNSIGNED NOT NULL DEFAULT '0',
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `product_recipes`
+--
+
+CREATE TABLE `product_recipes` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `product_id` bigint UNSIGNED NOT NULL,
+  `ingredient_id` bigint UNSIGNED NOT NULL,
+  `unit_id` bigint UNSIGNED NOT NULL,
+  `quantity` decimal(12,3) NOT NULL,
+  `waste_rate` decimal(5,2) NOT NULL DEFAULT '0.00',
+  `notes` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pulse_aggregates`
+--
+
+CREATE TABLE `pulse_aggregates` (
+  `id` bigint UNSIGNED NOT NULL,
+  `bucket` int UNSIGNED NOT NULL,
+  `period` mediumint UNSIGNED NOT NULL,
+  `type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key_hash` binary(16) GENERATED ALWAYS AS (unhex(md5(`key`))) VIRTUAL,
+  `aggregate` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `value` decimal(20,2) NOT NULL,
+  `count` int UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `pulse_aggregates`
+--
+
+INSERT INTO `pulse_aggregates` (`id`, `bucket`, `period`, `type`, `key`, `aggregate`, `value`, `count`) VALUES
+(1, 1779034500, 60, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'count', 1.00, NULL),
+(2, 1779034320, 360, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'count', 1.00, NULL),
+(3, 1779033600, 1440, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'count', 1.00, NULL),
+(4, 1779029280, 10080, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'count', 1.00, NULL),
+(5, 1779034500, 60, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'max', 1522.00, NULL),
+(6, 1779034320, 360, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'max', 1522.00, NULL),
+(7, 1779033600, 1440, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'max', 1522.00, NULL),
+(8, 1779029280, 10080, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 'max', 1522.00, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pulse_entries`
+--
+
+CREATE TABLE `pulse_entries` (
+  `id` bigint UNSIGNED NOT NULL,
+  `timestamp` int UNSIGNED NOT NULL,
+  `type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key_hash` binary(16) GENERATED ALWAYS AS (unhex(md5(`key`))) VIRTUAL,
+  `value` bigint DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `pulse_entries`
+--
+
+INSERT INTO `pulse_entries` (`id`, `timestamp`, `type`, `key`, `value`) VALUES
+(1, 1779034546, 'slow_query', '[\"alter table `inventories` add constraint `inventories_ingredient_id_foreign` foreign key (`ingredient_id`) references `ingredients` (`id`) on delete cascade\",\"database\\\\migrations\\\\restaurant\\\\2026_05_15_042000_create_inventory_catalog_tables.php:77\"]', 1522);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pulse_values`
+--
+
+CREATE TABLE `pulse_values` (
+  `id` bigint UNSIGNED NOT NULL,
+  `timestamp` int UNSIGNED NOT NULL,
+  `type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `key_hash` binary(16) GENERATED ALWAYS AS (unhex(md5(`key`))) VIRTUAL,
+  `value` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurants`
+--
+
+CREATE TABLE `restaurants` (
+  `id` bigint UNSIGNED NOT NULL,
+  `plan_id` bigint UNSIGNED DEFAULT NULL,
+  `owner_user_id` bigint UNSIGNED DEFAULT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tax_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `logo_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `timezone` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',
+  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'VND',
+  `status` enum('active','expired','suspended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `subscription_started_at` date DEFAULT NULL,
+  `subscription_ends_at` date DEFAULT NULL,
+  `trial_ends_at` date DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurant_branches`
+--
+
+CREATE TABLE `restaurant_branches` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `manager_user_id` bigint UNSIGNED DEFAULT NULL,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurant_revenue_summaries`
+--
+
+CREATE TABLE `restaurant_revenue_summaries` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `summary_type` enum('daily','weekly','monthly') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'daily',
+  `scope_key` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'restaurant',
+  `summary_date` date NOT NULL,
+  `order_count` int UNSIGNED NOT NULL DEFAULT '0',
+  `completed_order_count` int UNSIGNED NOT NULL DEFAULT '0',
+  `cancelled_order_count` int UNSIGNED NOT NULL DEFAULT '0',
+  `gross_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `discount_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `service_charge_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `tax_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `refund_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `net_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `cash_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `bank_transfer_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `card_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `ewallet_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `mixed_revenue` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `cogs_amount` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `gross_profit` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `average_order_value` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `first_order_at` datetime DEFAULT NULL,
+  `last_order_at` datetime DEFAULT NULL,
+  `calculated_at` datetime DEFAULT NULL,
+  `source` enum('system','manual','rebuild') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurant_settings`
+--
+
+CREATE TABLE `restaurant_settings` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `key_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `value` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurant_subscriptions`
+--
+
+CREATE TABLE `restaurant_subscriptions` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `plan_id` bigint UNSIGNED NOT NULL,
+  `status` enum('trial','active','expired','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'trial',
+  `started_at` datetime NOT NULL,
+  `ended_at` datetime DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
+  `renewal_at` datetime DEFAULT NULL,
+  `price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restaurant_tables`
+--
+
+CREATE TABLE `restaurant_tables` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `area_id` bigint UNSIGNED NOT NULL,
+  `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `qr_code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `capacity` int UNSIGNED NOT NULL DEFAULT '2',
+  `status` enum('available','occupied','reserved','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'available',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `roles`
+--
+
+CREATE TABLE `roles` (
+  `id` bigint UNSIGNED NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `guard_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `roles`
+--
+
+INSERT INTO `roles` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
+(1, 'super_admin', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(2, 'owner', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(3, 'manager', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(4, 'cashier', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(5, 'kitchen', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(6, 'inventory_staff', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53'),
+(7, 'customer', 'web', '2026-05-17 09:15:53', '2026-05-17 09:15:53');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `role_has_permissions`
+--
+
+CREATE TABLE `role_has_permissions` (
+  `permission_id` bigint UNSIGNED NOT NULL,
+  `role_id` bigint UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `role_has_permissions`
+--
+
+INSERT INTO `role_has_permissions` (`permission_id`, `role_id`) VALUES
+(1, 1),
+(2, 1),
+(3, 1),
+(4, 1),
+(5, 1),
+(6, 1),
+(7, 1),
+(8, 1),
+(9, 1),
+(10, 1),
+(11, 1),
+(12, 1),
+(13, 1),
+(14, 1),
+(15, 1),
+(2, 2),
+(3, 2),
+(4, 2),
+(5, 2),
+(6, 2),
+(7, 2),
+(8, 2),
+(9, 2),
+(10, 2),
+(11, 2),
+(12, 2),
+(13, 2),
+(14, 2),
+(15, 2),
+(3, 3),
+(4, 3),
+(5, 3),
+(6, 3),
+(7, 3),
+(8, 3),
+(9, 3),
+(10, 3),
+(11, 3),
+(12, 3),
+(13, 3),
+(14, 3),
+(15, 3),
+(6, 4),
+(7, 4),
+(8, 4),
+(11, 4),
+(7, 5),
+(9, 5),
+(10, 5),
+(5, 6),
+(7, 6),
+(7, 7);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `salaries`
+--
+
+CREATE TABLE `salaries` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `employee_id` bigint UNSIGNED NOT NULL,
+  `pay_period_start` date NOT NULL,
+  `pay_period_end` date NOT NULL,
+  `base_salary` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `bonus_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `deduction_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `net_salary` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `status` enum('draft','approved','paid') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
+  `approved_by` bigint UNSIGNED DEFAULT NULL,
+  `paid_at` datetime DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `salary_adjustments`
+--
+
+CREATE TABLE `salary_adjustments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `salary_id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `employee_id` bigint UNSIGNED NOT NULL,
+  `type` enum('bonus','penalty','cash_shortage','inventory_loss','violation') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reference_id` bigint UNSIGNED DEFAULT NULL,
+  `reference_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `schedule_assignments`
+--
+
+CREATE TABLE `schedule_assignments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `employee_id` bigint UNSIGNED NOT NULL,
+  `shift_id` bigint UNSIGNED NOT NULL,
+  `scheduled_date` date NOT NULL,
+  `check_in_at` datetime DEFAULT NULL,
+  `check_out_at` datetime DEFAULT NULL,
+  `status` enum('scheduled','checked_in','completed','absent','leave_approved') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'scheduled',
+  `notes` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `approved_by` bigint UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sessions`
+--
+
+CREATE TABLE `sessions` (
+  `id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` bigint UNSIGNED DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `last_activity` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `shift_closings`
+--
+
+CREATE TABLE `shift_closings` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `shift_id` bigint UNSIGNED NOT NULL,
+  `closing_date` date NOT NULL,
+  `cashier_user_id` bigint UNSIGNED DEFAULT NULL,
+  `confirmed_by` bigint UNSIGNED DEFAULT NULL,
+  `expected_cash` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `actual_cash` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `cash_difference` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `transfer_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `other_expense_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('draft','submitted','confirmed','disputed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
+  `closed_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `subscription_plans`
+--
+
+CREATE TABLE `subscription_plans` (
+  `id` bigint UNSIGNED NOT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `billing_cycle` enum('monthly','quarterly','yearly') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'monthly',
+  `max_branches` int UNSIGNED DEFAULT NULL,
+  `max_tables` int UNSIGNED DEFAULT NULL,
+  `max_users` int UNSIGNED DEFAULT NULL,
+  `features` json DEFAULT NULL,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `subscription_plans`
+--
+
+INSERT INTO `subscription_plans` (`id`, `code`, `name`, `price`, `billing_cycle`, `max_branches`, `max_tables`, `max_users`, `features`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'free', 'Free', 0.00, 'monthly', 1, 10, 5, '{\"analytics\": false, \"multi_branch\": false, \"ai_prediction\": false}', 'active', '2026-05-17 09:15:41', '2026-05-17 09:15:41'),
+(2, 'pro', 'Pro', 499000.00, 'monthly', NULL, NULL, NULL, '{\"analytics\": true, \"multi_branch\": true, \"ai_prediction\": true}', 'active', '2026-05-17 09:15:41', '2026-05-17 09:15:41');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `suppliers`
+--
+
+CREATE TABLE `suppliers` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contact_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `units`
+--
+
+CREATE TABLE `units` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `symbol` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('mass','volume','count') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'count',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `users`
+--
+
+CREATE TABLE `users` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED DEFAULT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `avatar_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('active','inactive','suspended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `is_checked_in` tinyint(1) NOT NULL DEFAULT '0',
+  `last_login_at` timestamp NULL DEFAULT NULL,
+  `email_verified_at` timestamp NULL DEFAULT NULL,
+  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `two_factor_secret` text COLLATE utf8mb4_unicode_ci,
+  `two_factor_recovery_codes` text COLLATE utf8mb4_unicode_ci,
+  `two_factor_confirmed_at` timestamp NULL DEFAULT NULL,
+  `remember_token` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `violation_reports`
+--
+
+CREATE TABLE `violation_reports` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `employee_id` bigint UNSIGNED NOT NULL,
+  `reported_by` bigint UNSIGNED DEFAULT NULL,
+  `violation_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `severity` enum('low','medium','high','critical') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'low',
+  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `penalty_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `occurred_at` datetime NOT NULL,
+  `status` enum('open','reviewed','resolved','dismissed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `work_shifts`
+--
+
+CREATE TABLE `work_shifts` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `branch_id` bigint UNSIGNED DEFAULT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `salary_rate` decimal(12,2) NOT NULL DEFAULT '1.00',
+  `is_overnight` tinyint(1) NOT NULL DEFAULT '0',
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `areas`
+--
+ALTER TABLE `areas`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `areas_branch_code_unique` (`branch_id`,`code`),
+  ADD KEY `areas_restaurant_status_index` (`restaurant_id`,`status`);
+
+--
+-- Indexes for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `audit_logs_branch_id_foreign` (`branch_id`),
+  ADD KEY `audit_logs_restaurant_action_created_index` (`restaurant_id`,`action`,`created_at`),
+  ADD KEY `audit_logs_subject_index` (`subject_type`,`subject_id`),
+  ADD KEY `audit_logs_user_index` (`user_id`);
+
+--
+-- Indexes for table `cache`
+--
+ALTER TABLE `cache`
+  ADD PRIMARY KEY (`key`),
+  ADD KEY `cache_expiration_index` (`expiration`);
+
+--
+-- Indexes for table `cache_locks`
+--
+ALTER TABLE `cache_locks`
+  ADD PRIMARY KEY (`key`),
+  ADD KEY `cache_locks_expiration_index` (`expiration`);
+
+--
+-- Indexes for table `customers`
+--
+ALTER TABLE `customers`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `customers_restaurant_phone_index` (`restaurant_id`,`phone`),
+  ADD KEY `customers_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `customer_feedback`
+--
+ALTER TABLE `customer_feedback`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `customer_feedback_branch_id_foreign` (`branch_id`),
+  ADD KEY `customer_feedback_customer_id_foreign` (`customer_id`),
+  ADD KEY `customer_feedback_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `customer_feedback_order_index` (`order_id`);
+
+--
+-- Indexes for table `employees`
+--
+ALTER TABLE `employees`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `employees_restaurant_code_unique` (`restaurant_id`,`employee_code`),
+  ADD UNIQUE KEY `employees_user_id_unique` (`user_id`),
+  ADD KEY `employees_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `employees_branch_index` (`branch_id`),
+  ADD KEY `employees_role_id_foreign` (`role_id`);
+
+--
+-- Indexes for table `failed_jobs`
+--
+ALTER TABLE `failed_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `failed_jobs_uuid_unique` (`uuid`);
+
+--
+-- Indexes for table `ingredients`
+--
+ALTER TABLE `ingredients`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ingredients_restaurant_sku_unique` (`restaurant_id`,`sku`),
+  ADD KEY `ingredients_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `ingredients_branch_index` (`branch_id`),
+  ADD KEY `ingredients_supplier_index` (`supplier_id`),
+  ADD KEY `ingredients_unit_index` (`unit_id`);
+
+--
+-- Indexes for table `inventories`
+--
+ALTER TABLE `inventories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `inventories_tenant_branch_ingredient_unique` (`restaurant_id`,`branch_id`,`ingredient_id`),
+  ADD KEY `inventories_ingredient_id_foreign` (`ingredient_id`),
+  ADD KEY `inventories_restaurant_ingredient_index` (`restaurant_id`,`ingredient_id`),
+  ADD KEY `inventories_updated_by_index` (`updated_by`);
+
+--
+-- Indexes for table `inventory_transactions`
+--
+ALTER TABLE `inventory_transactions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `inventory_transactions_branch_id_foreign` (`branch_id`),
+  ADD KEY `inventory_transactions_performed_by_foreign` (`performed_by`),
+  ADD KEY `inventory_transactions_supplier_id_foreign` (`supplier_id`),
+  ADD KEY `inventory_transactions_restaurant_type_date_index` (`restaurant_id`,`type`,`occurred_at`),
+  ADD KEY `inventory_transactions_order_index` (`order_id`),
+  ADD KEY `inventory_transactions_ingredient_index` (`ingredient_id`),
+  ADD KEY `inventory_transactions_inventory_index` (`inventory_id`);
+
+--
+-- Indexes for table `jobs`
+--
+ALTER TABLE `jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `jobs_queue_index` (`queue`);
+
+--
+-- Indexes for table `job_batches`
+--
+ALTER TABLE `job_batches`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `leave_requests_requested_by_foreign` (`requested_by`),
+  ADD KEY `leave_requests_approved_by_foreign` (`approved_by`),
+  ADD KEY `leave_requests_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `leave_requests_employee_index` (`employee_id`);
+
+--
+-- Indexes for table `media_assets`
+--
+ALTER TABLE `media_assets`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `media_assets_branch_id_foreign` (`branch_id`),
+  ADD KEY `media_assets_attachable_type_attachable_id_index` (`attachable_type`,`attachable_id`),
+  ADD KEY `media_assets_restaurant_collection_index` (`restaurant_id`,`collection`),
+  ADD KEY `media_assets_attachable_index` (`attachable_type`,`attachable_id`),
+  ADD KEY `media_assets_type_created_index` (`media_type`,`created_at`),
+  ADD KEY `media_assets_uploaded_by_index` (`uploaded_by`);
+
+--
+-- Indexes for table `migrations`
+--
+ALTER TABLE `migrations`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `model_has_permissions`
+--
+ALTER TABLE `model_has_permissions`
+  ADD PRIMARY KEY (`permission_id`,`model_id`,`model_type`),
+  ADD KEY `model_has_permissions_model_id_model_type_index` (`model_id`,`model_type`);
+
+--
+-- Indexes for table `model_has_roles`
+--
+ALTER TABLE `model_has_roles`
+  ADD PRIMARY KEY (`role_id`,`model_id`,`model_type`),
+  ADD KEY `model_has_roles_model_id_model_type_index` (`model_id`,`model_type`);
+
+--
+-- Indexes for table `orders`
+--
+ALTER TABLE `orders`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `orders_restaurant_number_unique` (`restaurant_id`,`order_number`),
+  ADD KEY `orders_table_id_foreign` (`table_id`),
+  ADD KEY `orders_created_by_foreign` (`created_by`),
+  ADD KEY `orders_cancelled_by_foreign` (`cancelled_by`),
+  ADD KEY `orders_restaurant_status_created_index` (`restaurant_id`,`status`,`created_at`),
+  ADD KEY `orders_branch_table_index` (`branch_id`,`table_id`),
+  ADD KEY `orders_customer_index` (`customer_id`),
+  ADD KEY `orders_cashier_index` (`cashier_user_id`);
+
+--
+-- Indexes for table `order_items`
+--
+ALTER TABLE `order_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `order_items_product_id_foreign` (`product_id`),
+  ADD KEY `order_items_order_status_index` (`order_id`,`status`),
+  ADD KEY `order_items_restaurant_product_index` (`restaurant_id`,`product_id`);
+
+--
+-- Indexes for table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD PRIMARY KEY (`email`);
+
+--
+-- Indexes for table `payments`
+--
+ALTER TABLE `payments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `payments_processed_by_foreign` (`processed_by`),
+  ADD KEY `payments_restaurant_status_paid_index` (`restaurant_id`,`status`,`paid_at`),
+  ADD KEY `payments_order_index` (`order_id`),
+  ADD KEY `payments_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `permissions`
+--
+ALTER TABLE `permissions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `permissions_name_guard_name_unique` (`name`,`guard_name`);
+
+--
+-- Indexes for table `products`
+--
+ALTER TABLE `products`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `products_restaurant_code_unique` (`restaurant_id`,`code`),
+  ADD UNIQUE KEY `products_restaurant_slug_unique` (`restaurant_id`,`slug`),
+  ADD KEY `products_restaurant_status_index` (`restaurant_id`,`is_active`,`is_available`),
+  ADD KEY `products_category_index` (`category_id`),
+  ADD KEY `products_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `product_categories`
+--
+ALTER TABLE `product_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `product_categories_restaurant_slug_unique` (`restaurant_id`,`slug`),
+  ADD KEY `product_categories_branch_id_foreign` (`branch_id`),
+  ADD KEY `product_categories_restaurant_status_index` (`restaurant_id`,`status`);
+
+--
+-- Indexes for table `product_recipes`
+--
+ALTER TABLE `product_recipes`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `product_recipes_product_ingredient_unique` (`product_id`,`ingredient_id`),
+  ADD KEY `product_recipes_ingredient_id_foreign` (`ingredient_id`),
+  ADD KEY `product_recipes_restaurant_product_index` (`restaurant_id`,`product_id`),
+  ADD KEY `product_recipes_unit_index` (`unit_id`);
+
+--
+-- Indexes for table `pulse_aggregates`
+--
+ALTER TABLE `pulse_aggregates`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `pulse_aggregates_bucket_period_type_aggregate_key_hash_unique` (`bucket`,`period`,`type`,`aggregate`,`key_hash`),
+  ADD KEY `pulse_aggregates_period_bucket_index` (`period`,`bucket`),
+  ADD KEY `pulse_aggregates_type_index` (`type`),
+  ADD KEY `pulse_aggregates_period_type_aggregate_bucket_index` (`period`,`type`,`aggregate`,`bucket`);
+
+--
+-- Indexes for table `pulse_entries`
+--
+ALTER TABLE `pulse_entries`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `pulse_entries_timestamp_index` (`timestamp`),
+  ADD KEY `pulse_entries_type_index` (`type`),
+  ADD KEY `pulse_entries_key_hash_index` (`key_hash`),
+  ADD KEY `pulse_entries_timestamp_type_key_hash_value_index` (`timestamp`,`type`,`key_hash`,`value`);
+
+--
+-- Indexes for table `pulse_values`
+--
+ALTER TABLE `pulse_values`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `pulse_values_type_key_hash_unique` (`type`,`key_hash`),
+  ADD KEY `pulse_values_timestamp_index` (`timestamp`),
+  ADD KEY `pulse_values_type_index` (`type`);
+
+--
+-- Indexes for table `restaurants`
+--
+ALTER TABLE `restaurants`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurants_code_unique` (`code`),
+  ADD UNIQUE KEY `restaurants_slug_unique` (`slug`),
+  ADD KEY `restaurants_plan_status_index` (`plan_id`,`status`),
+  ADD KEY `restaurants_owner_index` (`owner_user_id`);
+
+--
+-- Indexes for table `restaurant_branches`
+--
+ALTER TABLE `restaurant_branches`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurant_branches_restaurant_code_unique` (`restaurant_id`,`code`),
+  ADD KEY `restaurant_branches_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `restaurant_branches_manager_index` (`manager_user_id`);
+
+--
+-- Indexes for table `restaurant_revenue_summaries`
+--
+ALTER TABLE `restaurant_revenue_summaries`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurant_revenue_summaries_unique_scope` (`restaurant_id`,`scope_key`,`summary_type`,`summary_date`),
+  ADD KEY `restaurant_revenue_summaries_restaurant_type_date_index` (`restaurant_id`,`summary_type`,`summary_date`),
+  ADD KEY `restaurant_revenue_summaries_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `restaurant_settings`
+--
+ALTER TABLE `restaurant_settings`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurant_settings_scope_key_unique` (`restaurant_id`,`branch_id`,`key_name`),
+  ADD KEY `restaurant_settings_branch_id_foreign` (`branch_id`);
+
+--
+-- Indexes for table `restaurant_subscriptions`
+--
+ALTER TABLE `restaurant_subscriptions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `restaurant_subscriptions_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `restaurant_subscriptions_plan_index` (`plan_id`);
+
+--
+-- Indexes for table `restaurant_tables`
+--
+ALTER TABLE `restaurant_tables`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurant_tables_area_name_unique` (`area_id`,`name`),
+  ADD KEY `restaurant_tables_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `restaurant_tables_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `roles`
+--
+ALTER TABLE `roles`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `roles_name_guard_name_unique` (`name`,`guard_name`);
+
+--
+-- Indexes for table `role_has_permissions`
+--
+ALTER TABLE `role_has_permissions`
+  ADD PRIMARY KEY (`permission_id`,`role_id`),
+  ADD KEY `role_has_permissions_role_id_foreign` (`role_id`);
+
+--
+-- Indexes for table `salaries`
+--
+ALTER TABLE `salaries`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `salaries_employee_period_unique` (`employee_id`,`pay_period_start`,`pay_period_end`),
+  ADD KEY `salaries_approved_by_foreign` (`approved_by`),
+  ADD KEY `salaries_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `salaries_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `salary_adjustments`
+--
+ALTER TABLE `salary_adjustments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `salary_adjustments_employee_id_foreign` (`employee_id`),
+  ADD KEY `salary_adjustments_salary_index` (`salary_id`),
+  ADD KEY `salary_adjustments_restaurant_type_index` (`restaurant_id`,`type`);
+
+--
+-- Indexes for table `schedule_assignments`
+--
+ALTER TABLE `schedule_assignments`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `schedule_assignments_unique` (`employee_id`,`shift_id`,`scheduled_date`),
+  ADD KEY `schedule_assignments_shift_id_foreign` (`shift_id`),
+  ADD KEY `schedule_assignments_approved_by_foreign` (`approved_by`),
+  ADD KEY `schedule_assignments_restaurant_date_status_index` (`restaurant_id`,`scheduled_date`,`status`),
+  ADD KEY `schedule_assignments_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `sessions`
+--
+ALTER TABLE `sessions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `sessions_user_id_index` (`user_id`),
+  ADD KEY `sessions_last_activity_index` (`last_activity`);
+
+--
+-- Indexes for table `shift_closings`
+--
+ALTER TABLE `shift_closings`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `shift_closings_unique` (`restaurant_id`,`branch_id`,`shift_id`,`closing_date`),
+  ADD KEY `shift_closings_branch_id_foreign` (`branch_id`),
+  ADD KEY `shift_closings_shift_id_foreign` (`shift_id`),
+  ADD KEY `shift_closings_cashier_user_id_foreign` (`cashier_user_id`),
+  ADD KEY `shift_closings_confirmed_by_foreign` (`confirmed_by`),
+  ADD KEY `shift_closings_status_index` (`restaurant_id`,`status`,`closing_date`);
+
+--
+-- Indexes for table `subscription_plans`
+--
+ALTER TABLE `subscription_plans`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `subscription_plans_code_unique` (`code`);
+
+--
+-- Indexes for table `suppliers`
+--
+ALTER TABLE `suppliers`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `suppliers_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `suppliers_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `units`
+--
+ALTER TABLE `units`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `units_scope_symbol_unique` (`restaurant_id`,`symbol`);
+
+--
+-- Indexes for table `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `users_email_unique` (`email`),
+  ADD KEY `users_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `users_branch_index` (`branch_id`);
+
+--
+-- Indexes for table `violation_reports`
+--
+ALTER TABLE `violation_reports`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `violation_reports_branch_id_foreign` (`branch_id`),
+  ADD KEY `violation_reports_reported_by_foreign` (`reported_by`),
+  ADD KEY `violation_reports_restaurant_status_index` (`restaurant_id`,`status`),
+  ADD KEY `violation_reports_employee_index` (`employee_id`);
+
+--
+-- Indexes for table `work_shifts`
+--
+ALTER TABLE `work_shifts`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `work_shifts_restaurant_code_unique` (`restaurant_id`,`code`),
+  ADD KEY `work_shifts_branch_index` (`branch_id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+ALTER TABLE `areas` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `audit_logs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `customers` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `customer_feedback` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `employees` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `failed_jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `ingredients` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `inventories` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `inventory_transactions` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `leave_requests` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `media_assets` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `migrations` MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+ALTER TABLE `orders` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `order_items` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `payments` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `permissions` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+ALTER TABLE `products` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `product_categories` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `product_recipes` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `pulse_aggregates` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+ALTER TABLE `pulse_entries` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `pulse_values` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurants` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurant_branches` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurant_revenue_summaries` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurant_settings` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurant_subscriptions` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `restaurant_tables` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `roles` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+ALTER TABLE `salaries` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `salary_adjustments` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `schedule_assignments` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `shift_closings` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `subscription_plans` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+ALTER TABLE `suppliers` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `units` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `users` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `violation_reports` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `work_shifts` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `areas`
+--
+ALTER TABLE `areas`
+  ADD CONSTRAINT `areas_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `areas_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD CONSTRAINT `audit_logs_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `audit_logs_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `audit_logs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `customers`
+--
+ALTER TABLE `customers`
+  ADD CONSTRAINT `customers_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `customers_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `customer_feedback`
+--
+ALTER TABLE `customer_feedback`
+  ADD CONSTRAINT `customer_feedback_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `customer_feedback_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `customer_feedback_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `customer_feedback_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `employees`
+--
+ALTER TABLE `employees`
+  ADD CONSTRAINT `employees_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `employees_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `employees_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `employees_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `ingredients`
+--
+ALTER TABLE `ingredients`
+  ADD CONSTRAINT `ingredients_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ingredients_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ingredients_supplier_id_foreign` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ingredients_unit_id_foreign` FOREIGN KEY (`unit_id`) REFERENCES `units` (`id`) ON DELETE RESTRICT;
+
+--
+-- Constraints for table `inventories`
+--
+ALTER TABLE `inventories`
+  ADD CONSTRAINT `inventories_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inventories_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inventories_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inventories_updated_by_foreign` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `inventory_transactions`
+--
+ALTER TABLE `inventory_transactions`
+  ADD CONSTRAINT `inventory_transactions_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `inventory_transactions_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inventory_transactions_inventory_id_foreign` FOREIGN KEY (`inventory_id`) REFERENCES `inventories` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `inventory_transactions_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `inventory_transactions_performed_by_foreign` FOREIGN KEY (`performed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `inventory_transactions_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inventory_transactions_supplier_id_foreign` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  ADD CONSTRAINT `leave_requests_approved_by_foreign` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `leave_requests_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `leave_requests_requested_by_foreign` FOREIGN KEY (`requested_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `leave_requests_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `media_assets`
+--
+ALTER TABLE `media_assets`
+  ADD CONSTRAINT `media_assets_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `media_assets_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `media_assets_uploaded_by_foreign` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `model_has_permissions`
+--
+ALTER TABLE `model_has_permissions`
+  ADD CONSTRAINT `model_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `model_has_roles`
+--
+ALTER TABLE `model_has_roles`
+  ADD CONSTRAINT `model_has_roles_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `orders`
+--
+ALTER TABLE `orders`
+  ADD CONSTRAINT `orders_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `orders_cancelled_by_foreign` FOREIGN KEY (`cancelled_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `orders_cashier_user_id_foreign` FOREIGN KEY (`cashier_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `orders_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `orders_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `orders_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `orders_table_id_foreign` FOREIGN KEY (`table_id`) REFERENCES `restaurant_tables` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `order_items`
+--
+ALTER TABLE `order_items`
+  ADD CONSTRAINT `order_items_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `order_items_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `order_items_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `payments`
+--
+ALTER TABLE `payments`
+  ADD CONSTRAINT `payments_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `payments_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `payments_processed_by_foreign` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `payments_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `products`
+--
+ALTER TABLE `products`
+  ADD CONSTRAINT `products_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `products_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `product_categories` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `products_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `product_categories`
+--
+ALTER TABLE `product_categories`
+  ADD CONSTRAINT `product_categories_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `product_categories_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `product_recipes`
+--
+ALTER TABLE `product_recipes`
+  ADD CONSTRAINT `product_recipes_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `product_recipes_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `product_recipes_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `product_recipes_unit_id_foreign` FOREIGN KEY (`unit_id`) REFERENCES `units` (`id`) ON DELETE RESTRICT;
+
+--
+-- Constraints for table `restaurants`
+--
+ALTER TABLE `restaurants`
+  ADD CONSTRAINT `restaurants_owner_user_id_foreign` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `restaurants_plan_id_foreign` FOREIGN KEY (`plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `restaurant_branches`
+--
+ALTER TABLE `restaurant_branches`
+  ADD CONSTRAINT `restaurant_branches_manager_user_id_foreign` FOREIGN KEY (`manager_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `restaurant_branches_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `restaurant_revenue_summaries`
+--
+ALTER TABLE `restaurant_revenue_summaries`
+  ADD CONSTRAINT `restaurant_revenue_summaries_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `restaurant_revenue_summaries_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `restaurant_settings`
+--
+ALTER TABLE `restaurant_settings`
+  ADD CONSTRAINT `restaurant_settings_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `restaurant_settings_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `restaurant_subscriptions`
+--
+ALTER TABLE `restaurant_subscriptions`
+  ADD CONSTRAINT `restaurant_subscriptions_plan_id_foreign` FOREIGN KEY (`plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `restaurant_subscriptions_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `restaurant_tables`
+--
+ALTER TABLE `restaurant_tables`
+  ADD CONSTRAINT `restaurant_tables_area_id_foreign` FOREIGN KEY (`area_id`) REFERENCES `areas` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `restaurant_tables_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `restaurant_tables_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `role_has_permissions`
+--
+ALTER TABLE `role_has_permissions`
+  ADD CONSTRAINT `role_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `role_has_permissions_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `salaries`
+--
+ALTER TABLE `salaries`
+  ADD CONSTRAINT `salaries_approved_by_foreign` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `salaries_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `salaries_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `salaries_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `salary_adjustments`
+--
+ALTER TABLE `salary_adjustments`
+  ADD CONSTRAINT `salary_adjustments_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `salary_adjustments_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `salary_adjustments_salary_id_foreign` FOREIGN KEY (`salary_id`) REFERENCES `salaries` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `schedule_assignments`
+--
+ALTER TABLE `schedule_assignments`
+  ADD CONSTRAINT `schedule_assignments_approved_by_foreign` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `schedule_assignments_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `schedule_assignments_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `schedule_assignments_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `schedule_assignments_shift_id_foreign` FOREIGN KEY (`shift_id`) REFERENCES `work_shifts` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `shift_closings`
+--
+ALTER TABLE `shift_closings`
+  ADD CONSTRAINT `shift_closings_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `shift_closings_cashier_user_id_foreign` FOREIGN KEY (`cashier_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `shift_closings_confirmed_by_foreign` FOREIGN KEY (`confirmed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `shift_closings_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `shift_closings_shift_id_foreign` FOREIGN KEY (`shift_id`) REFERENCES `work_shifts` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `suppliers`
+--
+ALTER TABLE `suppliers`
+  ADD CONSTRAINT `suppliers_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `suppliers_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `units`
+--
+ALTER TABLE `units`
+  ADD CONSTRAINT `units_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `users`
+--
+ALTER TABLE `users`
+  ADD CONSTRAINT `users_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `users_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `violation_reports`
+--
+ALTER TABLE `violation_reports`
+  ADD CONSTRAINT `violation_reports_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `violation_reports_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `violation_reports_reported_by_foreign` FOREIGN KEY (`reported_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `violation_reports_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `work_shifts`
+--
+ALTER TABLE `work_shifts`
+  ADD CONSTRAINT `work_shifts_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `work_shifts_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+Chiến lược tối ưu hóa bổ sung:
+•	Eager Loading: Luôn sử dụng with() (ví dụ: Order::with('order_items')) để triệt tiêu lỗi Query N+1.
+•	Chỉ chọn field cần thiết: Sử dụng SELECT id, name... thay vì SELECT * để tiết kiệm RAM và băng thông.
+•	Caching: Sử dụng Redis để cache Menu món ăn và Dashboard báo cáo nhằm giảm tải tối đa cho MySQL.
+•	Global Scope: Tự động áp dụng WHERE restaurant_id = ? cho mọi truy vấn để đảm bảo an toàn dữ liệu tuyệt đối giữa các nhà hàng
 ________________________________________
 12. Tính năng nâng cao
 •	Realtime Order
@@ -493,49 +2431,63 @@ Thứ tự phát triển
 7.	Monitoring & customer support.
 ________________________________________
 15.2 Phát triển giao diện khách để tiếp đón doanh nghiệp
-Đây là giao diện marketing và onboarding, giúp doanh nghiệp dễ dàng tiếp cận nền tảng, tìm hiểu chức năng và đăng ký sử dụng hệ thống.
+Đây là giao diện marketing và onboarding, đóng vai trò là "mặt tiền" của nền tảng SaaS F&BViet. Giao diện này giúp các chủ doanh nghiệp F&B dễ dàng tiếp cận nền tảng, tìm hiểu các tính năng cốt lõi, trải nghiệm thử và đăng ký sử dụng hệ thống một cách nhanh chóng, tự động hóa hoàn toàn.
 ? Làm sao để doanh nghiệp hiểu được hệ thống có phù hợp với họ hay không?
-Giải pháp: Thiết kế một landing page chuyên nghiệp giới thiệu đầy đủ chức năng nổi bật, lợi ích thực tế, video demo và hình ảnh mô phỏng giao diện nhằm giúp doanh nghiệp dễ hình dung quy trình vận hành.
-Chức năng chính
-1. Trang giới thiệu hệ thống
-•	Bao gồm: Giới thiệu tính năng nổi bật , so sánh gói dịch vụ , demo giao diện quản lý , chatbot hỗ trợ thông tin cơ bản, và các bài viết từ khách hàng thực tế dùng dịch vụ.
-•	Ví dụ: Doanh nghiệp có thể xem trước cách quản lý menu , quản lý kho , dashboard doanh thu , quản lý nhân sự, và hỏi đáp trực tiếp các vấn đề khúc mắc với AI.
-•	Mục tiêu: * Giảm rào cản tiếp cận.
-o	Tăng mức độ tin tưởng của khách hàng.
-o	Giảm thiểu nhân sự trực web 24/7 bằng chatbot.
-2. Trang đăng ký doanh nghiệp
-•	Bao gồm: Đăng ký tài khoản , tạo nhà hàng đầu tiên , và chọn gói dịch vụ.
-•	? Làm sao để doanh nghiệp đăng ký nhanh mà không cần hỗ trợ thủ công?
-•	Giải pháp: Thiết kế quy trình Onboarding tự động. Sau khi đăng ký, hệ thống tự động tạo tenant , tạo database logic , cấp quyền Owner mặc định , và thiết lập dữ liệu khởi tạo cơ bản.
-•	Ví dụ: Doanh nghiệp chỉ cần nhập tên nhà hàng, email, mật khẩu, và số điện thoại; hệ thống sẽ tự động khởi tạo không gian quản lý riêng kèm một vài món ăn mẫu để làm quen.
-•	Mục tiêu: * Giảm chi phí vận hành.
-o	Tăng khả năng mở rộng hệ thống (scale).
-o	Hạn chế phụ thuộc vào đội ngũ hỗ trợ (support).
-3. Chọn gói dịch vụ
-•	? Có nên cho doanh nghiệp dùng thử trước khi trả phí?
-•	Giải pháp: Hệ thống hỗ trợ Free Trial từ 7–30 ngày để doanh nghiệp trải nghiệm trước khi quyết định nâng cấp.
-•	Ví dụ: Bản dùng thử sẽ giới hạn số nhân viên , giới hạn các tính năng nâng cao , và không hỗ trợ các báo cáo AI chuyên sâu.
-•	Mục tiêu: * Tăng tỷ lệ chuyển đổi khách hàng từ dùng thử sang trả phí.
-o	Tạo niềm tin và sự khẳng định về chất lượng dịch vụ với doanh nghiệp.
-4. Trang liên hệ & hỗ trợ
-•	Bao gồm: Chat hỗ trợ , ticket hỗ trợ , và đặt lịch demo trực tiếp.
-•	? Làm sao để giữ chân doanh nghiệp sau khi đăng ký?
-•	Giải pháp: Xây dựng hệ thống hướng dẫn và chăm sóc tự động (Guided Tours).
-•	Ví dụ: * Ngày thứ nhất: Hệ thống gửi thông báo hướng dẫn cách tạo menu món ăn lần đầu.
-o	Ngày thứ hai: Hướng dẫn các bước nhập kho nguyên liệu.
-o	Ngày thứ ba: Hướng dẫn phân quyền và quản lý nhân viên phục vụ/bếp.
-•	Mục tiêu: * Giảm tỷ lệ khách hàng bỏ dùng sớm do chưa hiểu hệ thống.
-o	Tăng trải nghiệm sử dụng tích cực.
-o	Nâng cao tỷ lệ gia hạn gói dịch vụ Pro.
-Thứ tự phát triển
-1.	Landing page.
-2.	Trang giới thiệu tính năng.
-3.	Trang đăng ký doanh nghiệp.
-4.	Chọn gói dịch vụ.
-5.	Onboarding tự động.
-6.	Trial system.
-7.	Dashboard onboarding.
-8.	Chat & ticket support.
+Giải pháp: Thiết kế một Landing Page chuyên nghiệp, trực quan với cấu trúc phân tầng thông tin rõ ràng. Tích hợp đầy đủ các tài liệu giới thiệu chức năng nổi bật, lợi ích thực tế, video demo quy trình vận hành thực tế (phục vụ - bếp - thu ngân), hình ảnh mô phỏng giao diện đa thiết bị (máy POS, máy tính bảng, điện thoại) và một trợ lý AI Chatbot tư vấn trực tuyến.
+Các chức năng chính
+1. Trang giới thiệu hệ thống (Landing Page)
+•	Bao gồm: * Giới thiệu tính năng cốt lõi: Quản lý menu, công thức định lượng nguyên vật liệu, quản lý kho thông minh, phân tích doanh thu bằng AI, chấm công và tính lương tự động.
+o	Bảng so sánh gói dịch vụ: Minh bạch về tính năng và giới hạn tài nguyên giữa hai gói Free và Pro.
+o	Trải nghiệm nhanh (Interactive Demo): Khu vực tương tác giả lập cho phép khách hàng click dùng thử nhanh một số tính năng cơ bản của màn hình POS bán hàng.
+o	AI Chatbot hỗ trợ: Trợ lý ảo trả lời nhanh các thắc mắc thường gặp (FAQs) về giá cả, cách vận hành, hỗ trợ kỹ thuật và thiết bị tương thích.
+o	Khách hàng thực tế (Social Proof): Các bài viết đánh giá, câu chuyện thành công từ các nhà hàng đang sử dụng F&BViet.
+•	Ví dụ: Doanh nghiệp truy cập trang chủ có thể ngay lập tức xem video demo luồng order tại bàn bằng mã QR, cách hệ thống tự động trừ kho nguyên liệu sau khi thanh toán, và hỏi AI Chatbot: "Hệ thống có hỗ trợ quản lý chuỗi nhiều chi nhánh không?" để nhận câu trả lời ngay lập tức.
+•	Mục tiêu:
+o	Giảm tối đa rào cản tiếp cận thông tin cho khách hàng mới.
+o	Tăng mức độ tin tưởng và tính chuyên nghiệp của nền tảng SaaS.
+o	Giảm thiểu 80% nhân sự trực tổng đài hỗ trợ 24/7 nhờ trợ lý AI Chatbot.
+2. Trang đăng ký doanh nghiệp (Quy trình Onboarding tự động)
+•	Bao gồm: Đăng ký tài khoản quản trị tối cao (Owner), khởi tạo thông tin nhà hàng đầu tiên và lựa chọn gói dịch vụ ban đầu.
+•	? Làm sao để doanh nghiệp đăng ký nhanh và sử dụng được ngay mà không cần sự can thiệp thủ công của kỹ thuật viên?
+•	Giải pháp: Thiết kế quy trình Onboarding tự động hóa trên hạ tầng Shared Database - Shared Schema:
+1.	Khởi tạo Tenant định danh: Khi chủ quán nhấn đăng ký, hệ thống tự động tạo một bản ghi mới trong bảng restaurants để cấp một ID định danh duy nhất (restaurant_id). Toàn bộ hoạt động của nhà hàng này sau đó sẽ được đóng khung bởi ID này thông qua cơ chế Global Scope của Laravel.
+2.	Tự động cấp quyền quản trị mặc định (Owner Role): Hệ thống tạo tài khoản người dùng đầu tiên trong bảng users, liên kết trực tiếp với restaurant_id mới và tự động gán vai trò owner (Spatie Laravel Permission) để trao toàn quyền quản trị cho chủ quán.
+3.	Seeding dữ liệu mẫu (Sample Data Seeding): Để tránh việc chủ quán đối mặt với một hệ thống "trống trơn" gây bối rối, hệ thống tự động sinh một số dữ liệu cấu hình cơ bản đi kèm với restaurant_id vừa tạo:
+	Các đơn vị tính mặc định (Mass: g, kg; Volume: ml, l; Count: cái, chai).
+	Tạo sẵn 1 Khu vực mẫu (Area) và 3 Bàn mẫu (Tables) kèm mã QR code tự động sinh.
+	Tạo sẵn 3 danh mục món ăn mẫu (Cơm, Mỳ, Đồ uống) kèm 1-2 món ăn demo để chủ quán hình dung luồng hoạt động. Đồng thời, để đảm bảo luồng nghiệp vụ trừ kho tự động không bị xung đột khóa ngoại hay lỗi dữ liệu rỗng (Null) khi chủ quán test thử đơn hàng, hệ thống seeder sẽ khởi tạo khép kín chuỗi cung ứng mẫu bao gồm:
+	Tạo sẵn các Nguyên liệu mẫu (ingredients) tương ứng trong kho (như: Thịt bò, bánh phở, gạo, đá viên...) kết hợp liên kết nhà cung cấp mặc định. * Tự động thiết lập định mức trong bảng Công thức mẫu (product_recipes) nhằm liên kết trực tiếp các món ăn demo với các nguyên liệu mẫu vừa sinh ra. Cơ chế đồng bộ này đảm bảo các tiến trình ngầm (Queue Worker) tính toán hao hụt kho bãi chạy trơn tru ngay từ giây phút đầu tiên kích hoạt Tenant.
+
+•	Ví dụ: Chủ nhà hàng chỉ cần nhập các thông tin cơ bản: Tên nhà hàng ("Phở Việt"), Email, Mật khẩu và Số điện thoại. Sau 3 giây, hệ thống hoàn tất thiết lập và chuyển thẳng họ vào trang quản trị đã có sẵn bàn mẫu, món ăn mẫu để thử nghiệm tính năng bán hàng ngay lập tức.
+•	Mục tiêu:
+o	Tự động hóa 100% quy trình thiết lập, giảm chi phí vận hành kỹ thuật xuống mức 0 đồng cho mỗi tenant mới.
+o	Tối ưu khả năng mở rộng (Scalability) của hệ thống, cho phép hàng nghìn nhà hàng đăng ký cùng lúc mà không làm nghẽn hạ tầng.
+o	Nâng cao trải nghiệm người dùng bằng cách giúp họ tiếp cận luồng bán hàng thực tế ngay trong 1 phút đầu tiên.
+3. Chọn gói dịch vụ (Subscription Management)
+•	? Có nên cho doanh nghiệp dùng thử trước khi trả phí không?
+•	Giải pháp: Hệ thống áp dụng cơ chế Free Trial (Dùng thử miễn phí) từ 7 đến 30 ngày đối với gói Pro để doanh nghiệp làm quen với tất cả các chức năng trước khi đưa ra quyết định thương mại.
+•	Cơ chế giới hạn tài nguyên (Quota Enforcement):
+o	Gói Free (Mặc định khi đăng ký): Hệ thống áp dụng giới hạn nghiêm ngặt ở tầng ứng dụng và cơ sở dữ liệu: Tối đa 1 chi nhánh, tối đa 10 bàn hoạt động, tối đa 5 tài khoản nhân viên, không mở khóa phân quyền tùy chỉnh và không hỗ trợ các báo cáo dự báo kho/gian lận bằng AI.
+o	Gói Pro (Thử nghiệm hoặc Trả phí): Mở khóa không giới hạn số lượng bàn, chi nhánh, nhân viên và kích hoạt toàn bộ sức mạnh phân tích dữ liệu của Python Microservice.
+•	Mục tiêu:
+o	Tăng tỷ lệ chuyển đổi (Conversion Rate) từ người dùng miễn phí sang khách hàng trả phí thực tế bằng việc chứng minh giá trị của gói Pro.
+o	Bảo vệ tài nguyên máy chủ bằng cách giới hạn hiệu năng của các tài khoản miễn phí.
+4. Trang liên hệ, hỗ trợ và Hướng dẫn tương tác (Guided Tours)
+•	Bao gồm: Cổng tiếp nhận yêu cầu hỗ trợ (Ticket System), đặt lịch hẹn demo trực tiếp với đội ngũ phát triển và hệ thống tài liệu hướng dẫn thông minh.
+•	? Làm sao để giữ chân doanh nghiệp, giảm tỷ lệ rời bỏ (Churn Rate) sau khi đăng ký?
+•	Giải pháp: Thiết kế hệ thống hướng dẫn tương tác từng bước tự động (Interactive Guided Tours) ngay trên giao diện:
+o	Ngày thứ 1 (Bước chân đầu tiên): Khi chủ quán đăng nhập lần đầu, một bong bóng chỉ dẫn (tooltip) sẽ xuất hiện, dẫn dắt họ tạo nhóm món ăn và thêm món ăn thực tế của quán mình vào thực đơn.
+o	Ngày thứ 2 (Chuẩn hóa vận hành): Hệ thống gợi ý và hướng dẫn thiết lập công thức định lượng nguyên liệu (ví dụ: 1 bát phở cần 150g bánh phở, 80g thịt bò) để kích hoạt tính năng tự động trừ kho.
+o	Ngày thứ 3 (Quản trị nhân sự): Gợi ý chủ quán thêm tài khoản nhân viên, phân quyền (Thu ngân, Bếp) và hướng dẫn cách xếp lịch làm việc hàng tuần.
+•	Mục tiêu:
+o	Giảm tỷ lệ khách hàng bỏ dùng sớm (Drop-off Rate) do giao diện quản lý F&B quá nhiều thông tin và khó tiếp cận.
+o	Giúp khách hàng khai thác tối đa giá trị của phần mềm, biến F&BViet thành công cụ không thể thiếu trong vận hành hàng ngày của họ.
+o	Nâng cao tỷ lệ gia hạn dịch vụ dài hạn.
+Thứ tự phát triển ưu tiên của module
+1.	Giai đoạn 1 (Core Marketing): Thiết kế Landing Page và trang giới thiệu tính năng tĩnh để kiểm tra mức độ thu hút khách hàng.
+2.	Giai đoạn 2 (Authentication & Tenant Seeder - Quan trọng nhất): Phát triển form đăng ký, tích hợp logic tự động tạo tenant mới trong database dùng chung, tự động gán quyền Owner và seeder dữ liệu mẫu ban đầu.
+3.	Giai đoạn 3 (Subscription & Quota Middleware): Xây dựng hệ thống phân chia gói dịch vụ (Free/Pro), viết các middleware kiểm tra giới hạn tài nguyên (ví dụ: Chặn không cho tạo bàn thứ 11 nếu đang ở gói Free).
+4.	Giai đoạn 4 (Retention & Support): Tích hợp thư viện Guided Tours (ví dụ: Intro.js hoặc Shepherd.js) trên giao diện quản trị, phát triển hệ thống Ticket và chatbot AI tư vấn.
 15.3: Phát triển Quản lý nhà hàng/Admin
 
 ? Tài khoản cố định hay thay đổi: dựa vào việc phân quyền của Chủ doanh nghiệp, có thể nâng vai trò tài khoản bình thường thành tài khoản quản lý cũng có thể vô hiệu vai trò
@@ -562,15 +2514,13 @@ Thứ tự phát triển
 
 -Quản lý doanh thu, lợi nhuận: Quản lý hoặc admin có thể chọn thời gian chốt ca hằng ngày, sau mỗi ca hệ thống sẽ yêu cầu chốt ca để xem âm hay đủ tiền(ví dụ ngày chốt ca 2 lần ca sáng lúc 16h, ca tối 21h, thì cứ cuối ca sẽ gửi tổng doanh thu và tiền ck ghi nhận được trong thời gian ca đó. Yêu cầu xác nhận số tiền mặt còn lại có đủ với tính toán của hệ thống ko, nếu
 
-có thu chi gì thì tài khoảng admin hoặc quản lý phải bổ sung vào phiếu đó rồi xác nhận. Thông tin người xác nhận sẽ lưu lại và gửi cho Admin vào cuối ngày ),hằng ngày sẽ gửi báo cáo doanh thu về email cho chủ doanh nghiệp vào lúc 23h59 ( doanh thu gồm: tổng doanh thu, Số chuyển khoản ghi nhận ( có link để xem chi tiết thông tin các chuyển khoản đó ), chốt ca theo từng ca trong ngày và thông tin người xác nhận, sau khi trừ các chi phí phát sinh thì số tiền mặt phải còn lại là... Nếu ko đủ tiền mặt thì sẽ mặc định tự đẩy thông tin số âm đó vào tài khoản của thu ngân ca đó ). Bổ sung: để tăng tính minh bạch thì mỗi khi chốt ca thì sẽ gửi gmail vào tài khoản thu ngân  ca đó để họ xác nhận và có chức năng khiếu nại nếu sai xót.
+có thu chi gì thì tài khoảng admin hoặc quản lý phải bổ sung vào phiếu đó rồi xác nhận. Thông tin người xác nhận sẽ lưu lại và gửi cho Admin vào cuối ngày ),hằng ngày sẽ gửi báo cáo doanh thu về email cho chủ doanh nghiệp vào lúc 23h59 ( doanh thu gồm: tổng doanh thu, Số chuyển khoản ghi nhận ( có link để xem chi tiết thông tin các chuyển khoản đó ), chốt ca theo từng ca trong ngày và thông tin người xác nhận, sau khi trừ các chi phí phát sinh thì số tiền mặt phải còn lại là... Nếu không đủ tiền mặt, hệ thống sẽ tự động ghi nhận giá trị chênh lệch âm này và gắn trách nhiệm trực tiếp vào tài khoản nhân sự phụ trách phiên khớp ca (hoặc tài khoản có quyền payment_order) trong ca làm việc đó. Đồng thời, hệ thống sẽ tự động gửi thông báo và biên bản chốt ca đến email của nhân sự phụ trách để họ xác nhận hoặc thực hiện quyền khiếu nại nếu có sai sót, đảm bảo tính minh bạch tối đa. Bổ sung: để tăng tính minh bạch thì mỗi khi chốt ca thì sẽ gửi gmail vào tài khoản thu ngân  ca đó để họ xác nhận và có chức năng khiếu nại nếu sai xót.
 
 15.4: Phát triển nhân viên quán ( order, thu ngân, bếp )
 15.4.1: Phát triển nhân viên order
 ?  Tài khoản hoạt động khi nào: dựa vào bảng “Lịch làm mà chủ quán/quản lý” xếp, ví dụ: ca làm của tài khoản này là 16 giờ 00 đến 23 giờ 00 thứ 3 ngày... thì trong khoảng thời gian đó sẽ được mở, ngoài ra khung thời gian đó sẽ bị vô hiệu. => Mục đích: tránh vào đơn ko có thực khi ngoài giờ làm, ảnh hưởng tới người trực ca và doanh thu thực
-?Tài khoản này có thể thực hiện thanh toán không ? Không thể, chỉ có thể vào đơn và đánh dấu đơn đã thanh toán
-
+? Tài khoản này có thể thực hiện thanh toán không? Hệ thống kiểm soát hành động dựa trên quyền hạn chi tiết. Tài khoản thông thường phụ trách gọi món (Order) mặc định sẽ không được cấp quyền thực hiện thủ tục thanh toán. Chức năng thanh toán và kết ca chỉ hiển thị và khả dụng đối với các tài khoản được kích hoạt tính năng payment_order (quyền thanh toán hóa đơn).
 - Tạo đơn: Có 20 bàn trong 1 khu vực đánh số từ nhỏ tới lớn theo bảng chữ cái, ví dụ A1, A2, A3,....B1,B2,B3,....( có thể nhiều hơn tùy thuộc vào tùy chỉnh của quản lý/chủ ), nhân viên order cần chọn bàn nào đang trống để vào đơn, khi ấn vào bàn trống thì sẽ hiện lên danh mục món ăn/uống để chọn món, khi chọn sẽ hiển thị số bên cạnh mặc định là 1, mỗi khi chọn món thì biểu tượng giỏ hàng sẽ nảy số lượng tổng món, sau khi chọn thì ấn nút xác nhận và sẽ chuyển tới màn hình xác nhận, nơi đó sẽ có tất cả các món đã chọn mà và số lượng, tổng tiền, giá tiền từng món có thể xóa món hoặc điều chỉnh số lượng hoặc quay lại danh mục để thêm, đồ uống khi ở đây, khi này nút xác nhận sẽ chuyển thành thông báo, khi đã “thông báo” thì không thể xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm và tiếp tục gửi thông báo.
-- Xem doanh thu quán trong ngày
 - Xem lịch làm việc, đăng ký lịch làm
 - Chức năng khiếu nại ( luôn được hiển thị là ẩn danh đối với người xem )
 -Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc xóa tên hỏi hệ thống mà không cần đổi thủ công )
@@ -617,95 +2567,61 @@ Repository
 ↓
 Database
 16.2 Tối ưu Hiệu năng & Khả năng mở rộng (Scalability)
-Hệ thống cần xử lý mượt mà khi có 2000-3000 người dùng đồng thời trong giờ cao điểm.
-•	Tối ưu Database:
-o	Tuyệt đối tránh lỗi Query N+1 bằng cách sử dụng Eager Loading (with()).
-o	Đánh Index cho các cột thường xuyên tìm kiếm/filter (restaurant_id, status, created_at).
-o	Tránh SELECT *, chỉ lấy các trường cần thiết để giảm tải RAM và băng thông.
-o	Tối ưu query ngay từ đầu để có phương án xử lý khi lưu lượng truy cập lớn ngoài dự tính:
-o tránh query N+1
-o sử dụng index
-o pagination
-o cache dữ liệu
-o eager loading
-o	Ví dụ:
-Sai:
-foreach ($orders as $order) {
-echo $order->user->name;
-}
-o	Đúng:
-Order::with('user')->get();
-o	• Database cần tối ưu ngay từ đầu:
-o index
-o foreign key
-o pagination
-o eager loading
-o chỉ select các field cần thiết
-o tránh SELECT *
-o	Ví dụ:
-SELECT id, total, status
-FROM orders
-WHERE restaurant_id = 1
-LIMIT 20
-o	Không nên:
-SELECT * FROM orders
-
-•	Cơ chế Caching (Redis):
-o	Application Cache: Lưu Menu, danh mục món ăn, cấu hình nhà hàng (những dữ liệu ít thay đổi).
-o	Session Cache: Lưu session người dùng vào Redis thay vì File để tăng tốc độ truy cập.
-o	 Cần sử dụng Redis cache để giảm tải database:
-o cache menu
-o cache dashboard
-o cache báo cáo
-o cache session
-o	Ví dụ:
-Menu món ăn thường ít thay đổi nên có thể cache Redis để giảm số lượng query database.
-
-•	Hàng đợi (Queue & Background Jobs):
-o	Chuyển các tác vụ nặng (Gửi mail xác nhận, xuất báo cáo PDF, đồng bộ dữ liệu kế toán) sang hàng đợi.
-o	Sử dụng Laravel Horizon để giám sát trạng thái các Job realtime.
-• Cần sử dụng Queue cho các tác vụ nặng:
-o gửi email
-o gửi thông báo
-o xuất báo cáo
-o xử lý background job
-Ví dụ:
-Sau khi khách đặt món:
-•	lưu order ngay lập tức
-•	gửi email và notification qua Queue để tránh request bị chậm.
-Laravel hỗ trợ:
-•	Queue
-•	Job
-•	Horizon
-•	Redis Queue
+Hệ thống cần xử lý mượt mà khi có từ $2.000$ đến $3.000$ người dùng đồng thời trong giờ cao điểm. Để đạt được điều này, các chiến lược tối ưu hóa tầng dữ liệu và hạ tầng được phân rã như sau:
+1. Tối ưu hóa Cơ sở dữ liệu (Database Optimization)
+•	Tuyệt đối tránh lỗi truy vấn $N+1$: Luôn áp dụng kỹ thuật Eager Loading thông qua phương thức with() để gom các câu lệnh truy vấn quan hệ thành một single query, giảm tải tối đa cho MySQL.
+o	Sai (Gây ra $N+1$ queries):
+o	$orders = Order::all();
+o	foreach ($orders as $order) {
+o	    echo $order->user->name; // Mỗi vòng lặp lại tạo ra 1 query SELECT mới vào bảng users
+o	}
+o	Đúng (Chỉ chạy 2 queries):
+o	Order::with('user')->get();
+•	Chiến lược Đánh Chỉ mục (Indexing): Thiết lập chỉ mục đơn và chỉ mục hỗn hợp (Composite Index) một cách chiến lược trên các cột thường xuyên xuất hiện trong mệnh đề WHERE hoặc ORDER BY, đặc biệt là restaurant_id, status và created_at.
+•	Nghiêm cấm sử dụng SELECT *: Chỉ truy vấn chính xác các trường dữ liệu cần thiết phục vụ cho logic nghiệp vụ hiện tại nhằm tiết kiệm dung lượng RAM của Server và băng thông truyền tải mạng. Luôn kết hợp phân trang (Pagination) cho các danh sách dữ liệu lớn.
+o	Nên làm:
+o	SELECT id, total_amount, status FROM orders WHERE restaurant_id = 1 LIMIT 20;
+o	Không nên làm:
+o	SELECT * FROM orders;
+•	Tính toàn vẹn và nhất quán (Atomicity & Concurrency): Sử dụng Database Transactions cho các luồng nghiệp vụ phức tạp liên quan đến tiền tệ và kho bãi (Tạo hóa đơn $\rightarrow$ Trừ kho $\rightarrow$ Tích điểm). Khi có tranh chấp dữ liệu (nhiều nhân viên cùng thao tác), áp dụng cơ chế Khóa bi quan (Pessimistic Locking) để đảm bảo tính nhất quán.
+2. Cơ chế Lưu trữ đệm (Caching với Redis)
+Hệ thống sử dụng Redis làm In-memory Database để giảm thiểu số lượng truy vấn trực tiếp vào MySQL:
+•	Application Cache: Lưu trữ các dữ liệu có tần suất đọc cực cao nhưng ít khi thay đổi như: Menu món ăn, danh mục thực đơn, cấu hình phân bàn và thiết lập riêng của từng nhà hàng.
+o	Ví dụ: Menu món ăn của nhà hàng được cache lại trên Redis. Hệ thống chỉ đọc từ Redis thay vì query MySQL, giúp giảm tải đến $80\%$ áp lực cho database chính trong giờ cao điểm.
+•	Dashboard & Báo cáo Cache: Cache các số liệu thống kê doanh thu tạm thời theo giờ để chủ quán xem dashboard realtime mà không cần tính toán lại hàng triệu bản ghi hóa đơn.
+•	Session Cache: Cấu hình lưu trữ session người dùng trực tiếp trên Redis thay vì lưu file vật lý (file driver), tăng tốc độ xác thực và kiểm tra phiên làm việc.
+3. Hàng đợi và Xử lý nền bất đồng bộ (Queue & Background Jobs)
+Hệ thống tách biệt rõ ràng tiến trình: Tiến trình lưu trữ inventory_transactions phụ và phân tích hao hụt được đẩy ngầm qua Queue Job nhằm đảm bảo tốc độ phản hồi API < 2s. Song song đó, để tối ưu trải nghiệm Onboarding cho Tenant mới, hệ thống áp dụng cơ chế Seeding tự động khép kín (Món ăn - Nguyên liệu - Công thức mẫu). Việc này giúp chủ nhà hàng có thể chạy thử nghiệm luồng bán hàng ngay lập tức mà không gặp các lỗi dữ liệu rỗng (Null Pointer) từ các tiến trình xử lý ngầm.
+•	Các tác vụ đưa vào Queue bao gồm: Gửi email xác nhận đơn hàng, gửi thông báo đẩy (Notification), xuất tệp báo cáo định dạng PDF/Excel, đồng bộ dữ liệu kế toán và tự động tính toán lương nhân sự.
+•	Xử lý Log giao dịch kho nâng cao: Trực tiếp đẩy các logic tạo bản ghi nhật ký kho (inventory_transactions), tính toán giá vốn trung bình (average_cost), và đẩy gói dữ liệu phân tích gian lận sang Python Microservice thông qua Queue.
+•	Lưu ý quan trọng về nghiệp vụ Kho: Tuyệt đối không đưa logic kiểm tra tồn kho và trừ số lượng vật lý lõi (quantity_on_hand trong bảng inventories) vào Queue ngầm. Logic này bắt buộc phải được xử lý đồng bộ (Synchronous) ngay tại thời điểm Thu ngân bấm thanh toán hoặc Bếp bấm xác nhận làm món, kết hợp với cơ chế Khóa bi quan (Locking) để chặn đứng nguy cơ kho bị âm do hiện tượng bán quá vạch kho (Over-selling) khi có hàng ngàn đơn hàng phát sinh cùng một thời điểm.
+•	Công cụ hỗ trợ giám sát hạ tầng: Sử dụng kết hợp hệ sinh thái mạnh mẽ của Laravel bao gồm: Queue, Job, Redis Queue và trình quản lý giao diện trực quan Laravel Horizon để theo dõi tải, tỷ lệ lỗi và điều phối các Worker xử lý ngầm một cách thời gian thực (Realtime).
 16.3 Trải nghiệm Realtime & Frontend (Vue.js)
 Trong nhà hàng, tốc độ là ưu tiên số 1. Bếp cần nhận đơn ngay khi phục vụ bấm máy.
 •	Kết nối Realtime (WebSockets):
-o	Sử dụng Laravel Echo kết hợp với Pusher hoặc tự triển khai Soketi/Socket.io để tiết kiệm chi phí.
-o	Cấm Polling: Không dùng setInterval để gọi API liên tục, việc này sẽ làm sập server khi số lượng nhà hàng tăng lên.
-•	Quản lý State (Pinia/Vuex):
-o	Quản lý giỏ hàng, thông tin bàn và trạng thái đơn hàng tập trung tại Frontend để tránh việc phải load lại trang hoặc gọi API dư thừa.
-•	Tối ưu Frontend: * Lazy Loading routes: Chỉ tải code của module Báo cáo khi người dùng click vào mục Báo cáo.
-o	Responsive UI: Giao diện phải tương thích tốt trên máy POS (màn hình ngang) và Tablet/Phone (cho phục vụ di động).
-• Cần có WebSocket để hệ thống realtime:
-o cập nhật order
-o trạng thái bếp
-o thông báo nhân viên
-o đồng bộ trạng thái theo thời gian thực
+o	Sử dụng Laravel Reverb kết hợp Laravel Echo: Triển khai WebSocket Server thuần PHP (tích hợp từ Laravel 11/12) chạy độc lập được quản lý bởi Supervisor để duy trì hàng nghìn kết nối mở đồng thời mà không tốn chi phí cho bên thứ ba (Pusher) hay làm phức tạp hạ tầng (Socket.IO).
+o	Cấm Polling: Không dùng setInterval để gọi API liên tục, việc này sẽ gây nghẽn và làm sập server khi số lượng nhà hàng tăng lên.
+•	Quản lý State (Pinia):
+o	Quản lý giỏ hàng, thông tin bàn và trạng thái đơn hàng tập trung tại Frontend thông qua Pinia để tránh việc phải tải lại trang hoặc gọi API dư thừa.
+•	Tối ưu Frontend:
+o	Lazy Loading routes: Chỉ tải mã nguồn của module Báo cáo khi người dùng click vào mục Báo cáo để giảm thời gian tải trang ban đầu.
+o	Responsive UI: Giao diện phải tương thích tốt trên máy POS (màn hình ngang cố định tại quầy) và Tablet/Phone (cho phục vụ di động).
+• Cần có WebSocket để hệ thống hoạt động Realtime:
+•	Cập nhật đơn hàng (Order) tức thì.
+•	Đồng bộ trạng thái xử lý món ăn tại nhà bếp.
+•	Phát thông báo nội bộ cho nhân viên (gọi thanh toán, gọi món mới).
+•	Đồng bộ trạng thái bàn ăn (Trống / Có khách / Đang dọn) theo thời gian thực.
+Ví dụ: Nhân viên phục vụ vừa tạo đơn trên điện thoại thì màn hình của đầu bếp phải hiển thị món ăn cần chế biến ngay lập tức mà không cần F5 lại trang.
+Frontend Vue.js sẽ nhận dữ liệu realtime thông qua hệ sinh thái:
+•	Laravel Echo: Thư viện JavaScript ở client chịu trách nhiệm lắng nghe các kênh (Channels).
+•	Laravel Reverb: WebSocket Server ở Backend phát tín hiệu dựa trên giao thức bảo mật (wss://).
+• Không nên xử lý realtime bằng cơ chế polling liên tục:
+•	Tránh spam request lên Web Server.
+•	Giảm tải tối đa cho hệ thống Database trung tâm.
+•	Ưu tiên tuyệt đối kiến trúc hướng sự kiện (Event-Driven) với WebSockets.
 Ví dụ:
-Nhân viên tạo order thì màn hình bếp phải nhận được ngay mà không cần F5 lại trang.
-Frontend Vue.js sẽ nhận dữ liệu realtime thông qua:
-•	Laravel Echo
-•	Pusher
-•	Socket.IO
-• Không nên xử lý realtime bằng polling liên tục:
-o tránh spam request
-o giảm tải server
-o ưu tiên WebSocket/Pusher
-Ví dụ:
-Không nên:
-setInterval(fetchOrders, 1000)
-Vì với hàng nghìn người dùng sẽ tạo ra lượng request cực lớn.
+•	Không nên: setInterval(fetchOrders, 1000) vì với hàng nghìn người dùng hoạt động cùng lúc vào giờ cao điểm, hệ thống sẽ phải hứng chịu hàng triệu request dư thừa, dẫn đến treo Server.
+•	Nên: Dùng Laravel Echo để lắng nghe sự kiện cụ thể: Echo.private('restaurant.' + tenantId).listen('.OrderCreated', (e) => { ... }).
 
 • Cần đảm bảo tính Atomicity để tránh xử lý nửa chừng:
 o sử dụng Database Transaction
@@ -856,8 +2772,8 @@ o test nhiều người dùng cùng lúc
 Ví dụ:
 Kiểm tra hệ thống khi có hàng nghìn request đồng thời.
 • Cần chuẩn bị kiến trúc để đáp ứng:
-o 15–20 nhà hàng cùng sử dụng
-o khoảng 2000–3000 người dùng hoạt động đồng thời
+o 100+ nhà hàng cùng sử dụng
+o khoảng 10000+ người dùng hoạt động đồng thời
 o lượng order realtime liên tục
 Ví dụ:
 Khi giờ cao điểm có nhiều nhà hàng tạo order cùng lúc hệ thống vẫn phải hoạt động ổn định.
@@ -887,8 +2803,4 @@ o theo dõi hiệu năng
 o phát hiện bottleneck sớm
 Ví dụ:
 Theo dõi server để phát hiện RAM đầy hoặc CPU quá tải trước khi hệ thống bị sập.
-
-
-
-
 
