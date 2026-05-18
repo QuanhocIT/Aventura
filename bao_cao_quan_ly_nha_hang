@@ -324,7 +324,7 @@ Quyền:
 9.2 Authorization (RBAC)
 Đây là bước phân quyền để trả lời  câu hỏi: "Bạn là ai, và bạn có quyền làm gì?".
 •	RBAC (Role-Based Access Control): Bạn chia người dùng vào các nhóm như: Super Admin, Chủ quán, Thu ngân, Bếp.
-•	Nguyên tắc thiết kế hệ thống: BepsoViet áp dụng mô hình phân quyền hướng hành động (Permission-based Access). Toàn bộ logic nghiệp vụ ở cả Backend (Laravel API) và Frontend (Vue.js SPA) đều được rào chắn dựa trên các Permission tĩnh (như create_order, payment_order, view_report). Hệ thống hoàn toàn không hard-code tên vai trò (Role) trong mã nguồn, cho phép Chủ nhà hàng tùy biến hoặc nâng cấp, tước quyền của bất kỳ nhân sự nào một cách linh hoạt mà không cần can thiệp vào mã nguồn.
+•	Nguyên tắc thiết kế hệ thống: Aventura áp dụng mô hình phân quyền hướng hành động (Permission-based Access). Toàn bộ logic nghiệp vụ ở cả Backend (Laravel API) và Frontend (Vue.js SPA) đều được rào chắn dựa trên các Permission tĩnh (như create_order, payment_order, view_report). Hệ thống hoàn toàn không hard-code tên vai trò (Role) trong mã nguồn, cho phép Chủ nhà hàng tùy biến hoặc nâng cấp, tước quyền của bất kỳ nhân sự nào một cách linh hoạt mà không cần can thiệp vào mã nguồn.
 •	Cách thức: Thay vì kiểm tra trực tiếp chức vụ, hệ thống kiểm tra "Quyền" (Permission).
 o	Ví dụ: Cả Quản lý và Chủ quán đều có quyền view_report, nhưng chỉ Chủ quán mới có quyền delete_restaurant.
 9.3 Chống SQL Injection
