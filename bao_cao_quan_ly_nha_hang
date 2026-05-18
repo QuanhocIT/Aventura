@@ -1,5 +1,5 @@
 BÁO CÁO DỰ ÁN: HỆ THỐNG QUẢN LÝ NHÀ HÀNG DẠNG SAAS
-Tên đề tài: BepsoViet
+Tên đề tài: Hệ thống quản lý nhà hàng Aventura
 Chủ trương
 Đề cao khả năng quản lý toàn phần, tính minh bạch trong quản lý, giảm sự phụ thuộc và tính trung thực của nhân viên; tối ưu các chức năng chuyên môn cốt lõi cho doanh nghiệp; hỗ trợ xử lý kịp thời các vấn đề ảnh hưởng đến uy tín và sự vận hành của nhà hàng, tích hợp AI vào hệ thống để tăng khả năng phán đoán để đưa ra các quyết định sáng suốt nâng cao lợi nhuận của doanh nghiệp.
 ________________________________________
@@ -8,7 +8,7 @@ Dự án xây dựng hệ thống quản lý nhà hàng theo mô hình SaaS tư�
 Hệ thống hỗ trợ quản lý đơn hàng, nhân sự, kho nguyên liệu, doanh thu, khách hàng và báo cáo kinh doanh. Ngoài ra, hệ thống tích hợp Python để phân tích dữ liệu, tự động hóa xử lý nghiệp vụ và hỗ trợ dự đoán, giúp chủ nhà hàng đưa ra quyết định chính xác hơn.
 ________________________________________
 2. Công nghệ sử dụng
-Để đáp ứng mục tiêu xây dựng một nền tảng SaaS mạnh mẽ, đảm bảo hiệu năng cao (phản hồi < 2s) và khả năng mở rộng linh hoạt, dự án BepsoViet được triển khai dựa trên hệ sinh thái công nghệ hiện đại sau:
+Để đáp ứng mục tiêu xây dựng một nền tảng SaaS mạnh mẽ, đảm bảo hiệu năng cao (phản hồi < 2s) và khả năng mở rộng linh hoạt, dự án Aventura được triển khai dựa trên hệ sinh thái công nghệ hiện đại sau:
 2.1 Backend & Hệ sinh thái xử lý trung tâm
 •	Laravel 12 (PHP): Đóng vai trò nền tảng chính để xây dựng RESTful API, quản lý logic nghiệp vụ và cấu trúc đa người thuê (Multi-tenant).
 o	Laravel Horizon: Công cụ bắt buộc đi kèm với Redis để quản lý và giám sát hệ thống hàng đợi (Queue), giúp theo dõi tỷ lệ lỗi và thời gian xử lý các tác vụ nền.
@@ -37,7 +37,7 @@ o	Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối ưu
 •	Postman: Công cụ chủ đạo trong việc kiểm thử và xây dựng tài liệu hướng dẫn sử dụng API.
 ________________________________________
 3. Vai trò của các công nghệ trong hệ thống
-Hệ thống BepsoViet được xây dựng dựa trên sự kết hợp giữa Laravel, Vue.js và Python, trong đó mỗi công nghệ đảm nhiệm một vai trò riêng nhằm tối ưu hiệu suất, khả năng mở rộng và trải nghiệm người dùng. Việc tách rõ trách nhiệm giữa các công nghệ giúp hệ thống dễ bảo trì, nâng cấp và phù hợp với mô hình SaaS nhiều doanh nghiệp cùng sử dụng.
+Hệ thống Aventura được xây dựng dựa trên sự kết hợp giữa Laravel, Vue.js và Python, trong đó mỗi công nghệ đảm nhiệm một vai trò riêng nhằm tối ưu hiệu suất, khả năng mở rộng và trải nghiệm người dùng. Việc tách rõ trách nhiệm giữa các công nghệ giúp hệ thống dễ bảo trì, nâng cấp và phù hợp với mô hình SaaS nhiều doanh nghiệp cùng sử dụng.
 3.1 Vai trò của Laravel trong hệ thống
 Laravel đóng vai trò là backend chính của hệ thống, chịu trách nhiệm xử lý toàn bộ logic nghiệp vụ cốt lõi, quản lý dữ liệu, phân quyền và cung cấp API cho frontend. Laravel giúp tổ chức mã nguồn theo mô hình MVC, hỗ trợ phát triển nhanh, bảo mật tốt và dễ mở rộng trong tương lai.
 Laravel đảm nhiệm các chức năng như:
@@ -139,7 +139,7 @@ Ví dụ:
 •	Laravel hiển thị trên dashboard
 ________________________________________
 5. Thành phần hệ thống chi tiết
-Hệ thống BepsoViet được thiết kế theo kiến trúc tách biệt giữa giao diện, nghiệp vụ và phân tích dữ liệu.
+Hệ thống Aventura được thiết kế theo kiến trúc tách biệt giữa giao diện, nghiệp vụ và phân tích dữ liệu.
 5.1 Các thành phần lõi
 •	Frontend Vue.js: Xây dựng dưới dạng Single Page Application (SPA) để tối ưu trải nghiệm người dùng, giảm tải việc tải lại trang và giao tiếp hoàn toàn qua REST API.
 •	Backend Laravel API: Đóng vai trò là trung tâm xử lý logic nghiệp vụ, quản lý xác thực (JWT/Sanctum), và kết nối các dịch vụ khác.
@@ -182,9 +182,9 @@ o	view_report: Xem báo cáo doanh thu và hiệu suất theo ngày/tuần/thán
 Lưu ý: Tất cả các hành động nhạy cảm như sửa giá, hủy đơn hoặc sửa dữ liệu kho đều được hệ thống tự động ghi lại vào Audit Log để phục vụ việc tra soát minh bạch sau này.
 ________________________________________
 7. KIẾN TRÚC DỮ LIỆU
-Hệ thống BepsoViet được thiết kế với kiến trúc dữ liệu chú trọng vào khả năng cô lập dữ liệu người dùng và khả năng truy vết hành vi, đảm bảo tính bảo mật và minh bạch cao nhất cho mô hình SaaS.
+Hệ thống Aventura được thiết kế với kiến trúc dữ liệu chú trọng vào khả năng cô lập dữ liệu người dùng và khả năng truy vết hành vi, đảm bảo tính bảo mật và minh bạch cao nhất cho mô hình SaaS.
 7.1 Mô hình Multi-tenant (Kiến trúc đa người thuê)
-Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Database - Shared Schema, trong đó toàn bộ các doanh nghiệp dùng chung cơ sở dữ liệu nhưng được cô lập hoàn toàn về mặt logic. Đây là mô hình cân bằng tốt nhất giữa chi phí vận hành hạ tầng và khả năng quản lý tập trung cho hệ thống BepsoViet.
+Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Database - Shared Schema, trong đó toàn bộ các doanh nghiệp dùng chung cơ sở dữ liệu nhưng được cô lập hoàn toàn về mặt logic. Đây là mô hình cân bằng tốt nhất giữa chi phí vận hành hạ tầng và khả năng quản lý tập trung cho hệ thống Aventura.
 •	Cơ chế phân tách và cô lập dữ liệu:
 o	Khóa định danh (Tenant Key): Mọi bảng dữ liệu liên quan đến vận hành bắt buộc chứa cột restaurant_id làm khóa ngoại để phân tách dữ liệu giữa các nhà hàng.
 o	Global Scope (Laravel): Hệ thống áp dụng cơ chế lọc tự động ở tầng Model (Global Scope). Điều này đảm bảo mọi câu lệnh truy vấn (SELECT, UPDATE, DELETE) luôn mặc định kèm theo điều kiện WHERE restaurant_id = ?, ngăn chặn tuyệt đối nguy cơ rò rỉ dữ liệu giữa các doanh nghiệp.
@@ -246,7 +246,7 @@ Hệ thống chuẩn hóa các trạng thái cho mọi thực thể chính để
 7.9 Cơ chế xử lý đồng thời (Concurrency Handling)
 •	Hệ thống sử dụng cơ chế Locking để giải quyết các tranh chấp dữ liệu khi nhiều người cùng thao tác.
 •	Ví dụ: Ngăn chặn trường hợp 2 nhân viên cùng trừ kho một nguyên liệu tại cùng một thời điểm, dẫn đến số lượng tồn kho bị âm hoặc sai lệch.
-Việc kết hợp chặt chẽ giữa phân tách dữ liệu theo Tenant, ghi nhật ký Audit Log và tối ưu hóa hiệu năng giúp BepsoViet không chỉ là một phần mềm quản lý mà còn là một nền tảng dữ liệu tin cậy cho các chủ doanh nghiệp.
+Việc kết hợp chặt chẽ giữa phân tách dữ liệu theo Tenant, ghi nhật ký Audit Log và tối ưu hóa hiệu năng giúp Aventura không chỉ là một phần mềm quản lý mà còn là một nền tảng dữ liệu tin cậy cho các chủ doanh nghiệp.
 
 8. Các tác nhân
 Hệ thống phân chia rõ rệt 5 tầng tác nhân để đảm bảo tính chuyên môn hóa:
@@ -335,7 +335,7 @@ XSS xảy ra khi ai đó nhập mã JavaScript vào một ô nhập liệu (ví 
 •	Cách bảo vệ: * Vue.js: Tự động mã hóa các dữ liệu bạn hiển thị ra màn hình.
 o	Laravel: Khi bạn trả về JSON từ API, các ký tự đặc biệt đã được xử lý an toàn.
 9.5 Chống CSRF (Cross-Site Request Forgery)
-Đây là kiểu tấn công "mượn tay". Kẻ xấu lừa bạn bấm vào một link lạ khi bạn đang đăng nhập vào BepsoViet, và link đó tự động gửi một lệnh (như "Xóa nhân viên") đến server.
+Đây là kiểu tấn công "mượn tay". Kẻ xấu lừa bạn bấm vào một link lạ khi bạn đang đăng nhập vào Aventura, và link đó tự động gửi một lệnh (như "Xóa nhân viên") đến server.
 •	Lưu ý cho sinh viên: Vì bạn dùng API (Sanctum/JWT), bạn thường sẽ không cần dùng CSRF Token truyền thống giống như các trang web load lại trang (MPA). Laravel Sanctum có cơ chế bảo vệ riêng cho SPA rất an toàn.
 9.6 Rate Limiting
 Đây là cơ chế "giới hạn tốc độ".
@@ -351,31 +351,35 @@ Dữ liệu nhạy cảm nhất chính là Mật khẩu.
 =>Vì đang làm mô hình Multi-tenant, bảo mật quan trọng nhất mà bạn cần thực hiện tốt trong code là Global Scope. Hãy đảm bảo rằng mọi câu lệnh SELECT luôn có điều kiện WHERE restaurant_id = ... để nhà hàng A không bao giờ thấy thực đơn hay doanh thu của nhà hàng B.
 
 10. Chi tiết luồng nghiệp vụ hệ thống (Workflow)
-Workflow đặt món
-Khách/Thu ngân tạo đơn
+Sơ đồ Workflow đặt món và xử lý đơn hàng
+Plaintext
+Khách/Thu ngân tạo đơn [cite: 306]
          ↓
-[Kiểm tra & Khóa kho vật lý tạm thời] (Đồng bộ - Tránh trùng lặp đơn)
+[Kiểm tra & Giữ kho tạm thời] (Ghi bản ghi vào bảng đệm inventory_reservations) [cite: 308, 326]
          ↓
-Bếp nhận order Realtime
+Bếp nhận order Realtime [cite: 310]
          ↓
-Bếp hoàn thành món
+Bếp hoàn thành món [cite: 312]
          ↓
-Thu ngân bấm Thanh toán (Kích hoạt Database Transaction)
+Thu ngân bấm Thanh toán (Kích hoạt Database Transaction) [cite: 314]
          ↓
-┌───────────────────────────────────────┴───────────────────────────────────────┐
-▼ (Nhánh 1: Đồng bộ - Xử lý ngay lập tức)       ▼ (Nhánh 2: Bất đồng bộ - Đẩy vào Redis Queue)
-- Cắt/Trừ kho vật lý lõi (quantity_on_hand)    - Ghi lịch sử Audit Log chi tiết (Ai sửa, ai hủy)
-- Chuyển trạng thái bàn sang "Trống"            - Tạo file hóa đơn PDF/Excel, tự động gửi Email
-- Ghi nhận doanh thu tổng vào MySQL             - Ghi Nhật ký giao dịch kho (inventory_transactions)
-                                                - Đẩy dữ liệu qua FastAPI cho Python Analytics
-                                                                                ↓
-                                                                  Python cập nhật Dashboard Realtime
+┌───────────────────────────────────────────┴───────────────────────────────────────────┐
+▼ (Nhánh 1: Đồng bộ - Xử lý ngay lập tức)               ▼ (Nhánh 2: Bất đồng bộ - Đẩy vào Redis Queue) [cite: 317]
+- Chuyển trạng thái bàn sang "Trống" [cite: 319]                    - Ghi lịch sử Audit Log chi tiết (Ai sửa, ai hủy) [cite: 318]
+- Cắt/Trừ kho vật lý lõi (quantity_on_hand) [cite: 318]             - Tạo file hóa đơn PDF/Excel, tự động gửi Email [cite: 319]
+- Ghi Nhật ký giao dịch kho (inventory_transactions)  - Đẩy dữ liệu qua FastAPI cho Python Analytics [cite: 321]
+- Ghi nhận doanh thu tổng vào MySQL [cite: 320]                                         ↓
+                                                                Python cập nhật Dashboard Realtime [cite: 323]
 
 Hệ thống vận hành dựa trên kiến trúc hướng sự kiện (Event-Driven Architecture), phân tách nghiêm ngặt giữa luồng nghiệp vụ cốt lõi (Đồng bộ) và các tác vụ hậu cần nặng (Bất đồng bộ). Sự kết hợp này đáp ứng tiêu chí xử lý mượt mà trong giờ cao điểm với phản hồi API < 2s.
++1
+________________________________________
+Các bước xử lý chi tiết trong Luồng nghiệp vụ
 1. Khách / Thu ngân tạo đơn và Giữ kho tạm thời
 •	Thực hiện: Khách quét mã QR tại bàn để tự gọi món hoặc Thu ngân thao tác trực tiếp trên màn hình máy POS.
-•	Kỹ thuật (Đồng bộ): * Ứng dụng Vue.js gửi một HTTP Request (POST) chứa thông tin món ăn và số lượng lên Laravel API.
-o	Xử lý giữ kho lõi: Laravel lập tức đối chiếu bảng công thức định lượng (product_recipes) , áp dụng cơ chế Khóa bi quan (lockForUpdate) để kiểm tra và trừ tạm thời số lượng tồn kho lý thuyết trong bảng inventories. Nếu lượng nguyên liệu không đủ, hệ thống lập tức chặn lại và bắn lỗi trả về giao diện Vue.js để nhân viên hoặc khách dừng phục vụ món đó, triệt tiêu hoàn toàn nguy cơ kho bị âm (Over-selling).
+•	Kỹ thuật (Đồng bộ): Ứng dụng Vue.js gửi một HTTP Request (POST) chứa thông tin món ăn và số lượng lên Laravel API.
+•	Xử lý giữ kho đệm: Laravel lập tức đối chiếu bảng công thức định lượng (product_recipes). Để tránh xung đột khóa và hiện tượng Deadlock trực tiếp trên bảng vật lý lõi, hệ thống kiểm tra và ghi nhận số lượng giữ chỗ vào bảng đệm inventory_reservations với trạng thái holding và thời gian hết hạn (TTL). Nếu lượng nguyên liệu trong kho không đủ đáp ứng, hệ thống lập tức chặn lại và bắn lỗi trả về giao diện Vue.js để nhân viên hoặc khách dừng phục vụ món đó, triệt tiêu hoàn toàn nguy cơ kho bị âm (Over-selling).
++1
 •	Bảo mật: Laravel kiểm tra quyền hạn chi tiết (Permission) của tài khoản thực hiện thao tác và xác thực tính hợp lệ của dữ liệu đầu vào.
 2. Bếp nhận order thời gian thực (Realtime)
 •	Cơ chế: Ngay khi Laravel xác thực kho đủ và lưu đơn hàng thành công vào database MySQL với trạng thái pending, một Event hệ thống sẽ lập tức được kích hoạt.
@@ -385,24 +389,27 @@ o	Xử lý giữ kho lõi: Laravel lập tức đối chiếu bảng công thứ
 •	Thao tác: Nhân viên bếp thao tác trên màn hình chuyên dụng, nhấn chuyển trạng thái món ăn từ "Chưa làm" sang "Hoàn thành".
 •	Kỹ thuật: Trạng thái đơn hàng trong database được cập nhật từ preparing (đang làm) sang completed (hoàn thành).
 •	Thông báo: Một tín hiệu realtime hướng sự kiện khác lại được gửi ngược về cho Thu ngân hoặc hiển thị trực tiếp trên thiết bị di động của Khách để thông báo món ăn đã sẵn sàng đi đồ.
-4. Thu ngân thực hiện thủ tục thanh toán
+4. Thu ngân thực hiện thủ tục thanh toán và Trừ kho lõi
 •	Thao tác: Thu ngân kiểm tra lại hóa đơn, áp dụng mã giảm giá, voucher (nếu có) và nhấn nút "Thanh toán".
-•	Kỹ thuật (Vòng đời Database Transaction): Laravel bắt buộc phải bọc luồng này trong DB::transaction để đảm bảo tính nguyên tử (Atomicity):
+•	Kỹ thuật (Vòng đời Database Transaction): Laravel bắt buộc phải bọc toàn bộ luồng này trong DB::transaction để đảm bảo tính nguyên tử (Atomicity) và tính nhất quán tuyệt đối của dữ liệu:
 o	Hóa đơn thanh toán được khởi tạo, trạng thái thanh toán chuyển thành paid.
 o	Doanh thu thực tế được ghi nhận vào hệ thống và trạng thái bàn ăn tự động chuyển về lại trạng thái "Trống" (available).
-o	Nếu xảy ra bất kỳ sự cố phát sinh nào (lỗi cổng thanh toán, mất mạng), toàn bộ quá trình sẽ được Rollback để tránh sai lệch dòng tiền và số liệu.
+o	Cập nhật giảm số lượng kho vật lý lõi (quantity_on_hand) tại bảng inventories, đồng thời chuyển trạng thái bản ghi tương ứng trong bảng đệm inventory_reservations từ holding sang committed.
+o	Khởi tạo bản ghi Nhật ký giao dịch kho (inventory_transactions): Tiến trình này được thực hiện đồng bộ ngay tại bước thanh toán để đảm bảo mọi biến động kho vật lý luôn có lịch sử giao dịch đối ứng đi kèm, ngăn chặn rủi ro mất dấu dữ liệu kiểm toán.
+o	Nếu xảy ra bất kỳ sự cố phát sinh nào (lỗi cổng thanh toán, mất mạng, lỗi DB), toàn bộ quá trình trên sẽ được Rollback để tránh sai lệch dòng tiền và số liệu.
 5. Kích hoạt Pipeline xử lý nền bất đồng bộ (Redis Queue)
 Sau khi bước 4 (Database Transaction) hoàn tất thành công, API bán hàng chính thức được giải phóng để tiếp tục phục vụ các đơn hàng khác. Laravel lập tức đẩy các Job tác vụ nặng vào hệ thống hàng đợi ngầm (Redis Queue) do Laravel Horizon giám sát để xử lý ngầm:
-•	Bước 5.1 - Ghi nhận lịch sử kho nâng cao: Job ngầm tính toán lại giá vốn trung bình (average_cost) của nguyên liệu , đồng thời ghi nhận lịch sử chi tiết vào bảng nhật ký giao dịch kho (inventory_transactions) phục vụ đối soát.
++2
+•	Bước 5.1 - Tính toán giá vốn: Job ngầm tính toán lại giá vốn trung bình (average_cost) của nguyên liệu dựa trên các giao dịch kho vật lý vừa được ghi nhận.
 •	Bước 5.2 - Trích xuất Audit Log an toàn: Model Observer kích hoạt đồng bộ ngay trước đó để bóc tách mảng dữ liệu thay đổi cũ ($model->getOriginal()) và dữ liệu mới ($model->getAttributes()) tại tầng API nay sẽ được parse thành chuỗi JSON và lưu vào bảng audit_logs thông qua Queue để không làm chậm luồng bán hàng chính.
+•	Bước 5.3 - Hậu cần: Tự động tạo tệp hóa đơn định dạng PDF/Excel, kích hoạt gửi Email biên lai thanh toán cho khách hàng và chủ nhà hàng.
++1
 6. Python Microservice phân tích dữ liệu và Cập nhật báo cáo nâng cao
 •	Giao tiếp: Queue Worker của Laravel đóng gói toàn bộ dữ liệu đơn hàng và lịch sử biến động kho sạch, phát một HTTP Request bất đồng bộ sang Python Microservice thông qua cầu nối API tốc độ cao của FastAPI.
 •	Xử lý: Python nhận dữ liệu, sử dụng các thư viện chuyên dụng (Pandas, Scikit-learn) để tính toán lại các chỉ số lợi nhuận, chạy mô hình dự báo lượng nguyên liệu cần nhập, so sánh sai số giữa "Tồn kho lý thuyết" và "Tồn kho thực tế", đồng thời kiểm tra thuật toán phát hiện gian lận (Fraud Detection) nếu có hành vi sửa/xóa đơn bất thường.
 •	Kết quả: Sau khi phân tích, Python gửi kết quả trả về, các biểu đồ thống kê nâng cao trên giao diện Dashboard của Chủ nhà hàng (Owner) và Quản lý (Manager) sẽ tự động cập nhật số liệu mới nhất để phục vụ ra quyết định kinh doanh kịp thời từ xa.
 
-________________________________________
-11. Database chính
-- Lưu ý: hãy làm index cho các mục cốt yếu và dữ liệu lớn để tăng khả năng của hệ thống từ 40-70%
+________________________________________11. Database chính
 -- phpMyAdmin SQL Dump
 -- version 5.2.2
 -- https://www.phpmyadmin.net/
@@ -422,7 +429,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `bepso_viet`
+-- Database: `aventura`
 --
 
 -- --------------------------------------------------------
@@ -626,6 +633,24 @@ CREATE TABLE `inventories` (
   `last_counted_at` datetime DEFAULT NULL,
   `last_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
   `updated_by` bigint UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `inventory_reservations`
+--
+
+CREATE TABLE `inventory_reservations` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `order_id` bigint UNSIGNED NOT NULL,
+  `ingredient_id` bigint UNSIGNED NOT NULL,
+  `reserved_quantity` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `status` enum('holding','committed','released') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'holding',
+  `expires_at` timestamp NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -899,6 +924,7 @@ CREATE TABLE `payments` (
   `cash_received` decimal(12,2) DEFAULT NULL,
   `change_amount` decimal(12,2) DEFAULT NULL,
   `transaction_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `gateway_transaction_code` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `paid_at` datetime DEFAULT NULL,
   `meta` json DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -1489,6 +1515,8 @@ CREATE TABLE `units` (
   `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `symbol` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` enum('mass','volume','count') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'count',
+  `base_unit_id` bigint UNSIGNED DEFAULT NULL,
+  `conversion_factor` decimal(12,4) NOT NULL DEFAULT '1.0000',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1581,7 +1609,7 @@ ALTER TABLE `areas`
 ALTER TABLE `audit_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `audit_logs_branch_id_foreign` (`branch_id`),
-  ADD KEY `audit_logs_restaurant_action_created_index` (`restaurant_id`,`action`,`created_at`),
+  ADD KEY `audit_logs_restaurant_created_at_action_index` (`restaurant_id`,`created_at`,`action`),
   ADD KEY `audit_logs_subject_index` (`subject_type`,`subject_id`),
   ADD KEY `audit_logs_user_index` (`user_id`);
 
@@ -1655,6 +1683,15 @@ ALTER TABLE `inventories`
   ADD KEY `inventories_ingredient_id_foreign` (`ingredient_id`),
   ADD KEY `inventories_restaurant_ingredient_index` (`restaurant_id`,`ingredient_id`),
   ADD KEY `inventories_updated_by_index` (`updated_by`);
+
+--
+-- Indexes for table `inventory_reservations`
+--
+ALTER TABLE `inventory_reservations`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `inv_reservations_restaurant_expires_status_index` (`restaurant_id`,`expires_at`,`status`),
+  ADD KEY `inv_reservations_order_id_foreign` (`order_id`),
+  ADD KEY `inv_reservations_ingredient_id_foreign` (`ingredient_id`);
 
 --
 -- Indexes for table `inventory_transactions`
@@ -1966,7 +2003,8 @@ ALTER TABLE `suppliers`
 --
 ALTER TABLE `units`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `units_scope_symbol_unique` (`restaurant_id`,`symbol`);
+  ADD UNIQUE KEY `units_scope_symbol_unique` (`restaurant_id`,`symbol`),
+  ADD KEY `units_base_unit_id_foreign` (`base_unit_id`);
 
 --
 -- Indexes for table `users`
@@ -2007,6 +2045,7 @@ ALTER TABLE `employees` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `failed_jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `ingredients` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `inventories` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `inventory_reservations` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `inventory_transactions` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `leave_requests` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
@@ -2101,6 +2140,14 @@ ALTER TABLE `inventories`
   ADD CONSTRAINT `inventories_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `inventories_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `inventories_updated_by_foreign` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `inventory_reservations`
+--
+ALTER TABLE `inventory_reservations`
+  ADD CONSTRAINT `inv_reservations_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inv_reservations_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inv_reservations_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `inventory_transactions`
@@ -2294,6 +2341,7 @@ ALTER TABLE `suppliers`
 -- Constraints for table `units`
 --
 ALTER TABLE `units`
+  ADD CONSTRAINT `units_base_unit_id_foreign` FOREIGN KEY (`base_unit_id`) REFERENCES `units` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `units_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL;
 
 --
@@ -2363,72 +2411,66 @@ ________________________________________
 
 15. Định hướng phát triển từng phần
 
-15.1 Phát triển Super Admin (SaaS Management Layer)
-Đây là tầng quản trị cao nhất của nền tảng BepsoViet, chịu trách nhiệm quản lý toàn bộ hệ thống và các doanh nghiệp sử dụng nền tảng. Mục tiêu của module này là đảm bảo hệ thống hoạt động ổn định, dễ mở rộng và cô lập dữ liệu tuyệt đối giữa hàng trăm doanh nghiệp.
+15.1. Phát triển Super Admin (SaaS Management Layer)
+Đây là tầng quản trị cao nhất của nền tảng Aventura, chịu trách nhiệm quản lý toàn bộ hệ thống và các doanh nghiệp sử dụng nền tảng. Mục tiêu của module này là đảm bảo hệ thống hoạt động ổn định, dễ mở rộng và cô lập dữ liệu tuyệt đối giữa hàng trăm doanh nghiệp.
 ? Một hệ thống SaaS có nhiều nhà hàng sẽ được quản lý như thế nào? Giải pháp: Hệ thống áp dụng mô hình Multi-tenant (Shared Database - Shared Schema). Tất cả dữ liệu như nhân viên, menu, kho, bàn, đơn hàng và doanh thu sẽ được phân tách logic thông qua định danh restaurant_id. Kết hợp với cơ chế Global Scope trong Laravel, hệ thống tự động lọc dữ liệu theo từng nhà hàng, ngăn chặn tuyệt đối rò rỉ thông tin giữa các bên.
 Chức năng chính
-1. Quản lý doanh nghiệp (Tenant Management) Super Admin có thể:
-•	Tạo nhà hàng/doanh nghiệp mới và cấp phát không gian vận hành.
-•	Quản lý thông tin pháp lý và thông tin liên hệ của doanh nghiệp.
-•	Kích hoạt hoặc khóa tài khoản doanh nghiệp.
-•	Quản lý giới hạn tài nguyên của từng gói dịch vụ.
-? Làm sao để giới hạn tài nguyên của từng doanh nghiệp một cách linh hoạt? Giải pháp: Áp dụng cơ chế Subscription Plan (Gói dịch vụ) để phân chia hạn mức tài nguyên (Quota) ngay tại tầng cơ sở dữ liệu.
-•	Gói Miễn phí: Giới hạn 5 nhân viên, tối đa 2 khu vực và 10 bàn, không hỗ trợ AI.
-•	Gói Pro: Không giới hạn nhân viên/khu vực/bàn, mở khóa toàn bộ tính năng AI và Realtime. Điều này giúp tối ưu tài nguyên hạ tầng và tạo ra dòng doanh thu ổn định cho nền tảng.
-Điều này giúp:
-•	tối ưu tài nguyên hệ thống,
-•	dễ mở rộng mô hình kinh doanh SaaS,
-•	tạo nguồn doanh thu ổn định.
-________________________________________
-2. Quản lý tài khoản và Bảo mật Super Admin có thể:
-•	Quản lý danh sách tài khoản chủ doanh nghiệp.
-•	Reset mật khẩu và kiểm soát xác thực hai lớp (2FA).
-•	Theo dõi Audit Log (Nhật ký thao tác) cấp hệ thống.
-? Super Admin có thể can thiệp sâu đến mức nào vào dữ liệu doanh nghiệp? Giải pháp: Để đảm bảo tính minh bạch, Super Admin chỉ quản lý tầng nền tảng và không được can thiệp vào hoạt động nội bộ của doanh nghiệp nhằm đảm bảo tính minh bạch và bảo mật dữ liệu
-•	Được phép: Khóa tenant vi phạm, hỗ trợ kỹ thuật cấp cao, cấu hình tham số hệ thống.
-•	Không được phép: Xem chi tiết doanh thu, sửa đơn hàng, thay đổi bảng lương hoặc can thiệp vào các báo cáo tài chính của nhà hàng khi không được ủy quyền.
-Ví dụ:
-Super Admin:
-•	có thể khóa tenant vi phạm,
-•	hỗ trợ kỹ thuật,
-•	kiểm tra trạng thái hệ thống.
-Nhưng không được:
-•	sửa đơn hàng,
-•	thay đổi doanh thu,
-•	chỉnh sửa dữ liệu vận hành nếu không có quyền đặc biệt từ doanh nghiệp.
-________________________________________
-3. Quản lý tài chính Super Admin có thể:
-•	Theo dõi doanh thu tổng của nền tảng SaaS.
-•	Quản lý thanh toán, gia hạn các gói dịch vụ và lịch sử hóa đơn.
-? Khi doanh nghiệp hết hạn gói dịch vụ, hệ thống sẽ xử lý như thế nào để vừa giữ khách vừa đảm bảo thương mại? Giải pháp: Áp dụng trạng thái tài khoản theo 3 mức độ:
-•	Active: Hoạt động đầy đủ tính năng.
-•	Expired: Chuyển sang chế độ "Chỉ đọc". Doanh nghiệp vẫn xem được dữ liệu cũ nhưng không thể tạo đơn mới, không thêm bàn hoặc nhân viên.
-•	Suspended: Khóa quyền truy cập nếu không gia hạn sau một thời gian quy định (ví dụ 30 ngày).
-Ví dụ:
-Doanh nghiệp hết hạn:
-•	vẫn xem được dữ liệu cũ,
-•	không thể tạo đơn mới hoặc thêm nhân viên cho đến khi gia hạn.
-Điều này giúp tránh mất dữ liệu khách hàng nhưng vẫn đảm bảo tính thương mại của nền tảng.
-________________________________________
-4. Hệ thống hỗ trợ và Giám sát Super Admin có thể:
-•	Gửi thông báo bảo trì/cập nhật đồng loạt tới các nhà hàng.
-•	Theo dõi lỗi hệ thống (Bug tracking) và hiệu năng server.
-? Làm sao để hỗ trợ số lượng lớn doanh nghiệp mà không gây quá tải nhân sự? Giải pháp: Xây dựng hệ thống hỗ trợ tự động và phân tầng:
-•	Ticket System: Phân loại yêu cầu hỗ trợ theo mức độ ưu tiên.
-•	Self-service Knowledge Base: Trung tâm hướng dẫn sử dụng tự động giúp khách hàng tự giải quyết các vấn đề cơ bản.
-•	Monitoring Dashboard: Cảnh báo sớm các sự cố kỹ thuật trước khi khách hàng kịp phản hồi.
-Mục tiêu:
-•	giảm tải support thủ công,
-•	tăng tốc độ phản hồi,
-•	nâng cao trải nghiệm doanh nghiệp.
-Thứ tự phát triển
-1.	Authentication & Authorization.
-2.	Quản lý tenant.
-3.	Quản lý gói dịch vụ.
-4.	Giới hạn tài nguyên theo gói.
-5.	Quản lý thanh toán.
-6.	Dashboard phân tích hệ thống.
-7.	Monitoring & customer support.
+1. Quản lý doanh nghiệp (Tenant Management) Super Admin có thể: · Tạo nhà hàng/doanh nghiệp mới và cấp phát không gian vận hành. · Quản lý thông tin pháp lý và thông tin liên hệ của doanh nghiệp. · Kích hoạt hoặc khóa tài khoản doanh nghiệp. · Quản lý giới hạn tài nguyên của từng gói dịch vụ.
+? Làm sao để giới hạn tài nguyên của từng doanh nghiệp một cách linh hoạt? Giải pháp: Áp dụng cơ chế Subscription Plan (Gói dịch vụ) để phân chia hạn mức tài nguyên (Quota) ngay tại tầng cơ sở dữ liệu. · Gói Miễn phí: Giới hạn 5 nhân viên, tối đa 2 khu vực và 10 bàn, không hỗ trợ AI. · Gói Pro: Không giới hạn nhân viên/khu vực/bàn, mở khóa toàn bộ tính năng AI và Realtime. Cơ chế này giúp tối ưu tài nguyên hệ thống, dễ dàng mở rộng mô hình kinh doanh SaaS, đồng thời tạo nguồn doanh thu ổn định cho nền tảng.
+2. Quản lý tài khoản và Bảo mật Super Admin có thể: · Quản lý danh sách tài khoản chủ doanh nghiệp. · Reset mật khẩu và kiểm soát xác thực hai lớp (2FA). · Theo dõi Audit Log (Nhật ký thao tác) cấp hệ thống.
+? Super Admin có thể can thiệp sâu đến mức nào vào dữ liệu doanh nghiệp? Giải pháp: Để đảm bảo tính minh bạch và bảo mật dữ liệu, Super Admin chỉ quản lý tầng nền tảng và không được can thiệp vào hoạt động nội bộ của doanh nghiệp. · Được phép: Khóa tenant vi phạm, hỗ trợ kỹ thuật cấp cao, cấu hình tham số hệ thống, kiểm tra trạng thái chịu tải hạ tầng. · Không được phép: Xem chi tiết doanh thu, sửa đơn hàng, thay đổi bảng lương hoặc can thiệp vào các báo cáo tài chính nội bộ của nhà hàng khi không được ủy quyền đặc biệt.
+3. Quản lý tài chính và Gói dịch vụ Super Admin có thể: · Theo dõi tổng doanh thu bản quyền của toàn bộ nền tảng SaaS. · Quản lý thanh toán, gia hạn các gói dịch vụ và lịch sử hóa đơn của các Tenant.
+? Khi doanh nghiệp hết hạn gói dịch vụ, hệ thống sẽ xử lý như thế nào để vừa giữ chân khách hàng vừa đảm bảo tính thương mại? Giải pháp: Áp dụng trạng thái tài khoản theo 3 mức độ tại trường status của bảng restaurants: · Active: Hoạt động đầy đủ tính năng theo hạn mức gói. · Expired: Chuyển sang chế độ "Chỉ đọc" (Read-Only). Doanh nghiệp vẫn xem được dữ liệu cũ, xuất báo cáo cũ nhưng không thể tạo đơn mới, không thể thêm bàn, món ăn hoặc nhân viên. · Suspended: Khóa toàn bộ quyền truy cập nếu doanh nghiệp không gia hạn sau một thời gian quy định (ví dụ 30 ngày).
+Để hiện thực hóa chế độ "Chỉ đọc" (Expired) một cách triệt để, hệ thống sử dụng một lớp phần mềm trung gian (CheckTenantSubscription Middleware) trong Laravel để tự động rào bộ lọc ở vòng ngoài API:
+PHP
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class CheckTenantSubscription
+{
+    /**
+     * Kiểm tra trạng thái gói dịch vụ SaaS của Tenant.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $restaurant = auth()->user()->restaurant;
+
+        // 1. Nếu tài khoản nhà hàng bị khóa (Suspended) -> Chặn truy cập tuyệt đối
+        if ($restaurant->status === 'suspended') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tài khoản doanh nghiệp đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ!'
+            ], Response::HTTP_FORBIDDEN); // 403 Forbidden
+        }
+
+        // 2. Nếu hết hạn (Expired) -> Chỉ cho phép các request đọc dữ liệu (GET), chặn các request ghi/sửa (POST, PUT, DELETE)
+        if ($restaurant->status === 'expired' && !$request->isMethod('GET')) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gói dịch vụ đã hết hạn. Hệ thống tự động chuyển sang chế độ Chỉ đọc (Read-Only), vui lòng gia hạn để tiếp tục thao tác!'
+            ], Response::HTTP_PAYMENT_REQUIRED); // 402 Payment Required
+        }
+
+        return $next($request);
+    }
+}
+
+
+Giải pháp này giúp giữ toàn vẹn dữ liệu kế toán cũ cho khách hàng tra cứu, tăng trải nghiệm thương mại tốt nhưng vẫn khóa chặt tính năng vận hành để thúc đẩy gia hạn dịch vụ.
+4. Hệ thống hỗ trợ và Giám sát Super Admin có thể: · Gửi thông báo bảo trì, cập nhật phiên bản đồng loạt tới giao diện của tất cả nhà hàng. · Theo dõi lỗi hệ thống tập trung (Bug tracking) và hiệu năng phần cứng server thông qua Laravel Pulse.
+? Làm sao để hỗ trợ số lượng lớn doanh nghiệp cùng lúc mà không gây quá tải nhân sự? Giải pháp: Xây dựng hệ thống hỗ trợ tự động và phân tầng nhằm giảm tải quy trình thủ công, tăng tốc độ phản hồi và nâng cao trải nghiệm doanh nghiệp: · Ticket System: Phân loại, điều phối và xử lý các yêu cầu hỗ trợ theo mức độ ưu tiên kỹ thuật. · Self-service Knowledge Base: Trung tâm tài liệu, video hướng dẫn cấu hình tự động giúp khách hàng tự giải quyết các vấn đề cơ bản. · Monitoring Dashboard: Hệ thống cảnh báo sớm các sự cố kỹ thuật (băng thông, database transaction lỗi) trước khi khách hàng kịp phản hồi.
+Thứ tự ưu tiên phát triển module (Roadmap)
+1.	Xác thực & Phân quyền tầng quản trị (Authentication & Authorization).
+2.	Quản lý danh sách và vòng đời Doanh nghiệp (Tenant Management).
+3.	Định hình và quản lý cấu hình Gói dịch vụ (Subscription Plans).
+4.	Áp dụng Middleware giới hạn tài nguyên và chặn quyền theo gói (Quota & Read-Only Management).
+5.	Xây dựng cổng quản lý thanh toán và hóa đơn hệ thống (Billing System).
+6.	Phát triển Dashboard phân tích dữ liệu tổng quan cho toàn nền tảng.
+7.	Tích hợp công cụ Giám sát hạ tầng, Ticket support hệ thống (Monitoring & Customer Support).
 ________________________________________
 15.2 Phát triển giao diện khách để tiếp đón doanh nghiệp
 Đây là giao diện marketing và onboarding, đóng vai trò là "mặt tiền" của nền tảng SaaS F&BViet. Giao diện này giúp các chủ doanh nghiệp F&B dễ dàng tiếp cận nền tảng, tìm hiểu các tính năng cốt lõi, trải nghiệm thử và đăng ký sử dụng hệ thống một cách nhanh chóng, tự động hóa hoàn toàn.
@@ -2523,7 +2565,7 @@ có thu chi gì thì tài khoảng admin hoặc quản lý phải bổ sung vào
 - Tạo đơn: Có 20 bàn trong 1 khu vực đánh số từ nhỏ tới lớn theo bảng chữ cái, ví dụ A1, A2, A3,....B1,B2,B3,....( có thể nhiều hơn tùy thuộc vào tùy chỉnh của quản lý/chủ ), nhân viên order cần chọn bàn nào đang trống để vào đơn, khi ấn vào bàn trống thì sẽ hiện lên danh mục món ăn/uống để chọn món, khi chọn sẽ hiển thị số bên cạnh mặc định là 1, mỗi khi chọn món thì biểu tượng giỏ hàng sẽ nảy số lượng tổng món, sau khi chọn thì ấn nút xác nhận và sẽ chuyển tới màn hình xác nhận, nơi đó sẽ có tất cả các món đã chọn mà và số lượng, tổng tiền, giá tiền từng món có thể xóa món hoặc điều chỉnh số lượng hoặc quay lại danh mục để thêm, đồ uống khi ở đây, khi này nút xác nhận sẽ chuyển thành thông báo, khi đã “thông báo” thì không thể xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm và tiếp tục gửi thông báo.
 - Xem lịch làm việc, đăng ký lịch làm
 - Chức năng khiếu nại ( luôn được hiển thị là ẩn danh đối với người xem )
--Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc xóa tên hỏi hệ thống mà không cần đổi thủ công )
+-Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc hệ thống sẽ tự động chuyển trạng thái nhân sự sang terminated (đã nghỉ việc) , vô hiệu hóa tài khoản liên kết và kích hoạt chế độ xóa mềm (SoftDeletes) để ẩn khỏi danh sách vận hành nhưng giữ nguyên lịch sử giao dịch kế toán.)
 15.4.2: Phát triển nhân viên thu ngân
 - Có đầy đủ các chức năng mà nhân viên order có
 - Có thể thanh toán đơn và tách đơn ra bàn trống ( nhưng đơn bị tách sẽ bị đánh dấu và gửi thông báo theo thời gian thực cho chủ/quản lý ) khi hết ca của tài khoản thu ngân đó thì đơn sẽ bị in ra và tính là âm số tiền đơn đã bị tách ( chỉ có chủ doanh nghiệp mới có thể vô hiệu khoản âm đơn đó ). Khi ấn thanh toán thì tổng tiền đơn đó sẽ cộng vào doanh thu, và đơn đó sẽ trống trở lại
@@ -2577,6 +2619,7 @@ o	    echo $order->user->name; // Mỗi vòng lặp lại tạo ra 1 query SELEC
 o	}
 o	Đúng (Chỉ chạy 2 queries):
 o	Order::with('user')->get();
+
 •	Chiến lược Đánh Chỉ mục (Indexing): Thiết lập chỉ mục đơn và chỉ mục hỗn hợp (Composite Index) một cách chiến lược trên các cột thường xuyên xuất hiện trong mệnh đề WHERE hoặc ORDER BY, đặc biệt là restaurant_id, status và created_at.
 •	Nghiêm cấm sử dụng SELECT *: Chỉ truy vấn chính xác các trường dữ liệu cần thiết phục vụ cho logic nghiệp vụ hiện tại nhằm tiết kiệm dung lượng RAM của Server và băng thông truyền tải mạng. Luôn kết hợp phân trang (Pagination) cho các danh sách dữ liệu lớn.
 o	Nên làm:
@@ -2590,11 +2633,11 @@ Hệ thống sử dụng Redis làm In-memory Database để giảm thiểu số
 o	Ví dụ: Menu món ăn của nhà hàng được cache lại trên Redis. Hệ thống chỉ đọc từ Redis thay vì query MySQL, giúp giảm tải đến $80\%$ áp lực cho database chính trong giờ cao điểm.
 •	Dashboard & Báo cáo Cache: Cache các số liệu thống kê doanh thu tạm thời theo giờ để chủ quán xem dashboard realtime mà không cần tính toán lại hàng triệu bản ghi hóa đơn.
 •	Session Cache: Cấu hình lưu trữ session người dùng trực tiếp trên Redis thay vì lưu file vật lý (file driver), tăng tốc độ xác thực và kiểm tra phiên làm việc.
-3. Hàng đợi và Xử lý nền bất đồng bộ (Queue & Background Jobs)
-Hệ thống tách biệt rõ ràng tiến trình: Tiến trình lưu trữ inventory_transactions phụ và phân tích hao hụt được đẩy ngầm qua Queue Job nhằm đảm bảo tốc độ phản hồi API < 2s. Song song đó, để tối ưu trải nghiệm Onboarding cho Tenant mới, hệ thống áp dụng cơ chế Seeding tự động khép kín (Món ăn - Nguyên liệu - Công thức mẫu). Việc này giúp chủ nhà hàng có thể chạy thử nghiệm luồng bán hàng ngay lập tức mà không gặp các lỗi dữ liệu rỗng (Null Pointer) từ các tiến trình xử lý ngầm.
-•	Các tác vụ đưa vào Queue bao gồm: Gửi email xác nhận đơn hàng, gửi thông báo đẩy (Notification), xuất tệp báo cáo định dạng PDF/Excel, đồng bộ dữ liệu kế toán và tự động tính toán lương nhân sự.
-•	Xử lý Log giao dịch kho nâng cao: Trực tiếp đẩy các logic tạo bản ghi nhật ký kho (inventory_transactions), tính toán giá vốn trung bình (average_cost), và đẩy gói dữ liệu phân tích gian lận sang Python Microservice thông qua Queue.
-•	Lưu ý quan trọng về nghiệp vụ Kho: Tuyệt đối không đưa logic kiểm tra tồn kho và trừ số lượng vật lý lõi (quantity_on_hand trong bảng inventories) vào Queue ngầm. Logic này bắt buộc phải được xử lý đồng bộ (Synchronous) ngay tại thời điểm Thu ngân bấm thanh toán hoặc Bếp bấm xác nhận làm món, kết hợp với cơ chế Khóa bi quan (Locking) để chặn đứng nguy cơ kho bị âm do hiện tượng bán quá vạch kho (Over-selling) khi có hàng ngàn đơn hàng phát sinh cùng một thời điểm.
+3.	 Hàng đợi và Xử lý nền bất đồng bộ (Queue & Background Jobs)
+Hệ thống tách biệt rõ ràng tiến trình để đảm bảo tốc độ phản hồi API < 2s , đồng thời áp dụng cơ chế Seeding tự động khép kín (Món ăn - Nguyên liệu - Công thức mẫu) nhằm tối ưu trải nghiệm Onboarding cho Tenant mới. Việc này giúp chủ nhà hàng có thể chạy thử nghiệm luồng bán hàng ngay lập tức mà không gặp các lỗi dữ liệu rỗng (Null Pointer) từ các tiến trình xử lý ngầm.
+•	Các tác vụ cơ bản đưa vào Queue bao gồm: Gửi email xác nhận đơn hàng, gửi thông báo đẩy (Notification), xuất tệp báo cáo định dạng PDF/Excel, đồng bộ dữ liệu kế toán và tự động tính toán lương nhân sự.
+•	Nguyên tắc đồng bộ bắt buộc trong nghiệp vụ Kho: Tuyệt đối không đưa logic kiểm tra tồn kho, trừ số lượng vật lý lõi (quantity_on_hand trong bảng inventories) và việc khởi tạo bản ghi nhật ký kho (inventory_transactions) vào Queue ngầm. Toàn bộ chuỗi hành động này bắt buộc phải được xử lý đồng bộ (Synchronous) ngay tại thời điểm Thu ngân bấm thanh toán , bọc chung trong một DB::transaction của Laravel kết hợp với cơ chế Khóa (Locking) để chặn đứng nguy cơ kho bị âm do hiện tượng bán quá vạch kho (Over-selling) khi có hàng ngàn đơn hàng phát sinh cùng một thời điểm. Quy trình gắn chặt này giúp ngăn chặn hoàn toàn tình trạng lệch kho vật lý hoặc mất dấu log kiểm toán nếu hệ thống hàng đợi (Queue Worker) gặp sự sự cố sập hoặc nghẽn mạch.
+•	Tận dụng Queue cho các tác vụ kho nâng cao: Hệ thống chỉ đẩy các tác vụ tính toán độc lập hoặc phân tích chuyên sâu hậu cần sang hàng đợi ngầm bao gồm: Tính toán lại biên độ giá vốn trung bình (average_cost) , đồng bộ chỉ mục tìm kiếm Meilisearch, và đóng gói dữ liệu phát một HTTP Request bất đồng bộ sang Python Microservice thông qua FastAPI để phục vụ thuật toán phân tích gian lận (Fraud Detection).
 •	Công cụ hỗ trợ giám sát hạ tầng: Sử dụng kết hợp hệ sinh thái mạnh mẽ của Laravel bao gồm: Queue, Job, Redis Queue và trình quản lý giao diện trực quan Laravel Horizon để theo dõi tải, tỷ lệ lỗi và điều phối các Worker xử lý ngầm một cách thời gian thực (Realtime).
 16.3 Trải nghiệm Realtime & Frontend (Vue.js)
 Trong nhà hàng, tốc độ là ưu tiên số 1. Bếp cần nhận đơn ngay khi phục vụ bấm máy.
@@ -2803,4 +2846,8 @@ o theo dõi hiệu năng
 o phát hiện bottleneck sớm
 Ví dụ:
 Theo dõi server để phát hiện RAM đầy hoặc CPU quá tải trước khi hệ thống bị sập.
+
+
+
+
 

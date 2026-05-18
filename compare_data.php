@@ -47,7 +47,7 @@ echo str_repeat("-", 70) . "\n\n";
 
 if ($allMatch) {
     echo "✅ RESULT: All data tables match perfectly!\n";
-    echo "Your database is synchronized with bepso_viet.sql\n";
+    echo "Your database is synchronized with aventura.sql\n";
 } else {
     echo "❌ RESULT: Some tables have data mismatch!\n";
     echo "Differences found in:\n";

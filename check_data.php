@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 echo "========== DATABASE DATA VERIFICATION ==========\n\n";
 
 // Get all tables
-$tables = DB::select("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'bepso_viet'");
+$tables = DB::select("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'aventura'");
 
 $tableNames = array_map(fn($t) => $t->TABLE_NAME, $tables);
 sort($tableNames);
