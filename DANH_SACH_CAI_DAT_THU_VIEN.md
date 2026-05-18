@@ -1,8 +1,8 @@
-# Danh sach cai dat va thu vien cho BepsoViet
+# Danh sach cai dat va thu vien cho Aventura
 
 Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_quan_ly_nha_hang), doi chieu voi [composer.json](composer.json), [package.json](package.json) va mau bien moi truong trong [.env.example](.env.example).
 
-Để chạy dự án BepsoViet, bạn cần cài đặt một số thư viện và công cụ hỗ trợ. Dưới đây là danh sách chi tiết các yêu cầu hệ thống, thư viện đã có sẵn, thư viện cần cài thêm (nếu phát triển Python service), hướng dẫn cài đặt nhanh, cấu hình .env tối thiểu, cấu hình bổ sung cho các thành phần nâng cao, dịch vụ hệ thống cần chạy kèm và checklist kiểm tra sau khi cài đặt.
+Để chạy dự án Aventura, bạn cần cài đặt một số thư viện và công cụ hỗ trợ.
 
 Để test: mở terminal rồi chạy php artisan serve, sau đó truy cập http:// mà nó trả về
 
@@ -92,7 +92,7 @@ composer run dev
 Cap nhat file `.env` theo huong sau (gia tri mau):
 
 ```env
-APP_NAME=BepsoViet
+APP_NAME=Aventura
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://127.0.0.1:8000
@@ -100,7 +100,7 @@ APP_URL=http://127.0.0.1:8000
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=bepso_viet
+DB_DATABASE=aventura
 DB_USERNAME=root
 DB_PASSWORD=
 
@@ -142,7 +142,7 @@ FILESYSTEM_DISK=s3
 AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=bepso-viet
+AWS_BUCKET=aventura
 AWS_USE_PATH_STYLE_ENDPOINT=true
 AWS_ENDPOINT=http://127.0.0.1:9000
 ```

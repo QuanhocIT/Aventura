@@ -28,8 +28,8 @@ class TenantDemoSeeder extends Seeder
             [
                 'plan_id' => SubscriptionPlan::where('code', 'pro')->value('id'),
                 'owner_user_id' => $owner->id,
-                'name' => 'Bepso Viet Demo',
-                'slug' => 'bepso-viet-demo',
+                'name' => 'Aventura Demo',
+                'slug' => 'aventura-demo',
                 'phone' => '02873000001',
                 'email' => 'hello@bepso.test',
                 'address' => '1 Nguyen Hue, Quan 1, TP.HCM',
