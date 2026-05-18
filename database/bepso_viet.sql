@@ -228,6 +228,24 @@ CREATE TABLE `inventories` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `inventory_reservations`
+--
+
+CREATE TABLE `inventory_reservations` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `order_id` bigint UNSIGNED NOT NULL,
+  `ingredient_id` bigint UNSIGNED NOT NULL,
+  `reserved_quantity` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `status` enum('holding','committed','released') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'holding',
+  `expires_at` timestamp NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `inventory_transactions`
 --
 
@@ -494,6 +512,7 @@ CREATE TABLE `payments` (
   `cash_received` decimal(12,2) DEFAULT NULL,
   `change_amount` decimal(12,2) DEFAULT NULL,
   `transaction_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `gateway_transaction_code` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `paid_at` datetime DEFAULT NULL,
   `meta` json DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -1084,6 +1103,8 @@ CREATE TABLE `units` (
   `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `symbol` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` enum('mass','volume','count') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'count',
+  `base_unit_id` bigint UNSIGNED DEFAULT NULL,
+  `conversion_factor` decimal(12,4) NOT NULL DEFAULT '1.0000',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1176,7 +1197,7 @@ ALTER TABLE `areas`
 ALTER TABLE `audit_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `audit_logs_branch_id_foreign` (`branch_id`),
-  ADD KEY `audit_logs_restaurant_action_created_index` (`restaurant_id`,`action`,`created_at`),
+  ADD KEY `audit_logs_restaurant_created_at_action_index` (`restaurant_id`,`created_at`,`action`),
   ADD KEY `audit_logs_subject_index` (`subject_type`,`subject_id`),
   ADD KEY `audit_logs_user_index` (`user_id`);
 
@@ -1250,6 +1271,15 @@ ALTER TABLE `inventories`
   ADD KEY `inventories_ingredient_id_foreign` (`ingredient_id`),
   ADD KEY `inventories_restaurant_ingredient_index` (`restaurant_id`,`ingredient_id`),
   ADD KEY `inventories_updated_by_index` (`updated_by`);
+
+--
+-- Indexes for table `inventory_reservations`
+--
+ALTER TABLE `inventory_reservations`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `inv_reservations_restaurant_expires_status_index` (`restaurant_id`,`expires_at`,`status`),
+  ADD KEY `inv_reservations_order_id_foreign` (`order_id`),
+  ADD KEY `inv_reservations_ingredient_id_foreign` (`ingredient_id`);
 
 --
 -- Indexes for table `inventory_transactions`
@@ -1561,7 +1591,8 @@ ALTER TABLE `suppliers`
 --
 ALTER TABLE `units`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `units_scope_symbol_unique` (`restaurant_id`,`symbol`);
+  ADD UNIQUE KEY `units_scope_symbol_unique` (`restaurant_id`,`symbol`),
+  ADD KEY `units_base_unit_id_foreign` (`base_unit_id`);
 
 --
 -- Indexes for table `users`
@@ -1602,6 +1633,7 @@ ALTER TABLE `employees` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `failed_jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `ingredients` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `inventories` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `inventory_reservations` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `inventory_transactions` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `jobs` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE `leave_requests` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
@@ -1696,6 +1728,14 @@ ALTER TABLE `inventories`
   ADD CONSTRAINT `inventories_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `inventories_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `inventories_updated_by_foreign` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `inventory_reservations`
+--
+ALTER TABLE `inventory_reservations`
+  ADD CONSTRAINT `inv_reservations_ingredient_id_foreign` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inv_reservations_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `inv_reservations_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `inventory_transactions`
@@ -1889,6 +1929,7 @@ ALTER TABLE `suppliers`
 -- Constraints for table `units`
 --
 ALTER TABLE `units`
+  ADD CONSTRAINT `units_base_unit_id_foreign` FOREIGN KEY (`base_unit_id`) REFERENCES `units` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `units_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL;
 
 --
