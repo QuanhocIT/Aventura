@@ -337,6 +337,7 @@ class RestaurantDemoSeeder extends Seeder
             'branch_id' => $branch->id,
             'user_id' => $cashier->id,
             'user_role' => 'cashier',
+            'event' => 'created',
             'action' => 'seed_demo_order',
             'subject_type' => Order::class,
             'subject_id' => $order->id,
