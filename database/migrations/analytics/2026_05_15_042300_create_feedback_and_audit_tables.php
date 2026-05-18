@@ -32,6 +32,7 @@ return new class extends Migration
             $table->foreignId('branch_id')->nullable()->constrained('restaurant_branches')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('user_role', 100)->nullable();
+            $table->enum('event', ['created', 'updated', 'deleted']);
             $table->string('action', 100);
             $table->string('subject_type', 150)->nullable();
             $table->unsignedBigInteger('subject_id')->nullable();
