@@ -39,7 +39,7 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - laravel/tinker (^3.0)
 - laravel/wayfinder (^0.1.14)
 - spatie/laravel-permission (^7.4)
-- laravel/horizon (^1.7)
+- laravel/horizon (^5.46)
 - laravel/pulse (^1.7)
 - laravel/scout (^11.2)
 - meilisearch/meilisearch-php (^1.16)
