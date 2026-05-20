@@ -23,7 +23,13 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', function () {
+        $user = auth()->user();
+        if ($user->hasRole('super_admin')) {
+            return redirect('/super-admin/dashboard');
+        }
+        return Inertia::render('Dashboard');
+    })->name('dashboard');
 });
 
 require __DIR__.'/settings.php';
