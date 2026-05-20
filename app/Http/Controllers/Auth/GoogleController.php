@@ -6,7 +6,9 @@ use App\Http\Responses\CustomLoginResponse;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class GoogleController extends Controller
@@ -20,9 +22,14 @@ class GoogleController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
+            $googleEmail = $googleUser->getEmail();
+
+            if (! $googleEmail) {
+                return redirect('/login')->withErrors(['msg' => 'Dang nhap Google that bai. Tai khoan Google khong co email hop le.']);
+            }
 
             $user = User::where('google_id', $googleUser->getId())
-                ->orWhere('email', $googleUser->getEmail())
+                ->orWhere('email', $googleEmail)
                 ->first();
 
             if ($user) {
@@ -36,8 +43,9 @@ class GoogleController extends Controller
                 $user->save();
             } else {
                 $user = User::create([
-                    'name' => $googleUser->getName(),
-                    'email' => $googleUser->getEmail(),
+                    'name' => $googleUser->getName() ?: $googleEmail,
+                    'email' => $googleEmail,
+                    'password' => Hash::make(Str::random(40)),
                     'google_id' => $googleUser->getId(),
                     'email_verified_at' => now(),
                     'last_login_at' => now(),
@@ -52,7 +60,7 @@ class GoogleController extends Controller
                 'message' => $exception->getMessage(),
                 'trace' => $exception->getTraceAsString(),
             ]);
-            return redirect('/login')->withErrors(['msg' => 'Đăng nhập Google thất bại. Vui lòng thử lại.']);
+            return redirect('/login')->withErrors(['msg' => 'Dang nhap Google that bai. Vui long thu lai.']);
         }
     }
 }
