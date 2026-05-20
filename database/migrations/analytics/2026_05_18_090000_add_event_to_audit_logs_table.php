@@ -14,9 +14,7 @@ return new class extends Migration
         }
 
         Schema::table('audit_logs', function (Blueprint $table) {
-            $table->enum('event', ['created', 'updated', 'deleted'])
-                ->nullable()
-                ->after('user_role');
+            $table->string('event', 20)->nullable()->after('user_role');
         });
 
         DB::table('audit_logs')->update([
@@ -29,7 +27,10 @@ return new class extends Migration
             ),
         ]);
 
-        DB::statement("ALTER TABLE audit_logs MODIFY event ENUM('created','updated','deleted') NOT NULL");
+        // MySQL: ép NOT NULL sau khi đã backfill dữ liệu
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE audit_logs MODIFY event ENUM('created','updated','deleted') NOT NULL");
+        }
     }
 
     public function down(): void

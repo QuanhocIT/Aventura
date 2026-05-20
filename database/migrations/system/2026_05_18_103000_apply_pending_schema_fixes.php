@@ -7,8 +7,18 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private function isMySQL(): bool
+    {
+        return DB::getDriverName() === 'mysql';
+    }
+
     public function up(): void
     {
+        // Migration này chứa cú pháp đặc thù MySQL — bỏ qua khi dùng SQLite
+        if (! $this->isMySQL()) {
+            return;
+        }
+
         $this->ensureOrderForeignKeys();
         $this->optimizeAuditLogIndex();
         $this->enhanceUnitsForConversion();
@@ -18,6 +28,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->isMySQL()) {
+            return;
+        }
+
         if (Schema::hasTable('inventory_reservations')) {
             Schema::drop('inventory_reservations');
         }
