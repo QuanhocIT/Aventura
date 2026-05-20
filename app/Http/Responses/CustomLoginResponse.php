@@ -23,7 +23,7 @@ class CustomLoginResponse implements LoginResponseContract
 
     public static function redirectForUser(User $user): RedirectResponse
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasRole('super_admin')) {
             return redirect()->intended('/super-admin/dashboard');
         }
 

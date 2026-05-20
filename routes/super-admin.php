@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
-    ->middleware(['auth', 'verified', 'role:admin'])
+    ->middleware(['auth', 'verified', 'role:super_admin'])
     ->group(function () {
 
         // Dashboard
