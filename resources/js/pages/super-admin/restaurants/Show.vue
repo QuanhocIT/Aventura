@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Crown, CheckCircle2, AlertTriangle, XCircle, Building2, Users, LayoutGrid, Table2 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Crown, CheckCircle2, XCircle, Building2, Users, LayoutGrid, Table2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -52,8 +51,14 @@ const resourceLabels: Record<string, string> = {
 };
 
 function barColor(pct: number, canAdd: boolean) {
-    if (!canAdd) return 'bg-red-500';
-    if (pct >= 80) return 'bg-yellow-500';
+    if (!canAdd) {
+return 'bg-red-500';
+}
+
+    if (pct >= 80) {
+return 'bg-yellow-500';
+}
+
     return 'bg-green-500';
 }
 </script>

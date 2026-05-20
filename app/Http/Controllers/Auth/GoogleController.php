@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Responses\CustomLoginResponse;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\Auth;
@@ -43,11 +44,7 @@ class GoogleController extends Controller
 
             Auth::login($user, true);
 
-            if ($user->hasRole('admin')) {
-                return redirect()->intended('/super-admin/dashboard');
-            }
-
-            return redirect()->intended('/dashboard');
+            return CustomLoginResponse::redirectForUser($user);
         } catch (Exception $e) {
             return redirect('/login')->withErrors(['msg' => 'Đăng nhập Google thất bại. Vui lòng thử lại.']);
         }

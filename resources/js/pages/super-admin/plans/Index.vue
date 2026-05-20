@@ -2,15 +2,15 @@
 import { Head, useForm } from '@inertiajs/vue3';
 import { Crown, Building2, CheckCircle2, XCircle, Edit2, Save } from 'lucide-vue-next';
 import { ref } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps<{
+defineProps<{
     plans: Array<{
         id: number; code: string; name: string; price: number;
         billing_cycle: string; max_branches: number; max_tables: number; max_users: number;
@@ -45,12 +45,18 @@ const form = useForm({
 
 function save(planId: number) {
     form.patch(`/super-admin/plans/${planId}`, {
-        onSuccess: () => { editingId.value = null; },
+        onSuccess: () => {
+ editingId.value = null; 
+},
     });
 }
 
-function formatLimit(v: number) { return v === -1 ? 'Không giới hạn' : String(v); }
-function formatVnd(v: number) { return v === 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN').format(v) + ' VND/tháng'; }
+function formatLimit(v: number) {
+ return v === -1 ? 'Không giới hạn' : String(v); 
+}
+function formatVnd(v: number) {
+ return v === 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN').format(v) + ' VND/tháng'; 
+}
 </script>
 
 <template>

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import {
-    Building2, Users, TrendingUp, ShieldAlert,
+    Building2, Users, ShieldCheck, FileText,
     CheckCircle2, XCircle, Clock, Crown,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -61,10 +60,24 @@ const statCards = [
             <div class="flex gap-2">
                 <Link
                     href="/super-admin/restaurants"
-                    class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                    class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
                 >
                     <Building2 class="size-4" />
-                    Quản lý nhà hàng
+                    Nhà hàng
+                </Link>
+                <Link
+                    href="/super-admin/accounts"
+                    class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                >
+                    <ShieldCheck class="size-4" />
+                    Tài khoản & Bảo mật
+                </Link>
+                <Link
+                    href="/super-admin/audit-logs"
+                    class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                    <FileText class="size-4" />
+                    Audit Log
                 </Link>
             </div>
         </div>

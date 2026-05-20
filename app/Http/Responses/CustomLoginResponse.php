@@ -2,6 +2,8 @@
 
 namespace App\Http\Responses;
 
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 
 class CustomLoginResponse implements LoginResponseContract
@@ -14,13 +16,22 @@ class CustomLoginResponse implements LoginResponseContract
             return redirect('/login');
         }
 
-        // Cập nhật thời gian đăng nhập cuối
         $user->forceFill(['last_login_at' => now()])->save();
 
+        return self::redirectForUser($user);
+    }
+
+    public static function redirectForUser(User $user): RedirectResponse
+    {
         if ($user->hasRole('admin')) {
             return redirect()->intended('/super-admin/dashboard');
         }
 
-        return redirect()->intended('/dashboard');
+        if ($user->roles()->exists()) {
+            return redirect()->intended('/dashboard');
+        }
+
+        // Khách hàng / user chưa được gán role → về trang chủ
+        return redirect('/');
     }
 }

@@ -27,6 +27,8 @@ const props = defineProps<{
 }>();
 
 const inputEmail = ref(props.email);
+
+const transformData = (data: Record<string, unknown>) => ({ ...data, token: props.token, email: props.email });
 </script>
 
 <template>
@@ -34,7 +36,7 @@ const inputEmail = ref(props.email);
 
     <Form
         v-bind="update.form()"
-        :transform="(data) => ({ ...data, token, email })"
+        :transform="transformData"
         :reset-on-success="['password', 'password_confirmation']"
         v-slot="{ errors, processing }"
     >

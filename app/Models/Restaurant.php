@@ -17,6 +17,15 @@ class Restaurant extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'subscription_started_at' => 'datetime',
+            'subscription_ends_at'    => 'datetime',
+            'trial_ends_at'           => 'datetime',
+        ];
+    }
+
     public function plan(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPlan::class, 'plan_id');

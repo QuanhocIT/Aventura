@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Building2, Plus, Search, Filter, Eye, ShieldCheck, ShieldOff, Crown } from 'lucide-vue-next';
+import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -31,7 +30,7 @@ const status   = ref(props.filters.status ?? '');
 const planFilter = ref(props.filters.plan ?? '');
 
 let searchTimer: ReturnType<typeof setTimeout>;
-watch(search, (val) => {
+watch(search, () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => applyFilter(), 400);
 });
@@ -53,7 +52,9 @@ const createForm = useForm({
 });
 function submitCreate() {
     createForm.post('/super-admin/restaurants', {
-        onSuccess: () => { showCreate.value = false; createForm.reset(); },
+        onSuccess: () => {
+ showCreate.value = false; createForm.reset(); 
+},
     });
 }
 
@@ -67,9 +68,14 @@ function openStatus(r: any) {
     showStatus.value = true;
 }
 function submitStatus() {
-    if (!selectedRestaurant.value) return;
+    if (!selectedRestaurant.value) {
+return;
+}
+
     statusForm.patch(`/super-admin/restaurants/${selectedRestaurant.value.id}/status`, {
-        onSuccess: () => { showStatus.value = false; },
+        onSuccess: () => {
+ showStatus.value = false; 
+},
     });
 }
 
@@ -197,7 +203,7 @@ const statusLabel: Record<string, string> = {
 
                 <!-- Pagination -->
                 <div v-if="restaurants.meta?.last_page > 1" class="flex justify-center gap-1 border-t p-4">
-                    <Link
+                    <a
                         v-for="link in restaurants.links"
                         :key="link.label"
                         :href="link.url ?? '#'"

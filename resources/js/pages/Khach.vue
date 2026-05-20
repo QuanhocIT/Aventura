@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { BarChart3, Building2, Check, ClipboardList, Monitor, Package, QrCode, Rocket, Settings2, Users, X } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
 
 defineProps<{
