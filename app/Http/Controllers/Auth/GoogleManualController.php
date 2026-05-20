@@ -19,8 +19,9 @@ class GoogleManualController extends Controller
             'response_type' => 'code',
             'scope' => 'openid profile email',
             'access_type' => 'offline',
-            'prompt' => 'consent'
+            'prompt' => 'consent',
         ]);
+
         return redirect('https://accounts.google.com/o/oauth2/v2/auth?' . $query);
     }
 
@@ -35,8 +36,8 @@ class GoogleManualController extends Controller
         ]);
 
         $accessToken = $response->json()['access_token'] ?? null;
-        if (!$accessToken) {
-            return redirect('/login')->withErrors(['msg' => 'Không lấy được access token từ Google']);
+        if (! $accessToken) {
+            return redirect('/login')->withErrors(['msg' => 'Kh�ng l?y du?c access token t? Google']);
         }
 
         $googleUser = Http::withHeaders([
@@ -48,11 +49,18 @@ class GoogleManualController extends Controller
             [
                 'name' => $googleUser['name'] ?? $googleUser['email'],
                 'google_id' => $googleUser['sub'],
-                'avatar' => $googleUser['picture'] ?? null,
+                'email_verified_at' => now(),
+                'last_login_at' => now(),
             ]
         );
 
-        Auth::login($user);
+        $user->forceFill([
+            'google_id' => $googleUser['sub'],
+            'email_verified_at' => $user->email_verified_at ?? now(),
+            'last_login_at' => now(),
+        ])->save();
+
+        Auth::login($user, true);
 
         return CustomLoginResponse::redirectForUser($user);
     }
