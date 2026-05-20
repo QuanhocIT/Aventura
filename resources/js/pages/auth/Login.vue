@@ -104,6 +104,15 @@ defineProps<{
                 <Spinner v-if="processing" />
                 Log in
             </Button>
+
+            <a
+                href="/auth/google"
+                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                style="text-decoration: none; color: inherit;"
+            >
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style="width: 20px; height: 20px;" />
+                Đăng nhập bằng Google
+            </a>
         </div>
 
         <div

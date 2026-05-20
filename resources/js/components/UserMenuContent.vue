@@ -13,7 +13,7 @@ import { edit } from '@/routes/profile';
 import type { User } from '@/types';
 
 type Props = {
-    user: User;
+    user?: User | null;
 };
 
 const handleLogout = () => {
@@ -26,7 +26,7 @@ defineProps<Props>();
 <template>
     <DropdownMenuLabel class="p-0 font-normal">
         <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-            <UserInfo :user="user" :show-email="true" />
+            <UserInfo v-if="user" :user="user" :show-email="true" />
         </div>
     </DropdownMenuLabel>
     <DropdownMenuSeparator />
