@@ -24,7 +24,6 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
-    Route::inertia('super-admin/dashboard', 'super-admin/DashboardSuperAdmin')->name('dashboard.superadmin');
 });
 
 require __DIR__.'/settings.php';
