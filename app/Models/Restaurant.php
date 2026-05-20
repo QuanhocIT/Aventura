@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Restaurant extends Model
@@ -51,10 +52,36 @@ class Restaurant extends Model
         return $this->hasMany(\App\Models\RestaurantRevenueSummary::class);
     }
 
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(RestaurantSubscription::class);
+    }
+
+    public function activeSubscription(): HasOne
+    {
+        return $this->hasOne(RestaurantSubscription::class)
+            ->whereIn('status', ['trial', 'active'])
+            ->latestOfMany();
+    }
+
+    public function areas(): HasMany
+    {
+        return $this->hasMany(Area::class);
+    }
+
+    public function tables(): HasMany
+    {
+        return $this->hasMany(RestaurantTable::class);
+    }
+
     public function media(): MorphMany
     {
         return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
     }
+
+    public function isActive(): bool { return $this->status === 'active'; }
+    public function isSuspended(): bool { return $this->status === 'suspended'; }
+    public function isExpired(): bool { return $this->status === 'expired'; }
 
     protected static function newFactory(): Factory
     {
