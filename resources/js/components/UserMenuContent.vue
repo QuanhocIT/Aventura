@@ -14,13 +14,25 @@ import type { User } from '@/types';
 
 type Props = {
     user?: User | null;
+<<<<<<< HEAD
+
 };
+
 
 const handleLogout = () => {
     router.flushAll();
+=======
+>>>>>>> origin/feature/duongnguyen26
 };
 
 defineProps<Props>();
+
+const handleLogout = () => {
+    router.flushAll();
+    router.post(logout.url(), {}, {
+        onSuccess: () => router.visit('/login', { replace: true }),
+    });
+};
 </script>
 
 <template>
@@ -39,16 +51,12 @@ defineProps<Props>();
         </DropdownMenuItem>
     </DropdownMenuGroup>
     <DropdownMenuSeparator />
-    <DropdownMenuItem :as-child="true">
-        <Link
-            class="block w-full cursor-pointer"
-            :href="logout()"
-            @click="handleLogout"
-            as="button"
-            data-test="logout-button"
-        >
-            <LogOut class="mr-2 h-4 w-4" />
-            Log out
-        </Link>
+    <DropdownMenuItem
+        class="cursor-pointer"
+        data-test="logout-button"
+        @click="handleLogout"
+    >
+        <LogOut class="mr-2 h-4 w-4" />
+        Log out
     </DropdownMenuItem>
 </template>
