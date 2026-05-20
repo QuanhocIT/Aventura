@@ -37,14 +37,8 @@ const page = usePage();
 
 // Flash notifications
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) {
-toast.success(flash.success);
-}
-
-    if (flash?.error)   {
-toast.error(flash.error);
-}
-
+    if (flash?.success) toast.success(flash.success);
+    if (flash?.error)   toast.error(flash.error);
     if (flash?.temp_password) {
         tempPassword.value = flash.temp_password;
         showTempPassword.value = true;
@@ -57,9 +51,7 @@ const roleFilter = ref(props.filters.role ?? '');
 const statusFilter = ref(props.filters.status ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
-watch(search, () => {
- clearTimeout(timer); timer = setTimeout(applyFilter, 400); 
-});
+watch(search, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 400); });
 
 function applyFilter() {
     router.get('/super-admin/accounts', {
@@ -76,38 +68,26 @@ const copied           = ref(false);
 function copyPassword() {
     navigator.clipboard.writeText(tempPassword.value);
     copied.value = true;
-    setTimeout(() => {
- copied.value = false; 
-}, 2000);
+    setTimeout(() => { copied.value = false; }, 2000);
 }
 
 // Reset password
 const processingReset = ref<number | null>(null);
 function resetPassword(account: { id: number; name: string }) {
-    if (!confirm(`Reset mật khẩu cho "${account.name}"? Mật khẩu mới sẽ hiển thị ngay sau thao tác này.`)) {
-return;
-}
-
+    if (!confirm(`Reset mật khẩu cho "${account.name}"? Mật khẩu mới sẽ hiển thị ngay sau thao tác này.`)) return;
     processingReset.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/reset-password`, {}, {
-        onFinish: () => {
- processingReset.value = null; 
-},
+        onFinish: () => { processingReset.value = null; },
     });
 }
 
 // Disable 2FA
 const processingDisable2FA = ref<number | null>(null);
 function disable2FA(account: { id: number; name: string }) {
-    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) {
-return;
-}
-
+    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) return;
     processingDisable2FA.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/disable-2fa`, {}, {
-        onFinish: () => {
- processingDisable2FA.value = null; 
-},
+        onFinish: () => { processingDisable2FA.value = null; },
     });
 }
 
@@ -122,14 +102,9 @@ function openStatusDialog(account: any) {
     showStatusDialog.value = true;
 }
 function submitStatus() {
-    if (!selectedAccount.value) {
-return;
-}
-
+    if (!selectedAccount.value) return;
     statusForm.patch(`/super-admin/accounts/${selectedAccount.value.id}/status`, {
-        onSuccess: () => {
- showStatusDialog.value = false; 
-},
+        onSuccess: () => { showStatusDialog.value = false; },
     });
 }
 

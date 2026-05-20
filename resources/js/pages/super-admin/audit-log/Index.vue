@@ -39,9 +39,7 @@ const fromFilter       = ref(props.filters.from ?? '');
 const toFilter         = ref(props.filters.to ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
-watch(actionFilter, () => {
- clearTimeout(timer); timer = setTimeout(applyFilter, 500); 
-});
+watch(actionFilter, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 500); });
 
 function applyFilter() {
     router.get('/super-admin/audit-logs', {
