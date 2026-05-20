@@ -2,29 +2,24 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class SuperAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        // Tạo role admin nếu chưa có
-        $role = Role::firstOrCreate(['name' => 'admin']);
-
-        // Tìm hoặc tạo user superadmin
-        $user = User::firstOrCreate(
+        $user = User::updateOrCreate(
             ['email' => 'superadmin@aventura.local'],
             [
                 'name' => 'Super Admin',
-                'password' => bcrypt('Avenrura@2026!'),
+                'password' => Hash::make('Avenrura@2026!'),
+                'status' => 'active',
+                'email_verified_at' => now(),
             ]
         );
 
-        // Gán role admin cho user
-        if (!$user->hasRole('admin')) {
-            $user->assignRole('admin');
-        }
+        $user->syncRoles(['super_admin']);
     }
 }

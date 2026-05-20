@@ -46,5 +46,19 @@ class TenantDemoSeeder extends Seeder
         ])->save();
 
         $owner->syncRoles(['owner']);
+
+        $customer = User::updateOrCreate(
+            ['email' => 'customer@bepso.test'],
+            [
+                'name' => 'Customer Demo',
+                'password' => Hash::make('password'),
+                'phone' => '0900000010',
+                'restaurant_id' => $restaurant->id,
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+
+        $customer->syncRoles(['customer']);
     }
 }
