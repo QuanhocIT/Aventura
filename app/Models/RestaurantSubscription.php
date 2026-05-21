@@ -16,7 +16,11 @@ class RestaurantSubscription extends Model
             'ended_at'     => 'datetime',
             'cancelled_at' => 'datetime',
             'renewal_at'   => 'datetime',
+            'grace_ends_at' => 'datetime',
+            'last_notified_at' => 'datetime',
+            'last_paid_at' => 'datetime',
             'meta'         => 'array',
+            'billing_meta' => 'array',
             'price'        => 'decimal:0',
         ];
     }

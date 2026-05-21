@@ -49,6 +49,11 @@ const mainNavItems = computed<NavItem[]>(() =>
                 icon: Users,
             },
             {
+                title: 'Billing Center',
+                href: '/super-admin/billing',
+                icon: BadgeDollarSign,
+            },
+            {
                 title: 'Audit Log',
                 href: '/super-admin/audit-logs',
                 icon: FileSearch2,

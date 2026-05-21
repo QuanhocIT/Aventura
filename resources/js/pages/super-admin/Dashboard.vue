@@ -4,7 +4,7 @@ import {
     Building2, Users, ShieldCheck, FileText,
     CheckCircle2, XCircle, Clock, Crown,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AppLayout from '@/layouts/AppLayout-clean.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 

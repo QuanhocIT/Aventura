@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CheckTenantSubscription;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -28,7 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'tenant.active'     => \App\Http\Middleware\EnsureTenantActive::class,
+            'tenant.active'     => CheckTenantSubscription::class,
+            'tenant.subscription' => CheckTenantSubscription::class,
             'tenant.ratelimit'  => \App\Http\Middleware\TenantRateLimit::class,
             'role'              => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission'        => \Spatie\Permission\Middleware\PermissionMiddleware::class,

@@ -2,7 +2,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { Building2, Plus, Search, Filter, Eye, ShieldCheck, ShieldOff, Crown } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AppLayout from '@/layouts/AppLayout-clean.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

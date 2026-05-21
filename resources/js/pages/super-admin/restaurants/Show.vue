@@ -1,9 +1,23 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Crown, CheckCircle2, AlertTriangle, XCircle, Building2, Users, LayoutGrid, Table2 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import {
+    ArrowLeft,
+    Crown,
+    CheckCircle2,
+    XCircle,
+    Building2,
+    Users,
+    LayoutGrid,
+    Table2,
+    ReceiptText,
+    ShieldAlert,
+    WalletCards,
+    RefreshCcw,
+} from 'lucide-vue-next';
+import AppLayout from '@/layouts/AppLayout-clean.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 defineOptions({ layout: AppLayout });
@@ -23,7 +37,10 @@ const props = defineProps<{
         features: Record<string, boolean>;
         rate_limit: number;
     };
-    subscriptions: Array<{ plan: string; status: string; started_at: string; ended_at: string; price: string }>;
+    subscriptions: Array<{ id: number; plan: string; status: string; started_at: string; ended_at: string; price: string }>;
+    invoices: Array<{ id: number; invoice_number: string; type: string; status: string; total: string; currency: string; due_on: string; sent_at: string }>;
+    adjustments: Array<{ id: number; type: string; days: number; discount_amount: string; reason: string; created_at: string; creator: string }>;
+    webhooks: Array<{ id: number; provider: string; status: string; event_type: string; transaction_code: string; processed_at: string }>;
     plans: Array<{ id: number; code: string; name: string }>;
 }>();
 
@@ -37,150 +54,269 @@ function updatePlan() {
     planForm.patch(`/super-admin/restaurants/${props.restaurant.id}/plan`);
 }
 
+const overrideForm = useForm({
+    type: 'extend',
+    days: 30,
+    discount_amount: 0,
+    reason: '',
+    coupon_code: '',
+});
+function submitOverride() {
+    overrideForm.post(`/super-admin/restaurants/${props.restaurant.id}/billing-overrides`, {
+        preserveScroll: true,
+    });
+}
+
 const statusColor: Record<string, string> = {
-    active:    'bg-green-100 text-green-800',
-    suspended: 'bg-yellow-100 text-yellow-800',
-    expired:   'bg-red-100 text-red-800',
+    active: 'bg-green-100 text-green-800',
+    suspended: 'bg-amber-100 text-amber-800',
+    expired: 'bg-rose-100 text-rose-800',
+    generated: 'bg-blue-100 text-blue-800',
+    sent: 'bg-emerald-100 text-emerald-800',
+    pending: 'bg-slate-100 text-slate-800',
+    processed: 'bg-emerald-100 text-emerald-800',
+    orphaned: 'bg-rose-100 text-rose-800',
 };
-const statusLabel: Record<string, string> = { active: 'Hoạt động', suspended: 'Tạm ngưng', expired: 'Hết hạn' };
+const statusLabel: Record<string, string> = {
+    active: 'Hoat dong',
+    suspended: 'Tam ngung',
+    expired: 'Het han',
+    generated: 'Da sinh file',
+    sent: 'Da gui',
+    pending: 'Dang cho',
+    processed: 'Da xu ly',
+    orphaned: 'Khong khop',
+};
 
 const resourceIcons: Record<string, any> = {
     branches: Building2, employees: Users, areas: LayoutGrid, tables: Table2,
 };
 const resourceLabels: Record<string, string> = {
-    branches: 'Chi nhánh', employees: 'Nhân viên', areas: 'Khu vực', tables: 'Bàn ăn',
+    branches: 'Chi nhanh', employees: 'Nhan vien', areas: 'Khu vuc', tables: 'Ban an',
 };
 
 function barColor(pct: number, canAdd: boolean) {
-    if (!canAdd) return 'bg-red-500';
-    if (pct >= 80) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (!canAdd) return 'bg-rose-500';
+    if (pct >= 80) return 'bg-amber-500';
+    return 'bg-emerald-500';
+}
+
+function typeLabel(type: string) {
+    const labels: Record<string, string> = {
+        payment_success: 'Sau thanh toan',
+        upcoming_renewal: 'Sap den han',
+        extend: 'Gia han tay',
+        discount: 'Giam gia',
+        trial: 'Tang trial',
+    };
+
+    return labels[type] ?? type;
 }
 </script>
 
 <template>
-    <Head :title="`${restaurant.name} - Chi tiết`" />
+    <Head :title="`${restaurant.name} - Billing Center`" />
 
     <div class="flex flex-col gap-6 p-6">
-        <!-- Header -->
         <div class="flex items-center gap-4">
             <Link href="/super-admin/restaurants">
                 <Button variant="ghost" size="icon-sm"><ArrowLeft class="size-4" /></Button>
             </Link>
             <div class="flex-1">
-                <h1 class="text-2xl font-bold">{{ restaurant.name }}</h1>
-                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }}</p>
+                <h1 class="text-2xl font-bold tracking-tight">{{ restaurant.name }}</h1>
+                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} � Billing Center</p>
             </div>
-            <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status]]">
-                {{ statusLabel[restaurant.status] }}
+            <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status] || 'bg-slate-100 text-slate-800']">
+                {{ statusLabel[restaurant.status] ?? restaurant.status }}
             </span>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-3">
-            <!-- Thông tin nhà hàng -->
-            <div class="lg:col-span-2 flex flex-col gap-4">
+        <div class="grid gap-6 lg:grid-cols-[1.5fr,0.9fr]">
+            <div class="flex flex-col gap-6">
                 <Card>
                     <CardHeader class="pb-3">
-                        <CardTitle class="text-base">Thông tin doanh nghiệp</CardTitle>
+                        <CardTitle class="text-base">Tong quan doanh nghiep</CardTitle>
                     </CardHeader>
-                    <CardContent class="grid grid-cols-2 gap-4 text-sm">
-                        <div><p class="text-muted-foreground">Tên</p><p class="font-medium">{{ restaurant.name }}</p></div>
-                        <div><p class="text-muted-foreground">Mã số thuế</p><p class="font-medium">{{ restaurant.tax_code || '—' }}</p></div>
-                        <div><p class="text-muted-foreground">Email</p><p class="font-medium">{{ restaurant.email || '—' }}</p></div>
-                        <div><p class="text-muted-foreground">Điện thoại</p><p class="font-medium">{{ restaurant.phone || '—' }}</p></div>
-                        <div class="col-span-2"><p class="text-muted-foreground">Địa chỉ</p><p class="font-medium">{{ restaurant.address || '—' }}</p></div>
-                        <div><p class="text-muted-foreground">Chủ sở hữu</p><p class="font-medium">{{ restaurant.owner.name }}</p></div>
-                        <div><p class="text-muted-foreground">Email chủ</p><p class="font-medium">{{ restaurant.owner.email }}</p></div>
-                        <div><p class="text-muted-foreground">Múi giờ</p><p class="font-medium">{{ restaurant.timezone }}</p></div>
-                        <div><p class="text-muted-foreground">Tiền tệ</p><p class="font-medium">{{ restaurant.currency }}</p></div>
-                        <div><p class="text-muted-foreground">Hết thử nghiệm</p><p class="font-medium">{{ restaurant.trial_ends_at || '—' }}</p></div>
-                        <div><p class="text-muted-foreground">Hết hạn đăng ký</p><p class="font-medium">{{ restaurant.subscription_ends_at || '—' }}</p></div>
-                        <div><p class="text-muted-foreground">Ngày tạo</p><p class="font-medium">{{ restaurant.created_at }}</p></div>
+                    <CardContent class="grid gap-4 md:grid-cols-2 text-sm">
+                        <div><p class="text-muted-foreground">Chu so huu</p><p class="font-medium">{{ restaurant.owner.name || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Email chu</p><p class="font-medium">{{ restaurant.owner.email || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Goi hien tai</p><p class="font-medium">{{ restaurant.plan.name || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han dich vu</p><p class="font-medium">{{ restaurant.subscription_ends_at || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han trial</p><p class="font-medium">{{ restaurant.trial_ends_at || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Tien te</p><p class="font-medium">{{ restaurant.currency }}</p></div>
+                        <div class="md:col-span-2"><p class="text-muted-foreground">Dia chi</p><p class="font-medium">{{ restaurant.address || '�' }}</p></div>
                     </CardContent>
                 </Card>
 
-                <!-- Quota Usage -->
                 <Card>
                     <CardHeader class="pb-3">
                         <CardTitle class="flex items-center gap-2 text-base">
-                            Sử dụng tài nguyên
-                            <span :class="['inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', quota.plan_code === 'PRO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700']">
-                                <Crown v-if="quota.plan_code === 'PRO'" class="size-3" />
-                                {{ quota.plan }}
-                            </span>
+                            <Crown class="size-4 text-amber-600" /> Han muc goi dich vu
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="grid grid-cols-2 gap-4">
-                        <div v-for="(res, key) in quota.resources" :key="key" class="flex flex-col gap-1.5">
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="flex items-center gap-1.5 font-medium">
+                    <CardContent class="grid gap-4 md:grid-cols-2">
+                        <div v-for="(res, key) in quota.resources" :key="key" class="rounded-xl border border-border/70 bg-background/70 p-4">
+                            <div class="mb-2 flex items-center justify-between text-sm">
+                                <span class="flex items-center gap-2 font-medium">
                                     <component :is="resourceIcons[key]" class="size-4 text-muted-foreground" />
                                     {{ resourceLabels[key] ?? key }}
                                 </span>
-                                <span class="text-muted-foreground text-xs">
-                                    {{ res.used }} / {{ res.unlimited ? '∞' : res.limit }}
+                                <span class="font-mono text-xs text-muted-foreground">
+                                    {{ res.used }} / {{ res.unlimited ? '8' : res.limit }}
                                 </span>
                             </div>
-                            <div class="h-1.5 rounded-full bg-muted overflow-hidden">
-                                <div
-                                    v-if="!res.unlimited"
-                                    :class="['h-full rounded-full transition-all', barColor(res.percentage, res.can_add)]"
-                                    :style="{ width: `${res.percentage}%` }"
-                                />
-                                <div v-else class="h-full w-full rounded-full bg-green-500 opacity-30" />
+                            <div class="h-2 overflow-hidden rounded-full bg-muted">
+                                <div v-if="!res.unlimited" :class="['h-full rounded-full transition-all', barColor(res.percentage, res.can_add)]" :style="{ width: `${res.percentage}%` }" />
+                                <div v-else class="h-full w-full rounded-full bg-emerald-500/30" />
                             </div>
-                            <p v-if="!res.can_add" class="text-xs text-red-600 flex items-center gap-1">
-                                <XCircle class="size-3" /> Đã đạt giới hạn
-                            </p>
                         </div>
                     </CardContent>
                 </Card>
 
-                <!-- Tính năng -->
-                <Card>
-                    <CardHeader class="pb-3">
-                        <CardTitle class="text-base">Tính năng gói</CardTitle>
-                    </CardHeader>
-                    <CardContent class="grid grid-cols-3 gap-3 text-sm">
-                        <div v-for="(enabled, feature) in quota.features" :key="feature"
-                            :class="['flex items-center gap-2 rounded-lg border p-3', enabled ? 'border-green-200 bg-green-50 dark:bg-green-900/20' : 'opacity-50']">
-                            <CheckCircle2 v-if="enabled" class="size-4 text-green-600 shrink-0" />
-                            <XCircle v-else class="size-4 text-muted-foreground shrink-0" />
-                            <span class="text-xs capitalize">{{ String(feature).replace(/_/g, ' ') }}</span>
-                        </div>
-                        <div class="flex items-center gap-2 rounded-lg border p-3 border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-                            <span class="text-xs font-mono font-bold text-blue-600">{{ quota.rate_limit }}</span>
-                            <span class="text-xs">req/phút</span>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div class="grid gap-6 xl:grid-cols-3">
+                    <Card class="xl:col-span-2">
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <ReceiptText class="size-4 text-sky-600" /> Hoa don gan day
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-3">
+                            <div v-for="invoice in invoices" :key="invoice.id" class="rounded-xl border border-border/70 p-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-medium">{{ invoice.invoice_number }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ typeLabel(invoice.type) }} � Han {{ invoice.due_on || '�' }}</p>
+                                    </div>
+                                    <span :class="['rounded-full px-2.5 py-1 text-xs font-medium', statusColor[invoice.status] || 'bg-slate-100 text-slate-800']">
+                                        {{ statusLabel[invoice.status] ?? invoice.status }}
+                                    </span>
+                                </div>
+                                <div class="mt-3 flex items-center justify-between text-sm">
+                                    <span class="font-mono">{{ invoice.total }} {{ invoice.currency }}</span>
+                                    <span class="text-muted-foreground">Gui luc: {{ invoice.sent_at || 'Chua gui' }}</span>
+                                </div>
+                            </div>
+                            <p v-if="!invoices.length" class="py-6 text-center text-sm text-muted-foreground">Chua co hoa don nao.</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <RefreshCcw class="size-4 text-violet-600" /> Webhook log
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-3">
+                            <div v-for="webhook in webhooks" :key="webhook.id" class="rounded-xl border border-border/70 p-3 text-sm">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-medium">{{ webhook.provider }}</span>
+                                    <span :class="['rounded-full px-2 py-0.5 text-xs font-medium', statusColor[webhook.status] || 'bg-slate-100 text-slate-800']">
+                                        {{ statusLabel[webhook.status] ?? webhook.status }}
+                                    </span>
+                                </div>
+                                <p class="mt-2 break-all text-xs text-muted-foreground">{{ webhook.transaction_code || 'No transaction code' }}</p>
+                                <p class="mt-1 text-xs text-muted-foreground">{{ webhook.event_type || 'No event type' }}</p>
+                                <p class="mt-1 text-xs text-muted-foreground">{{ webhook.processed_at || 'Chua xu ly' }}</p>
+                            </div>
+                            <p v-if="!webhooks.length" class="py-6 text-center text-sm text-muted-foreground">Chua co webhook nao.</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div class="grid gap-6 xl:grid-cols-2">
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <ShieldAlert class="size-4 text-rose-600" /> Dieu chinh billing thu cong
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <form class="grid gap-4" @submit.prevent="submitOverride">
+                                <div class="grid gap-1.5">
+                                    <Label>Loai thao tac</Label>
+                                    <select v-model="overrideForm.type" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                        <option value="extend">Gia han thu cong</option>
+                                        <option value="trial">Tang them trial</option>
+                                        <option value="discount">Ap ma giam gia dac biet</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="grid gap-1.5">
+                                        <Label>So ngay cong them</Label>
+                                        <Input v-model="overrideForm.days" type="number" min="0" max="365" />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label>So tien giam</Label>
+                                        <Input v-model="overrideForm.discount_amount" type="number" min="0" />
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label>Ma coupon</Label>
+                                    <Input v-model="overrideForm.coupon_code" placeholder="PARTNER-VIP-2026" />
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label>Ly do</Label>
+                                    <Input v-model="overrideForm.reason" placeholder="Ho tro doi tac chien luoc / Free trial / Su co doi soat" />
+                                </div>
+
+                                <Button type="submit" :disabled="overrideForm.processing" class="justify-center">
+                                    {{ overrideForm.processing ? 'Dang ap dung...' : 'Ap dung manual override' }}
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <WalletCards class="size-4 text-emerald-600" /> Lich su dieu chinh
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-3">
+                            <div v-for="adjustment in adjustments" :key="adjustment.id" class="rounded-xl border border-border/70 p-4 text-sm">
+                                <div class="flex items-center justify-between gap-3">
+                                    <span class="font-medium">{{ typeLabel(adjustment.type) }}</span>
+                                    <span class="text-xs text-muted-foreground">{{ adjustment.created_at }}</span>
+                                </div>
+                                <p class="mt-2 text-muted-foreground">{{ adjustment.reason || 'Khong co ghi chu' }}</p>
+                                <div class="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                    <span>+{{ adjustment.days }} ngay</span>
+                                    <span>Giam {{ adjustment.discount_amount }} VND</span>
+                                    <span>{{ adjustment.creator || 'System' }}</span>
+                                </div>
+                            </div>
+                            <p v-if="!adjustments.length" class="py-6 text-center text-sm text-muted-foreground">Chua co dieu chinh billing nao.</p>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
-            <!-- Sidebar: Controls + Subscriptions -->
-            <div class="flex flex-col gap-4">
-                <!-- Đổi trạng thái -->
+            <div class="flex flex-col gap-6">
                 <Card>
                     <CardHeader class="pb-3">
-                        <CardTitle class="text-base">Trạng thái tài khoản</CardTitle>
+                        <CardTitle class="text-base">Quan tri trang thai</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <form @submit.prevent="updateStatus" class="flex flex-col gap-3">
                             <select v-model="statusForm.status" class="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                                <option value="active">✅ Kích hoạt</option>
-                                <option value="suspended">⏸ Tạm ngưng</option>
-                                <option value="expired">❌ Hết hạn</option>
+                                <option value="active">Kich hoat</option>
+                                <option value="expired">Read-only / Het han</option>
+                                <option value="suspended">Khoa hoan toan</option>
                             </select>
+                            <Input v-model="statusForm.reason" placeholder="Ly do cap nhat trang thai" />
                             <Button type="submit" :disabled="statusForm.processing" size="sm" class="w-full">
-                                {{ statusForm.processing ? 'Đang lưu...' : 'Cập nhật trạng thái' }}
+                                {{ statusForm.processing ? 'Dang luu...' : 'Cap nhat trang thai' }}
                             </Button>
                         </form>
                     </CardContent>
                 </Card>
 
-                <!-- Đổi gói -->
                 <Card>
                     <CardHeader class="pb-3">
-                        <CardTitle class="text-base">Gói dịch vụ</CardTitle>
+                        <CardTitle class="text-base">Chuyen goi dich vu</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <form @submit.prevent="updatePlan" class="flex flex-col gap-3">
@@ -190,32 +326,28 @@ function barColor(pct: number, canAdd: boolean) {
                                 </option>
                             </select>
                             <Button type="submit" :disabled="planForm.processing" size="sm" variant="outline" class="w-full">
-                                {{ planForm.processing ? 'Đang lưu...' : 'Đổi gói' }}
+                                {{ planForm.processing ? 'Dang luu...' : 'Cap nhat goi' }}
                             </Button>
                         </form>
                     </CardContent>
                 </Card>
 
-                <!-- Lịch sử đăng ký -->
                 <Card>
-                    <CardHeader class="pb-2">
-                        <CardTitle class="text-base">Lịch sử đăng ký</CardTitle>
+                    <CardHeader class="pb-3">
+                        <CardTitle class="text-base">Lich su subscription</CardTitle>
                     </CardHeader>
-                    <CardContent class="flex flex-col gap-2">
-                        <div v-for="s in subscriptions" :key="s.started_at"
-                            class="rounded border p-2.5 text-xs flex flex-col gap-1">
-                            <div class="flex items-center justify-between">
+                    <CardContent class="space-y-3">
+                        <div v-for="s in subscriptions" :key="s.id" class="rounded-xl border border-border/70 p-3 text-sm">
+                            <div class="flex items-center justify-between gap-2">
                                 <span class="font-medium">{{ s.plan }}</span>
-                                <span :class="['rounded-full px-1.5 py-0.5', s.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
-                                    {{ s.status }}
+                                <span :class="['rounded-full px-2 py-0.5 text-xs font-medium', statusColor[s.status] || 'bg-slate-100 text-slate-800']">
+                                    {{ statusLabel[s.status] ?? s.status }}
                                 </span>
                             </div>
-                            <span class="text-muted-foreground">{{ s.started_at }} → {{ s.ended_at }}</span>
-                            <span class="font-mono">{{ s.price }} VND</span>
+                            <p class="mt-2 text-xs text-muted-foreground">{{ s.started_at }} ? {{ s.ended_at }}</p>
+                            <p class="mt-1 font-mono text-xs">{{ s.price }} VND</p>
                         </div>
-                        <p v-if="!subscriptions.length" class="text-xs text-muted-foreground text-center py-2">
-                            Chưa có lịch sử
-                        </p>
+                        <p v-if="!subscriptions.length" class="py-6 text-center text-sm text-muted-foreground">Chua co lich su subscription.</p>
                     </CardContent>
                 </Card>
             </div>

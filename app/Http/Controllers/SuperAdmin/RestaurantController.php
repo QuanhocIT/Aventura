@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BillingAdjustment;
+use App\Models\BillingInvoice;
+use App\Models\PaymentWebhook;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantSubscription;
@@ -50,10 +53,10 @@ class RestaurantController extends Controller
                 'name'            => $r->name,
                 'code'            => $r->code,
                 'status'          => $r->status,
-                'plan'            => $r->plan?->name ?? '—',
+                'plan'            => $r->plan?->name ?? '�',
                 'plan_code'       => $r->plan?->code ?? 'FREE',
-                'owner'           => $r->owner?->name ?? '—',
-                'owner_email'     => $r->owner?->email ?? '—',
+                'owner'           => $r->owner?->name ?? '�',
+                'owner_email'     => $r->owner?->email ?? '�',
                 'branches_count'  => $r->branches_count,
                 'employees_count' => $r->employees_count,
                 'tables_count'    => $r->tables_count,
@@ -76,11 +79,55 @@ class RestaurantController extends Controller
             ->take(5)
             ->get()
             ->map(fn ($s) => [
+                'id' => $s->id,
                 'plan'       => $s->plan?->name,
                 'status'     => $s->status,
                 'started_at' => $s->started_at?->format('d/m/Y'),
                 'ended_at'   => $s->ended_at?->format('d/m/Y'),
                 'price'      => number_format($s->price),
+            ]);
+
+        $invoices = $restaurant->invoices()
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(fn ($invoice) => [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'type' => $invoice->type,
+                'status' => $invoice->status,
+                'total' => number_format($invoice->total),
+                'currency' => $invoice->currency,
+                'due_on' => $invoice->due_on?->format('d/m/Y'),
+                'sent_at' => $invoice->sent_at?->format('d/m/Y H:i'),
+            ]);
+
+        $adjustments = $restaurant->billingAdjustments()
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(fn ($item) => [
+                'id' => $item->id,
+                'type' => $item->type,
+                'days' => $item->days,
+                'discount_amount' => number_format($item->discount_amount),
+                'reason' => $item->reason,
+                'created_at' => $item->created_at?->format('d/m/Y H:i'),
+                'creator' => $item->creator?->name,
+            ]);
+
+        $webhooks = PaymentWebhook::query()
+            ->where('transaction_code', optional($restaurant->subscriptions()->latest('id')->first())->transaction_code)
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(fn ($webhook) => [
+                'id' => $webhook->id,
+                'provider' => $webhook->provider,
+                'status' => $webhook->status,
+                'event_type' => $webhook->event_type,
+                'transaction_code' => $webhook->transaction_code,
+                'processed_at' => $webhook->processed_at?->format('d/m/Y H:i'),
             ]);
 
         return Inertia::render('super-admin/restaurants/Show', [
@@ -111,6 +158,9 @@ class RestaurantController extends Controller
             ],
             'quota'         => $quotaSummary,
             'subscriptions' => $subscriptions,
+            'invoices' => $invoices,
+            'adjustments' => $adjustments,
+            'webhooks' => $webhooks,
             'plans'         => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
         ]);
     }
@@ -130,7 +180,6 @@ class RestaurantController extends Controller
             'currency' => 'nullable|string|max:10',
         ]);
 
-        // Tạo owner account
         $owner = User::create([
             'name'              => $validated['owner_name'],
             'email'             => $validated['owner_email'],
@@ -140,7 +189,6 @@ class RestaurantController extends Controller
 
         $plan = SubscriptionPlan::findOrFail($validated['plan_id']);
 
-        // Tạo nhà hàng
         $restaurant = Restaurant::create([
             'name'                   => $validated['name'],
             'code'                   => strtoupper(Str::random(6)),
@@ -156,12 +204,11 @@ class RestaurantController extends Controller
             'currency'               => $validated['currency'] ?? 'VND',
             'subscription_started_at' => now(),
             'trial_ends_at'          => now()->addDays(14),
+            'subscription_ends_at'   => now()->addDays(14),
         ]);
 
-        // Gán restaurant cho owner
         $owner->update(['restaurant_id' => $restaurant->id]);
 
-        // Tạo subscription record
         RestaurantSubscription::create([
             'restaurant_id' => $restaurant->id,
             'plan_id'       => $plan->id,
@@ -172,11 +219,10 @@ class RestaurantController extends Controller
             'price'         => $plan->price,
         ]);
 
-        // Tạo chi nhánh mặc định + dữ liệu mẫu
         $this->seedDemoData($restaurant);
 
         return redirect()->route('superadmin.restaurants.show', $restaurant)
-            ->with('success', "Đã tạo nhà hàng \"{$restaurant->name}\" thành công.");
+            ->with('success', "�� t?o nh� h�ng \"{$restaurant->name}\" th�nh c�ng.");
     }
 
     public function updateStatus(Request $request, Restaurant $restaurant): RedirectResponse
@@ -189,12 +235,12 @@ class RestaurantController extends Controller
         $restaurant->update(['status' => $request->status]);
 
         $labels = [
-            'active'    => 'kích hoạt',
-            'suspended' => 'tạm ngưng',
-            'expired'   => 'hết hạn',
+            'active'    => 'k�ch ho?t',
+            'suspended' => 't?m ngung',
+            'expired'   => 'h?t h?n',
         ];
 
-        return back()->with('success', "Đã {$labels[$request->status]} nhà hàng \"{$restaurant->name}\".");
+        return back()->with('success', "�� {$labels[$request->status]} nh� h�ng \"{$restaurant->name}\".");
     }
 
     public function updatePlan(Request $request, Restaurant $restaurant): RedirectResponse
@@ -206,7 +252,6 @@ class RestaurantController extends Controller
         $plan = SubscriptionPlan::findOrFail($request->plan_id);
         $restaurant->update(['plan_id' => $plan->id]);
 
-        // Ghi lại lịch sử subscription
         RestaurantSubscription::create([
             'restaurant_id' => $restaurant->id,
             'plan_id'       => $plan->id,
@@ -217,26 +262,24 @@ class RestaurantController extends Controller
             'price'         => $plan->price,
         ]);
 
-        return back()->with('success', "Đã chuyển sang gói {$plan->name}.");
+        return back()->with('success', "�� chuy?n sang g�i {$plan->name}.");
     }
 
     private function seedDemoData(Restaurant $restaurant): void
     {
-        // Chi nhánh mặc định
         $branch = RestaurantBranch::create([
             'restaurant_id' => $restaurant->id,
             'code'          => 'CN01',
-            'name'          => 'Chi nhánh chính',
+            'name'          => 'Chi nh�nh ch�nh',
             'phone'         => $restaurant->phone,
             'email'         => $restaurant->email,
             'address'       => $restaurant->address,
             'status'        => 'active',
         ]);
 
-        // Khu vực mẫu
         $areas = [
-            ['name' => 'Tầng 1', 'code' => 'T1', 'display_order' => 1],
-            ['name' => 'Tầng 2', 'code' => 'T2', 'display_order' => 2],
+            ['name' => 'T?ng 1', 'code' => 'T1', 'display_order' => 1],
+            ['name' => 'T?ng 2', 'code' => 'T2', 'display_order' => 2],
         ];
 
         foreach ($areas as $areaData) {

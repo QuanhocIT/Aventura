@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
+import AppTopbarLayout from '@/layouts/AppTopbarLayout-clean.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { BarChart3, Building2, Check, ClipboardList, Monitor, Package, QrCode, Rocket, Settings2, Users, X } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';

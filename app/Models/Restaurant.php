@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Carbon;
 
 class Restaurant extends Model
 {
@@ -66,6 +67,16 @@ class Restaurant extends Model
         return $this->hasMany(RestaurantSubscription::class);
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(BillingInvoice::class);
+    }
+
+    public function billingAdjustments(): HasMany
+    {
+        return $this->hasMany(BillingAdjustment::class);
+    }
+
     public function activeSubscription(): HasOne
     {
         return $this->hasOne(RestaurantSubscription::class)
@@ -91,6 +102,23 @@ class Restaurant extends Model
     public function isActive(): bool { return $this->status === 'active'; }
     public function isSuspended(): bool { return $this->status === 'suspended'; }
     public function isExpired(): bool { return $this->status === 'expired'; }
+
+    public function currentAccessStatus(): string
+    {
+        if ($this->status === 'suspended') {
+            return 'suspended';
+        }
+
+        $subscriptionEnd = $this->subscription_ends_at instanceof Carbon
+            ? $this->subscription_ends_at
+            : ($this->subscription_ends_at ? Carbon::parse($this->subscription_ends_at) : null);
+
+        if ($this->status === 'expired' || ($subscriptionEnd && $subscriptionEnd->isPast())) {
+            return 'expired';
+        }
+
+        return 'active';
+    }
 
     protected static function newFactory(): Factory
     {
