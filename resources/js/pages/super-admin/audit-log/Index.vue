@@ -2,7 +2,7 @@
 import { Head, router } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight, FileText, Filter, Search } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
-import AppLayout from '@/layouts/AppLayout-clean.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

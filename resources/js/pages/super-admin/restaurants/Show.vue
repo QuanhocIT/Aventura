@@ -14,7 +14,7 @@ import {
     WalletCards,
     RefreshCcw,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout-clean.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
