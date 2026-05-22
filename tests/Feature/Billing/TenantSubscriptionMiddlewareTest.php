@@ -33,11 +33,15 @@ class TenantSubscriptionMiddlewareTest extends TestCase
         ]);
         $owner->update(['restaurant_id' => $restaurant->id]);
         $owner = $owner->fresh();
+        $token = 'test-csrf-token';
 
         $this->actingAs($owner);
 
         $this->getJson('/_test/subscription-read')->assertOk();
-        $this->postJson('/_test/subscription-write')->assertStatus(402);
+        $this->withSession(['_token' => $token])
+            ->withHeader('X-CSRF-TOKEN', $token)
+            ->postJson('/_test/subscription-write')
+            ->assertStatus(402);
     }
 
     public function test_suspended_tenant_is_blocked(): void
@@ -51,10 +55,14 @@ class TenantSubscriptionMiddlewareTest extends TestCase
         ]);
         $owner->update(['restaurant_id' => $restaurant->id]);
         $owner = $owner->fresh();
+        $token = 'test-csrf-token';
 
         $this->actingAs($owner);
 
         $this->getJson('/_test/subscription-read')->assertStatus(403);
-        $this->postJson('/_test/subscription-write')->assertStatus(403);
+        $this->withSession(['_token' => $token])
+            ->withHeader('X-CSRF-TOKEN', $token)
+            ->postJson('/_test/subscription-write')
+            ->assertStatus(403);
     }
 }

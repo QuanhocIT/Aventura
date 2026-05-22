@@ -36,6 +36,16 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+
+        // Clear Spatie permission cache để đảm bảo roles luôn mới nhất
+        if ($user) {
+            try {
+                app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
         $roles = $user?->getRoleNames() ?? [];
         // Không gán trực tiếp roles vào user để tránh lỗi update DB
         return [

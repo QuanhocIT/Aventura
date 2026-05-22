@@ -8,8 +8,8 @@ class CustomRedirectAfterLogin
 {
     public function __invoke(Authenticatable $user)
     {
-        // Nếu là admin thì về dashboard super admin
-        if ($user->hasRole('admin')) {
+        // Nếu là super admin thì về dashboard super admin
+        if ($user->hasRole('super_admin')) {
             return '/super-admin/dashboard';
         }
         // Các user khác về dashboard thường

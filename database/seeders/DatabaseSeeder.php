@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             SystemDemoSeeder::class,
             TenantDemoSeeder::class,
             RestaurantDemoSeeder::class,
+            \Database\Seeders\SuperAdminSeeder::class,
         ]);
     }
 }

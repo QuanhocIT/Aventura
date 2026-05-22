@@ -11,6 +11,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Notifications\SubscriptionExpiryReminder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -220,6 +221,14 @@ class BillingService
     public function markExpiredAndSuspended(): void
     {
         $now = now();
+        $graceThreshold = $now->copy()->subDays((int) config('billing.grace_period_days', 30));
+
+        RestaurantSubscription::query()
+            ->whereIn('status', ['trial', 'active'])
+            ->whereNotNull('ended_at')
+            ->where('ended_at', '<', $now)
+            ->update(['status' => 'expired']);
+
         Restaurant::query()
             ->where('status', 'active')
             ->whereDate('subscription_ends_at', '<', $now->toDateString())
@@ -227,11 +236,80 @@ class BillingService
 
         Restaurant::query()
             ->where('status', 'expired')
-            ->whereDate('subscription_ends_at', '<', $now->subDays((int) config('billing.grace_period_days', 30))->toDateString())
+            ->whereDate('subscription_ends_at', '<', $graceThreshold->toDateString())
             ->update(['status' => 'suspended']);
+
+        RestaurantSubscription::query()
+            ->whereHas('restaurant', fn ($query) => $query->where('status', 'active'))
+            ->whereNotNull('ended_at')
+            ->where('ended_at', '>=', $now)
+            ->where('status', '!=', 'active')
+            ->update(['status' => 'active']);
+
+        RestaurantSubscription::query()
+            ->whereHas('restaurant', fn ($query) => $query->where('status', 'expired'))
+            ->whereNotNull('ended_at')
+            ->where('ended_at', '<', $now)
+            ->where('status', '!=', 'expired')
+            ->update(['status' => 'expired']);
     }
 
-    private function billingCycleDays(\App\Models\SubscriptionPlan $plan): int
+    public function sendExpiryReminders(): int
+    {
+        $now = now();
+        $threshold = $now->copy()->addDays((int) config('billing.upcoming_due_days', 7))->endOfDay();
+        $sent = 0;
+
+        RestaurantSubscription::query()
+            ->with(['restaurant.owner'])
+            ->whereIn('status', ['trial', 'active'])
+            ->whereNotNull('ended_at')
+            ->whereBetween('ended_at', [$now, $threshold])
+            ->where(function ($query) use ($now) {
+                $query->whereNull('last_notified_at')
+                    ->orWhereDate('last_notified_at', '<', $now->toDateString());
+            })
+            ->chunkById(100, function ($subscriptions) use (&$sent) {
+                foreach ($subscriptions as $subscription) {
+                    $restaurant = $subscription->restaurant;
+                    if (! $restaurant || ! $restaurant->owner) {
+                        continue;
+                    }
+
+                    $invoice = BillingInvoice::query()->firstOrCreate([
+                        'restaurant_id' => $restaurant->id,
+                        'restaurant_subscription_id' => $subscription->id,
+                        'type' => 'upcoming_renewal',
+                    ], [
+                        'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.strtoupper(substr(md5((string) $subscription->id), 0, 4)),
+                        'status' => 'pending',
+                        'currency' => $restaurant->currency ?? 'VND',
+                        'subtotal' => (float) $subscription->price,
+                        'discount_amount' => 0,
+                        'total' => (float) $subscription->price,
+                        'issued_on' => now()->toDateString(),
+                        'due_on' => $subscription->ended_at?->toDateString(),
+                        'recipient_email' => $restaurant->owner->email,
+                    ]);
+
+                    $this->queueInvoiceRegeneration($invoice);
+                    $this->queueInvoiceEmail($invoice);
+
+                    $restaurant->owner->notify(new SubscriptionExpiryReminder(
+                        $restaurant->name,
+                        optional($subscription->ended_at)->format('d/m/Y'),
+                        'upcoming'
+                    ));
+
+                    $subscription->update(['last_notified_at' => now()]);
+                    $sent++;
+                }
+            });
+
+        return $sent;
+    }
+
+    private function billingCycleDays(SubscriptionPlan $plan): int
     {
         return match ($plan->billing_cycle) {
             'yearly' => 365,

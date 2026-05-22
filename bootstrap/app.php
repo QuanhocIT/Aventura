@@ -29,11 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'tenant.active'     => CheckTenantSubscription::class,
-            'tenant.subscription' => CheckTenantSubscription::class,
-            'tenant.ratelimit'  => \App\Http\Middleware\TenantRateLimit::class,
-            'role'              => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission'        => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'tenant.active'        => CheckTenantSubscription::class,
+            'tenant.subscription'  => CheckTenantSubscription::class,
+            'tenant.ratelimit'     => \App\Http\Middleware\TenantRateLimit::class,
+            'role'                 => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

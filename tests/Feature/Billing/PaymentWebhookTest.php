@@ -45,8 +45,14 @@ class PaymentWebhookTest extends TestCase
         $payload = ['transaction_code' => 'TXN-123', 'amount' => 499000, 'event_type' => 'payment.succeeded'];
         $body = json_encode($payload, JSON_THROW_ON_ERROR);
         $signature = hash_hmac('sha256', $body, 'secret-key');
+        $token = 'test-csrf-token';
 
-        $response = $this->withHeaders(['X-Signature' => $signature])
+        $response = $this->withSession(['_token' => $token])
+            ->withHeaders([
+                'X-Signature' => $signature,
+                'X-CSRF-TOKEN' => $token,
+                'Accept' => 'application/json',
+            ])
             ->postJson(route('billing.webhook'), $payload);
 
         $response->assertOk();

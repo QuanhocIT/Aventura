@@ -22,8 +22,14 @@ import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const page = usePage();
-const roles = computed(() => page.props.roles ?? []);
-const isSuperAdmin = computed(() => roles.value.includes('admin') || roles.value.includes('super_admin'));
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+    // getRoleNames() trả về Collection object có thể có keys số, dùng Object.values để an toàn
+    return Array.isArray(raw) ? raw : Object.values(raw);
+});
+const isSuperAdmin = computed(() =>
+    roles.value.some((r: string) => r === 'admin' || r === 'super_admin')
+);
 
 const mainNavItems = computed<NavItem[]>(() =>
     isSuperAdmin.value
