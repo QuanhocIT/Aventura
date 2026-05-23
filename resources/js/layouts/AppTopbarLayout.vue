@@ -2,6 +2,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { LogOut, Monitor, Settings } from 'lucide-vue-next';
 import { computed } from 'vue';
+import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +14,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import { useInitials } from '@/composables/useInitials';
 import type { User } from '@/types';
 

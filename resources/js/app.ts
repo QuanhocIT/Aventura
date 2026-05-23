@@ -1,16 +1,17 @@
 import './lib/echo';
 import { createInertiaApp } from '@inertiajs/vue3';
+import { router } from '@inertiajs/vue3';
+import { toast } from 'vue-sonner';
 import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
-import { router } from '@inertiajs/vue3';
-import { toast } from 'vue-sonner';
 
 router.on('success', (event: { detail: { page: { props: Record<string, any> } } }) => {
     const announcement = (event.detail.page.props as Record<string, any>)?.flash?.success;
+
     if (announcement) {
         toast.success(String(announcement));
     }

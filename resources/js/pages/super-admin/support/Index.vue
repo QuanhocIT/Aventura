@@ -1,13 +1,5 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     AlertTriangle, BellRing, BookOpenText, Cpu, Eye, Headset,
     LifeBuoy, Radio, RefreshCcw, Send, Siren, Ticket,
@@ -15,6 +7,14 @@ import {
     Globe, MonitorSpeaker, PlusCircle, ChevronRight,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -60,20 +60,37 @@ const statusBadge: Record<string, string> = {
 const systemHealth = computed(() => {
     const rate = props.monitoring.api_error_rate;
     const failed = props.monitoring.failed_jobs;
-    if (failed > 0 || rate > 5) return { label: 'Cảnh báo', color: 'text-amber-500', bg: 'bg-amber-50', dot: 'bg-amber-500' };
-    if (rate > 2) return { label: 'Chú ý', color: 'text-orange-500', bg: 'bg-orange-50', dot: 'bg-orange-500' };
+
+    if (failed > 0 || rate > 5) {
+return { label: 'Cảnh báo', color: 'text-amber-500', bg: 'bg-amber-50', dot: 'bg-amber-500' };
+}
+
+    if (rate > 2) {
+return { label: 'Chú ý', color: 'text-orange-500', bg: 'bg-orange-50', dot: 'bg-orange-500' };
+}
+
     return { label: 'Hoạt động tốt', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
 });
 
-function runAlertCheck() { router.post('/super-admin/support/alerts/run', {}, { preserveScroll: true }); }
+function runAlertCheck() {
+ router.post('/super-admin/support/alerts/run', {}, { preserveScroll: true }); 
+}
 function submitTicket() {
     ticketForm.transform((data: TicketFormData) => ({ ...data, restaurant_id: data.restaurant_id === 'system' ? null : data.restaurant_id }))
         .post('/super-admin/support/tickets', { preserveScroll: true, onSuccess: () => ticketForm.reset('title', 'description') });
 }
-function updateTicket(id: number, status: string) { router.patch(`/super-admin/support/tickets/${id}`, { status }, { preserveScroll: true }); }
-function submitAnnouncement() { announcementForm.post('/super-admin/support/announcements', { preserveScroll: true, onSuccess: () => announcementForm.reset('title', 'message') }); }
-function submitArticle() { articleForm.post('/super-admin/support/articles', { preserveScroll: true, onSuccess: () => articleForm.reset('title', 'summary', 'content', 'video_url') }); }
-function submitRule() { ruleForm.post('/super-admin/support/rules', { preserveScroll: true, onSuccess: () => ruleForm.reset('name') }); }
+function updateTicket(id: number, status: string) {
+ router.patch(`/super-admin/support/tickets/${id}`, { status }, { preserveScroll: true }); 
+}
+function submitAnnouncement() {
+ announcementForm.post('/super-admin/support/announcements', { preserveScroll: true, onSuccess: () => announcementForm.reset('title', 'message') }); 
+}
+function submitArticle() {
+ articleForm.post('/super-admin/support/articles', { preserveScroll: true, onSuccess: () => articleForm.reset('title', 'summary', 'content', 'video_url') }); 
+}
+function submitRule() {
+ ruleForm.post('/super-admin/support/rules', { preserveScroll: true, onSuccess: () => ruleForm.reset('name') }); 
+}
 </script>
 
 <template>

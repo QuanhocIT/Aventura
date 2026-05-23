@@ -2,11 +2,9 @@
 import { Head, router } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight, FileText, Filter, Search } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -41,7 +39,10 @@ const fromFilter       = ref(props.filters.from ?? '');
 const toFilter         = ref(props.filters.to ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
-watch(actionFilter, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 500); });
+watch(actionFilter, () => {
+    clearTimeout(timer);
+    timer = setTimeout(applyFilter, 500);
+});
 
 function applyFilter() {
     router.get('/super-admin/audit-logs', {
@@ -281,3 +282,6 @@ const hasActiveFilter = () =>
         </Card>
     </div>
 </template>
+
+
+

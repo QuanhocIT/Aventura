@@ -3,8 +3,6 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     Crown,
-    CheckCircle2,
-    XCircle,
     Building2,
     Users,
     LayoutGrid,
@@ -14,11 +12,11 @@ import {
     WalletCards,
     RefreshCcw,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -96,8 +94,14 @@ const resourceLabels: Record<string, string> = {
 };
 
 function barColor(pct: number, canAdd: boolean) {
-    if (!canAdd) return 'bg-rose-500';
-    if (pct >= 80) return 'bg-amber-500';
+    if (!canAdd) {
+return 'bg-rose-500';
+}
+
+    if (pct >= 80) {
+return 'bg-amber-500';
+}
+
     return 'bg-emerald-500';
 }
 
@@ -354,3 +358,4 @@ function typeLabel(type: string) {
         </div>
     </div>
 </template>
+

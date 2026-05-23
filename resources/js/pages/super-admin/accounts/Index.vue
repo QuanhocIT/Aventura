@@ -6,18 +6,16 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog, DialogContent, DialogFooter,
     DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useInitials } from '@/composables/useInitials';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -39,8 +37,14 @@ const page = usePage();
 
 // Flash notifications
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error)   toast.error(flash.error);
+    if (flash?.success) {
+toast.success(flash.success);
+}
+
+    if (flash?.error)   {
+toast.error(flash.error);
+}
+
     if (flash?.temp_password) {
         tempPassword.value = flash.temp_password;
         showTempPassword.value = true;
@@ -53,7 +57,9 @@ const roleFilter = ref(props.filters.role ?? '');
 const statusFilter = ref(props.filters.status ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
-watch(search, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 400); });
+watch(search, () => {
+ clearTimeout(timer); timer = setTimeout(applyFilter, 400); 
+});
 
 function applyFilter() {
     router.get('/super-admin/accounts', {
@@ -70,26 +76,38 @@ const copied           = ref(false);
 function copyPassword() {
     navigator.clipboard.writeText(tempPassword.value);
     copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
+    setTimeout(() => {
+ copied.value = false; 
+}, 2000);
 }
 
 // Reset password
 const processingReset = ref<number | null>(null);
 function resetPassword(account: { id: number; name: string }) {
-    if (!confirm(`Reset mật khẩu cho "${account.name}"? Mật khẩu mới sẽ hiển thị ngay sau thao tác này.`)) return;
+    if (!confirm(`Reset mật khẩu cho "${account.name}"? Mật khẩu mới sẽ hiển thị ngay sau thao tác này.`)) {
+return;
+}
+
     processingReset.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/reset-password`, {}, {
-        onFinish: () => { processingReset.value = null; },
+        onFinish: () => {
+ processingReset.value = null; 
+},
     });
 }
 
 // Disable 2FA
 const processingDisable2FA = ref<number | null>(null);
 function disable2FA(account: { id: number; name: string }) {
-    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) return;
+    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) {
+return;
+}
+
     processingDisable2FA.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/disable-2fa`, {}, {
-        onFinish: () => { processingDisable2FA.value = null; },
+        onFinish: () => {
+ processingDisable2FA.value = null; 
+},
     });
 }
 
@@ -104,9 +122,14 @@ function openStatusDialog(account: any) {
     showStatusDialog.value = true;
 }
 function submitStatus() {
-    if (!selectedAccount.value) return;
+    if (!selectedAccount.value) {
+return;
+}
+
     statusForm.patch(`/super-admin/accounts/${selectedAccount.value.id}/status`, {
-        onSuccess: () => { showStatusDialog.value = false; },
+        onSuccess: () => {
+ showStatusDialog.value = false; 
+},
     });
 }
 
@@ -123,8 +146,6 @@ const roleColor: Record<string, string> = {
     inventory_staff: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
 };
 
-const totalActive    = computed(() => props.accounts.data.filter(a => a.status === 'active').length);
-const totalSuspended = computed(() => props.accounts.data.filter(a => a.status !== 'active').length);
 const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa).length);
 </script>
 
@@ -420,3 +441,4 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
         </DialogContent>
     </Dialog>
 </template>
+

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Building2,
@@ -15,9 +14,10 @@ import {
     Users,
     XCircle,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -102,9 +102,18 @@ const statusLabel: Record<string, string> = {
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN').format(value) + ' VND';
 const formatBytes = (bytes: number) => {
-    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-    if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes >= 1024 ** 3) {
+return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+    if (bytes >= 1024 ** 2) {
+return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+    if (bytes >= 1024) {
+return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
     return `${bytes} B`;
 };
 
@@ -129,6 +138,7 @@ const growthPath = computed(() => {
         .map((point, index) => {
             const x = props.tenantGrowth.length <= 1 ? 0 : (index / (props.tenantGrowth.length - 1)) * width;
             const y = height - ((point.new_tenants - min) / span) * height;
+
             return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
         })
         .join(' ');
@@ -146,6 +156,7 @@ const freeToProPath = computed(() => {
         .map((point, index) => {
             const x = props.tenantGrowth.length <= 1 ? 0 : (index / (props.tenantGrowth.length - 1)) * width;
             const y = height - ((point.free_to_pro - min) / span) * height;
+
             return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
         })
         .join(' ');

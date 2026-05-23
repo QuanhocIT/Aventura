@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { BookOpen, FolderGit2, LayoutGrid, Building2, BadgeDollarSign, Users, FileSearch2, Headset } from 'lucide-vue-next';
+import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -18,12 +20,11 @@ import { dashboard } from '@/routes';
 import { dashboard as superAdminDashboard } from '@/routes/superadmin';
 import type { NavItem } from '@/types';
 
-import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
 
 const page = usePage();
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     // getRoleNames() trả về Collection object có thể có keys số, dùng Object.values để an toàn
     return Array.isArray(raw) ? raw : Object.values(raw);
 });
