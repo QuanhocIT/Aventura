@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 use Database\Factories\Restaurant\ProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Product extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
 
     protected $guarded = [];
@@ -43,3 +46,4 @@ class Product extends Model
         return ProductFactory::new();
     }
 }
+

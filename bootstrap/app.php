@@ -3,6 +3,7 @@
 use App\Http\Middleware\CheckTenantSubscription;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SetTenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
+            SetTenantContext::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
@@ -32,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.active'        => CheckTenantSubscription::class,
             'tenant.subscription'  => CheckTenantSubscription::class,
             'tenant.ratelimit'     => \App\Http\Middleware\TenantRateLimit::class,
+            'tenant.quota'         => \App\Http\Middleware\TenantQuotaMiddleware::class,
             'role'                 => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
@@ -40,3 +43,4 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
+

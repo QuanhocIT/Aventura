@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 use Database\Factories\Hr\EmployeeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -15,6 +17,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class Employee extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
     use HasRoles;
 
@@ -101,3 +104,4 @@ class Employee extends Model
         return EmployeeFactory::new();
     }
 }
+

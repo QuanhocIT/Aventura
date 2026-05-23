@@ -2,49 +2,31 @@
 
 namespace Database\Seeders\Tenant;
 
-use App\Models\Restaurant;
-use App\Models\SubscriptionPlan;
-use App\Models\User;
+use App\Services\Onboarding\RestaurantOnboardingService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
+/**
+ * Tạo tenant demo bằng cách gọi ĐÚNG pipeline onboarding production.
+ * Điều này đảm bảo môi trường seed luôn đồng bộ với luồng đăng ký thật:
+ * - Tạo restaurant + user + gán role owner
+ * - Tạo subscription (trial)
+ * - Seed dữ liệu mẫu: units, supplier, area, bàn + QR code thật, danh mục, món, nguyên liệu, công thức
+ */
 class TenantDemoSeeder extends Seeder
 {
+    public function __construct(
+        private readonly RestaurantOnboardingService $onboarding,
+    ) {}
+
     public function run(): void
     {
-        $owner = User::updateOrCreate(
-            ['email' => 'owner@bepso.test'],
-            [
-                'name' => 'Owner Demo',
-                'password' => Hash::make('password'),
-                'phone' => '0900000001',
-                'status' => 'active',
-                'email_verified_at' => now(),
-            ],
-        );
-
-        $restaurant = Restaurant::updateOrCreate(
-            ['code' => 'FNBVIET-DEMO'],
-            [
-                'plan_id' => SubscriptionPlan::where('code', 'pro')->value('id'),
-                'owner_user_id' => $owner->id,
-                'name' => 'Aventura Demo',
-                'slug' => 'aventura-demo',
-                'phone' => '02873000001',
-                'email' => 'hello@bepso.test',
-                'address' => '1 Nguyen Hue, Quan 1, TP.HCM',
-                'timezone' => 'Asia/Ho_Chi_Minh',
-                'currency' => 'VND',
-                'status' => 'active',
-                'subscription_started_at' => now()->toDateString(),
-                'subscription_ends_at' => now()->addMonth()->toDateString(),
-            ],
-        );
-
-        $owner->forceFill([
-            'restaurant_id' => $restaurant->id,
-        ])->save();
-
-        $owner->syncRoles(['owner']);
+        $this->onboarding->onboard([
+            'name'            => 'Owner Demo',
+            'restaurant_name' => 'Aventura Demo',
+            'email'           => 'owner@bepso.test',
+            'password'        => 'password',
+            'phone'           => '0900000001',
+            'plan_code'       => 'pro',
+        ]);
     }
 }

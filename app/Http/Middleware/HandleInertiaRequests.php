@@ -47,6 +47,30 @@ class HandleInertiaRequests extends Middleware
         }
 
         $roles = $user?->getRoleNames() ?? [];
+
+        $tenant = null;
+        if ($user && $user->restaurant_id) {
+            $restaurant = $user->restaurant;
+            if ($restaurant) {
+                $tenant = [
+                    'id'                   => $restaurant->id,
+                    'name'                 => $restaurant->name,
+                    'status'               => $restaurant->status,
+                    'trial_ends_at'        => $restaurant->trial_ends_at?->toDateString(),
+                    'subscription_ends_at' => $restaurant->subscription_ends_at?->toDateString(),
+                    'plan' => $restaurant->plan ? [
+                        'code'         => $restaurant->plan->code,
+                        'name'         => $restaurant->plan->name,
+                        'max_branches' => $restaurant->plan->max_branches,
+                        'max_tables'   => $restaurant->plan->max_tables,
+                        'max_users'    => $restaurant->plan->max_users,
+                        'features'     => $restaurant->plan->features,
+                    ] : null,
+                    'quota_summary' => app(\App\Services\QuotaService::class)->getSummary($restaurant),
+                ];
+            }
+        }
+
         // Không gán trực tiếp roles vào user để tránh lỗi update DB
         return [
             ...parent::share($request),
@@ -55,6 +79,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
             ],
             'roles' => $roles,
+            'tenant' => $tenant,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success'      => $request->session()->get('success'),

@@ -28,6 +28,7 @@ use Spatie\Permission\Traits\HasRoles;
     'phone',
     'avatar_url',
     'status',
+    'onboarding_status',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
@@ -44,6 +45,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'onboarding_status' => 'array',
         ];
     }
 

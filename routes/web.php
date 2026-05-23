@@ -16,8 +16,31 @@ Route::inertia('/', 'Khach', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\SupportController;
+
 Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+
+    // Onboarding API
+    Route::post('api/onboarding/update', [OnboardingController::class, 'updateProgress'])->name('onboarding.update');
+    Route::post('api/onboarding/reset', [OnboardingController::class, 'resetProgress'])->name('onboarding.reset');
+
+    // Support Portal
+    Route::get('support', [SupportController::class, 'index'])->name('support.index');
+    Route::post('support/tickets', [SupportController::class, 'storeTicket'])->name('support.tickets.store');
+    Route::post('support/tickets/{ticket}/replies', [SupportController::class, 'storeReply'])->name('support.tickets.replies.store');
+
+    // Functional Pages for Guided Tours
+    Route::get('products', [SupportController::class, 'productsPage'])->name('products.index');
+    Route::post('products', [SupportController::class, 'storeProduct'])->name('products.store');
+    Route::post('product-categories', [SupportController::class, 'storeCategory'])->name('product-categories.store');
+
+    Route::get('inventory', [SupportController::class, 'inventoryPage'])->name('inventory.index');
+    Route::post('inventory/recipes', [SupportController::class, 'storeRecipe'])->name('inventory.recipes.store');
+
+    Route::get('employees', [SupportController::class, 'employeesPage'])->name('employees.index');
+    Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store');
 });
 
 require __DIR__.'/settings.php';

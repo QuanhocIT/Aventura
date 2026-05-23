@@ -2,13 +2,21 @@
 
 namespace App\Http\Responses;
 
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Laravel\Fortify\Contracts\RegisterResponse as RegisterResponseContract;
 
 class CustomRegisterResponse implements RegisterResponseContract
 {
-    public function toResponse($request)
+    public function toResponse($request): RedirectResponse
     {
-        // User mới đăng ký chưa có role → về trang chủ
-        return redirect('/');
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (! $user) {
+            return redirect('/login');
+        }
+
+        return redirect()->intended('/dashboard');
     }
 }

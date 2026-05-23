@@ -15,21 +15,31 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
+import { ref, computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
     passwordRules: string;
+    planOptions: Array<{ code: string; name: string; price: number }>;
 }>();
+
+// Chọn gói đầu tiên làm mặc định (thường là gói Free)
+const selectedPlan = ref<string>(props.planOptions[0]?.code ?? 'free');
+
+const formatPrice = (price: number): string =>
+    price === 0 ? 'Miễn phí' : price.toLocaleString('vi-VN') + ' ₫/tháng';
+
+const isPlanSelected = (code: string) => selectedPlan.value === code;
 
 defineOptions({
     layout: {
-        title: 'Create an account',
-        description: 'Enter your details below to create your account',
+        title: 'Đăng ký doanh nghiệp',
+        description: 'Nhập thông tin nhà hàng để bắt đầu trải nghiệm miễn phí',
     },
 });
 </script>
 
 <template>
-    <Head title="Register" />
+    <Head title="Đăng ký doanh nghiệp" />
 
     <div class="flex flex-col gap-6">
         <Form
@@ -39,58 +49,141 @@ defineOptions({
             class="flex flex-col gap-6"
         >
             <div class="grid gap-6">
+                <!-- Tên nhà hàng -->
                 <div class="grid gap-2">
-                    <Label for="name">Name</Label>
+                    <Label for="restaurant_name">Tên nhà hàng</Label>
                     <Input
-                        id="name"
+                        id="restaurant_name"
                         type="text"
                         required
                         autofocus
                         :tabindex="1"
+                        autocomplete="organization"
+                        name="restaurant_name"
+                        placeholder="Phở Việt, Quán Ăn 24h..."
+                    />
+                    <InputError :message="errors.restaurant_name" />
+                </div>
+
+                <!-- Tên chủ tài khoản -->
+                <div class="grid gap-2">
+                    <Label for="name">Họ và tên chủ tài khoản</Label>
+                    <Input
+                        id="name"
+                        type="text"
+                        required
+                        :tabindex="2"
                         autocomplete="name"
                         name="name"
-                        placeholder="Full name"
+                        placeholder="Nguyễn Văn A"
                     />
                     <InputError :message="errors.name" />
                 </div>
 
+                <!-- Email -->
                 <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
+                    <Label for="email">Email</Label>
                     <Input
                         id="email"
                         type="email"
                         required
-                        :tabindex="2"
+                        :tabindex="3"
                         autocomplete="email"
                         name="email"
-                        placeholder="email@example.com"
+                        placeholder="owner@example.com"
                     />
                     <InputError :message="errors.email" />
                 </div>
 
+                <!-- Số điện thoại -->
                 <div class="grid gap-2">
-                    <Label for="password">Password</Label>
+                    <Label for="phone">Số điện thoại</Label>
+                    <Input
+                        id="phone"
+                        type="tel"
+                        :tabindex="4"
+                        autocomplete="tel"
+                        name="phone"
+                        placeholder="0900 000 000"
+                    />
+                    <InputError :message="errors.phone" />
+                </div>
+
+                <!-- Chọn gói dịch vụ — Card style -->
+                <div class="grid gap-2">
+                    <Label>Gói khởi tạo</Label>
+                    <div
+                        v-if="planOptions.length > 0"
+                        class="grid gap-3"
+                        :class="planOptions.length > 1 ? 'grid-cols-1 sm:grid-cols-' + Math.min(planOptions.length, 3) : 'grid-cols-1'"
+                    >
+                        <label
+                            v-for="plan in planOptions"
+                            :key="plan.code"
+                            :for="'plan_' + plan.code"
+                            :class="[
+                                'relative flex cursor-pointer flex-col gap-1 rounded-lg border-2 p-4 transition-all',
+                                isPlanSelected(plan.code)
+                                    ? 'border-primary bg-primary/5 shadow-sm'
+                                    : 'border-border hover:border-primary/40 hover:bg-muted/30',
+                            ]"
+                        >
+                            <input
+                                :id="'plan_' + plan.code"
+                                type="radio"
+                                name="plan_code"
+                                :value="plan.code"
+                                v-model="selectedPlan"
+                                class="sr-only"
+                                :tabindex="5"
+                            />
+                            <!-- Tích chọn -->
+                            <span
+                                v-if="isPlanSelected(plan.code)"
+                                class="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                                aria-hidden="true"
+                            >
+                                <svg class="h-3 w-3" fill="none" viewBox="0 0 12 12">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </span>
+                            <span class="text-sm font-semibold leading-none text-foreground">{{ plan.name }}</span>
+                            <span class="text-xs text-muted-foreground">{{ formatPrice(plan.price) }}</span>
+                        </label>
+                    </div>
+                    <!-- Fallback nếu không load được plan -->
+                    <div v-else>
+                        <input type="hidden" name="plan_code" value="free" />
+                        <p class="text-xs text-muted-foreground">Bắt đầu với gói miễn phí. Nâng cấp bất cứ lúc nào.</p>
+                    </div>
+                    <InputError :message="errors.plan_code" />
+                </div>
+
+                <!-- Mật khẩu -->
+                <div class="grid gap-2">
+                    <Label for="password">Mật khẩu</Label>
                     <PasswordInput
                         id="password"
                         required
-                        :tabindex="3"
+                        :tabindex="6"
                         autocomplete="new-password"
                         name="password"
-                        placeholder="Password"
+                        placeholder="Tối thiểu 8 ký tự"
                         :passwordrules="passwordRules"
                     />
                     <InputError :message="errors.password" />
                 </div>
 
+                <!-- Xác nhận mật khẩu -->
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">Confirm password</Label>
+                    <Label for="password_confirmation">Xác nhận mật khẩu</Label>
                     <PasswordInput
                         id="password_confirmation"
                         required
-                        :tabindex="4"
+                        :tabindex="7"
                         autocomplete="new-password"
                         name="password_confirmation"
-                        placeholder="Confirm password"
+                        placeholder="Nhập lại mật khẩu"
                         :passwordrules="passwordRules"
                     />
                     <InputError :message="errors.password_confirmation" />
@@ -99,48 +192,23 @@ defineOptions({
                 <Button
                     type="submit"
                     class="w-full"
-                    tabindex="5"
+                    tabindex="8"
                     :disabled="processing"
                     data-test="register-user-button"
                 >
                     <Spinner v-if="processing" />
-                    Create account
+                    {{ processing ? 'Đang khởi tạo hệ thống...' : 'Tạo doanh nghiệp ngay' }}
                 </Button>
+
+                <p class="text-center text-xs text-muted-foreground">
+                    Sau khi đăng ký, hệ thống tự động thiết lập bàn, menu và kho mẫu — sẵn sàng bán hàng trong dưới 3 giây.
+                </p>
             </div>
         </Form>
 
-        <!-- Divider -->
-        <div class="relative flex items-center gap-3">
-            <div class="h-px flex-1 bg-border" />
-            <span class="text-xs text-muted-foreground">Or continue with</span>
-            <div class="h-px flex-1 bg-border" />
-        </div>
-
-        <!-- Google OAuth -->
-        <Button
-            as="a"
-            href="/auth/google"
-            variant="outline"
-            class="w-full"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" class="size-4 shrink-0">
-                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                <path fill="none" d="M0 0h48v48H0z"/>
-            </svg>
-            Đăng ký bằng Google
-        </Button>
-
         <div class="text-center text-sm text-muted-foreground">
-            Already have an account?
-            <TextLink
-                :href="login()"
-                class="underline underline-offset-4"
-                :tabindex="6"
-                >Log in</TextLink
-            >
+            Đã có tài khoản?
+            <TextLink :href="login()" class="underline underline-offset-4" :tabindex="9">Đăng nhập</TextLink>
         </div>
     </div>
 </template>

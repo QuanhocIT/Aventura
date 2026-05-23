@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 use Database\Factories\Restaurant\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
 
     protected $guarded = [];
@@ -18,3 +21,4 @@ class Customer extends Model
         return CustomerFactory::new();
     }
 }
+

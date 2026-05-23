@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 use Database\Factories\Hr\ScheduleAssignmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScheduleAssignment extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
 
     protected $guarded = [];
@@ -38,3 +41,4 @@ class ScheduleAssignment extends Model
         return ScheduleAssignmentFactory::new();
     }
 }
+

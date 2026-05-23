@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { LogOut, Monitor, Settings } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -18,112 +18,206 @@ import { useInitials } from '@/composables/useInitials';
 import type { User } from '@/types';
 
 const page = usePage();
-const user = computed(() => page.props.auth?.user as User | null ?? null);
-const roles = computed(() => page.props.auth?.roles as string[] ?? []);
+const user = computed(() => (page.props.auth?.user as User | null) ?? null);
+const roles = computed(() => (page.props.auth?.roles as string[]) ?? []);
 const isStaff = computed(() => roles.value.length > 0);
+const isMobileOpen = ref(false);
 
 const { getInitials } = useInitials();
 
+const navItems = [
+    { label: 'Tính năng', href: '#features' },
+    { label: 'Bảng giá', href: '#pricing' },
+    { label: 'Demo POS', href: '#features' },
+];
+
 const handleLogout = () => {
     router.flushAll();
-    router.post('/logout', {}, {
-        onSuccess: () => router.visit('/', { replace: true }),
-    });
+    router.post(
+        '/logout',
+        {},
+        {
+            onSuccess: () => router.visit('/', { replace: true }),
+        },
+    );
 };
 </script>
 
 <template>
-    <header class="flex items-center gap-8 px-6 py-4 border-b border-border bg-background">
-        <h1 class="font-bold text-lg">Aventura</h1>
-        <nav class="flex items-center gap-4 flex-1">
-            <a href="#tinh-nang" class="hover:underline px-3 py-2">Tính năng</a>
-            <a href="#cach-hoat-dong" class="hover:underline px-3 py-2">Cách hoạt động</a>
-            <a href="#bang-gia" class="hover:underline px-3 py-2">Bảng giá</a>
-            <div class="flex-1" />
-            <AppearanceToggleInline />
+    <header
+        class="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
+    >
+        <div
+            class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8"
+        >
+            <Link href="/" class="flex items-center gap-2 font-semibold">
+                <span
+                    class="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground"
+                    >A</span
+                >
+                <span>Aventura</span>
+            </Link>
 
-            <!-- Chưa đăng nhập -->
-            <template v-if="!user">
-                <Button as-child variant="outline">
-                    <Link href="/login">Đăng nhập</Link>
-                </Button>
-                <Button as-child>
-                    <Link href="/register">Dùng thử miễn phí</Link>
-                </Button>
-            </template>
+            <nav class="hidden flex-1 items-center gap-1 md:flex">
+                <a
+                    v-for="item in navItems"
+                    :key="item.label"
+                    :href="item.href"
+                    class="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                    {{ item.label }}
+                </a>
+            </nav>
 
-            <!-- Đã đăng nhập → avatar dropdown -->
-            <DropdownMenu v-else>
-                <DropdownMenuTrigger as-child>
-                    <button class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                        <Avatar class="h-9 w-9 cursor-pointer">
-                            <AvatarImage
-                                v-if="user.avatar"
-                                :src="user.avatar"
-                                :alt="user.name"
-                            />
-                            <AvatarFallback class="bg-primary text-primary-foreground font-semibold text-sm">
-                                {{ getInitials(user.name) }}
-                            </AvatarFallback>
-                        </Avatar>
-                    </button>
-                </DropdownMenuTrigger>
+            <div class="hidden items-center gap-2 md:flex">
+                <AppearanceToggleInline />
 
-                <DropdownMenuContent class="w-60" align="end" :side-offset="8">
-                    <!-- Thông tin tài khoản -->
-                    <DropdownMenuLabel class="p-0 font-normal">
-                        <div class="flex items-center gap-3 px-3 py-2">
-                            <Avatar class="h-10 w-10 shrink-0">
+                <template v-if="!user">
+                    <Button as-child variant="outline" size="sm">
+                        <Link href="/login">Đăng nhập</Link>
+                    </Button>
+                    <Button as-child size="sm">
+                        <Link href="/register">Dùng miễn phí</Link>
+                    </Button>
+                </template>
+
+                <DropdownMenu v-else>
+                    <DropdownMenuTrigger as-child>
+                        <button
+                            class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <Avatar class="h-9 w-9 cursor-pointer">
                                 <AvatarImage
                                     v-if="user.avatar"
                                     :src="user.avatar"
                                     :alt="user.name"
                                 />
-                                <AvatarFallback class="bg-primary text-primary-foreground font-semibold">
+                                <AvatarFallback
+                                    class="bg-primary text-sm font-semibold text-primary-foreground"
+                                >
                                     {{ getInitials(user.name) }}
                                 </AvatarFallback>
                             </Avatar>
-                            <div class="flex flex-col min-w-0">
-                                <span class="truncate font-medium text-sm">{{ user.name }}</span>
-                                <span class="truncate text-xs text-muted-foreground">{{ user.email }}</span>
-                                <span
-                                    v-if="isStaff"
-                                    class="mt-0.5 text-xs font-medium text-primary capitalize"
-                                >
-                                    {{ roles[0] }}
-                                </span>
+                        </button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent
+                        class="w-60"
+                        align="end"
+                        :side-offset="8"
+                    >
+                        <DropdownMenuLabel class="p-0 font-normal">
+                            <div class="flex items-center gap-3 px-3 py-2">
+                                <Avatar class="h-10 w-10 shrink-0">
+                                    <AvatarImage
+                                        v-if="user.avatar"
+                                        :src="user.avatar"
+                                        :alt="user.name"
+                                    />
+                                    <AvatarFallback
+                                        class="bg-primary font-semibold text-primary-foreground"
+                                    >
+                                        {{ getInitials(user.name) }}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div class="flex min-w-0 flex-col">
+                                    <span
+                                        class="truncate text-sm font-medium"
+                                        >{{ user.name }}</span
+                                    >
+                                    <span
+                                        class="truncate text-xs text-muted-foreground"
+                                        >{{ user.email }}</span
+                                    >
+                                    <span
+                                        v-if="isStaff"
+                                        class="mt-0.5 text-xs font-medium text-primary capitalize"
+                                    >
+                                        {{ roles[0] }}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    </DropdownMenuLabel>
+                        </DropdownMenuLabel>
 
-                    <DropdownMenuSeparator />
-
-                    <!-- Staff: vào hệ thống + settings -->
-                    <DropdownMenuGroup v-if="isStaff">
-                        <DropdownMenuItem as-child>
-                            <Link href="/dashboard" class="flex items-center cursor-pointer">
-                                <Monitor class="mr-2 h-4 w-4" />
-                                Vào hệ thống
-                            </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem as-child>
-                            <Link href="/settings/profile" class="flex items-center cursor-pointer">
-                                <Settings class="mr-2 h-4 w-4" />
-                                Cài đặt tài khoản
-                            </Link>
-                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                    </DropdownMenuGroup>
 
-                    <!-- Đăng xuất -->
-                    <DropdownMenuItem class="cursor-pointer text-destructive focus:text-destructive" @click="handleLogout">
-                        <LogOut class="mr-2 h-4 w-4" />
-                        Đăng xuất
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </nav>
+                        <DropdownMenuGroup v-if="isStaff">
+                            <DropdownMenuItem as-child>
+                                <Link
+                                    href="/dashboard"
+                                    class="flex cursor-pointer items-center"
+                                >
+                                    <Monitor class="mr-2 h-4 w-4" />
+                                    Vào hệ thống
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem as-child>
+                                <Link
+                                    href="/settings/profile"
+                                    class="flex cursor-pointer items-center"
+                                >
+                                    <Settings class="mr-2 h-4 w-4" />
+                                    Cài đặt tài khoản
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </DropdownMenuGroup>
+
+                        <DropdownMenuItem
+                            class="cursor-pointer text-destructive focus:text-destructive"
+                            @click="handleLogout"
+                        >
+                            <LogOut class="mr-2 h-4 w-4" />
+                            Đăng xuất
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            <Button
+                variant="outline"
+                size="icon"
+                class="ml-auto md:hidden"
+                @click="isMobileOpen = !isMobileOpen"
+            >
+                <X v-if="isMobileOpen" class="size-4" />
+                <Menu v-else class="size-4" />
+                <span class="sr-only">Mở menu</span>
+            </Button>
+        </div>
+
+        <div
+            v-if="isMobileOpen"
+            class="border-t border-border px-4 py-3 md:hidden"
+        >
+            <nav class="flex flex-col gap-1">
+                <a
+                    v-for="item in navItems"
+                    :key="item.label"
+                    :href="item.href"
+                    class="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                    @click="isMobileOpen = false"
+                >
+                    {{ item.label }}
+                </a>
+            </nav>
+            <div class="mt-3 flex items-center gap-2">
+                <AppearanceToggleInline />
+                <template v-if="!user">
+                    <Button as-child variant="outline" size="sm" class="flex-1">
+                        <Link href="/login">Đăng nhập</Link>
+                    </Button>
+                    <Button as-child size="sm" class="flex-1">
+                        <Link href="/register">Dùng miễn phí</Link>
+                    </Button>
+                </template>
+                <Button v-else as-child size="sm" class="flex-1">
+                    <Link href="/dashboard">Vào hệ thống</Link>
+                </Button>
+            </div>
+        </div>
     </header>
+
     <main>
         <slot />
     </main>

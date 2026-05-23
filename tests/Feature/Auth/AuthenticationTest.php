@@ -22,6 +22,7 @@ class AuthenticationTest extends TestCase
     public function test_users_can_authenticate_using_the_login_screen()
     {
         $user = User::factory()->create();
+        $user->assignRole(\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']));
 
         $response = $this->post(route('login.store'), [
             'email' => $user->email,
