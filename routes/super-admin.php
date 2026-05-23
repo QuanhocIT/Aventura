@@ -7,6 +7,7 @@ use App\Http\Controllers\SuperAdmin\BillingOverrideController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\RestaurantController;
 use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
+use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('super-admin')
@@ -36,4 +37,12 @@ Route::prefix('super-admin')
         Route::patch('accounts/{user}/status', [AccountController::class, 'toggleStatus'])->name('accounts.status');
 
         Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+
+        Route::get('support', [SupportPortalController::class, 'index'])->name('support.index');
+        Route::post('support/tickets', [SupportPortalController::class, 'storeTicket'])->name('support.tickets.store');
+        Route::patch('support/tickets/{ticket}', [SupportPortalController::class, 'updateTicket'])->name('support.tickets.update');
+        Route::post('support/announcements', [SupportPortalController::class, 'storeAnnouncement'])->name('support.announcements.store');
+        Route::post('support/articles', [SupportPortalController::class, 'storeArticle'])->name('support.articles.store');
+        Route::post('support/rules', [SupportPortalController::class, 'storeRule'])->name('support.rules.store');
+        Route::post('support/alerts/run', [SupportPortalController::class, 'runAlertCheck'])->name('support.alerts.run');
     });

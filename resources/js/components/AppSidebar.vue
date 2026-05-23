@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid, Building2, BadgeDollarSign, Users, FileSearch2 } from 'lucide-vue-next';
+import { BookOpen, FolderGit2, LayoutGrid, Building2, BadgeDollarSign, Users, FileSearch2, Headset } from 'lucide-vue-next';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -63,6 +63,11 @@ const mainNavItems = computed<NavItem[]>(() =>
                 title: 'Audit Log',
                 href: '/super-admin/audit-logs',
                 icon: FileSearch2,
+            },
+            {
+                title: 'DevOps & Support',
+                href: '/super-admin/support',
+                icon: Headset,
             },
         ]
         : []

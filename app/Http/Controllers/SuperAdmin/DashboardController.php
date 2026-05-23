@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\SupportPortalService;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(protected SupportPortalService $supportPortal) {}
+
     public function index(): Response
     {
         $stats = [
@@ -31,9 +33,9 @@ class DashboardController extends Controller
                 'id'         => $r->id,
                 'name'       => $r->name,
                 'status'     => $r->status,
-                'plan'       => $r->plan?->name ?? 'â€”',
+                'plan'       => $r->plan?->name ?? '—',
                 'plan_code'  => $r->plan?->code ?? 'FREE',
-                'owner'      => $r->owner?->name ?? 'â€”',
+                'owner'      => $r->owner?->name ?? '—',
                 'created_at' => $r->created_at->format('d/m/Y'),
             ]);
 
@@ -49,6 +51,10 @@ class DashboardController extends Controller
             'stats'             => $stats,
             'recentRestaurants' => $recentRestaurants,
             'planDistribution'  => $planDistribution,
+            'supportOverview'   => [
+                'monitoring' => $this->supportPortal->monitoringSnapshot(),
+                'stats' => $this->supportPortal->dashboardMetrics(),
+            ],
         ]);
     }
 }

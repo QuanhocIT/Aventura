@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.0
+-- version 5.2.2
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: May 20, 2026 at 04:44 PM
--- Server version: 8.0.30
--- PHP Version: 8.3.6
+-- Generation Time: May 23, 2026 at 04:45 AM
+-- Server version: 8.4.3
+-- PHP Version: 8.3.16
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -40,13 +40,6 @@ CREATE TABLE `areas` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `areas`
---
-
-INSERT INTO `areas` (`id`, `restaurant_id`, `branch_id`, `name`, `code`, `display_order`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 'Tang tret', 'A', 1, 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -70,12 +63,54 @@ CREATE TABLE `audit_logs` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `audit_logs`
+-- Table structure for table `billing_adjustments`
 --
 
-INSERT INTO `audit_logs` (`id`, `restaurant_id`, `branch_id`, `user_id`, `user_role`, `event`, `action`, `subject_type`, `subject_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `created_at`) VALUES
-(1, 1, 1, 3, 'cashier', 'created', 'seed_demo_order', 'App\\Models\\Order', 1, NULL, '{\"order_number\": \"ORD-DEMO-001\", \"total_amount\": 100000}', '127.0.0.1', 'database-seeder', '2026-05-19 22:20:35');
+CREATE TABLE `billing_adjustments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `restaurant_subscription_id` bigint UNSIGNED DEFAULT NULL,
+  `created_by` bigint UNSIGNED DEFAULT NULL,
+  `type` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `days` int NOT NULL DEFAULT '0',
+  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `coupon_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `billing_invoices`
+--
+
+CREATE TABLE `billing_invoices` (
+  `id` bigint UNSIGNED NOT NULL,
+  `restaurant_id` bigint UNSIGNED NOT NULL,
+  `restaurant_subscription_id` bigint UNSIGNED DEFAULT NULL,
+  `invoice_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'payment_success',
+  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'VND',
+  `subtotal` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `total` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `issued_on` date DEFAULT NULL,
+  `due_on` date DEFAULT NULL,
+  `pdf_path` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `excel_path` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `recipient_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sent_at` timestamp NULL DEFAULT NULL,
+  `meta` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -94,10 +129,8 @@ CREATE TABLE `cache` (
 --
 
 INSERT INTO `cache` (`key`, `value`, `expiration`) VALUES
-('aventura-cache-a2c520e03217b53389c41abc5727cff1', 'i:2;', 1779295271),
-('aventura-cache-a2c520e03217b53389c41abc5727cff1:timer', 'i:1779295271;', 1779295271),
-('aventura-cache-dcacbc44a7737aebdda0ba04d9733cb1', 'i:1;', 1779294817),
-('aventura-cache-dcacbc44a7737aebdda0ba04d9733cb1:timer', 'i:1779294817;', 1779294817);
+('aventura-cache-dcacbc44a7737aebdda0ba04d9733cb1', 'i:1;', 1779510923),
+('aventura-cache-dcacbc44a7737aebdda0ba04d9733cb1:timer', 'i:1779510923;', 1779510923);
 
 -- --------------------------------------------------------
 
@@ -133,13 +166,6 @@ CREATE TABLE `customers` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `customers`
---
-
-INSERT INTO `customers` (`id`, `restaurant_id`, `branch_id`, `full_name`, `phone`, `email`, `gender`, `date_of_birth`, `notes`, `loyalty_points`, `last_order_at`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 'Khach Demo', '0988888888', NULL, NULL, NULL, NULL, 120, '2026-05-20 05:20:35', '2026-05-19 22:20:35', '2026-05-19 22:20:35', NULL);
 
 -- --------------------------------------------------------
 
@@ -196,17 +222,6 @@ CREATE TABLE `employees` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `employees`
---
-
-INSERT INTO `employees` (`id`, `restaurant_id`, `branch_id`, `user_id`, `employee_code`, `full_name`, `date_of_birth`, `gender`, `phone`, `email`, `address`, `citizen_id_number`, `citizen_id_front_url`, `citizen_id_back_url`, `hire_date`, `employment_type`, `job_title`, `base_salary`, `status`, `created_at`, `updated_at`, `role_id`, `deleted_at`) VALUES
-(1, 1, 1, 1, 'EMP-001', 'Owner Demo', NULL, NULL, '0900000001', 'owner@bepso.test', NULL, '079099442483', NULL, NULL, '2026-02-20', 'full_time', 'Owner', '9000000.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', 2, NULL),
-(2, 1, 1, 2, 'EMP-002', 'Manager Demo', NULL, NULL, '0900000002', 'manager@bepso.test', NULL, '079064118870', NULL, NULL, '2026-02-20', 'full_time', 'Manager', '9000000.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', 3, NULL),
-(3, 1, 1, 3, 'EMP-003', 'Cashier Demo', NULL, NULL, '0900000003', 'cashier@bepso.test', NULL, '079097396823', NULL, NULL, '2026-02-20', 'full_time', 'Cashier', '9000000.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', 4, NULL),
-(4, 1, 1, 4, 'EMP-004', 'Kitchen Demo', NULL, NULL, '0900000004', 'kitchen@bepso.test', NULL, '079030918262', NULL, NULL, '2026-02-20', 'full_time', 'Kitchen', '9000000.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', 5, NULL),
-(5, 1, 1, 5, 'EMP-005', 'Inventory Demo', NULL, NULL, '0900000005', 'inventory@bepso.test', NULL, '079082172907', NULL, NULL, '2026-02-20', 'full_time', 'Inventory Staff', '9000000.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', 6, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -248,14 +263,6 @@ CREATE TABLE `ingredients` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `ingredients`
---
-
-INSERT INTO `ingredients` (`id`, `restaurant_id`, `branch_id`, `supplier_id`, `unit_id`, `name`, `sku`, `category_name`, `description`, `min_stock_level`, `reorder_level`, `average_cost`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 1, 1, 'Thit bo', 'BEEF-001', 'Thit', NULL, '1000.000', '2000.000', '280.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL),
-(2, 1, 1, 1, 1, 'Banh pho', 'NOODLE-001', 'Kho', NULL, '2000.000', '5000.000', '40.00', 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -275,14 +282,6 @@ CREATE TABLE `inventories` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `inventories`
---
-
-INSERT INTO `inventories` (`id`, `restaurant_id`, `branch_id`, `ingredient_id`, `quantity_on_hand`, `theoretical_quantity`, `last_counted_at`, `last_cost`, `updated_by`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 1, '8000.000', '7800.000', '2026-05-20 05:20:34', '280.00', 5, '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(2, 1, 1, 2, '15000.000', '14900.000', '2026-05-20 05:20:34', '40.00', 5, '2026-05-19 22:20:34', '2026-05-19 22:20:34');
 
 -- --------------------------------------------------------
 
@@ -459,7 +458,8 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (23, '2026_05_15_043020_create_restaurant_revenue_summaries_table', 1),
 (24, '2026_05_18_090000_add_event_to_audit_logs_table', 1),
 (25, '2026_05_18_103000_apply_pending_schema_fixes', 1),
-(26, '2026_05_20_131500_add_google_id_to_users_table', 2);
+(26, '2026_05_20_131500_add_google_id_to_users_table', 1),
+(27, '2026_05_22_030000_create_billing_tables', 1);
 
 -- --------------------------------------------------------
 
@@ -490,17 +490,7 @@ CREATE TABLE `model_has_roles` (
 --
 
 INSERT INTO `model_has_roles` (`role_id`, `model_type`, `model_id`) VALUES
-(2, 'App\\Models\\Employee', 1),
-(2, 'App\\Models\\User', 1),
-(3, 'App\\Models\\Employee', 2),
-(3, 'App\\Models\\User', 2),
-(4, 'App\\Models\\Employee', 3),
-(4, 'App\\Models\\User', 3),
-(5, 'App\\Models\\Employee', 4),
-(5, 'App\\Models\\User', 4),
-(6, 'App\\Models\\Employee', 5),
-(6, 'App\\Models\\User', 5),
-(8, 'App\\Models\\User', 8);
+(1, 'App\\Models\\User', 8);
 
 -- --------------------------------------------------------
 
@@ -535,13 +525,6 @@ CREATE TABLE `orders` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `orders`
---
-
-INSERT INTO `orders` (`id`, `restaurant_id`, `branch_id`, `table_id`, `customer_id`, `created_by`, `cashier_user_id`, `order_number`, `channel`, `status`, `payment_status`, `subtotal`, `discount_amount`, `service_charge`, `tax_amount`, `total_amount`, `note`, `confirmed_at`, `completed_at`, `cancelled_at`, `cancelled_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 1, 1, 3, 3, 'ORD-DEMO-001', 'dine_in', 'completed', 'paid', '100000.00', '0.00', '0.00', '0.00', '100000.00', NULL, '2026-05-20 05:00:35', '2026-05-20 05:15:35', NULL, NULL, '2026-05-19 22:20:35', '2026-05-19 22:20:35', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -565,14 +548,6 @@ CREATE TABLE `order_items` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `order_items`
---
-
-INSERT INTO `order_items` (`id`, `restaurant_id`, `order_id`, `product_id`, `quantity`, `unit_price`, `discount_amount`, `line_total`, `status`, `notes`, `sent_to_kitchen_at`, `prepared_at`, `served_at`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 1, '1.00', '65000.00', '0.00', '65000.00', 'served', NULL, '2026-05-20 05:01:35', '2026-05-20 05:08:35', '2026-05-20 05:13:35', '2026-05-19 22:20:35', '2026-05-19 22:20:35'),
-(2, 1, 1, 2, '1.00', '35000.00', '0.00', '35000.00', 'served', NULL, '2026-05-20 05:01:35', '2026-05-20 05:10:35', '2026-05-20 05:14:35', '2026-05-19 22:20:35', '2026-05-19 22:20:35');
 
 -- --------------------------------------------------------
 
@@ -611,12 +586,26 @@ CREATE TABLE `payments` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `payments`
+-- Table structure for table `payment_webhooks`
 --
 
-INSERT INTO `payments` (`id`, `restaurant_id`, `branch_id`, `order_id`, `processed_by`, `payment_method`, `status`, `amount`, `cash_received`, `change_amount`, `transaction_code`, `gateway_transaction_code`, `paid_at`, `meta`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 1, 3, 'cash', 'paid', '100000.00', '100000.00', '0.00', 'PAY-DEMO-001', NULL, '2026-05-20 05:15:35', '{\"source\": \"demo-seeder\"}', '2026-05-19 22:20:35', '2026-05-19 22:20:35');
+CREATE TABLE `payment_webhooks` (
+  `id` bigint UNSIGNED NOT NULL,
+  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `transaction_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `signature` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'received',
+  `headers` json DEFAULT NULL,
+  `payload` json NOT NULL,
+  `processed_at` timestamp NULL DEFAULT NULL,
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -637,21 +626,21 @@ CREATE TABLE `permissions` (
 --
 
 INSERT INTO `permissions` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
-(1, 'manage_tenants', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(2, 'manage_restaurants', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(3, 'manage_staff', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(4, 'manage_menu', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(5, 'manage_inventory', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(6, 'create_order', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(7, 'view_order', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(8, 'payment_order', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(9, 'view_kitchen_order', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(10, 'update_food_status', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(11, 'view_report', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(12, 'manage_salary', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(13, 'manage_schedule', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(14, 'manage_feedback', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(15, 'view_audit_log', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31');
+(1, 'manage_tenants', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(2, 'manage_restaurants', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(3, 'manage_staff', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(4, 'manage_menu', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(5, 'manage_inventory', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(6, 'create_order', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(7, 'view_order', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(8, 'payment_order', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(9, 'view_kitchen_order', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(10, 'update_food_status', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(11, 'view_report', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(12, 'manage_salary', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(13, 'manage_schedule', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(14, 'manage_feedback', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(15, 'view_audit_log', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58');
 
 -- --------------------------------------------------------
 
@@ -681,14 +670,6 @@ CREATE TABLE `products` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `products`
---
-
-INSERT INTO `products` (`id`, `restaurant_id`, `branch_id`, `category_id`, `code`, `name`, `slug`, `description`, `image_url`, `price`, `cost_price`, `preparation_time_minutes`, `is_active`, `is_available`, `is_featured`, `track_inventory`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 1, 'PHO-BO', 'Pho bo tai', 'pho-bo-tai', 'Pho bo tai truyen thong', NULL, '65000.00', '28000.00', 12, 1, 1, 0, 1, '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL),
-(2, 1, 1, 1, 'TRA-DAO', 'Tra dao', 'tra-dao', 'Tra dao mat lanh', NULL, '35000.00', '12000.00', 5, 1, 1, 0, 0, '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -709,13 +690,6 @@ CREATE TABLE `product_categories` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `product_categories`
---
-
-INSERT INTO `product_categories` (`id`, `restaurant_id`, `branch_id`, `name`, `slug`, `description`, `display_order`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 'Mon chinh', 'mon-chinh', 'Danh muc mon an chinh', 1, 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -734,14 +708,6 @@ CREATE TABLE `product_recipes` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `product_recipes`
---
-
-INSERT INTO `product_recipes` (`id`, `restaurant_id`, `product_id`, `ingredient_id`, `unit_id`, `quantity`, `waste_rate`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 1, 1, '120.000', '2.00', NULL, '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(2, 1, 1, 2, 1, '180.000', '1.00', NULL, '2026-05-19 22:20:35', '2026-05-19 22:20:35');
 
 -- --------------------------------------------------------
 
@@ -766,491 +732,555 @@ CREATE TABLE `pulse_aggregates` (
 --
 
 INSERT INTO `pulse_aggregates` (`id`, `bucket`, `period`, `type`, `key`, `aggregate`, `value`, `count`) VALUES
-(1, 1779254460, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(2, 1779254280, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(3, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(4, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '2.00', NULL),
-(5, 1779254460, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(6, 1779254280, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(7, 1779253920, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '3.00', NULL),
-(8, 1779251040, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '3.00', NULL),
-(9, 1779254460, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '12538.00', NULL),
-(10, 1779254280, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '12538.00', NULL),
-(11, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '12538.00', NULL),
-(12, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '12538.00', NULL),
-(13, 1779254460, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '14231.00', NULL),
-(14, 1779254280, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '14231.00', NULL),
-(15, 1779253920, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '14231.00', NULL),
-(16, 1779251040, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '14231.00', NULL),
-(17, 1779254580, 60, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '1.00', NULL),
-(18, 1779254280, 360, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '1.00', NULL),
-(19, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '2.00', NULL),
-(20, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '2.00', NULL),
-(21, 1779254580, 60, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '5231.00', NULL),
-(22, 1779254280, 360, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '5231.00', NULL),
-(23, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '5231.00', NULL),
-(24, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '5231.00', NULL),
-(25, 1779254700, 60, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '1.00', NULL),
-(26, 1779254640, 360, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'count', '1.00', NULL),
-(27, 1779254700, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'count', '1.00', NULL),
-(28, 1779254640, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'count', '1.00', NULL),
-(29, 1779253920, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'count', '1.00', NULL),
-(30, 1779251040, 10080, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'count', '1.00', NULL),
-(33, 1779254700, 60, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '2795.00', NULL),
-(34, 1779254640, 360, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 'max', '2795.00', NULL),
-(35, 1779254700, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'max', '2158.00', NULL),
-(36, 1779254640, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'max', '2158.00', NULL),
-(37, 1779253920, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'max', '2158.00', NULL),
-(38, 1779251040, 10080, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 'max', '2158.00', NULL),
-(41, 1779255300, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(42, 1779255000, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(43, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(44, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(45, 1779255300, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1316.00', NULL),
-(46, 1779255000, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1316.00', NULL),
-(47, 1779253920, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1316.00', NULL),
-(48, 1779251040, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1316.00', NULL),
-(49, 1779255300, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '2.00', NULL),
-(50, 1779255000, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '2.00', NULL),
-(51, 1779255300, 60, 'cache_miss', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '1.00', NULL),
-(52, 1779255000, 360, 'cache_miss', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '1.00', NULL),
-(53, 1779253920, 1440, 'cache_miss', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '1.00', NULL),
-(54, 1779251040, 10080, 'cache_miss', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '1.00', NULL),
-(55, 1779255300, 60, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '3.00', NULL),
-(56, 1779255000, 360, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '3.00', NULL),
-(57, 1779253920, 1440, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '3.00', NULL),
-(58, 1779251040, 10080, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', 'count', '3.00', NULL),
-(61, 1779255300, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2053.00', NULL),
-(62, 1779255000, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2053.00', NULL),
-(65, 1779255300, 60, 'slow_user_request', '1', 'count', '1.00', NULL),
-(66, 1779255000, 360, 'slow_user_request', '1', 'count', '1.00', NULL),
-(67, 1779253920, 1440, 'slow_user_request', '1', 'count', '1.00', NULL),
-(68, 1779251040, 10080, 'slow_user_request', '1', 'count', '2.00', NULL),
-(69, 1779255300, 60, 'user_request', '1', 'count', '1.00', NULL),
-(70, 1779255000, 360, 'user_request', '1', 'count', '1.00', NULL),
-(71, 1779253920, 1440, 'user_request', '1', 'count', '1.00', NULL),
-(72, 1779251040, 10080, 'user_request', '1', 'count', '8.00', NULL),
-(85, 1779255360, 60, 'user_request', '1', 'count', '4.00', NULL),
-(86, 1779255360, 360, 'user_request', '1', 'count', '7.00', NULL),
-(87, 1779255360, 1440, 'user_request', '1', 'count', '7.00', NULL),
-(101, 1779255420, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(102, 1779255360, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(103, 1779255360, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(104, 1779255420, 60, 'slow_user_request', '1', 'count', '1.00', NULL),
-(105, 1779255360, 360, 'slow_user_request', '1', 'count', '1.00', NULL),
-(106, 1779255360, 1440, 'slow_user_request', '1', 'count', '1.00', NULL),
-(107, 1779255420, 60, 'user_request', '1', 'count', '3.00', NULL),
-(113, 1779255420, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '2889.00', NULL),
-(114, 1779255360, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '2889.00', NULL),
-(115, 1779255360, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '2889.00', NULL),
-(125, 1779255480, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(126, 1779255360, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(127, 1779255360, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(128, 1779251040, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(129, 1779255480, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '1751.00', NULL),
-(130, 1779255360, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '1751.00', NULL),
-(131, 1779255360, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '1751.00', NULL),
-(132, 1779251040, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '1751.00', NULL),
-(133, 1779255480, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(134, 1779255360, 360, 'slow_user_request', '6', 'count', '1.00', NULL),
-(135, 1779255360, 1440, 'slow_user_request', '6', 'count', '1.00', NULL),
-(136, 1779251040, 10080, 'slow_user_request', '6', 'count', '1.00', NULL),
-(137, 1779255480, 60, 'user_request', '6', 'count', '3.00', NULL),
-(138, 1779255360, 360, 'user_request', '6', 'count', '3.00', NULL),
-(139, 1779255360, 1440, 'user_request', '6', 'count', '3.00', NULL),
-(140, 1779251040, 10080, 'user_request', '6', 'count', '3.00', NULL),
-(154, 1779280980, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(155, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(156, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(157, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(158, 1779280980, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '2302.00', NULL),
-(159, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '2302.00', NULL),
-(160, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '2302.00', NULL),
-(161, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '2302.00', NULL),
-(162, 1779281100, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(163, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(164, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(165, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(166, 1779281100, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'count', '1.00', NULL),
-(167, 1779280920, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'count', '1.00', NULL),
-(168, 1779279840, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'count', '1.00', NULL),
-(169, 1779271200, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'count', '1.00', NULL),
-(170, 1779281100, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '3096.00', NULL),
-(171, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '3096.00', NULL),
-(172, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '3096.00', NULL),
-(173, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '3096.00', NULL),
-(174, 1779281100, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'max', '1779281113.00', NULL),
-(175, 1779280920, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'max', '1779281113.00', NULL),
-(176, 1779279840, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'max', '1779281113.00', NULL),
-(177, 1779271200, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 'max', '1779281113.00', NULL),
-(178, 1779281160, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(179, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(180, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(181, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(182, 1779281160, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1111.00', NULL),
-(183, 1779280920, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1111.00', NULL),
-(184, 1779279840, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1111.00', NULL),
-(185, 1779271200, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1111.00', NULL),
-(186, 1779281460, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(187, 1779281280, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(188, 1779281280, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(189, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'count', '1.00', NULL),
-(190, 1779281460, 60, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '1293.00', NULL),
-(191, 1779281280, 360, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '1293.00', NULL),
-(192, 1779281280, 1440, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '1293.00', NULL),
-(193, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 'max', '1293.00', NULL),
-(194, 1779281460, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(195, 1779281280, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(196, 1779281280, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(197, 1779281280, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '2.00', NULL),
-(198, 1779281460, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '3622.00', NULL),
-(199, 1779281280, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '3622.00', NULL),
-(200, 1779281280, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '3622.00', NULL),
-(201, 1779281280, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '3622.00', NULL),
-(202, 1779281520, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(203, 1779281520, 60, 'slow_user_request', '7', 'count', '1.00', NULL),
-(204, 1779281280, 360, 'slow_user_request', '7', 'count', '1.00', NULL),
-(205, 1779281280, 1440, 'slow_user_request', '7', 'count', '1.00', NULL),
-(206, 1779281280, 10080, 'slow_user_request', '7', 'count', '1.00', NULL),
-(207, 1779281520, 60, 'user_request', '7', 'count', '3.00', NULL),
-(208, 1779281280, 360, 'user_request', '7', 'count', '3.00', NULL),
-(209, 1779281280, 1440, 'user_request', '7', 'count', '5.00', NULL),
-(210, 1779281280, 10080, 'user_request', '7', 'count', '5.00', NULL),
-(214, 1779281520, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '1249.00', NULL),
-(226, 1779281820, 60, 'user_request', '7', 'count', '2.00', NULL),
-(227, 1779281640, 360, 'user_request', '7', 'count', '2.00', NULL),
-(234, 1779281820, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(235, 1779281640, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(236, 1779281280, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(237, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '2.00', NULL),
-(238, 1779281820, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1129.00', NULL),
-(239, 1779281640, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1129.00', NULL),
-(240, 1779281280, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1129.00', NULL),
-(241, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1898.00', NULL),
-(242, 1779283440, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(243, 1779283440, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(244, 1779282720, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(245, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '4.00', NULL),
-(246, 1779283440, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(247, 1779283440, 360, 'slow_user_request', '6', 'count', '1.00', NULL),
-(248, 1779282720, 1440, 'slow_user_request', '6', 'count', '1.00', NULL),
-(249, 1779281280, 10080, 'slow_user_request', '6', 'count', '4.00', NULL),
-(250, 1779283440, 60, 'user_request', '6', 'count', '2.00', NULL),
-(251, 1779283440, 360, 'user_request', '6', 'count', '2.00', NULL),
-(252, 1779282720, 1440, 'user_request', '6', 'count', '2.00', NULL),
-(253, 1779281280, 10080, 'user_request', '6', 'count', '25.00', NULL),
-(254, 1779283440, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2116.00', NULL),
-(255, 1779283440, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2116.00', NULL),
-(256, 1779282720, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2116.00', NULL),
-(257, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2116.00', NULL),
-(262, 1779284640, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(263, 1779284520, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '2.00', NULL),
-(264, 1779284160, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '2.00', NULL),
-(265, 1779284640, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(266, 1779284520, 360, 'slow_user_request', '6', 'count', '2.00', NULL),
-(267, 1779284160, 1440, 'slow_user_request', '6', 'count', '2.00', NULL),
-(268, 1779284640, 60, 'user_request', '6', 'count', '5.00', NULL),
-(269, 1779284520, 360, 'user_request', '6', 'count', '11.00', NULL),
-(270, 1779284160, 1440, 'user_request', '6', 'count', '11.00', NULL),
-(274, 1779284640, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1501.00', NULL),
-(275, 1779284520, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1501.00', NULL),
-(276, 1779284160, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1501.00', NULL),
-(294, 1779284700, 60, 'user_request', '6', 'count', '1.00', NULL),
-(298, 1779284760, 60, 'user_request', '6', 'count', '5.00', NULL),
-(302, 1779284760, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(303, 1779284760, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(314, 1779284760, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1009.00', NULL),
-(330, 1779285180, 60, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'count', '2.00', NULL),
-(331, 1779284880, 360, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'count', '2.00', NULL),
-(332, 1779284160, 1440, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'count', '2.00', NULL),
-(333, 1779281280, 10080, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'count', '2.00', NULL),
-(334, 1779285180, 60, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'max', '1779285215.00', NULL),
-(335, 1779284880, 360, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'max', '1779285215.00', NULL),
-(336, 1779284160, 1440, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'max', '1779285215.00', NULL),
-(337, 1779281280, 10080, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 'max', '1779285215.00', NULL),
-(338, 1779285780, 60, 'user_request', '6', 'count', '7.00', NULL),
-(339, 1779285600, 360, 'user_request', '6', 'count', '10.00', NULL),
-(340, 1779285600, 1440, 'user_request', '6', 'count', '10.00', NULL),
-(366, 1779285840, 60, 'user_request', '6', 'count', '3.00', NULL),
-(378, 1779285900, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(379, 1779285600, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(380, 1779285600, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(381, 1779281280, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(382, 1779285900, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(383, 1779285600, 360, 'slow_user_request', '8', 'count', '1.00', NULL),
-(384, 1779285600, 1440, 'slow_user_request', '8', 'count', '2.00', NULL),
-(385, 1779281280, 10080, 'slow_user_request', '8', 'count', '3.00', NULL),
-(386, 1779285900, 60, 'user_request', '8', 'count', '2.00', NULL),
-(387, 1779285600, 360, 'user_request', '8', 'count', '2.00', NULL),
-(388, 1779285600, 1440, 'user_request', '8', 'count', '18.00', NULL),
-(389, 1779281280, 10080, 'user_request', '8', 'count', '22.00', NULL),
-(390, 1779285900, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(391, 1779285600, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(392, 1779285600, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(393, 1779281280, 10080, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(394, 1779285900, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(395, 1779285600, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(396, 1779285600, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(397, 1779281280, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(398, 1779285900, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '1255.00', NULL),
-(399, 1779285600, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '1255.00', NULL),
-(400, 1779285600, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '1255.00', NULL),
-(401, 1779281280, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '1255.00', NULL),
-(406, 1779285960, 60, 'user_request', '8', 'count', '1.00', NULL),
-(407, 1779285960, 360, 'user_request', '8', 'count', '1.00', NULL),
-(410, 1779286560, 60, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(411, 1779286320, 360, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(412, 1779285600, 1440, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(413, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(414, 1779286560, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(415, 1779286320, 360, 'slow_user_request', '8', 'count', '1.00', NULL),
-(416, 1779286560, 60, 'user_request', '8', 'count', '6.00', NULL),
-(417, 1779286320, 360, 'user_request', '8', 'count', '6.00', NULL),
-(422, 1779286560, 60, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', '1205.00', NULL),
-(423, 1779286320, 360, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', '1205.00', NULL),
-(424, 1779285600, 1440, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', '1205.00', NULL),
-(425, 1779281280, 10080, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', '1205.00', NULL),
-(434, 1779286560, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(435, 1779286320, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(436, 1779286560, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(437, 1779286320, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(454, 1779286680, 60, 'user_request', '8', 'count', '8.00', NULL),
-(455, 1779286680, 360, 'user_request', '8', 'count', '9.00', NULL),
-(456, 1779286680, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'count', '3.00', NULL),
-(457, 1779286680, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'count', '4.00', NULL),
-(458, 1779285600, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'count', '4.00', NULL),
-(459, 1779281280, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'count', '4.00', NULL),
-(462, 1779286680, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'max', '1779286734.00', NULL),
-(463, 1779286680, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'max', '1779286749.00', NULL),
-(464, 1779285600, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'max', '1779286749.00', NULL),
-(465, 1779281280, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'max', '1779286749.00', NULL),
-(510, 1779286740, 60, 'user_request', '8', 'count', '1.00', NULL),
-(511, 1779286740, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'count', '1.00', NULL),
-(518, 1779286740, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 'max', '1779286749.00', NULL),
-(522, 1779291180, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(523, 1779291000, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(524, 1779289920, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'count', '1.00', NULL),
-(525, 1779291180, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(526, 1779291000, 360, 'slow_user_request', '8', 'count', '1.00', NULL),
-(527, 1779289920, 1440, 'slow_user_request', '8', 'count', '1.00', NULL),
-(528, 1779291180, 60, 'user_request', '8', 'count', '1.00', NULL),
-(529, 1779291000, 360, 'user_request', '8', 'count', '4.00', NULL),
-(530, 1779289920, 1440, 'user_request', '8', 'count', '4.00', NULL),
-(534, 1779291180, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1898.00', NULL),
-(535, 1779291000, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1898.00', NULL),
-(536, 1779289920, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 'max', '1898.00', NULL),
-(538, 1779291240, 60, 'user_request', '8', 'count', '3.00', NULL),
-(550, 1779291240, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(551, 1779291000, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(552, 1779289920, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(553, 1779291240, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(554, 1779291000, 360, 'slow_user_request', '6', 'count', '1.00', NULL),
-(555, 1779289920, 1440, 'slow_user_request', '6', 'count', '1.00', NULL),
-(556, 1779291240, 60, 'user_request', '6', 'count', '2.00', NULL),
-(557, 1779291000, 360, 'user_request', '6', 'count', '2.00', NULL),
-(558, 1779289920, 1440, 'user_request', '6', 'count', '2.00', NULL),
-(562, 1779291240, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1116.00', NULL),
-(563, 1779291000, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1116.00', NULL),
-(564, 1779289920, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1116.00', NULL),
-(570, 1779291480, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'count', '2.00', NULL),
-(571, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'count', '2.00', NULL),
-(572, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'count', '2.00', NULL),
-(573, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'count', '2.00', NULL),
-(574, 1779291480, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'max', '2512.00', NULL),
-(575, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'max', '2512.00', NULL),
-(576, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'max', '2512.00', NULL),
-(577, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 'max', '2512.00', NULL),
-(578, 1779291480, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(579, 1779291360, 360, 'slow_user_request', '6', 'count', '2.00', NULL),
-(580, 1779291360, 1440, 'slow_user_request', '6', 'count', '5.00', NULL),
-(581, 1779291360, 10080, 'slow_user_request', '6', 'count', '6.00', NULL),
-(582, 1779291480, 60, 'user_request', '6', 'count', '4.00', NULL),
-(583, 1779291360, 360, 'user_request', '6', 'count', '7.00', NULL),
-(584, 1779291360, 1440, 'user_request', '6', 'count', '19.00', NULL),
-(585, 1779291360, 10080, 'user_request', '6', 'count', '32.00', NULL),
-(606, 1779291540, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(607, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(608, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(609, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', '1.00', NULL),
-(610, 1779291540, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1114.00', NULL),
-(611, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1114.00', NULL),
-(612, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1114.00', NULL),
-(613, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', '1114.00', NULL),
-(614, 1779291540, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(615, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(616, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '3.00', NULL),
-(617, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '4.00', NULL),
-(618, 1779291540, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(619, 1779291540, 60, 'user_request', '6', 'count', '3.00', NULL),
-(626, 1779291540, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2678.00', NULL),
-(627, 1779291360, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2678.00', NULL),
-(628, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2678.00', NULL),
-(629, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2678.00', NULL),
-(638, 1779291540, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(639, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '2.00', NULL),
-(640, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '2.00', NULL),
-(641, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '2.00', NULL),
-(642, 1779291540, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(643, 1779291360, 360, 'slow_user_request', '8', 'count', '3.00', NULL),
-(644, 1779291360, 1440, 'slow_user_request', '8', 'count', '4.00', NULL),
-(645, 1779291360, 10080, 'slow_user_request', '8', 'count', '4.00', NULL),
-(646, 1779291540, 60, 'user_request', '8', 'count', '3.00', NULL),
-(647, 1779291360, 360, 'user_request', '8', 'count', '8.00', NULL),
-(648, 1779291360, 1440, 'user_request', '8', 'count', '10.00', NULL),
-(649, 1779291360, 10080, 'user_request', '8', 'count', '25.00', NULL),
-(650, 1779291540, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(651, 1779291360, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(652, 1779291360, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(653, 1779291360, 10080, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '4.00', NULL),
-(654, 1779291540, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(655, 1779291360, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(656, 1779291360, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '2.00', NULL),
-(657, 1779291360, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '4.00', NULL),
-(658, 1779291540, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2515.00', NULL),
-(659, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2618.00', NULL),
-(660, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2618.00', NULL),
-(661, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2618.00', NULL),
-(670, 1779291600, 60, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'count', '1.00', NULL),
-(671, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'count', '1.00', NULL),
-(672, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'count', '1.00', NULL),
-(673, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'count', '1.00', NULL),
-(674, 1779291600, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(675, 1779291600, 60, 'user_request', '8', 'count', '1.00', NULL),
-(682, 1779291600, 60, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'max', '1062.00', NULL),
-(683, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'max', '1062.00', NULL),
-(684, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'max', '1062.00', NULL),
-(685, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 'max', '1062.00', NULL),
-(686, 1779291660, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(687, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(688, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(689, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'count', '1.00', NULL),
-(690, 1779291660, 60, 'slow_user_request', '9', 'count', '1.00', NULL),
-(691, 1779291360, 360, 'slow_user_request', '9', 'count', '1.00', NULL),
-(692, 1779291360, 1440, 'slow_user_request', '9', 'count', '1.00', NULL),
-(693, 1779291360, 10080, 'slow_user_request', '9', 'count', '1.00', NULL),
-(694, 1779291660, 60, 'user_request', '9', 'count', '4.00', NULL),
-(695, 1779291360, 360, 'user_request', '9', 'count', '4.00', NULL),
-(696, 1779291360, 1440, 'user_request', '9', 'count', '8.00', NULL),
-(697, 1779291360, 10080, 'user_request', '9', 'count', '14.00', NULL),
-(698, 1779291660, 60, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '2045.00', NULL),
-(699, 1779291360, 360, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '2045.00', NULL),
-(700, 1779291360, 1440, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '2045.00', NULL),
-(701, 1779291360, 10080, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 'max', '2045.00', NULL),
-(714, 1779291660, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', '1.00', NULL),
-(715, 1779291660, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(716, 1779291660, 60, 'user_request', '8', 'count', '4.00', NULL),
-(717, 1779291660, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(718, 1779291660, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(734, 1779291660, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', '2618.00', NULL);
+(17, 1779413940, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(18, 1779413760, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(19, 1779413760, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(20, 1779412320, 10080, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 33.00, NULL),
+(21, 1779413940, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 9.00, NULL),
+(22, 1779413760, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 10.00, NULL),
+(23, 1779413760, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 24.00, NULL),
+(24, 1779412320, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 80.00, NULL),
+(41, 1779414000, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(42, 1779414000, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', 'count', 2.00, NULL),
+(43, 1779413760, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', 'count', 2.00, NULL),
+(44, 1779413760, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', 'count', 2.00, NULL),
+(45, 1779412320, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', 'count', 2.00, NULL),
+(49, 1779414060, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(50, 1779413760, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(51, 1779413760, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(52, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 5.00, NULL),
+(53, 1779414060, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1072.00, NULL),
+(54, 1779413760, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1072.00, NULL),
+(55, 1779413760, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1072.00, NULL),
+(56, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2640.00, NULL),
+(57, 1779414120, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(58, 1779414120, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(59, 1779414120, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 7.00, NULL),
+(60, 1779414120, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 8.00, NULL),
+(77, 1779414240, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(78, 1779414240, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(85, 1779414720, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(86, 1779414480, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(87, 1779414720, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(88, 1779414480, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(97, 1779414780, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(101, 1779415020, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(102, 1779414840, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(103, 1779413760, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(104, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 2.00, NULL),
+(105, 1779415020, 60, 'slow_user_request', '7', 'count', 1.00, NULL),
+(106, 1779414840, 360, 'slow_user_request', '7', 'count', 1.00, NULL),
+(107, 1779413760, 1440, 'slow_user_request', '7', 'count', 1.00, NULL),
+(108, 1779412320, 10080, 'slow_user_request', '7', 'count', 2.00, NULL),
+(109, 1779415020, 60, 'user_request', '7', 'count', 2.00, NULL),
+(110, 1779414840, 360, 'user_request', '7', 'count', 3.00, NULL),
+(111, 1779413760, 1440, 'user_request', '7', 'count', 3.00, NULL),
+(112, 1779412320, 10080, 'user_request', '7', 'count', 9.00, NULL),
+(113, 1779415020, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 2061.00, NULL),
+(114, 1779414840, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 2061.00, NULL),
+(115, 1779413760, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 2061.00, NULL),
+(116, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 2061.00, NULL),
+(121, 1779415080, 60, 'user_request', '7', 'count', 1.00, NULL),
+(125, 1779415140, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(126, 1779414840, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(127, 1779413760, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(128, 1779412320, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 12.00, NULL),
+(129, 1779415140, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(130, 1779414840, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(131, 1779415140, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 1.00, NULL),
+(132, 1779414840, 360, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 1.00, NULL),
+(133, 1779413760, 1440, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 1.00, NULL),
+(134, 1779412320, 10080, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 3.00, NULL),
+(135, 1779415140, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(136, 1779414840, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(141, 1779415140, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 15158.00, NULL),
+(142, 1779414840, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 15158.00, NULL),
+(143, 1779413760, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 15158.00, NULL),
+(144, 1779412320, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 15158.00, NULL),
+(145, 1779415140, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415184.00, NULL),
+(146, 1779414840, 360, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415184.00, NULL),
+(147, 1779413760, 1440, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415184.00, NULL),
+(148, 1779412320, 10080, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415705.00, NULL),
+(149, 1779415320, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(150, 1779415200, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(151, 1779415200, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(152, 1779415320, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(153, 1779415200, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(154, 1779415200, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 14.00, NULL),
+(157, 1779415500, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(158, 1779415500, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(165, 1779415560, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(166, 1779415560, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 4.00, NULL),
+(167, 1779415200, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 6.00, NULL),
+(168, 1779415560, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(169, 1779415560, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(170, 1779415560, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 1.00, NULL),
+(171, 1779415560, 360, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 2.00, NULL),
+(172, 1779415200, 1440, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 2.00, NULL),
+(177, 1779415560, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 3603.00, NULL),
+(178, 1779415560, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 3939.00, NULL),
+(179, 1779415200, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 3939.00, NULL),
+(180, 1779415560, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415577.00, NULL),
+(181, 1779415560, 360, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415705.00, NULL),
+(182, 1779415200, 1440, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415705.00, NULL),
+(185, 1779415680, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(186, 1779415680, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(187, 1779415560, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(188, 1779415680, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'count', 1.00, NULL),
+(189, 1779415680, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(201, 1779415680, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 3939.00, NULL),
+(202, 1779415680, 60, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 'max', 1779415705.00, NULL),
+(209, 1779415800, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 2.00, NULL),
+(210, 1779415800, 60, 'slow_user_request', '8', 'count', 2.00, NULL),
+(211, 1779415560, 360, 'slow_user_request', '8', 'count', 2.00, NULL),
+(212, 1779415200, 1440, 'slow_user_request', '8', 'count', 4.00, NULL),
+(213, 1779412320, 10080, 'slow_user_request', '8', 'count', 11.00, NULL),
+(214, 1779415800, 60, 'user_request', '8', 'count', 6.00, NULL),
+(215, 1779415560, 360, 'user_request', '8', 'count', 6.00, NULL),
+(216, 1779415200, 1440, 'user_request', '8', 'count', 25.00, NULL),
+(217, 1779412320, 10080, 'user_request', '8', 'count', 220.00, NULL),
+(218, 1779415800, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(219, 1779415800, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(229, 1779415800, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1511.00, NULL),
+(269, 1779415860, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(270, 1779415560, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(271, 1779415200, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(272, 1779415860, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(273, 1779415560, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(274, 1779415200, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(275, 1779412320, 10080, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 2.00, NULL),
+(277, 1779415860, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2170.00, NULL),
+(278, 1779415560, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2170.00, NULL),
+(279, 1779415200, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2170.00, NULL),
+(280, 1779415860, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 1692.00, NULL),
+(281, 1779415560, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 1692.00, NULL),
+(282, 1779415200, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 1692.00, NULL),
+(283, 1779412320, 10080, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 2107.00, NULL),
+(285, 1779415920, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(286, 1779415920, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(287, 1779415920, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(288, 1779415920, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(289, 1779415920, 60, 'user_request', '8', 'count', 7.00, NULL),
+(290, 1779415920, 360, 'user_request', '8', 'count', 11.00, NULL),
+(291, 1779415920, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(292, 1779415920, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(293, 1779415920, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(294, 1779415920, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(305, 1779415920, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1442.00, NULL),
+(306, 1779415920, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1442.00, NULL),
+(341, 1779416220, 60, 'user_request', '8', 'count', 4.00, NULL),
+(357, 1779416280, 60, 'user_request', '8', 'count', 4.00, NULL),
+(358, 1779416280, 360, 'user_request', '8', 'count', 8.00, NULL),
+(373, 1779416340, 60, 'user_request', '8', 'count', 1.00, NULL),
+(377, 1779416520, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(378, 1779416280, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(379, 1779416520, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(380, 1779416280, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(381, 1779416520, 60, 'user_request', '8', 'count', 3.00, NULL),
+(382, 1779416520, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(383, 1779416280, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(384, 1779416520, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(385, 1779416280, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(397, 1779416520, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1648.00, NULL),
+(398, 1779416280, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1648.00, NULL),
+(409, 1779416700, 60, 'user_request', '8', 'count', 4.00, NULL),
+(410, 1779416640, 360, 'user_request', '8', 'count', 22.00, NULL),
+(411, 1779416640, 1440, 'user_request', '8', 'count', 64.00, NULL),
+(413, 1779416700, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(414, 1779416640, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(415, 1779416640, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(416, 1779416700, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(417, 1779416640, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 4.00, NULL),
+(418, 1779416640, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 8.00, NULL),
+(433, 1779416760, 60, 'user_request', '8', 'count', 4.00, NULL),
+(449, 1779416820, 60, 'user_request', '8', 'count', 11.00, NULL),
+(477, 1779416820, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 2.00, NULL),
+(478, 1779416640, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 2.00, NULL),
+(479, 1779416640, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 4.00, NULL),
+(480, 1779416820, 60, 'slow_user_request', '8', 'count', 2.00, NULL),
+(481, 1779416640, 360, 'slow_user_request', '8', 'count', 2.00, NULL),
+(482, 1779416640, 1440, 'slow_user_request', '8', 'count', 4.00, NULL),
+(483, 1779416820, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(484, 1779416820, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(497, 1779416820, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1255.00, NULL),
+(498, 1779416640, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1255.00, NULL),
+(499, 1779416640, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1287.00, NULL),
+(529, 1779416880, 60, 'user_request', '8', 'count', 1.00, NULL),
+(533, 1779416940, 60, 'user_request', '8', 'count', 2.00, NULL),
+(541, 1779417060, 60, 'user_request', '8', 'count', 8.00, NULL),
+(542, 1779417000, 360, 'user_request', '8', 'count', 20.00, NULL),
+(561, 1779417060, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(562, 1779417000, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(563, 1779417060, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(564, 1779417000, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(565, 1779417060, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(566, 1779417000, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(567, 1779417060, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(568, 1779417000, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(581, 1779417060, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1287.00, NULL),
+(582, 1779417000, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1287.00, NULL),
+(593, 1779417120, 60, 'user_request', '8', 'count', 2.00, NULL),
+(601, 1779417180, 60, 'user_request', '8', 'count', 1.00, NULL),
+(605, 1779417240, 60, 'user_request', '8', 'count', 3.00, NULL),
+(617, 1779417300, 60, 'user_request', '8', 'count', 6.00, NULL),
+(641, 1779417360, 60, 'user_request', '8', 'count', 4.00, NULL),
+(642, 1779417360, 360, 'user_request', '8', 'count', 12.00, NULL),
+(649, 1779417360, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(650, 1779417360, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(651, 1779417360, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(652, 1779417360, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(653, 1779417360, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(654, 1779417360, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(655, 1779417360, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(656, 1779417360, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(669, 1779417360, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1211.00, NULL),
+(670, 1779417360, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1211.00, NULL),
+(677, 1779417480, 60, 'user_request', '8', 'count', 5.00, NULL),
+(678, 1779417480, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(679, 1779417480, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(705, 1779417540, 60, 'user_request', '8', 'count', 1.00, NULL),
+(709, 1779417600, 60, 'user_request', '8', 'count', 2.00, NULL),
+(717, 1779417720, 60, 'user_request', '8', 'count', 1.00, NULL),
+(718, 1779417720, 360, 'user_request', '8', 'count', 10.00, NULL),
+(721, 1779417840, 60, 'user_request', '8', 'count', 1.00, NULL),
+(725, 1779417900, 60, 'user_request', '8', 'count', 4.00, NULL),
+(729, 1779417900, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(730, 1779417720, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(731, 1779417900, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(732, 1779417720, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(749, 1779417960, 60, 'user_request', '8', 'count', 4.00, NULL),
+(765, 1779418020, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(766, 1779417720, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(767, 1779416640, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(768, 1779412320, 10080, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 6.00, NULL),
+(769, 1779418020, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779418037.00, NULL),
+(770, 1779417720, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779418037.00, NULL),
+(771, 1779416640, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779418037.00, NULL),
+(772, 1779412320, 10080, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779422018.00, NULL),
+(773, 1779418080, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(774, 1779418080, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(775, 1779418080, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(776, 1779418080, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(777, 1779418080, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(778, 1779418080, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'count', 1.00, NULL),
+(781, 1779418080, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2640.00, NULL),
+(782, 1779418080, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2640.00, NULL),
+(783, 1779418080, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2640.00, NULL),
+(784, 1779418080, 60, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 2107.00, NULL),
+(785, 1779418080, 360, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 2107.00, NULL),
+(786, 1779418080, 1440, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 'max', 2107.00, NULL),
+(789, 1779418080, 60, 'user_request', '8', 'count', 9.00, NULL),
+(790, 1779418080, 360, 'user_request', '8', 'count', 12.00, NULL),
+(791, 1779418080, 1440, 'user_request', '8', 'count', 66.00, NULL),
+(792, 1779418080, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(793, 1779418080, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(794, 1779418080, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 7.00, NULL),
+(795, 1779418080, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(796, 1779418080, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(797, 1779418080, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 9.00, NULL),
+(833, 1779418080, 60, 'user_request', '7', 'count', 2.00, NULL),
+(834, 1779418080, 360, 'user_request', '7', 'count', 3.00, NULL),
+(835, 1779418080, 1440, 'user_request', '7', 'count', 3.00, NULL),
+(841, 1779418260, 60, 'user_request', '7', 'count', 1.00, NULL),
+(845, 1779418320, 60, 'user_request', '8', 'count', 3.00, NULL),
+(846, 1779418320, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(847, 1779418320, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(865, 1779418560, 60, 'user_request', '8', 'count', 2.00, NULL),
+(866, 1779418440, 360, 'user_request', '8', 'count', 16.00, NULL),
+(873, 1779418620, 60, 'user_request', '8', 'count', 8.00, NULL),
+(893, 1779418620, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(894, 1779418440, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(895, 1779418620, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(896, 1779418440, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(913, 1779418680, 60, 'user_request', '8', 'count', 5.00, NULL),
+(925, 1779418680, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(926, 1779418680, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(941, 1779418740, 60, 'user_request', '8', 'count', 1.00, NULL),
+(945, 1779418860, 60, 'user_request', '8', 'count', 3.00, NULL),
+(946, 1779418800, 360, 'user_request', '8', 'count', 15.00, NULL),
+(957, 1779418980, 60, 'user_request', '8', 'count', 5.00, NULL),
+(965, 1779418980, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(966, 1779418800, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(967, 1779418980, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(968, 1779418800, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(985, 1779419100, 60, 'user_request', '8', 'count', 7.00, NULL),
+(1013, 1779419160, 60, 'user_request', '8', 'count', 3.00, NULL),
+(1014, 1779419160, 360, 'user_request', '8', 'count', 23.00, NULL),
+(1017, 1779419160, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1018, 1779419160, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1019, 1779419160, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1020, 1779419160, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 4.00, NULL),
+(1033, 1779419220, 60, 'user_request', '8', 'count', 5.00, NULL),
+(1053, 1779419280, 60, 'user_request', '8', 'count', 1.00, NULL),
+(1057, 1779419340, 60, 'user_request', '8', 'count', 10.00, NULL),
+(1069, 1779419340, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1070, 1779419340, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1109, 1779419460, 60, 'user_request', '8', 'count', 4.00, NULL),
+(1125, 1779419520, 60, 'user_request', '8', 'count', 9.00, NULL),
+(1126, 1779419520, 360, 'user_request', '8', 'count', 9.00, NULL),
+(1127, 1779419520, 1440, 'user_request', '8', 'count', 17.00, NULL),
+(1141, 1779419520, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1142, 1779419520, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1143, 1779419520, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1144, 1779419520, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1145, 1779419520, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1146, 1779419520, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(1173, 1779419880, 60, 'user_request', '8', 'count', 1.00, NULL),
+(1174, 1779419880, 360, 'user_request', '8', 'count', 1.00, NULL),
+(1177, 1779420420, 60, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', 1.00, NULL),
+(1178, 1779420240, 360, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', 1.00, NULL),
+(1179, 1779419520, 1440, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', 1.00, NULL),
+(1180, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', 1.00, NULL),
+(1181, 1779420420, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1182, 1779420240, 360, 'slow_user_request', '8', 'count', 2.00, NULL),
+(1183, 1779419520, 1440, 'slow_user_request', '8', 'count', 2.00, NULL),
+(1184, 1779420420, 60, 'user_request', '8', 'count', 2.00, NULL),
+(1185, 1779420240, 360, 'user_request', '8', 'count', 6.00, NULL),
+(1189, 1779420420, 60, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', 14823.00, NULL),
+(1190, 1779420240, 360, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', 14823.00, NULL),
+(1191, 1779419520, 1440, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', 14823.00, NULL),
+(1192, 1779412320, 10080, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', 14823.00, NULL),
+(1197, 1779420480, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1198, 1779420240, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1199, 1779419520, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1201, 1779420480, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779420491.00, NULL),
+(1202, 1779420240, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779420491.00, NULL),
+(1203, 1779419520, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779420491.00, NULL),
+(1205, 1779420480, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1206, 1779420240, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1207, 1779419520, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1209, 1779420480, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1037.00, NULL),
+(1210, 1779420240, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1037.00, NULL),
+(1211, 1779419520, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1037.00, NULL),
+(1213, 1779420540, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1214, 1779420240, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1215, 1779419520, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1216, 1779420540, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1217, 1779420540, 60, 'user_request', '8', 'count', 4.00, NULL),
+(1218, 1779420540, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1219, 1779420240, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1220, 1779420540, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1221, 1779420240, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1233, 1779420540, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1701.00, NULL),
+(1234, 1779420240, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1701.00, NULL),
+(1235, 1779419520, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1701.00, NULL),
+(1253, 1779420660, 60, 'user_request', '8', 'count', 1.00, NULL),
+(1254, 1779420600, 360, 'user_request', '8', 'count', 1.00, NULL),
+(1257, 1779421260, 60, 'user_request', '8', 'count', 7.00, NULL),
+(1258, 1779420960, 360, 'user_request', '8', 'count', 7.00, NULL),
+(1259, 1779420960, 1440, 'user_request', '8', 'count', 48.00, NULL),
+(1277, 1779421260, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1278, 1779420960, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1279, 1779420960, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 7.00, NULL),
+(1280, 1779421260, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1281, 1779420960, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1282, 1779420960, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 19.00, NULL),
+(1293, 1779421320, 60, 'user_request', '8', 'count', 5.00, NULL),
+(1294, 1779421320, 360, 'user_request', '8', 'count', 31.00, NULL),
+(1297, 1779421320, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1298, 1779421320, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 14.00, NULL),
+(1317, 1779421380, 60, 'user_request', '8', 'count', 5.00, NULL),
+(1321, 1779421380, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1322, 1779421320, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 4.00, NULL),
+(1323, 1779421380, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1349, 1779421440, 60, 'user_request', '8', 'count', 7.00, NULL),
+(1365, 1779421440, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1366, 1779421440, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1385, 1779421500, 60, 'user_request', '8', 'count', 8.00, NULL),
+(1389, 1779421500, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(1417, 1779421500, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1433, 1779421560, 60, 'user_request', '8', 'count', 2.00, NULL),
+(1434, 1779421560, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1445, 1779421620, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1446, 1779421320, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1447, 1779420960, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1448, 1779421620, 60, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1449, 1779421320, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1450, 1779420960, 1440, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1451, 1779421620, 60, 'user_request', '8', 'count', 4.00, NULL),
+(1457, 1779421620, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1339.00, NULL),
+(1458, 1779421320, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1339.00, NULL),
+(1459, 1779420960, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 1339.00, NULL),
+(1465, 1779421620, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(1466, 1779421320, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(1467, 1779420960, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', 1.00, NULL),
+(1468, 1779421620, 60, 'slow_user_request', '7', 'count', 1.00, NULL),
+(1469, 1779421320, 360, 'slow_user_request', '7', 'count', 1.00, NULL),
+(1470, 1779420960, 1440, 'slow_user_request', '7', 'count', 1.00, NULL),
+(1471, 1779421620, 60, 'user_request', '7', 'count', 3.00, NULL),
+(1472, 1779421320, 360, 'user_request', '7', 'count', 3.00, NULL),
+(1473, 1779420960, 1440, 'user_request', '7', 'count', 3.00, NULL),
+(1477, 1779421620, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 1050.00, NULL),
+(1478, 1779421320, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 1050.00, NULL),
+(1479, 1779420960, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', 1050.00, NULL),
+(1489, 1779421620, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1490, 1779421620, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1505, 1779421980, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1506, 1779421680, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1507, 1779420960, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'count', 2.00, NULL),
+(1509, 1779421980, 60, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779422018.00, NULL),
+(1510, 1779421680, 360, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779422018.00, NULL),
+(1511, 1779420960, 1440, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 'max', 1779422018.00, NULL),
+(1513, 1779422040, 60, 'user_request', '8', 'count', 6.00, NULL),
+(1514, 1779422040, 360, 'user_request', '8', 'count', 10.00, NULL),
+(1521, 1779422040, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1522, 1779422040, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1523, 1779422040, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1524, 1779422040, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 4.00, NULL),
+(1549, 1779422160, 60, 'user_request', '8', 'count', 3.00, NULL),
+(1557, 1779422160, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1558, 1779422220, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1569, 1779422220, 60, 'user_request', '8', 'count', 1.00, NULL),
+(1573, 1779422520, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1574, 1779422400, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1575, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1576, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1577, 1779422520, 60, 'slow_user_request', '8', 'count', 3.00, NULL),
+(1578, 1779422400, 360, 'slow_user_request', '8', 'count', 3.00, NULL),
+(1579, 1779422400, 1440, 'slow_user_request', '8', 'count', 4.00, NULL),
+(1580, 1779422400, 10080, 'slow_user_request', '8', 'count', 4.00, NULL),
+(1581, 1779422520, 60, 'user_request', '8', 'count', 8.00, NULL),
+(1582, 1779422400, 360, 'user_request', '8', 'count', 17.00, NULL),
+(1583, 1779422400, 1440, 'user_request', '8', 'count', 26.00, NULL),
+(1584, 1779422400, 10080, 'user_request', '8', 'count', 30.00, NULL),
+(1585, 1779422520, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 5037.00, NULL),
+(1586, 1779422400, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 5037.00, NULL),
+(1587, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 5037.00, NULL),
+(1588, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 5037.00, NULL),
+(1589, 1779422520, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1590, 1779422400, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1591, 1779422400, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1592, 1779422400, 10080, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1593, 1779422520, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 3.00, NULL),
+(1594, 1779422400, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 5.00, NULL),
+(1595, 1779422400, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(1596, 1779422400, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 6.00, NULL),
+(1601, 1779422520, 60, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1602, 1779422400, 360, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1603, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1604, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1613, 1779422520, 60, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', 1328.00, NULL),
+(1614, 1779422400, 360, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', 1328.00, NULL),
+(1615, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', 1328.00, NULL),
+(1616, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 'max', 1328.00, NULL),
+(1625, 1779422520, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1626, 1779422400, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1627, 1779422400, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1628, 1779422400, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1641, 1779422520, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1519.00, NULL),
+(1642, 1779422400, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1519.00, NULL),
+(1643, 1779422400, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1519.00, NULL),
+(1644, 1779422400, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 1519.00, NULL),
+(1653, 1779422580, 60, 'user_request', '8', 'count', 6.00, NULL),
+(1669, 1779422580, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 2.00, NULL),
+(1681, 1779422700, 60, 'user_request', '8', 'count', 3.00, NULL),
+(1693, 1779422940, 60, 'user_request', '8', 'count', 8.00, NULL),
+(1694, 1779422760, 360, 'user_request', '8', 'count', 9.00, NULL),
+(1705, 1779422940, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1706, 1779422760, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1707, 1779422940, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1708, 1779422760, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1721, 1779422940, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 1.00, NULL),
+(1722, 1779422760, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 1.00, NULL),
+(1723, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 1.00, NULL),
+(1724, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 1.00, NULL),
+(1725, 1779422940, 60, 'slow_user_request', '8', 'count', 1.00, NULL);
 INSERT INTO `pulse_aggregates` (`id`, `bucket`, `period`, `type`, `key`, `aggregate`, `value`, `count`) VALUES
-(750, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', '1.00', NULL),
-(751, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', '1.00', NULL),
-(752, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', '1.00', NULL),
-(753, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'count', '1.00', NULL),
-(754, 1779291780, 60, 'slow_user_request', '8', 'count', '1.00', NULL),
-(755, 1779291720, 360, 'slow_user_request', '8', 'count', '1.00', NULL),
-(756, 1779291780, 60, 'user_request', '8', 'count', '2.00', NULL),
-(757, 1779291720, 360, 'user_request', '8', 'count', '2.00', NULL),
-(762, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', '1285.00', NULL),
-(763, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', '1285.00', NULL),
-(764, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', '1285.00', NULL),
-(765, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 'max', '1285.00', NULL),
-(770, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(771, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(772, 1779291780, 60, 'slow_user_request', '6', 'count', '2.00', NULL),
-(773, 1779291720, 360, 'slow_user_request', '6', 'count', '2.00', NULL),
-(774, 1779291780, 60, 'user_request', '6', 'count', '3.00', NULL),
-(775, 1779291720, 360, 'user_request', '6', 'count', '3.00', NULL),
-(782, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2311.00', NULL),
-(783, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '2311.00', NULL),
-(790, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(791, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(792, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(793, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', '1.00', NULL),
-(802, 1779291780, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '1200.00', NULL),
-(803, 1779291720, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '1200.00', NULL),
-(804, 1779291360, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '1200.00', NULL),
-(805, 1779291360, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', '1200.00', NULL),
-(806, 1779292200, 60, 'user_request', '6', 'count', '1.00', NULL),
-(807, 1779292080, 360, 'user_request', '6', 'count', '3.00', NULL),
-(810, 1779292380, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(811, 1779292080, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(812, 1779292380, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(813, 1779292080, 360, 'slow_user_request', '6', 'count', '1.00', NULL),
-(814, 1779292380, 60, 'user_request', '6', 'count', '2.00', NULL),
-(822, 1779292380, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1161.00', NULL),
-(823, 1779292080, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1161.00', NULL),
-(830, 1779292440, 60, 'user_request', '6', 'count', '1.00', NULL),
-(831, 1779292440, 360, 'user_request', '6', 'count', '6.00', NULL),
-(834, 1779292560, 60, 'user_request', '6', 'count', '5.00', NULL),
-(842, 1779292560, 60, 'user_request', '9', 'count', '4.00', NULL),
-(843, 1779292440, 360, 'user_request', '9', 'count', '4.00', NULL),
-(844, 1779292560, 60, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(845, 1779292440, 360, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(846, 1779291360, 1440, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(847, 1779291360, 10080, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '3.00', NULL),
-(848, 1779292560, 60, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(849, 1779292440, 360, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(850, 1779291360, 1440, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(851, 1779291360, 10080, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '5.00', NULL),
-(878, 1779292800, 60, 'user_request', '6', 'count', '8.00', NULL),
-(879, 1779292800, 360, 'user_request', '6', 'count', '10.00', NULL),
-(880, 1779292800, 1440, 'user_request', '6', 'count', '10.00', NULL),
-(910, 1779292980, 60, 'user_request', '6', 'count', '2.00', NULL),
-(918, 1779292980, 60, 'user_request', '8', 'count', '5.00', NULL),
-(919, 1779292800, 360, 'user_request', '8', 'count', '5.00', NULL),
-(920, 1779292800, 1440, 'user_request', '8', 'count', '5.00', NULL),
-(921, 1779292980, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(922, 1779292800, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(923, 1779292800, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(924, 1779292980, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(925, 1779292800, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(926, 1779292800, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(946, 1779292980, 60, 'user_request', '9', 'count', '1.00', NULL),
-(947, 1779292800, 360, 'user_request', '9', 'count', '2.00', NULL),
-(948, 1779292800, 1440, 'user_request', '9', 'count', '2.00', NULL),
-(949, 1779292980, 60, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(950, 1779292800, 360, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(951, 1779292800, 1440, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(952, 1779293040, 60, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(953, 1779292800, 360, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(954, 1779292800, 1440, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(958, 1779293040, 60, 'user_request', '9', 'count', '1.00', NULL),
-(962, 1779294720, 60, 'user_request', '9', 'count', '2.00', NULL),
-(963, 1779294600, 360, 'user_request', '9', 'count', '2.00', NULL),
-(964, 1779294240, 1440, 'user_request', '9', 'count', '4.00', NULL),
-(970, 1779294720, 60, 'user_request', '8', 'count', '3.00', NULL),
-(971, 1779294600, 360, 'user_request', '8', 'count', '3.00', NULL),
-(972, 1779294240, 1440, 'user_request', '8', 'count', '10.00', NULL),
-(973, 1779294720, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(974, 1779294600, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(975, 1779294240, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(976, 1779294720, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(977, 1779294600, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(978, 1779294240, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', '1.00', NULL),
-(990, 1779295200, 60, 'user_request', '8', 'count', '7.00', NULL),
-(991, 1779294960, 360, 'user_request', '8', 'count', '7.00', NULL),
-(992, 1779295200, 60, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(993, 1779294960, 360, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(994, 1779294240, 1440, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(995, 1779295200, 60, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '1.00', NULL),
-(996, 1779294960, 360, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '3.00', NULL),
-(997, 1779294240, 1440, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '3.00', NULL),
-(1026, 1779295200, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(1027, 1779294960, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(1028, 1779294240, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'count', '1.00', NULL),
-(1029, 1779295200, 60, 'slow_user_request', '6', 'count', '1.00', NULL),
-(1030, 1779294960, 360, 'slow_user_request', '6', 'count', '1.00', NULL),
-(1031, 1779294240, 1440, 'slow_user_request', '6', 'count', '1.00', NULL),
-(1032, 1779295200, 60, 'user_request', '6', 'count', '3.00', NULL),
-(1033, 1779294960, 360, 'user_request', '6', 'count', '3.00', NULL),
-(1034, 1779294240, 1440, 'user_request', '6', 'count', '3.00', NULL),
-(1038, 1779295200, 60, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1000.00', NULL),
-(1039, 1779294960, 360, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1000.00', NULL),
-(1040, 1779294240, 1440, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 'max', '1000.00', NULL),
-(1050, 1779295260, 60, 'user_request', '9', 'count', '2.00', NULL),
-(1051, 1779294960, 360, 'user_request', '9', 'count', '2.00', NULL),
-(1052, 1779295260, 60, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', 'count', '2.00', NULL);
+(1726, 1779422760, 360, 'slow_user_request', '8', 'count', 1.00, NULL),
+(1727, 1779422940, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 1.00, NULL),
+(1728, 1779422760, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 1.00, NULL),
+(1729, 1779422400, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 1.00, NULL),
+(1730, 1779422400, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 1.00, NULL),
+(1737, 1779422940, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 13546.00, NULL),
+(1738, 1779422760, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 13546.00, NULL),
+(1739, 1779422400, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 13546.00, NULL),
+(1740, 1779422400, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 13546.00, NULL),
+(1741, 1779422940, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779422976.00, NULL),
+(1742, 1779422760, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779422976.00, NULL),
+(1743, 1779422400, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779422976.00, NULL),
+(1744, 1779422400, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779422976.00, NULL),
+(1753, 1779423060, 60, 'user_request', '8', 'count', 1.00, NULL),
+(1757, 1779424740, 60, 'user_request', '8', 'count', 4.00, NULL),
+(1758, 1779424560, 360, 'user_request', '8', 'count', 4.00, NULL),
+(1759, 1779423840, 1440, 'user_request', '8', 'count', 4.00, NULL),
+(1773, 1779510360, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'count', 1.00, NULL),
+(1774, 1779510240, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'count', 1.00, NULL),
+(1775, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'count', 1.00, NULL),
+(1776, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'count', 1.00, NULL),
+(1777, 1779510360, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'max', 16011.00, NULL),
+(1778, 1779510240, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'max', 16011.00, NULL),
+(1779, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'max', 16011.00, NULL),
+(1780, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 'max', 16011.00, NULL),
+(1781, 1779510360, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1782, 1779510240, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1783, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1784, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'count', 1.00, NULL),
+(1785, 1779510360, 60, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 1919.00, NULL),
+(1786, 1779510240, 360, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 1919.00, NULL),
+(1787, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 1919.00, NULL),
+(1788, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 'max', 1919.00, NULL),
+(1789, 1779510840, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1790, 1779510600, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1791, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1792, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'count', 1.00, NULL),
+(1793, 1779510840, 60, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2187.00, NULL),
+(1794, 1779510600, 360, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2187.00, NULL),
+(1795, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2187.00, NULL),
+(1796, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 'max', 2187.00, NULL),
+(1797, 1779510840, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1798, 1779510600, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1799, 1779510240, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1800, 1779503040, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'count', 1.00, NULL),
+(1801, 1779510840, 60, 'slow_user_request', '8', 'count', 4.00, NULL),
+(1802, 1779510600, 360, 'slow_user_request', '8', 'count', 7.00, NULL),
+(1803, 1779510240, 1440, 'slow_user_request', '8', 'count', 7.00, NULL),
+(1804, 1779503040, 10080, 'slow_user_request', '8', 'count', 7.00, NULL),
+(1805, 1779510840, 60, 'user_request', '8', 'count', 11.00, NULL),
+(1806, 1779510600, 360, 'user_request', '8', 'count', 15.00, NULL),
+(1807, 1779510240, 1440, 'user_request', '8', 'count', 36.00, NULL),
+(1808, 1779503040, 10080, 'user_request', '8', 'count', 36.00, NULL),
+(1809, 1779510840, 60, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1810, 1779510600, 360, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1811, 1779510240, 1440, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1812, 1779503040, 10080, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1813, 1779510840, 60, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1814, 1779510600, 360, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1815, 1779510240, 1440, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1816, 1779503040, 10080, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', 'count', 1.00, NULL),
+(1817, 1779510840, 60, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 2233.00, NULL),
+(1818, 1779510600, 360, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 2233.00, NULL),
+(1819, 1779510240, 1440, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 2233.00, NULL),
+(1820, 1779503040, 10080, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 'max', 2233.00, NULL),
+(1841, 1779510840, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 3.00, NULL),
+(1842, 1779510600, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 6.00, NULL),
+(1843, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 6.00, NULL),
+(1844, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 6.00, NULL),
+(1845, 1779510840, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 3.00, NULL),
+(1846, 1779510600, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 6.00, NULL),
+(1847, 1779510240, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 6.00, NULL),
+(1848, 1779503040, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 6.00, NULL),
+(1857, 1779510840, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 3934.00, NULL),
+(1858, 1779510600, 360, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 3934.00, NULL),
+(1859, 1779510240, 1440, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 3934.00, NULL),
+(1860, 1779503040, 10080, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 3934.00, NULL),
+(1861, 1779510840, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779510888.00, NULL),
+(1862, 1779510600, 360, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779510947.00, NULL),
+(1863, 1779510240, 1440, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779510947.00, NULL),
+(1864, 1779503040, 10080, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779510947.00, NULL),
+(1921, 1779510900, 60, 'user_request', '8', 'count', 4.00, NULL),
+(1925, 1779510900, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'count', 3.00, NULL),
+(1926, 1779510900, 60, 'slow_user_request', '8', 'count', 3.00, NULL),
+(1927, 1779510900, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'count', 3.00, NULL),
+(1941, 1779510900, 60, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 'max', 1292.00, NULL),
+(1942, 1779510900, 60, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 'max', 1779510947.00, NULL),
+(1997, 1779511020, 60, 'user_request', '8', 'count', 3.00, NULL),
+(1998, 1779510960, 360, 'user_request', '8', 'count', 12.00, NULL),
+(2009, 1779511080, 60, 'user_request', '8', 'count', 3.00, NULL),
+(2021, 1779511140, 60, 'user_request', '8', 'count', 3.00, NULL),
+(2033, 1779511260, 60, 'user_request', '8', 'count', 3.00, NULL),
+(2045, 1779511320, 60, 'user_request', '8', 'count', 4.00, NULL),
+(2046, 1779511320, 360, 'user_request', '8', 'count', 9.00, NULL),
+(2061, 1779511380, 60, 'user_request', '8', 'count', 5.00, NULL);
 
 -- --------------------------------------------------------
 
@@ -1272,231 +1302,502 @@ CREATE TABLE `pulse_entries` (
 --
 
 INSERT INTO `pulse_entries` (`id`, `timestamp`, `type`, `key`, `value`) VALUES
-(1, 1779254485, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 14231),
-(2, 1779254487, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 12538),
-(3, 1779254609, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 5231),
-(4, 1779254720, 'slow_request', '[\"GET\",\"\\/forgot-password\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\PasswordResetLinkController@create\"]', 2795),
-(5, 1779254722, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/[::1]:5173\\/__inertia_ssr\"]', 2158),
-(6, 1779255317, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 1316),
-(7, 1779255335, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 2053),
-(8, 1779255336, 'cache_miss', 'aa3dec81a446685560671e3fda3b7bbc', NULL),
-(9, 1779255337, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', NULL),
-(10, 1779255358, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1172),
-(11, 1779255358, 'slow_user_request', '1', NULL),
-(12, 1779255358, 'user_request', '1', NULL),
-(13, 1779255358, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', NULL),
-(14, 1779255359, 'cache_hit', 'aa3dec81a446685560671e3fda3b7bbc', NULL),
-(15, 1779255360, 'user_request', '1', NULL),
-(16, 1779255367, 'user_request', '1', NULL),
-(17, 1779255380, 'user_request', '1', NULL),
-(18, 1779255383, 'user_request', '1', NULL),
-(19, 1779255432, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 2889),
-(20, 1779255432, 'slow_user_request', '1', NULL),
-(21, 1779255432, 'user_request', '1', NULL),
-(22, 1779255435, 'user_request', '1', NULL),
-(23, 1779255438, 'user_request', '1', NULL),
-(24, 1779255484, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 1751),
-(25, 1779255495, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 1426),
-(26, 1779255495, 'slow_user_request', '6', NULL),
-(27, 1779255495, 'user_request', '6', NULL),
-(28, 1779255497, 'user_request', '6', NULL),
-(29, 1779255502, 'user_request', '6', NULL),
-(30, 1779281015, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 2302),
-(31, 1779281112, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 3096),
-(32, 1779281113, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController.php:15\"]', 1779281113),
-(33, 1779281190, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 1111),
-(34, 1779281483, 'slow_request', '[\"GET\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@create\"]', 1293),
-(35, 1779281510, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 3622),
-(36, 1779281552, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 1249),
-(37, 1779281552, 'slow_user_request', '7', NULL),
-(38, 1779281552, 'user_request', '7', NULL),
-(39, 1779281553, 'user_request', '7', NULL),
-(40, 1779281558, 'user_request', '7', NULL),
-(41, 1779281820, 'user_request', '7', NULL),
-(42, 1779281823, 'user_request', '7', NULL),
-(43, 1779281834, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 1129),
-(44, 1779283469, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 2116),
-(45, 1779283469, 'slow_user_request', '6', NULL),
-(46, 1779283469, 'user_request', '6', NULL),
-(47, 1779283471, 'user_request', '6', NULL),
-(48, 1779284663, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1501),
-(49, 1779284663, 'slow_user_request', '6', NULL),
-(50, 1779284663, 'user_request', '6', NULL),
-(51, 1779284664, 'user_request', '6', NULL),
-(52, 1779284675, 'user_request', '6', NULL),
-(53, 1779284686, 'user_request', '6', NULL),
-(54, 1779284687, 'user_request', '6', NULL),
-(55, 1779284733, 'user_request', '6', NULL),
-(56, 1779284764, 'user_request', '6', NULL),
-(57, 1779284769, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1009),
-(58, 1779284769, 'slow_user_request', '6', NULL),
-(59, 1779284769, 'user_request', '6', NULL),
-(60, 1779284770, 'user_request', '6', NULL),
-(61, 1779284774, 'user_request', '6', NULL),
-(62, 1779284778, 'user_request', '6', NULL),
-(63, 1779285215, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 1779285215),
-(64, 1779285215, 'exception', '[\"Illuminate\\\\Database\\\\QueryException\",\"database\\\\seeders\\\\system\\\\SubscriptionPlanSeeder.php:52\"]', 1779285215),
-(65, 1779285795, 'user_request', '6', NULL),
-(66, 1779285796, 'user_request', '6', NULL),
-(67, 1779285798, 'user_request', '6', NULL),
-(68, 1779285801, 'user_request', '6', NULL),
-(69, 1779285805, 'user_request', '6', NULL),
-(70, 1779285812, 'user_request', '6', NULL),
-(71, 1779285813, 'user_request', '6', NULL),
-(72, 1779285893, 'user_request', '6', NULL),
-(73, 1779285894, 'user_request', '6', NULL),
-(74, 1779285897, 'user_request', '6', NULL),
-(75, 1779285948, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1255),
-(76, 1779285948, 'slow_user_request', '8', NULL),
-(77, 1779285948, 'user_request', '8', NULL),
-(78, 1779285948, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(79, 1779285949, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(80, 1779285949, 'user_request', '8', NULL),
-(81, 1779285961, 'user_request', '8', NULL),
-(82, 1779286590, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 1205),
-(83, 1779286590, 'slow_user_request', '8', NULL),
-(84, 1779286590, 'user_request', '8', NULL),
-(85, 1779286591, 'user_request', '8', NULL),
-(86, 1779286597, 'user_request', '8', NULL),
-(87, 1779286603, 'user_request', '8', NULL),
-(88, 1779286603, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(89, 1779286604, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(90, 1779286604, 'user_request', '8', NULL),
-(91, 1779286619, 'user_request', '8', NULL),
-(92, 1779286690, 'user_request', '8', NULL),
-(93, 1779286691, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 1779286691),
-(94, 1779286699, 'user_request', '8', NULL),
-(95, 1779286707, 'user_request', '8', NULL),
-(96, 1779286708, 'user_request', '8', NULL),
-(97, 1779286712, 'user_request', '8', NULL),
-(98, 1779286712, 'user_request', '8', NULL),
-(99, 1779286720, 'user_request', '8', NULL),
-(100, 1779286720, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 1779286720),
-(101, 1779286734, 'user_request', '8', NULL),
-(102, 1779286734, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 1779286734),
-(103, 1779286749, 'user_request', '8', NULL),
-(104, 1779286749, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController.php:100\"]', 1779286749),
-(105, 1779291238, 'slow_request', '[\"GET\",\"\\/auth\\/google\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@redirectToGoogle\"]', 1898),
-(106, 1779291238, 'slow_user_request', '8', NULL),
-(107, 1779291238, 'user_request', '8', NULL),
-(108, 1779291240, 'user_request', '8', NULL),
-(109, 1779291244, 'user_request', '8', NULL),
-(110, 1779291246, 'user_request', '8', NULL),
-(111, 1779291250, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1116),
-(112, 1779291250, 'slow_user_request', '6', NULL),
-(113, 1779291250, 'user_request', '6', NULL),
-(114, 1779291251, 'user_request', '6', NULL),
-(115, 1779291498, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 1493),
-(116, 1779291520, 'slow_request', '[\"GET\",\"\\/super-admin\\/restaurants\\/{restaurant}\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\RestaurantController@show\"]', 2512),
-(117, 1779291520, 'slow_user_request', '6', NULL),
-(118, 1779291520, 'user_request', '6', NULL),
-(119, 1779291524, 'user_request', '6', NULL),
-(120, 1779291529, 'user_request', '6', NULL),
-(121, 1779291537, 'user_request', '6', NULL),
-(122, 1779291554, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 1114),
-(123, 1779291564, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 2678),
-(124, 1779291564, 'slow_user_request', '6', NULL),
-(125, 1779291564, 'user_request', '6', NULL),
-(126, 1779291567, 'user_request', '6', NULL),
-(127, 1779291572, 'user_request', '6', NULL),
-(128, 1779291577, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 2515),
-(129, 1779291577, 'slow_user_request', '8', NULL),
-(130, 1779291577, 'user_request', '8', NULL),
-(131, 1779291578, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(132, 1779291580, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(133, 1779291580, 'user_request', '8', NULL),
-(134, 1779291583, 'user_request', '8', NULL),
-(135, 1779291640, 'slow_request', '[\"POST\",\"\\/logout\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@destroy\"]', 1062),
-(136, 1779291640, 'slow_user_request', '8', NULL),
-(137, 1779291640, 'user_request', '8', NULL),
-(138, 1779291670, 'slow_request', '[\"POST\",\"\\/register\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\RegisteredUserController@store\"]', 2045),
-(139, 1779291670, 'slow_user_request', '9', NULL),
-(140, 1779291670, 'user_request', '9', NULL),
-(141, 1779291672, 'user_request', '9', NULL),
-(142, 1779291680, 'user_request', '9', NULL),
-(143, 1779291689, 'user_request', '9', NULL),
-(144, 1779291699, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 2618),
-(145, 1779291699, 'slow_user_request', '8', NULL),
-(146, 1779291699, 'user_request', '8', NULL),
-(147, 1779291700, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(148, 1779291701, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(149, 1779291702, 'user_request', '8', NULL),
-(150, 1779291704, 'user_request', '8', NULL),
-(151, 1779291707, 'user_request', '8', NULL),
-(152, 1779291809, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 1285),
-(153, 1779291809, 'slow_user_request', '8', NULL),
-(154, 1779291809, 'user_request', '8', NULL),
-(155, 1779291811, 'user_request', '8', NULL),
-(156, 1779291817, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 2311),
-(157, 1779291817, 'slow_user_request', '6', NULL),
-(158, 1779291817, 'user_request', '6', NULL),
-(159, 1779291820, 'user_request', '6', NULL),
-(160, 1779291836, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 1200),
-(161, 1779291836, 'slow_user_request', '6', NULL),
-(162, 1779291836, 'user_request', '6', NULL),
-(163, 1779292251, 'user_request', '6', NULL),
-(164, 1779292437, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1161),
-(165, 1779292437, 'slow_user_request', '6', NULL),
-(166, 1779292437, 'user_request', '6', NULL),
-(167, 1779292438, 'user_request', '6', NULL),
-(168, 1779292442, 'user_request', '6', NULL),
-(169, 1779292563, 'user_request', '6', NULL),
-(170, 1779292568, 'user_request', '6', NULL),
-(171, 1779292573, 'user_request', '9', NULL),
-(172, 1779292573, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(173, 1779292573, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(174, 1779292574, 'user_request', '9', NULL),
-(175, 1779292576, 'user_request', '9', NULL),
-(176, 1779292589, 'user_request', '9', NULL),
-(177, 1779292593, 'user_request', '6', NULL),
-(178, 1779292594, 'user_request', '6', NULL),
-(179, 1779292611, 'user_request', '6', NULL),
-(180, 1779292806, 'user_request', '6', NULL),
-(181, 1779292834, 'user_request', '6', NULL),
-(182, 1779292837, 'user_request', '6', NULL),
-(183, 1779292837, 'user_request', '6', NULL),
-(184, 1779292839, 'user_request', '6', NULL),
-(185, 1779292844, 'user_request', '6', NULL),
-(186, 1779292845, 'user_request', '6', NULL),
-(187, 1779292855, 'user_request', '6', NULL),
-(188, 1779292982, 'user_request', '6', NULL),
-(189, 1779293014, 'user_request', '6', NULL),
-(190, 1779293019, 'user_request', '8', NULL),
-(191, 1779293019, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(192, 1779293020, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(193, 1779293020, 'user_request', '8', NULL),
-(194, 1779293025, 'user_request', '8', NULL),
-(195, 1779293032, 'user_request', '8', NULL),
-(196, 1779293033, 'user_request', '8', NULL),
-(197, 1779293039, 'user_request', '9', NULL),
-(198, 1779293039, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(199, 1779293040, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(200, 1779293040, 'user_request', '9', NULL),
-(201, 1779294734, 'user_request', '9', NULL),
-(202, 1779294748, 'user_request', '9', NULL),
-(203, 1779294757, 'user_request', '8', NULL),
-(204, 1779294757, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(205, 1779294758, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
-(206, 1779294758, 'user_request', '8', NULL),
-(207, 1779294761, 'user_request', '8', NULL),
-(208, 1779295210, 'user_request', '8', NULL),
-(209, 1779295211, 'cache_miss', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(210, 1779295211, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(211, 1779295211, 'user_request', '8', NULL),
-(212, 1779295214, 'user_request', '8', NULL),
-(213, 1779295220, 'user_request', '8', NULL),
-(214, 1779295221, 'user_request', '8', NULL),
-(215, 1779295229, 'user_request', '8', NULL),
-(216, 1779295234, 'user_request', '8', NULL),
-(217, 1779295238, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1000),
-(218, 1779295238, 'slow_user_request', '6', NULL),
-(219, 1779295238, 'user_request', '6', NULL),
-(220, 1779295239, 'user_request', '6', NULL),
-(221, 1779295258, 'user_request', '6', NULL),
-(222, 1779295263, 'user_request', '9', NULL),
-(223, 1779295263, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(224, 1779295264, 'cache_hit', 'a2c520e03217b53389c41abc5727cff1', NULL),
-(225, 1779295264, 'user_request', '9', NULL);
+(5, 1779413952, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(6, 1779413952, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(7, 1779413957, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(8, 1779413957, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(9, 1779413959, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(10, 1779413960, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(11, 1779413973, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(12, 1779413973, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(13, 1779413978, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(14, 1779413978, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(15, 1779414003, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(16, 1779414003, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', NULL),
+(17, 1779414003, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1:timer', NULL),
+(18, 1779414108, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 1072),
+(19, 1779414127, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(20, 1779414127, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(21, 1779414134, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(22, 1779414135, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(23, 1779414140, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(24, 1779414140, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(25, 1779414161, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(26, 1779414161, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(27, 1779414253, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(28, 1779414253, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(29, 1779414746, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(30, 1779414747, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(31, 1779414777, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(32, 1779414777, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(33, 1779414781, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(34, 1779414781, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(35, 1779415063, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 2061),
+(36, 1779415063, 'slow_user_request', '7', NULL),
+(37, 1779415063, 'user_request', '7', NULL),
+(38, 1779415065, 'user_request', '7', NULL),
+(39, 1779415117, 'user_request', '7', NULL),
+(40, 1779415183, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 15158),
+(41, 1779415184, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(42, 1779415184, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 1779415184),
+(43, 1779415199, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(44, 1779415367, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(45, 1779415368, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(46, 1779415529, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(47, 1779415529, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(48, 1779415576, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 3603),
+(49, 1779415577, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(50, 1779415577, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 1779415577),
+(51, 1779415580, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(52, 1779415705, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 3939),
+(53, 1779415705, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(54, 1779415705, 'exception', '[\"RuntimeException\",\"app\\\\Http\\\\Middleware\\\\HandleAppearance.php:21\"]', 1779415705),
+(55, 1779415709, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(56, 1779415821, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1511),
+(57, 1779415821, 'slow_user_request', '8', NULL),
+(58, 1779415821, 'user_request', '8', NULL),
+(59, 1779415822, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(60, 1779415823, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(61, 1779415823, 'user_request', '8', NULL),
+(62, 1779415828, 'user_request', '8', NULL),
+(63, 1779415831, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1349),
+(64, 1779415831, 'slow_user_request', '8', NULL),
+(65, 1779415831, 'user_request', '8', NULL),
+(66, 1779415831, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(67, 1779415832, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(68, 1779415833, 'user_request', '8', NULL),
+(69, 1779415836, 'user_request', '8', NULL),
+(70, 1779415901, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 2170),
+(71, 1779415903, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 1692),
+(72, 1779415922, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1442),
+(73, 1779415922, 'slow_user_request', '8', NULL),
+(74, 1779415922, 'user_request', '8', NULL),
+(75, 1779415923, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(76, 1779415924, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(77, 1779415924, 'user_request', '8', NULL),
+(78, 1779415945, 'user_request', '8', NULL),
+(79, 1779415946, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(80, 1779415946, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(81, 1779415946, 'user_request', '8', NULL),
+(82, 1779415953, 'user_request', '8', NULL),
+(83, 1779415957, 'user_request', '8', NULL),
+(84, 1779415958, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(85, 1779415958, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(86, 1779415958, 'user_request', '8', NULL),
+(87, 1779416253, 'user_request', '8', NULL),
+(88, 1779416256, 'user_request', '8', NULL),
+(89, 1779416263, 'user_request', '8', NULL),
+(90, 1779416273, 'user_request', '8', NULL),
+(91, 1779416280, 'user_request', '8', NULL),
+(92, 1779416285, 'user_request', '8', NULL),
+(93, 1779416287, 'user_request', '8', NULL),
+(94, 1779416290, 'user_request', '8', NULL),
+(95, 1779416350, 'user_request', '8', NULL),
+(96, 1779416522, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1648),
+(97, 1779416522, 'slow_user_request', '8', NULL),
+(98, 1779416522, 'user_request', '8', NULL),
+(99, 1779416523, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(100, 1779416524, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(101, 1779416524, 'user_request', '8', NULL),
+(102, 1779416527, 'user_request', '8', NULL),
+(103, 1779416730, 'user_request', '8', NULL),
+(104, 1779416735, 'user_request', '8', NULL),
+(105, 1779416736, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(106, 1779416736, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(107, 1779416736, 'user_request', '8', NULL),
+(108, 1779416755, 'user_request', '8', NULL),
+(109, 1779416811, 'user_request', '8', NULL),
+(110, 1779416812, 'user_request', '8', NULL),
+(111, 1779416814, 'user_request', '8', NULL),
+(112, 1779416815, 'user_request', '8', NULL),
+(113, 1779416840, 'user_request', '8', NULL),
+(114, 1779416841, 'user_request', '8', NULL),
+(115, 1779416844, 'user_request', '8', NULL),
+(116, 1779416848, 'user_request', '8', NULL),
+(117, 1779416854, 'user_request', '8', NULL),
+(118, 1779416855, 'user_request', '8', NULL),
+(119, 1779416859, 'user_request', '8', NULL),
+(120, 1779416865, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1255),
+(121, 1779416865, 'slow_user_request', '8', NULL),
+(122, 1779416865, 'user_request', '8', NULL),
+(123, 1779416866, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(124, 1779416867, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(125, 1779416867, 'user_request', '8', NULL),
+(126, 1779416870, 'user_request', '8', NULL),
+(127, 1779416878, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1219),
+(128, 1779416878, 'slow_user_request', '8', NULL),
+(129, 1779416878, 'user_request', '8', NULL),
+(130, 1779416878, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(131, 1779416879, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(132, 1779416880, 'user_request', '8', NULL),
+(133, 1779416946, 'user_request', '8', NULL),
+(134, 1779416948, 'user_request', '8', NULL),
+(135, 1779417093, 'user_request', '8', NULL),
+(136, 1779417095, 'user_request', '8', NULL),
+(137, 1779417099, 'user_request', '8', NULL),
+(138, 1779417100, 'user_request', '8', NULL),
+(139, 1779417104, 'user_request', '8', NULL),
+(140, 1779417107, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1287),
+(141, 1779417107, 'slow_user_request', '8', NULL),
+(142, 1779417107, 'user_request', '8', NULL),
+(143, 1779417108, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(144, 1779417109, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(145, 1779417109, 'user_request', '8', NULL),
+(146, 1779417113, 'user_request', '8', NULL),
+(147, 1779417166, 'user_request', '8', NULL),
+(148, 1779417170, 'user_request', '8', NULL),
+(149, 1779417187, 'user_request', '8', NULL),
+(150, 1779417292, 'user_request', '8', NULL),
+(151, 1779417295, 'user_request', '8', NULL),
+(152, 1779417298, 'user_request', '8', NULL),
+(153, 1779417301, 'user_request', '8', NULL),
+(154, 1779417344, 'user_request', '8', NULL),
+(155, 1779417348, 'user_request', '8', NULL),
+(156, 1779417352, 'user_request', '8', NULL),
+(157, 1779417358, 'user_request', '8', NULL),
+(158, 1779417358, 'user_request', '8', NULL),
+(159, 1779417362, 'user_request', '8', NULL),
+(160, 1779417368, 'user_request', '8', NULL),
+(161, 1779417385, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1211),
+(162, 1779417385, 'slow_user_request', '8', NULL),
+(163, 1779417385, 'user_request', '8', NULL),
+(164, 1779417386, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(165, 1779417387, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(166, 1779417387, 'user_request', '8', NULL),
+(167, 1779417515, 'user_request', '8', NULL),
+(168, 1779417515, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(169, 1779417515, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(170, 1779417515, 'user_request', '8', NULL),
+(171, 1779417521, 'user_request', '8', NULL),
+(172, 1779417522, 'user_request', '8', NULL),
+(173, 1779417532, 'user_request', '8', NULL),
+(174, 1779417553, 'user_request', '8', NULL),
+(175, 1779417641, 'user_request', '8', NULL),
+(176, 1779417643, 'user_request', '8', NULL),
+(177, 1779417771, 'user_request', '8', NULL),
+(178, 1779417882, 'user_request', '8', NULL),
+(179, 1779417904, 'user_request', '8', NULL),
+(180, 1779417932, 'user_request', '8', NULL),
+(181, 1779417932, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(182, 1779417933, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(183, 1779417933, 'user_request', '8', NULL),
+(184, 1779417935, 'user_request', '8', NULL),
+(185, 1779417984, 'user_request', '8', NULL),
+(186, 1779417986, 'user_request', '8', NULL),
+(187, 1779417991, 'user_request', '8', NULL),
+(188, 1779417994, 'user_request', '8', NULL),
+(189, 1779418037, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779418037),
+(190, 1779418037, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779418037),
+(191, 1779418083, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 2640),
+(192, 1779418085, 'slow_outgoing_request', '[\"POST\",\"http:\\/\\/127.0.0.1:5174\\/__inertia_ssr\"]', 2107),
+(193, 1779418105, 'user_request', '8', NULL),
+(194, 1779418105, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(195, 1779418105, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(196, 1779418105, 'user_request', '8', NULL),
+(197, 1779418107, 'user_request', '8', NULL),
+(198, 1779418109, 'user_request', '8', NULL),
+(199, 1779418111, 'user_request', '8', NULL),
+(200, 1779418112, 'user_request', '8', NULL),
+(201, 1779418114, 'user_request', '8', NULL),
+(202, 1779418117, 'user_request', '8', NULL),
+(203, 1779418128, 'user_request', '8', NULL),
+(204, 1779418132, 'user_request', '7', NULL),
+(205, 1779418133, 'user_request', '7', NULL),
+(206, 1779418317, 'user_request', '7', NULL),
+(207, 1779418320, 'user_request', '8', NULL),
+(208, 1779418320, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(209, 1779418321, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(210, 1779418321, 'user_request', '8', NULL),
+(211, 1779418323, 'user_request', '8', NULL),
+(212, 1779418585, 'user_request', '8', NULL),
+(213, 1779418586, 'user_request', '8', NULL),
+(214, 1779418638, 'user_request', '8', NULL),
+(215, 1779418649, 'user_request', '8', NULL),
+(216, 1779418657, 'user_request', '8', NULL),
+(217, 1779418658, 'user_request', '8', NULL),
+(218, 1779418661, 'user_request', '8', NULL),
+(219, 1779418663, 'user_request', '8', NULL),
+(220, 1779418664, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(221, 1779418664, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(222, 1779418664, 'user_request', '8', NULL),
+(223, 1779418667, 'user_request', '8', NULL),
+(224, 1779418718, 'user_request', '8', NULL),
+(225, 1779418722, 'user_request', '8', NULL),
+(226, 1779418726, 'user_request', '8', NULL),
+(227, 1779418728, 'user_request', '8', NULL),
+(228, 1779418728, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(229, 1779418729, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(230, 1779418729, 'user_request', '8', NULL),
+(231, 1779418765, 'user_request', '8', NULL),
+(232, 1779418860, 'user_request', '8', NULL),
+(233, 1779418866, 'user_request', '8', NULL),
+(234, 1779418878, 'user_request', '8', NULL),
+(235, 1779418991, 'user_request', '8', NULL),
+(236, 1779418994, 'user_request', '8', NULL),
+(237, 1779418997, 'user_request', '8', NULL),
+(238, 1779418997, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(239, 1779418998, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(240, 1779418998, 'user_request', '8', NULL),
+(241, 1779419019, 'user_request', '8', NULL),
+(242, 1779419109, 'user_request', '8', NULL),
+(243, 1779419111, 'user_request', '8', NULL),
+(244, 1779419133, 'user_request', '8', NULL),
+(245, 1779419139, 'user_request', '8', NULL),
+(246, 1779419146, 'user_request', '8', NULL),
+(247, 1779419150, 'user_request', '8', NULL),
+(248, 1779419153, 'user_request', '8', NULL),
+(249, 1779419160, 'user_request', '8', NULL),
+(250, 1779419163, 'user_request', '8', NULL),
+(251, 1779419163, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(252, 1779419163, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(253, 1779419163, 'user_request', '8', NULL),
+(254, 1779419251, 'user_request', '8', NULL),
+(255, 1779419255, 'user_request', '8', NULL),
+(256, 1779419258, 'user_request', '8', NULL),
+(257, 1779419262, 'user_request', '8', NULL),
+(258, 1779419266, 'user_request', '8', NULL),
+(259, 1779419319, 'user_request', '8', NULL),
+(260, 1779419351, 'user_request', '8', NULL),
+(261, 1779419357, 'user_request', '8', NULL),
+(262, 1779419359, 'user_request', '8', NULL),
+(263, 1779419362, 'user_request', '8', NULL),
+(264, 1779419362, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(265, 1779419363, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(266, 1779419363, 'user_request', '8', NULL),
+(267, 1779419367, 'user_request', '8', NULL),
+(268, 1779419367, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(269, 1779419367, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(270, 1779419367, 'user_request', '8', NULL),
+(271, 1779419370, 'user_request', '8', NULL),
+(272, 1779419372, 'user_request', '8', NULL),
+(273, 1779419373, 'user_request', '8', NULL),
+(274, 1779419462, 'user_request', '8', NULL),
+(275, 1779419466, 'user_request', '8', NULL),
+(276, 1779419469, 'user_request', '8', NULL),
+(277, 1779419475, 'user_request', '8', NULL),
+(278, 1779419522, 'user_request', '8', NULL),
+(279, 1779419526, 'user_request', '8', NULL),
+(280, 1779419529, 'user_request', '8', NULL),
+(281, 1779419530, 'user_request', '8', NULL),
+(282, 1779419532, 'user_request', '8', NULL),
+(283, 1779419532, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(284, 1779419533, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(285, 1779419533, 'user_request', '8', NULL),
+(286, 1779419537, 'user_request', '8', NULL),
+(287, 1779419537, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(288, 1779419537, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(289, 1779419537, 'user_request', '8', NULL),
+(290, 1779419579, 'user_request', '8', NULL),
+(291, 1779419892, 'user_request', '8', NULL),
+(292, 1779420446, 'slow_request', '[\"GET\",\"\\/settings\\/profile\",\"App\\\\Http\\\\Controllers\\\\Settings\\\\ProfileController@edit\"]', 14823),
+(293, 1779420446, 'slow_user_request', '8', NULL),
+(294, 1779420446, 'user_request', '8', NULL),
+(295, 1779420461, 'user_request', '8', NULL),
+(296, 1779420491, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779420491),
+(297, 1779420491, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779420491),
+(298, 1779420534, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 1037),
+(299, 1779420546, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1701),
+(300, 1779420546, 'slow_user_request', '8', NULL),
+(301, 1779420546, 'user_request', '8', NULL),
+(302, 1779420547, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(303, 1779420548, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(304, 1779420548, 'user_request', '8', NULL),
+(305, 1779420552, 'user_request', '8', NULL),
+(306, 1779420552, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(307, 1779420553, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(308, 1779420553, 'user_request', '8', NULL),
+(309, 1779420700, 'user_request', '8', NULL),
+(310, 1779421307, 'user_request', '8', NULL),
+(311, 1779421310, 'user_request', '8', NULL),
+(312, 1779421311, 'user_request', '8', NULL),
+(313, 1779421312, 'user_request', '8', NULL),
+(314, 1779421315, 'user_request', '8', NULL),
+(315, 1779421318, 'user_request', '8', NULL),
+(316, 1779421318, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(317, 1779421319, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(318, 1779421319, 'user_request', '8', NULL),
+(319, 1779421354, 'user_request', '8', NULL),
+(320, 1779421368, 'user_request', '8', NULL),
+(321, 1779421368, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(322, 1779421369, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(323, 1779421369, 'user_request', '8', NULL),
+(324, 1779421379, 'user_request', '8', NULL),
+(325, 1779421379, 'user_request', '8', NULL),
+(326, 1779421382, 'user_request', '8', NULL),
+(327, 1779421397, 'user_request', '8', NULL),
+(328, 1779421398, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(329, 1779421398, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(330, 1779421398, 'user_request', '8', NULL),
+(331, 1779421425, 'user_request', '8', NULL),
+(332, 1779421425, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(333, 1779421425, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(334, 1779421425, 'user_request', '8', NULL),
+(335, 1779421461, 'user_request', '8', NULL),
+(336, 1779421478, 'user_request', '8', NULL),
+(337, 1779421484, 'user_request', '8', NULL),
+(338, 1779421487, 'user_request', '8', NULL),
+(339, 1779421491, 'user_request', '8', NULL),
+(340, 1779421491, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(341, 1779421491, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(342, 1779421492, 'user_request', '8', NULL),
+(343, 1779421498, 'user_request', '8', NULL),
+(344, 1779421502, 'user_request', '8', NULL),
+(345, 1779421540, 'user_request', '8', NULL),
+(346, 1779421541, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(347, 1779421541, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(348, 1779421541, 'user_request', '8', NULL),
+(349, 1779421545, 'user_request', '8', NULL),
+(350, 1779421545, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(351, 1779421545, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(352, 1779421545, 'user_request', '8', NULL),
+(353, 1779421549, 'user_request', '8', NULL),
+(354, 1779421555, 'user_request', '8', NULL),
+(355, 1779421555, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(356, 1779421556, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(357, 1779421556, 'user_request', '8', NULL),
+(358, 1779421568, 'user_request', '8', NULL),
+(359, 1779421568, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(360, 1779421568, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(361, 1779421568, 'user_request', '8', NULL),
+(362, 1779421635, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 1339),
+(363, 1779421635, 'slow_user_request', '8', NULL),
+(364, 1779421635, 'user_request', '8', NULL),
+(365, 1779421644, 'user_request', '8', NULL),
+(366, 1779421654, 'slow_request', '[\"GET\",\"\\/auth\\/google\\/callback\",\"App\\\\Http\\\\Controllers\\\\Auth\\\\GoogleController@handleGoogleCallback\"]', 1050),
+(367, 1779421654, 'slow_user_request', '7', NULL),
+(368, 1779421654, 'user_request', '7', NULL),
+(369, 1779421655, 'user_request', '7', NULL),
+(370, 1779421660, 'user_request', '7', NULL),
+(371, 1779421662, 'user_request', '8', NULL),
+(372, 1779421663, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(373, 1779421663, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(374, 1779421663, 'user_request', '8', NULL),
+(375, 1779422018, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779422018),
+(376, 1779422018, 'exception', '[\"Symfony\\\\Component\\\\Console\\\\Exception\\\\CommandNotFoundException\",\"vendor\\\\symfony\\\\console\\\\Application.php:759\"]', 1779422018),
+(377, 1779422041, 'user_request', '8', NULL),
+(378, 1779422044, 'user_request', '8', NULL),
+(379, 1779422047, 'user_request', '8', NULL),
+(380, 1779422047, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(381, 1779422048, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(382, 1779422048, 'user_request', '8', NULL),
+(383, 1779422057, 'user_request', '8', NULL),
+(384, 1779422057, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(385, 1779422057, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(386, 1779422057, 'user_request', '8', NULL),
+(387, 1779422189, 'user_request', '8', NULL),
+(388, 1779422192, 'user_request', '8', NULL),
+(389, 1779422219, 'user_request', '8', NULL),
+(390, 1779422219, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(391, 1779422220, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(392, 1779422220, 'user_request', '8', NULL),
+(393, 1779422552, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 5037),
+(394, 1779422552, 'slow_user_request', '8', NULL),
+(395, 1779422552, 'user_request', '8', NULL),
+(396, 1779422557, 'user_request', '8', NULL),
+(397, 1779422557, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(398, 1779422558, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(399, 1779422558, 'slow_request', '[\"GET\",\"\\/dashboard\",\"\\\\Inertia\\\\Controller\"]', 1328),
+(400, 1779422558, 'slow_user_request', '8', NULL),
+(401, 1779422558, 'user_request', '8', NULL),
+(402, 1779422559, 'user_request', '8', NULL),
+(403, 1779422567, 'user_request', '8', NULL),
+(404, 1779422570, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 1519),
+(405, 1779422570, 'slow_user_request', '8', NULL),
+(406, 1779422570, 'user_request', '8', NULL),
+(407, 1779422570, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(408, 1779422571, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(409, 1779422571, 'user_request', '8', NULL),
+(410, 1779422577, 'user_request', '8', NULL),
+(411, 1779422582, 'user_request', '8', NULL),
+(412, 1779422582, 'user_request', '8', NULL),
+(413, 1779422585, 'user_request', '8', NULL),
+(414, 1779422589, 'user_request', '8', NULL),
+(415, 1779422592, 'user_request', '8', NULL),
+(416, 1779422592, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(417, 1779422593, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(418, 1779422593, 'user_request', '8', NULL),
+(419, 1779422713, 'user_request', '8', NULL),
+(420, 1779422741, 'user_request', '8', NULL),
+(421, 1779422743, 'user_request', '8', NULL),
+(422, 1779422962, 'user_request', '8', NULL),
+(423, 1779422968, 'user_request', '8', NULL),
+(424, 1779422970, 'user_request', '8', NULL),
+(425, 1779422973, 'user_request', '8', NULL),
+(426, 1779422973, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(427, 1779422974, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(428, 1779422974, 'user_request', '8', NULL),
+(429, 1779422976, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 13546),
+(430, 1779422976, 'slow_user_request', '8', NULL),
+(431, 1779422976, 'user_request', '8', NULL),
+(432, 1779422976, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779422976),
+(433, 1779422993, 'user_request', '8', NULL),
+(434, 1779422999, 'user_request', '8', NULL),
+(435, 1779423091, 'user_request', '8', NULL),
+(436, 1779424769, 'user_request', '8', NULL),
+(437, 1779424771, 'user_request', '8', NULL),
+(438, 1779424774, 'user_request', '8', NULL),
+(439, 1779424778, 'user_request', '8', NULL),
+(440, 1779510387, 'slow_request', '[\"GET\",\"\\/super-admin\\/billing\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\BillingController@index\"]', 16011),
+(441, 1779510404, 'slow_request', '[\"GET\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@create\"]', 1919),
+(442, 1779510846, 'slow_request', '[\"GET\",\"\\/\",\"\\\\Inertia\\\\Controller\"]', 2187),
+(443, 1779510863, 'slow_request', '[\"POST\",\"\\/login\",\"Laravel\\\\Fortify\\\\Http\\\\Controllers\\\\AuthenticatedSessionController@store\"]', 2233),
+(444, 1779510863, 'slow_user_request', '8', NULL),
+(445, 1779510863, 'user_request', '8', NULL),
+(446, 1779510863, 'cache_miss', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(447, 1779510865, 'cache_hit', 'dcacbc44a7737aebdda0ba04d9733cb1', NULL),
+(448, 1779510865, 'user_request', '8', NULL),
+(449, 1779510867, 'user_request', '8', NULL),
+(450, 1779510869, 'user_request', '8', NULL),
+(451, 1779510871, 'user_request', '8', NULL),
+(452, 1779510872, 'user_request', '8', NULL),
+(453, 1779510874, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 3934),
+(454, 1779510874, 'slow_user_request', '8', NULL),
+(455, 1779510874, 'user_request', '8', NULL),
+(456, 1779510874, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510874),
+(457, 1779510881, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 1213),
+(458, 1779510881, 'slow_user_request', '8', NULL),
+(459, 1779510881, 'user_request', '8', NULL),
+(460, 1779510881, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510881),
+(461, 1779510884, 'user_request', '8', NULL),
+(462, 1779510886, 'user_request', '8', NULL),
+(463, 1779510887, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 1197),
+(464, 1779510887, 'slow_user_request', '8', NULL),
+(465, 1779510887, 'user_request', '8', NULL),
+(466, 1779510888, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510888),
+(467, 1779510905, 'user_request', '8', NULL),
+(468, 1779510906, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 1292),
+(469, 1779510906, 'slow_user_request', '8', NULL),
+(470, 1779510906, 'user_request', '8', NULL),
+(471, 1779510907, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510907),
+(472, 1779510912, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 1211),
+(473, 1779510912, 'slow_user_request', '8', NULL),
+(474, 1779510912, 'user_request', '8', NULL),
+(475, 1779510912, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510912),
+(476, 1779510947, 'slow_request', '[\"GET\",\"\\/super-admin\\/accounts\",\"App\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController@index\"]', 1269),
+(477, 1779510947, 'slow_user_request', '8', NULL),
+(478, 1779510947, 'user_request', '8', NULL),
+(479, 1779510947, 'exception', '[\"Error\",\"app\\\\Http\\\\Controllers\\\\SuperAdmin\\\\AccountController.php:52\"]', 1779510947),
+(480, 1779511051, 'user_request', '8', NULL),
+(481, 1779511058, 'user_request', '8', NULL),
+(482, 1779511071, 'user_request', '8', NULL),
+(483, 1779511118, 'user_request', '8', NULL),
+(484, 1779511120, 'user_request', '8', NULL),
+(485, 1779511138, 'user_request', '8', NULL),
+(486, 1779511141, 'user_request', '8', NULL),
+(487, 1779511146, 'user_request', '8', NULL),
+(488, 1779511149, 'user_request', '8', NULL),
+(489, 1779511309, 'user_request', '8', NULL),
+(490, 1779511313, 'user_request', '8', NULL),
+(491, 1779511317, 'user_request', '8', NULL),
+(492, 1779511341, 'user_request', '8', NULL),
+(493, 1779511358, 'user_request', '8', NULL),
+(494, 1779511360, 'user_request', '8', NULL),
+(495, 1779511367, 'user_request', '8', NULL),
+(496, 1779511387, 'user_request', '8', NULL),
+(497, 1779511418, 'user_request', '8', NULL),
+(498, 1779511422, 'user_request', '8', NULL),
+(499, 1779511426, 'user_request', '8', NULL),
+(500, 1779511431, 'user_request', '8', NULL);
 
 -- --------------------------------------------------------
 
@@ -1542,13 +1843,6 @@ CREATE TABLE `restaurants` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `restaurants`
---
-
-INSERT INTO `restaurants` (`id`, `plan_id`, `owner_user_id`, `code`, `name`, `slug`, `tax_code`, `phone`, `email`, `address`, `logo_url`, `timezone`, `currency`, `status`, `subscription_started_at`, `subscription_ends_at`, `trial_ends_at`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 2, 1, 'FNBVIET-DEMO', 'Aventura Demo', 'aventura-demo', NULL, '02873000001', 'hello@bepso.test', '1 Nguyen Hue, Quan 1, TP.HCM', NULL, 'Asia/Ho_Chi_Minh', 'VND', 'active', '2026-05-20', '2026-06-20', NULL, '2026-05-19 22:20:33', '2026-05-20 07:18:32', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -1569,13 +1863,6 @@ CREATE TABLE `restaurant_branches` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `restaurant_branches`
---
-
-INSERT INTO `restaurant_branches` (`id`, `restaurant_id`, `code`, `name`, `phone`, `email`, `address`, `manager_user_id`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 'Q1', 'Chi nhanh Quan 1', '02873000002', 'q1@bepso.test', '1 Nguyen Hue, Quan 1, TP.HCM', 2, 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
 
 -- --------------------------------------------------------
 
@@ -1647,8 +1934,13 @@ CREATE TABLE `restaurant_subscriptions` (
   `ended_at` datetime DEFAULT NULL,
   `cancelled_at` datetime DEFAULT NULL,
   `renewal_at` datetime DEFAULT NULL,
+  `transaction_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `grace_ends_at` timestamp NULL DEFAULT NULL,
+  `last_notified_at` timestamp NULL DEFAULT NULL,
+  `last_paid_at` timestamp NULL DEFAULT NULL,
   `price` decimal(12,2) NOT NULL DEFAULT '0.00',
   `meta` json DEFAULT NULL,
+  `billing_meta` json DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1673,14 +1965,6 @@ CREATE TABLE `restaurant_tables` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `restaurant_tables`
---
-
-INSERT INTO `restaurant_tables` (`id`, `restaurant_id`, `branch_id`, `area_id`, `name`, `qr_code`, `capacity`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 1, 'A1', 'QR-A1', 4, 'occupied', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL),
-(2, 1, 1, 1, 'A2', 'QR-A2', 4, 'available', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -1700,14 +1984,13 @@ CREATE TABLE `roles` (
 --
 
 INSERT INTO `roles` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
-(1, 'super_admin', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(2, 'owner', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(3, 'manager', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(4, 'cashier', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(5, 'kitchen', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(6, 'inventory_staff', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(7, 'customer', 'web', '2026-05-19 22:20:31', '2026-05-19 22:20:31'),
-(8, 'admin', 'web', '2026-05-20 07:04:24', '2026-05-20 07:04:24');
+(1, 'super_admin', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(2, 'owner', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(3, 'manager', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(4, 'cashier', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(5, 'kitchen', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(6, 'inventory_staff', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58'),
+(7, 'customer', 'web', '2026-05-21 18:34:58', '2026-05-21 18:34:58');
 
 -- --------------------------------------------------------
 
@@ -1845,13 +2128,6 @@ CREATE TABLE `schedule_assignments` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `schedule_assignments`
---
-
-INSERT INTO `schedule_assignments` (`id`, `restaurant_id`, `branch_id`, `employee_id`, `shift_id`, `scheduled_date`, `check_in_at`, `check_out_at`, `status`, `notes`, `approved_by`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 3, 1, '2026-05-20', NULL, NULL, 'scheduled', NULL, 2, '2026-05-19 22:20:35', '2026-05-19 22:20:35');
-
 -- --------------------------------------------------------
 
 --
@@ -1872,18 +2148,13 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('5GT7yRUuWgOpth4s25qeslVisuwApKg57c6HWQhY', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJVRmlJMlhRdlBYNVNGeG5nTEVHR08xOTJIQjVhNEFTRXp6bDdCd1c4IiwidXJsIjp7ImludGVuZGVkIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL3N1cGVyLWFkbWluXC9kYXNoYm9hcmQifSwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9zdXBlci1hZG1pblwvZGFzaGJvYXJkIiwicm91dGUiOiJzdXBlcmFkbWluLmRhc2hib2FyZCJ9LCJfZmxhc2giOnsib2xkIjpbXSwibmV3IjpbXX19', 1779285727),
-('9ON4u08UQxYDvrg980Oqdei3OPsFLnZngOozQuGj', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJRUGVDNEI3RXNBQXo0Wjd4ZFdqcTNtMW9vdTRTblZmVURkOHlTN0l2IiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwIiwicm91dGUiOiJob21lIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779281017),
-('aTrPA8GzgYxfUfgb8MoWOrqeK3gddZ71ClB37Fi5', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJJb1VsdXZ2Q2M0OGZtUnZBSDFaazJNYkhubVNKQXQ2Rmg3QjNtS3NUIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9sb2dpbiIsInJvdXRlIjoibG9naW4ifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119fQ==', 1779282116),
-('bO2KoDljJjUSgyLTovRNYv8Iw477ganDcWRRo2qS', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJkSHI2NmVkb0JLVjhjelRVcVpNNjRqdWZ1SzRlU2MzcDJNUk81UWdUIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwIiwicm91dGUiOiJob21lIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779281050),
-('D9s7rF2A7taTaYLu4GewWJk0939S3W1Ah0znK3fD', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJYRllSTnVZekV6dVdncDVKMzRqU0xsNWhESHN6eHhtMVdzZXNpMFk4IiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9yZWdpc3RlciIsInJvdXRlIjoicmVnaXN0ZXIifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119fQ==', 1779282117),
-('E9RS1uOXrq4X8Y5URboM7swyMhMpwE1TorGbnIvR', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJYMmpUT1hLWmRsS0tnN2pLckE3Y1VwSVhib3VEOVA1OGZwQzJ4a1pqIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9sb2dpbiIsInJvdXRlIjoibG9naW4ifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119fQ==', 1779281036),
-('hWZKpJyKyIokyJzoXoScUuU1jZRfqHbUHF50Pcee', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJZdzJCWEVVZ1ZGeDlZTk5qTzlRVXUwNUlneXNIWEIwTU9jVUs4MU1VIiwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJfcHJldmlvdXMiOnsidXJsIjoiaHR0cDpcL1wvYXZlbnR1cmEudGVzdFwvcmVnaXN0ZXIiLCJyb3V0ZSI6InJlZ2lzdGVyIn19', 1779255324),
-('lSgvXKN7yIUFMnpDISMEXOsqlJeWSZJpz9vJfStX', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJKWHVhcFMyQnZuS2FiMmpHSEFoUGRmeFI1bjBTZFVCOUFkeXJaSU5kIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwIiwicm91dGUiOiJob21lIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779281030),
-('PJHuuVXcUdOksBu54ctDZpEw2neqwMCEUVkU5tLF', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJxQTJEQ2FBcm9XTVNWNkQwNjhZd3hJYUdFbE1sV0NUZjBlYUE2WTVwIiwidXJsIjp7ImludGVuZGVkIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL3N1cGVyLWFkbWluXC9yZXN0YXVyYW50c1wvMSJ9LCJfcHJldmlvdXMiOnsidXJsIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL3N1cGVyLWFkbWluXC9yZXN0YXVyYW50c1wvMSIsInJvdXRlIjoic3VwZXJhZG1pbi5yZXN0YXVyYW50cy5zaG93In0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779291499),
-('RWIKFqKVrZ80coGyV4442Q4zvbd8ShSWn5IYM85L', 6, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiIyckxMTDFrb0QxcU1yYWFPZ1YxSzBPdGJzVlhUSjY1VFFKeEVDSHZpIiwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJ1cmwiOltdLCJsb2dpbl93ZWJfNTliYTM2YWRkYzJiMmY5NDAxNTgwZjAxNGM3ZjU4ZWE0ZTMwOTg5ZCI6NiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cL2xvY2FsaG9zdFwvQXZlbnR1cmFcL3B1YmxpY1wvZGFzaGJvYXJkIiwicm91dGUiOiJkYXNoYm9hcmQifX0=', 1779255502),
-('UtEEYbYIIJ5ddFbKt6rijrQMC5sPhiazSCFIB4FE', 9, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJUb3VVR3dURm5FWjUxZDlKakhleE52cnlPQXJGVkV6dmJKTjlrTGREIiwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJsb2dpbl93ZWJfNTliYTM2YWRkYzJiMmY5NDAxNTgwZjAxNGM3ZjU4ZWE0ZTMwOTg5ZCI6OX0=', 1779295264),
-('znrHgMJdQDYu0VXR5NPvfwB4eqbDlYMzQ2Vway5X', NULL, '127.0.0.1', 'curl/7.84.0', 'eyJfdG9rZW4iOiJQYjdYMnc4MlZHdzFqRHZSZ1RxRk5NTVY4cFlXU0dMckRESlZoVnIwIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9sb2dpbiIsInJvdXRlIjoibG9naW4ifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119fQ==', 1779281642);
+('0Z04nf0ryPuBqpzvrEUk4bILOdhoO3ZTIiFpPXOz', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.121.0 Chrome/142.0.7444.265 Electron/39.8.8 Safari/537.36', 'eyJfdG9rZW4iOiJrNGRLUVVNQWFGME02Zkh5VFN0UDAyd2Z0b0dsQUg4QjRwZzVtWWpjIiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwIiwicm91dGUiOiJob21lIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779418794),
+('HHSELpGCrJgMhb62VJMyRAGlSybjh8xHfkYzfqB2', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJwZW9LRWR6TjI4ZGoxWVhibFV4MkdOeFZSZzE2d0xheGw4YnZzYjlSIiwidXJsIjp7ImludGVuZGVkIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL3N1cGVyLWFkbWluXC9kYXNoYm9hcmQifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119fQ==', 1779510406),
+('jcwY5ZB7YRyAqNEfduEiSrbmj6ZaHKUWrl87TuGf', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.121.0 Chrome/142.0.7444.265 Electron/39.8.8 Safari/537.36', 'eyJfdG9rZW4iOiJIRFlkVmNib2lhZlVRM3JBNkUxNENvNU81WnNoS3FoUlVLM0RLTVY0IiwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwIiwicm91dGUiOiJob21lIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779510848),
+('NSLjT6BvHCi4GHclFoi51qwhZK9B2Ql2qGoOHOG2', 8, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJqVXBiRTJONFlyVWFvaGdEb2dsV3QzUG1zQjc4SjhwWmV0cjd2TjcxIiwidXJsIjp7ImludGVuZGVkIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL3N1cGVyLWFkbWluXC9kYXNoYm9hcmQifSwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9zdXBlci1hZG1pblwvYWNjb3VudHMiLCJyb3V0ZSI6InN1cGVyYWRtaW4uYWNjb3VudHMuaW5kZXgifSwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJsb2dpbl93ZWJfNTliYTM2YWRkYzJiMmY5NDAxNTgwZjAxNGM3ZjU4ZWE0ZTMwOTg5ZCI6OH0=', 1779511431),
+('nYtV0W8q7I65o7Q4hPtSXejCRURH4bg7xyM5s2Sq', 8, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36', 'eyJfdG9rZW4iOiJ1OVg1NWNXOVV2SjhyYW1RdGVTeHRaMDJCNDVqZ3JzbGE0a2VVMHliIiwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJ1cmwiOltdLCJfcHJldmlvdXMiOnsidXJsIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL2Rhc2hib2FyZCIsInJvdXRlIjoiZGFzaGJvYXJkIn0sImxvZ2luX3dlYl81OWJhMzZhZGRjMmIyZjk0MDE1ODBmMDE0YzdmNThlYTRlMzA5ODlkIjo4fQ==', 1779417994),
+('PT5NPRwKUQVvYg4eteqCZYyxT8CaCnzcPPumOBRA', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJzTm5hckhCV0tzRXA1NEdSd2hkZEpPenRQYzk0d2tJUTF4S2UwVVBZIiwidXJsIjp7ImludGVuZGVkIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL2Rhc2hib2FyZCJ9LCJfcHJldmlvdXMiOnsidXJsIjoiaHR0cDpcL1wvMTI3LjAuMC4xOjgwMDBcL2Rhc2hib2FyZCIsInJvdXRlIjoiZGFzaGJvYXJkIn0sIl9mbGFzaCI6eyJvbGQiOltdLCJuZXciOltdfX0=', 1779420462),
+('ToGzsDnxfcAaakaAKQLJwIShFP0a9CnGz1AaWSVh', 8, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0', 'eyJfdG9rZW4iOiJVdmZKUUNxbXI4QnhOM1pST1lzM0xwcE16WHhUNW5XdExzSHoyWEVQIiwiX2ZsYXNoIjp7Im9sZCI6W10sIm5ldyI6W119LCJsb2dpbl93ZWJfNTliYTM2YWRkYzJiMmY5NDAxNTgwZjAxNGM3ZjU4ZWE0ZTMwOTg5ZCI6OCwiX3ByZXZpb3VzIjp7InVybCI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDAwXC9zdXBlci1hZG1pblwvZGFzaGJvYXJkIiwicm91dGUiOiJzdXBlcmFkbWluLmRhc2hib2FyZCJ9fQ==', 1779424779);
 
 -- --------------------------------------------------------
 
@@ -1937,8 +2208,8 @@ CREATE TABLE `subscription_plans` (
 --
 
 INSERT INTO `subscription_plans` (`id`, `code`, `name`, `price`, `billing_cycle`, `max_branches`, `max_tables`, `max_users`, `features`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'FREE', 'Miễn phí', '0.00', 'monthly', 1, 10, 5, '{\"realtime\": false, \"max_areas\": 2, \"ai_features\": false, \"api_rate_limit\": 60, \"max_storage_mb\": 500, \"advanced_analytics\": false}', 'active', '2026-05-19 22:20:23', '2026-05-20 06:59:13'),
-(2, 'PRO', 'Cao cấp', '299000.00', 'monthly', NULL, NULL, NULL, '{\"realtime\": true, \"max_areas\": null, \"ai_features\": true, \"api_rate_limit\": 600, \"max_storage_mb\": 10240, \"advanced_analytics\": true}', 'active', '2026-05-19 22:20:23', '2026-05-20 06:59:13');
+(1, 'free', 'Free', 0.00, 'monthly', 1, 10, 5, '{\"analytics\": false, \"multi_branch\": false, \"ai_prediction\": false}', 'active', '2026-05-21 18:34:51', '2026-05-21 18:34:51'),
+(2, 'pro', 'Pro', 499000.00, 'monthly', NULL, NULL, NULL, '{\"analytics\": true, \"multi_branch\": true, \"ai_prediction\": true}', 'active', '2026-05-21 18:34:51', '2026-05-21 18:34:51');
 
 -- --------------------------------------------------------
 
@@ -1962,13 +2233,6 @@ CREATE TABLE `suppliers` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `suppliers`
---
-
-INSERT INTO `suppliers` (`id`, `restaurant_id`, `branch_id`, `name`, `contact_name`, `phone`, `email`, `address`, `notes`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 1, 1, 'Nha cung cap Demo', 'Tran Demo', '0911111111', NULL, NULL, NULL, 'active', '2026-05-19 22:20:34', '2026-05-19 22:20:34', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -1986,14 +2250,6 @@ CREATE TABLE `units` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `units`
---
-
-INSERT INTO `units` (`id`, `restaurant_id`, `name`, `symbol`, `type`, `base_unit_id`, `conversion_factor`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Gram', 'g', 'mass', NULL, '1.0000', '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(2, 1, 'Ly', 'ly', 'count', NULL, '1.0000', '2026-05-19 22:20:34', '2026-05-19 22:20:34');
 
 -- --------------------------------------------------------
 
@@ -2027,15 +2283,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `restaurant_id`, `branch_id`, `name`, `email`, `google_id`, `phone`, `avatar_url`, `status`, `last_login_at`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `remember_token`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Owner Demo', 'owner@bepso.test', NULL, '0900000001', NULL, 'active', NULL, '2026-05-19 22:20:33', '$2y$12$4iqbuuoQrULJNd6t83JcnOAZQR.zsnGdoSyn016qRQK7sC6S/a7wm', NULL, NULL, NULL, '5Xc1hFQBvQ66wXgiGFqRPbq4v95LtROYltZxN1kweGW3MmtkfiINKSbWoBPA', '2026-05-19 22:20:33', '2026-05-19 22:20:34'),
-(2, 1, 1, 'Manager Demo', 'manager@bepso.test', NULL, '0900000002', NULL, 'active', NULL, '2026-05-19 22:20:33', '$2y$12$WSaksyDLJ5YA1ruRug./6ucfa6SGzePvf/cULRN6g5bva2jXz/l3a', NULL, NULL, NULL, NULL, '2026-05-19 22:20:33', '2026-05-19 22:20:34'),
-(3, 1, 1, 'Cashier Demo', 'cashier@bepso.test', NULL, '0900000003', NULL, 'active', NULL, '2026-05-19 22:20:34', '$2y$12$5xBbxdbgjIwBrlU0OiLkJuo6O7B1PnPYOAD.hcAz/6imt3AAXRjbS', NULL, NULL, NULL, NULL, '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(4, 1, 1, 'Kitchen Demo', 'kitchen@bepso.test', NULL, '0900000004', NULL, 'active', NULL, '2026-05-19 22:20:34', '$2y$12$l1u6mv0DZzJb5Z27diufhOJSmjLnc.dGi3fMvkm8442thu9TPvHJ6', NULL, NULL, NULL, NULL, '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(5, 1, 1, 'Inventory Demo', 'inventory@bepso.test', NULL, '0900000005', NULL, 'active', NULL, '2026-05-19 22:20:34', '$2y$12$N98RNqCwFBi0LnVQPW1rhemWMu0tdLbE5yXgqOvKezmJAy8kHAbzG', NULL, NULL, NULL, NULL, '2026-05-19 22:20:34', '2026-05-19 22:20:34'),
-(6, NULL, NULL, 'Dik', 'duongndph53424@gmail.com', '117321937622173959644', NULL, NULL, 'active', '2026-05-20 09:40:39', '2026-05-20 06:24:31', '$2y$12$mEx0YwS81aPAUv7DSOhPWu8PwpRr12g4o5y2d7JG4u4r.FTleAb06', NULL, NULL, NULL, 'dE2YzpTClC3QPNuhkQiyjHZGqfMtv5w8TjVdDKtQ52nmW5leytkHGqyPrrYk', '2026-05-19 22:38:16', '2026-05-20 09:40:39'),
-(7, NULL, NULL, 'Dik', 'dikndph53424@gmail.com', NULL, NULL, NULL, 'active', NULL, NULL, '$2y$12$kli2WYOa7sfzjK0BSmWddeW6ENUJUo4kfkvMAwfzycFMRU6O/2YFq', NULL, NULL, NULL, NULL, '2026-05-20 05:52:33', '2026-05-20 05:52:33'),
-(8, NULL, NULL, 'Super Admin', 'superadmin@aventura.local', NULL, NULL, NULL, 'active', '2026-05-20 09:32:38', NULL, '$2y$12$2cFtCNibjJSSQld0cFyMm.ONHy5.ZxQrQO4L46ydupUDtGnISGjB.', NULL, NULL, NULL, 'JwpPBTVwekKwtBtTEjPpPN6c32MYuSA71QurXY1Mv7bKxwcFC7mwwrI1nPe4', '2026-05-20 07:04:25', '2026-05-20 09:32:38'),
-(9, NULL, NULL, 'Duong', 'dik2610@gmail.com', NULL, NULL, NULL, 'active', '2026-05-20 09:41:04', NULL, '$2y$12$u09pq5Dr4J8z/8ecS6XGO.6xBktHMi4lnzw6JJR/PtSO1iej/Gh.a', NULL, NULL, NULL, NULL, '2026-05-20 08:41:11', '2026-05-20 09:41:04');
+(7, NULL, NULL, 'Văn Quân Lê', 'tamh77573@gmail.com', '116627655680193977921', NULL, NULL, 'active', '2026-05-21 20:47:35', '2026-05-21 18:57:45', '$2y$12$CPzcHzVy2GbSBbemh11qOuL8xe1inGoTfxx56XnEMAnsjiijzsZeK', NULL, NULL, NULL, 'SlHO84DRdAxN7pMMQkDLiPHb1IxTS5p6QyF6m4UaqtDHpRYXp0vz3tkImpUL', '2026-05-21 18:57:45', '2026-05-21 20:47:35'),
+(8, NULL, NULL, 'Super Admin', 'superadmin@aventura.local', NULL, NULL, NULL, 'active', '2026-05-22 21:34:24', '2026-05-22 02:06:06', '$2y$12$ZghJTLFaGWysJ1AgiqXwBupETSOMwYHrfcCwTVsyraLgK1TnDuS4S', NULL, NULL, NULL, NULL, NULL, '2026-05-22 21:34:24');
 
 -- --------------------------------------------------------
 
@@ -2080,13 +2329,6 @@ CREATE TABLE `work_shifts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `work_shifts`
---
-
-INSERT INTO `work_shifts` (`id`, `restaurant_id`, `branch_id`, `name`, `code`, `start_time`, `end_time`, `is_overnight`, `status`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Ca sang', 'CA-SANG', '08:00:00', '16:00:00', 0, 'active', '2026-05-19 22:20:35', '2026-05-19 22:20:35');
-
---
 -- Indexes for dumped tables
 --
 
@@ -2107,6 +2349,25 @@ ALTER TABLE `audit_logs`
   ADD KEY `audit_logs_subject_index` (`subject_type`,`subject_id`),
   ADD KEY `audit_logs_user_index` (`user_id`),
   ADD KEY `audit_logs_restaurant_created_at_action_index` (`restaurant_id`,`created_at`,`action`);
+
+--
+-- Indexes for table `billing_adjustments`
+--
+ALTER TABLE `billing_adjustments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `billing_adjustments_restaurant_subscription_id_foreign` (`restaurant_subscription_id`),
+  ADD KEY `billing_adjustments_created_by_foreign` (`created_by`),
+  ADD KEY `billing_adjustments_restaurant_type_index` (`restaurant_id`,`type`);
+
+--
+-- Indexes for table `billing_invoices`
+--
+ALTER TABLE `billing_invoices`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `billing_invoices_invoice_number_unique` (`invoice_number`),
+  ADD KEY `billing_invoices_restaurant_subscription_id_foreign` (`restaurant_subscription_id`),
+  ADD KEY `billing_invoices_restaurant_type_index` (`restaurant_id`,`type`),
+  ADD KEY `billing_invoices_status_due_index` (`status`,`due_on`);
 
 --
 -- Indexes for table `cache`
@@ -2296,6 +2557,14 @@ ALTER TABLE `payments`
   ADD KEY `payments_branch_index` (`branch_id`);
 
 --
+-- Indexes for table `payment_webhooks`
+--
+ALTER TABLE `payment_webhooks`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `payment_webhooks_provider_transaction_index` (`provider`,`transaction_code`),
+  ADD KEY `payment_webhooks_provider_status_index` (`provider`,`status`);
+
+--
 -- Indexes for table `permissions`
 --
 ALTER TABLE `permissions`
@@ -2402,8 +2671,10 @@ ALTER TABLE `restaurant_settings`
 --
 ALTER TABLE `restaurant_subscriptions`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `restaurant_subscriptions_transaction_code_unique` (`transaction_code`),
   ADD KEY `restaurant_subscriptions_restaurant_status_index` (`restaurant_id`,`status`),
-  ADD KEY `restaurant_subscriptions_plan_index` (`plan_id`);
+  ADD KEY `restaurant_subscriptions_plan_index` (`plan_id`),
+  ADD KEY `restaurant_subscriptions_status_renewal_index` (`status`,`renewal_at`);
 
 --
 -- Indexes for table `restaurant_tables`
@@ -2537,19 +2808,31 @@ ALTER TABLE `work_shifts`
 -- AUTO_INCREMENT for table `areas`
 --
 ALTER TABLE `areas`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `billing_adjustments`
+--
+ALTER TABLE `billing_adjustments`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `billing_invoices`
+--
+ALTER TABLE `billing_invoices`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `customer_feedback`
@@ -2561,7 +2844,7 @@ ALTER TABLE `customer_feedback`
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `failed_jobs`
@@ -2573,13 +2856,13 @@ ALTER TABLE `failed_jobs`
 -- AUTO_INCREMENT for table `ingredients`
 --
 ALTER TABLE `ingredients`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `inventories`
 --
 ALTER TABLE `inventories`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `inventory_reservations`
@@ -2615,24 +2898,30 @@ ALTER TABLE `media_assets`
 -- AUTO_INCREMENT for table `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `payment_webhooks`
+--
+ALTER TABLE `payment_webhooks`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
@@ -2645,31 +2934,31 @@ ALTER TABLE `permissions`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `product_categories`
 --
 ALTER TABLE `product_categories`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `product_recipes`
 --
 ALTER TABLE `product_recipes`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `pulse_aggregates`
 --
 ALTER TABLE `pulse_aggregates`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1062;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2081;
 
 --
 -- AUTO_INCREMENT for table `pulse_entries`
 --
 ALTER TABLE `pulse_entries`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=226;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=501;
 
 --
 -- AUTO_INCREMENT for table `pulse_values`
@@ -2681,13 +2970,13 @@ ALTER TABLE `pulse_values`
 -- AUTO_INCREMENT for table `restaurants`
 --
 ALTER TABLE `restaurants`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `restaurant_branches`
 --
 ALTER TABLE `restaurant_branches`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `restaurant_revenue_summaries`
@@ -2705,19 +2994,19 @@ ALTER TABLE `restaurant_settings`
 -- AUTO_INCREMENT for table `restaurant_subscriptions`
 --
 ALTER TABLE `restaurant_subscriptions`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `restaurant_tables`
 --
 ALTER TABLE `restaurant_tables`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `salaries`
@@ -2735,7 +3024,7 @@ ALTER TABLE `salary_adjustments`
 -- AUTO_INCREMENT for table `schedule_assignments`
 --
 ALTER TABLE `schedule_assignments`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `shift_closings`
@@ -2747,25 +3036,25 @@ ALTER TABLE `shift_closings`
 -- AUTO_INCREMENT for table `subscription_plans`
 --
 ALTER TABLE `subscription_plans`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
 --
 ALTER TABLE `suppliers`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `units`
 --
 ALTER TABLE `units`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `violation_reports`
@@ -2777,7 +3066,7 @@ ALTER TABLE `violation_reports`
 -- AUTO_INCREMENT for table `work_shifts`
 --
 ALTER TABLE `work_shifts`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
@@ -2797,6 +3086,21 @@ ALTER TABLE `audit_logs`
   ADD CONSTRAINT `audit_logs_branch_id_foreign` FOREIGN KEY (`branch_id`) REFERENCES `restaurant_branches` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `audit_logs_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `audit_logs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `billing_adjustments`
+--
+ALTER TABLE `billing_adjustments`
+  ADD CONSTRAINT `billing_adjustments_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `billing_adjustments_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `billing_adjustments_restaurant_subscription_id_foreign` FOREIGN KEY (`restaurant_subscription_id`) REFERENCES `restaurant_subscriptions` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `billing_invoices`
+--
+ALTER TABLE `billing_invoices`
+  ADD CONSTRAINT `billing_invoices_restaurant_id_foreign` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `billing_invoices_restaurant_subscription_id_foreign` FOREIGN KEY (`restaurant_subscription_id`) REFERENCES `restaurant_subscriptions` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `customers`

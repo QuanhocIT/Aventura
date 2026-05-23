@@ -44,12 +44,12 @@ class AccountController extends Controller
                 'phone'          => $u->phone ?? null,
                 'status'         => $u->status ?? 'active',
                 'roles'          => $u->roles->pluck('name'),
-                'restaurant'     => $u->restaurant?->name ?? '—',
+                'restaurant'     => $u->restaurant?->name ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â',
                 'restaurant_id'  => $u->restaurant_id,
                 'has_2fa'        => ! is_null($u->two_factor_confirmed_at),
                 'last_login_at'  => $u->last_login_at?->format('d/m/Y H:i'),
                 'email_verified' => ! is_null($u->email_verified_at),
-                'created_at'     => $u->created_at->format('d/m/Y'),
+                'created_at'     => $u->created_at?->format('d/m/Y') ?? '-',
             ]),
             'filters' => $request->only(['search', 'role', 'status']),
         ]);
@@ -58,7 +58,7 @@ class AccountController extends Controller
     public function resetPassword(User $user): RedirectResponse
     {
         if ($user->hasRole('admin')) {
-            return back()->with('error', 'Không thể reset mật khẩu tài khoản Super Admin.');
+            return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ reset mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 
         $tempPassword = Str::random(10) . rand(10, 99) . '!';
@@ -68,17 +68,17 @@ class AccountController extends Controller
 
         return back()
             ->with('temp_password', $tempPassword)
-            ->with('success', "Đã reset mật khẩu cho {$user->name}.");
+            ->with('success', "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ reset mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u cho {$user->name}.");
     }
 
     public function disable2FA(User $user): RedirectResponse
     {
         if ($user->hasRole('admin')) {
-            return back()->with('error', 'Không thể tắt 2FA của tài khoản Super Admin.');
+            return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ tÃƒÂ¡Ã‚ÂºÃ‚Â¯t 2FA cÃƒÂ¡Ã‚Â»Ã‚Â§a tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 
         if (is_null($user->two_factor_confirmed_at)) {
-            return back()->with('error', 'Tài khoản này chưa bật 2FA.');
+            return back()->with('error', 'TÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n nÃƒÆ’Ã‚Â y chÃƒâ€ Ã‚Â°a bÃƒÂ¡Ã‚ÂºÃ‚Â­t 2FA.');
         }
 
         $user->forceFill([
@@ -89,13 +89,13 @@ class AccountController extends Controller
 
         $this->writeAuditLog('disable_2fa', $user);
 
-        return back()->with('success', "Đã tắt xác thực 2FA cho {$user->name}.");
+        return back()->with('success', "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ tÃƒÂ¡Ã‚ÂºÃ‚Â¯t xÃƒÆ’Ã‚Â¡c thÃƒÂ¡Ã‚Â»Ã‚Â±c 2FA cho {$user->name}.");
     }
 
     public function toggleStatus(Request $request, User $user): RedirectResponse
     {
         if ($user->hasRole('admin')) {
-            return back()->with('error', 'Không thể thay đổi trạng thái tài khoản Super Admin.');
+            return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ thay Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i trÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 
         $request->validate(['status' => 'required|in:active,suspended']);
@@ -118,9 +118,9 @@ class AccountController extends Controller
             'user_agent'    => $request->userAgent(),
         ]);
 
-        $label = $request->status === 'active' ? 'kích hoạt' : 'tạm ngưng';
+        $label = $request->status === 'active' ? 'kÃƒÆ’Ã‚Â­ch hoÃƒÂ¡Ã‚ÂºÃ‚Â¡t' : 'tÃƒÂ¡Ã‚ÂºÃ‚Â¡m ngÃƒâ€ Ã‚Â°ng';
 
-        return back()->with('success', "Đã {$label} tài khoản {$user->name}.");
+        return back()->with('success', "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ {$label} tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n {$user->name}.");
     }
 
     private function writeAuditLog(string $action, User $subject): void
