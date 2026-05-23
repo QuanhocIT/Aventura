@@ -15,7 +15,7 @@ class PaymentWebhookController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
-        $signature = (string) $request->header('X-Signature', '');
+        $signature = (string) ($request->header('X-SePay-Signature') ?? $request->header('X-Signature') ?? '');
         $secret = (string) config('billing.webhook_secret');
         $rawBody = $request->getContent();
 

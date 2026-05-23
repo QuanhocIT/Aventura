@@ -30,4 +30,12 @@ return [
         'redirect'      => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'sepay' => [
+        'bank' => env('SEPAY_BANK'),
+        'account_number' => env('SEPAY_ACCOUNT_NUMBER'),
+        'account_name' => env('SEPAY_ACCOUNT_NAME'),
+        'checkout_url' => env('SEPAY_CHECKOUT_URL', 'https://qr.sepay.vn/img'),
+        'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact'),
+    ],
+
 ];

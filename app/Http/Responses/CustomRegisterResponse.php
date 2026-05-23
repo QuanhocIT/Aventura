@@ -2,8 +2,10 @@
 
 namespace App\Http\Responses;
 
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\RegisterResponse as RegisterResponseContract;
 
 class CustomRegisterResponse implements RegisterResponseContract
@@ -15,6 +17,16 @@ class CustomRegisterResponse implements RegisterResponseContract
 
         if (! $user) {
             return redirect('/login');
+        }
+
+        $planCode = Str::lower((string) $request->input('plan_code', 'free'));
+        $plan = SubscriptionPlan::query()
+            ->whereRaw('LOWER(code) = ?', [$planCode])
+            ->where('status', 'active')
+            ->first();
+
+        if ($plan && (float) $plan->price > 0) {
+            return redirect()->route('billing.checkout', ['plan' => Str::lower($plan->code)]);
         }
 
         return redirect()->intended('/dashboard');

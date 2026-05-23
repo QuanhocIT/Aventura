@@ -32,8 +32,10 @@ class RestaurantOnboardingService
     public function onboard(array $input): User
     {
         return DB::transaction(function () use ($input): User {
+            // Luôn khởi tạo doanh nghiệp ở gói 'free' trước (kể cả khi họ chọn trả phí như Pro)
+            // Họ sẽ chỉ được nâng lên gói trả phí sau khi thanh toán thành công qua SePay.
             $plan = SubscriptionPlan::query()
-                ->whereRaw('LOWER(code) = ?', [Str::lower($input['plan_code'] ?? 'free')])
+                ->where('code', 'free')
                 ->where('status', 'active')
                 ->firstOrFail();
 

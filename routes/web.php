@@ -1,11 +1,17 @@
 <?php
 
 use App\Http\Controllers\Auth\GoogleController;
+use App\Http\Controllers\Billing\CheckoutController;
 use App\Http\Controllers\Billing\PaymentWebhookController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
+    Route::get('billing/pay/{code}', [CheckoutController::class, 'payPage'])->name('billing.pay');
+    Route::get('api/billing/check/{code}', [CheckoutController::class, 'checkStatus']);
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/google', [GoogleController::class, 'redirectToGoogle'])->name('auth.google');
@@ -65,7 +71,7 @@ Route::get('/debug-auth', function () {
     ];
 });
 
-// Route tạm để gán role super_admin — XÓA SAU KHI DÙNG
+// Route tam de gan role super_admin - XOA SAU KHI DUNG
 Route::get('/fix-superadmin-role', function () {
     $user = \App\Models\User::where('email', 'superadmin@aventura.local')->first();
     if (!$user) {
@@ -95,4 +101,3 @@ Route::get('/fix-superadmin-role', function () {
         'message' => 'Done! Now login again at /login',
     ];
 });
-

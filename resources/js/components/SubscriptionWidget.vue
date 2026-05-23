@@ -92,6 +92,10 @@ function openUpgradeModal() {
 function closeUpgradeModal() {
     isUpgradeModalOpen.value = false;
 }
+
+function goToUpgradeCheckout() {
+    window.location.href = '/billing/checkout?plan=pro';
+}
 </script>
 
 <template>
@@ -232,7 +236,7 @@ function closeUpgradeModal() {
                     </span>
                     <div class="flex gap-2">
                         <Button variant="outline" size="sm" @click="closeUpgradeModal">Đóng</Button>
-                        <Button size="sm" class="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0">
+                        <Button size="sm" class="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0" @click="goToUpgradeCheckout">
                             Nâng cấp gói ngay
                         </Button>
                     </div>

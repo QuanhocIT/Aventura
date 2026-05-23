@@ -21,9 +21,7 @@ class BillingService
 {
     public function handleWebhook(array $payload, array $headers = [], ?string $signature = null, string $provider = 'bank'): array
     {
-        $transactionCode = Arr::get($payload, 'transaction_code')
-            ?? Arr::get($payload, 'transactionCode')
-            ?? Arr::get($payload, 'data.transaction_code');
+        $transactionCode = $this->extractTransactionCode($payload);
 
         $webhook = PaymentWebhook::query()->firstOrCreate(
             ['provider' => $provider, 'transaction_code' => $transactionCode, 'signature' => $signature],
@@ -89,6 +87,7 @@ class BillingService
             ]);
 
             $restaurant->update([
+                'plan_id' => $subscription->plan_id,
                 'status' => 'active',
                 'subscription_ends_at' => $newEndedAt->toDateString(),
                 'subscription_started_at' => $subscription->started_at?->toDateString() ?? $paidAt->toDateString(),
@@ -307,6 +306,34 @@ class BillingService
             });
 
         return $sent;
+    }
+
+    private function extractTransactionCode(array $payload): ?string
+    {
+        $explicit = Arr::get($payload, 'transaction_code')
+            ?? Arr::get($payload, 'transactionCode')
+            ?? Arr::get($payload, 'referenceCode')
+            ?? Arr::get($payload, 'data.transaction_code')
+            ?? Arr::get($payload, 'data.transactionCode')
+            ?? Arr::get($payload, 'data.referenceCode');
+
+        if ($explicit) {
+            return (string) $explicit;
+        }
+
+        $content = (string) (Arr::get($payload, 'content')
+            ?? Arr::get($payload, 'description')
+            ?? Arr::get($payload, 'transferContent')
+            ?? Arr::get($payload, 'data.content')
+            ?? Arr::get($payload, 'data.description')
+            ?? Arr::get($payload, 'data.transferContent')
+            ?? '');
+
+        if (preg_match('/AVT[0-9A-Z]{12,}/i', $content, $matches)) {
+            return strtoupper($matches[0]);
+        }
+
+        return null;
     }
 
     private function billingCycleDays(SubscriptionPlan $plan): int
