@@ -35,7 +35,13 @@ const inputEmail = ref(props.email);
     <Form
         v-bind="update.form()"
         v-slot="{ errors, processing }"
-        :transform="(formData: Record<string, unknown>) => ({ ...formData, token: props.token, email: inputEmail })"
+        :transform="
+            (formData: Record<string, unknown>) => ({
+                ...formData,
+                token: props.token,
+                email: inputEmail,
+            })
+        "
         :reset-on-success="['password', 'password_confirmation']"
     >
         <div class="grid gap-6">
@@ -92,4 +98,3 @@ const inputEmail = ref(props.email);
         </div>
     </Form>
 </template>
-

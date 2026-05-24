@@ -169,4 +169,39 @@
     body {
         @apply bg-background text-foreground;
     }
+    /* Sidebar scrollbar style for light & dark mode */
+    .Sidebar,
+    .sidebar,
+    .sidebar-content {
+        scrollbar-width: thin;
+        scrollbar-color: var(--sidebar-border) var(--sidebar-background);
+    }
+
+    .Sidebar::-webkit-scrollbar,
+    .sidebar::-webkit-scrollbar,
+    .sidebar-content::-webkit-scrollbar {
+        width: 8px;
+        background: var(--sidebar-background);
+    }
+    .Sidebar::-webkit-scrollbar-thumb,
+    .sidebar::-webkit-scrollbar-thumb,
+    .sidebar-content::-webkit-scrollbar-thumb {
+        background: var(--sidebar-border);
+        border-radius: 4px;
+    }
+    .dark .Sidebar,
+    .dark .sidebar,
+    .dark .sidebar-content {
+        scrollbar-color: var(--sidebar-border) var(--sidebar-background);
+    }
+    .dark .Sidebar::-webkit-scrollbar,
+    .dark .sidebar::-webkit-scrollbar,
+    .dark .sidebar-content::-webkit-scrollbar {
+        background: var(--sidebar-background);
+    }
+    .dark .Sidebar::-webkit-scrollbar-thumb,
+    .dark .sidebar::-webkit-scrollbar-thumb,
+    .dark .sidebar-content::-webkit-scrollbar-thumb {
+        background: var(--sidebar-border);
+    }
 }

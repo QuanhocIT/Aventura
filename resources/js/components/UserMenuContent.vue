@@ -20,9 +20,13 @@ defineProps<Props>();
 
 const handleLogout = () => {
     router.flushAll();
-    router.post(logout.url(), {}, {
-        onSuccess: () => router.visit('/login', { replace: true }),
-    });
+    router.post(
+        logout.url(),
+        {},
+        {
+            onSuccess: () => router.visit('/login', { replace: true }),
+        },
+    );
 };
 </script>
 

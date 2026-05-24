@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
-import { 
-    Sparkles, 
-    Copy, 
-    Check, 
-    ArrowLeft, 
-    RefreshCw, 
-    ShieldCheck, 
-    DollarSign, 
-    Hash, 
-    CreditCard, 
-    User
+import {
+    Sparkles,
+    Copy,
+    Check,
+    ArrowLeft,
+    RefreshCw,
+    ShieldCheck,
+    DollarSign,
+    Hash,
+    CreditCard,
+    User,
 } from 'lucide-vue-next';
+import AppLayout from '@/layouts/app/AppSidebarLayout.vue';
 import { Button } from '@/components/ui/button';
 
 const props = defineProps<{
@@ -60,9 +61,11 @@ function formatCurrency(val: number) {
 async function checkPaymentStatus(silent = true) {
     if (!silent) isChecking.value = true;
     try {
-        const response = await fetch(`/api/billing/check/${props.subscription.transaction_code}`);
+        const response = await fetch(
+            `/api/billing/check/${props.subscription.transaction_code}`,
+        );
         const data = await response.json();
-        
+
         if (data.active) {
             triggerSuccess();
         }
@@ -77,14 +80,14 @@ async function checkPaymentStatus(silent = true) {
 function triggerSuccess() {
     isSuccess.value = true;
     if (pollInterval) clearInterval(pollInterval);
-    
+
     // Đếm ngược chuyển hướng về Dashboard
     const timer = setInterval(() => {
         countdown.value--;
         if (countdown.value <= 0) {
             clearInterval(timer);
             router.visit('/dashboard', {
-                flash: { success: 'Gói dịch vụ đã được kích hoạt thành công!' }
+                flash: { success: 'Gói dịch vụ đã được kích hoạt thành công!' },
             });
         }
     }, 1000);
@@ -101,44 +104,53 @@ onUnmounted(() => {
     if (pollInterval) clearInterval(pollInterval);
 });
 
-defineOptions({
-    layout: {
-        breadcrumbs: [
-            {
-                title: 'Thanh toán dịch vụ',
-                href: '#',
-            },
-        ],
-    },
-});
+defineOptions({ layout: AppLayout });
 </script>
 
 <template>
     <Head title="Thanh toán hóa đơn dịch vụ" />
 
-    <div class="px-4 py-6 space-y-6 max-w-5xl mx-auto w-full">
-        
+    <div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-6">
         <!-- 1. MÀN HÌNH THANH TOÁN THÀNH CÔNG -->
-        <div 
-            v-if="isSuccess" 
-            class="w-full max-w-xl mx-auto rounded-2xl border border-emerald-500/20 bg-card p-8 sm:p-12 text-center shadow-lg animate-in fade-in zoom-in duration-500"
+        <div
+            v-if="isSuccess"
+            class="mx-auto w-full max-w-xl animate-in rounded-2xl border border-emerald-500/20 bg-card p-8 text-center shadow-lg duration-500 fade-in zoom-in sm:p-12"
         >
-            <div class="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <Check class="size-10 text-emerald-500 dark:text-emerald-400 animate-bounce" />
-                <Sparkles class="absolute top-0 right-0 size-4 text-amber-500 animate-pulse" />
-                <Sparkles class="absolute bottom-2 left-0 size-3 text-emerald-500 animate-pulse delay-100" />
+            <div
+                class="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10"
+            >
+                <Check
+                    class="size-10 animate-bounce text-emerald-500 dark:text-emerald-400"
+                />
+                <Sparkles
+                    class="absolute top-0 right-0 size-4 animate-pulse text-amber-500"
+                />
+                <Sparkles
+                    class="absolute bottom-2 left-0 size-3 animate-pulse text-emerald-500 delay-100"
+                />
             </div>
 
-            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-3">
+            <h2
+                class="mb-3 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl"
+            >
                 Thanh Toán Thành Công!
             </h2>
-            
-            <p class="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto mb-8">
-                Cảm ơn bạn! Hệ thống đã nhận được tiền chuyển khoản và tự động kích hoạt gói dịch vụ chuyên nghiệp **{{ subscription.plan_name }}** thành công.
+
+            <p
+                class="mx-auto mb-8 max-w-md text-sm leading-relaxed text-muted-foreground"
+            >
+                Cảm ơn bạn! Hệ thống đã nhận được tiền chuyển khoản và tự động
+                kích hoạt gói dịch vụ chuyên nghiệp **{{
+                    subscription.plan_name
+                }}** thành công.
             </p>
 
-            <div class="rounded-xl bg-muted border border-border p-4 inline-flex items-center gap-3 justify-center w-full max-w-xs mx-auto">
-                <RefreshCw class="size-4 animate-spin text-emerald-500 dark:text-emerald-400" />
+            <div
+                class="mx-auto inline-flex w-full max-w-xs items-center justify-center gap-3 rounded-xl border border-border bg-muted p-4"
+            >
+                <RefreshCw
+                    class="size-4 animate-spin text-emerald-500 dark:text-emerald-400"
+                />
                 <span class="text-xs font-semibold text-muted-foreground">
                     Đang chuyển hướng về Dashboard sau {{ countdown }}s...
                 </span>
@@ -146,33 +158,43 @@ defineOptions({
         </div>
 
         <!-- 2. MÀN HÌNH QUÉT MÃ QR THANH TOÁN CHÍNH -->
-        <div 
-            v-else 
-            class="w-full grid gap-8 md:grid-cols-12 rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm animate-in fade-in duration-500"
+        <div
+            v-else
+            class="grid w-full animate-in gap-8 rounded-2xl border border-border bg-card p-6 shadow-sm duration-500 fade-in sm:p-8 md:grid-cols-12"
         >
-            
             <!-- BÊN TRÁI: THÔNG TIN CHI TIẾT GÓI VÀ TÀI KHOẢN -->
-            <div class="md:col-span-7 flex flex-col justify-between space-y-6">
+            <div class="flex flex-col justify-between space-y-6 md:col-span-7">
                 <div class="space-y-6">
                     <!-- Thông tin gói đang mua -->
                     <div class="space-y-2">
-                        <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-1 text-xs font-bold text-primary uppercase tracking-wider">
-                            <Sparkles class="size-3.5" /> Gói {{ subscription.plan_name }}
+                        <span
+                            class="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-bold tracking-wider text-primary uppercase"
+                        >
+                            <Sparkles class="size-3.5" /> Gói
+                            {{ subscription.plan_name }}
                         </span>
-                        <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                        <h2
+                            class="text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+                        >
                             Xác nhận thanh toán dịch vụ
                         </h2>
                         <p class="text-xs text-muted-foreground">
-                            Hãy quét mã QR bên phải hoặc chuyển khoản thủ công theo thông tin bên dưới để hoàn tất.
+                            Hãy quét mã QR bên phải hoặc chuyển khoản thủ công
+                            theo thông tin bên dưới để hoàn tất.
                         </p>
                     </div>
 
                     <!-- Card chi tiết thông tin chuyển khoản -->
-                    <div class="space-y-3 rounded-xl bg-muted/40 border border-border p-5">
-                        
+                    <div
+                        class="space-y-3 rounded-xl border border-border bg-muted/40 p-5"
+                    >
                         <!-- Hàng Số Tiền -->
-                        <div class="flex items-center justify-between pb-3 border-b border-border/60">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                        <div
+                            class="flex items-center justify-between border-b border-border/60 pb-3"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                                 <DollarSign class="size-4 text-primary" />
                                 <span>Số tiền chuyển khoản</span>
                             </div>
@@ -182,28 +204,46 @@ defineOptions({
                         </div>
 
                         <!-- Hàng Nội Dung -->
-                        <div class="flex items-center justify-between py-2 border-b border-border/60">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                        <div
+                            class="flex items-center justify-between border-b border-border/60 py-2"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                                 <Hash class="size-4" />
                                 <span>Nội dung chuyển khoản (Memo)</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="font-mono text-sm font-bold text-foreground bg-muted px-2 py-1 rounded border border-border">
+                                <span
+                                    class="rounded border border-border bg-muted px-2 py-1 font-mono text-sm font-bold text-foreground"
+                                >
                                     {{ bank_details.content }}
                                 </span>
-                                <button 
-                                    @click="copyToClipboard(bank_details.content, 'content')"
-                                    class="p-1.5 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
+                                <button
+                                    @click="
+                                        copyToClipboard(
+                                            bank_details.content,
+                                            'content',
+                                        )
+                                    "
+                                    class="rounded-lg border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                                 >
-                                    <Check v-if="copiedField === 'content'" class="size-3.5 text-emerald-500" />
+                                    <Check
+                                        v-if="copiedField === 'content'"
+                                        class="size-3.5 text-emerald-500"
+                                    />
                                     <Copy v-else class="size-3.5" />
                                 </button>
                             </div>
                         </div>
 
                         <!-- Hàng Ngân Hàng -->
-                        <div class="flex items-center justify-between py-2 border-b border-border/60">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                        <div
+                            class="flex items-center justify-between border-b border-border/60 py-2"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                                 <CreditCard class="size-4" />
                                 <span>Ngân hàng thụ hưởng</span>
                             </div>
@@ -213,20 +253,34 @@ defineOptions({
                         </div>
 
                         <!-- Hàng Số Tài Khoản -->
-                        <div class="flex items-center justify-between py-2 border-b border-border/60">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                        <div
+                            class="flex items-center justify-between border-b border-border/60 py-2"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                                 <CreditCard class="size-4" />
                                 <span>Số tài khoản</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="font-mono text-xs font-bold text-foreground">
+                                <span
+                                    class="font-mono text-xs font-bold text-foreground"
+                                >
                                     {{ bank_details.account_number }}
                                 </span>
-                                <button 
-                                    @click="copyToClipboard(bank_details.account_number, 'account')"
-                                    class="p-1.5 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
+                                <button
+                                    @click="
+                                        copyToClipboard(
+                                            bank_details.account_number,
+                                            'account',
+                                        )
+                                    "
+                                    class="rounded-lg border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                                 >
-                                    <Check v-if="copiedField === 'account'" class="size-3.5 text-emerald-500" />
+                                    <Check
+                                        v-if="copiedField === 'account'"
+                                        class="size-3.5 text-emerald-500"
+                                    />
                                     <Copy v-else class="size-3.5" />
                                 </button>
                             </div>
@@ -234,42 +288,52 @@ defineOptions({
 
                         <!-- Hàng Tên Tài Khoản -->
                         <div class="flex items-center justify-between pt-2">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                            <div
+                                class="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                                 <User class="size-4" />
                                 <span>Tên chủ tài khoản</span>
                             </div>
-                            <span class="text-xs font-bold text-foreground uppercase tracking-wide">
+                            <span
+                                class="text-xs font-bold tracking-wide text-foreground uppercase"
+                            >
                                 {{ bank_details.account_name }}
                             </span>
                         </div>
-
                     </div>
                 </div>
 
                 <!-- Footer thông tin bảo mật -->
-                <div class="pt-4 flex flex-col sm:flex-row gap-4 items-center justify-between border-t border-border/60">
-                    <div class="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
-                        <ShieldCheck class="size-4 text-emerald-500 shrink-0" />
+                <div
+                    class="flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-4 sm:flex-row"
+                >
+                    <div
+                        class="flex items-center gap-2 text-[10px] text-muted-foreground sm:text-xs"
+                    >
+                        <ShieldCheck class="size-4 shrink-0 text-emerald-500" />
                         <span>Giao dịch mã hóa an toàn & Tự động xử lý</span>
                     </div>
-                    <div class="flex gap-2 w-full sm:w-auto">
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            class="border-border bg-background text-muted-foreground hover:text-foreground w-full sm:w-auto text-xs"
+                    <div class="flex w-full gap-2 sm:w-auto">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="w-full border-border bg-background text-xs text-muted-foreground hover:text-foreground sm:w-auto"
                             @click="checkPaymentStatus(false)"
                             :disabled="isChecking"
                         >
-                            <RefreshCw class="size-3.5 mr-1.5" :class="isChecking ? 'animate-spin' : ''" />
+                            <RefreshCw
+                                class="mr-1.5 size-3.5"
+                                :class="isChecking ? 'animate-spin' : ''"
+                            />
                             Kiểm tra lại
                         </Button>
-                        <Button 
-                            variant="secondary" 
-                            size="sm" 
-                            class="w-full sm:w-auto text-xs"
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            class="w-full text-xs sm:w-auto"
                             @click="router.visit('/dashboard')"
                         >
-                            <ArrowLeft class="size-3.5 mr-1.5" />
+                            <ArrowLeft class="mr-1.5 size-3.5" />
                             Quay lại
                         </Button>
                     </div>
@@ -277,33 +341,41 @@ defineOptions({
             </div>
 
             <!-- BÊN PHẢI: MÃ QR QUÉT MÃ -->
-            <div class="md:col-span-5 flex flex-col items-center justify-center bg-muted/20 border border-border rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden">
-                
+            <div
+                class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/20 p-6 text-center sm:p-8 md:col-span-5"
+            >
                 <!-- Hộp trạng thái Live -->
-                <div class="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse">
+                <div
+                    class="absolute top-4 left-4 inline-flex animate-pulse items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                >
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                     <span>Đang chờ chuyển khoản...</span>
                 </div>
 
                 <!-- Viền phát sáng nhẹ xung quanh QR -->
-                <div class="relative group mt-6 mb-4">
-                    <div class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 opacity-20 blur-md"></div>
-                    
-                    <div class="relative rounded-xl border border-border bg-white p-3.5 shadow-md max-w-[210px] sm:max-w-[240px] aspect-square flex items-center justify-center">
-                        <img 
-                            :src="payment_url" 
-                            alt="Mã QR thanh toán SePay" 
-                            class="w-full h-full object-contain"
+                <div class="group relative mt-6 mb-4">
+                    <div
+                        class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 opacity-20 blur-md"
+                    ></div>
+
+                    <div
+                        class="relative flex aspect-square max-w-[210px] items-center justify-center rounded-xl border border-border bg-white p-3.5 shadow-md sm:max-w-[240px]"
+                    >
+                        <img
+                            :src="payment_url"
+                            alt="Mã QR thanh toán SePay"
+                            class="h-full w-full object-contain"
                         />
                     </div>
                 </div>
 
-                <p class="text-[10px] sm:text-xs text-muted-foreground max-w-[220px] leading-relaxed">
-                    Mở ứng dụng ngân hàng quét mã QR này để tự động điền số tài khoản, số tiền và nội dung chuyển khoản.
+                <p
+                    class="max-w-[220px] text-[10px] leading-relaxed text-muted-foreground sm:text-xs"
+                >
+                    Mở ứng dụng ngân hàng quét mã QR này để tự động điền số tài
+                    khoản, số tiền và nội dung chuyển khoản.
                 </p>
             </div>
-
         </div>
-
     </div>
 </template>

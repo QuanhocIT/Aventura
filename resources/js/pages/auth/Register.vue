@@ -115,7 +115,12 @@ defineOptions({
                     <div
                         v-if="planOptions.length > 0"
                         class="grid gap-3"
-                        :class="planOptions.length > 1 ? 'grid-cols-1 sm:grid-cols-' + Math.min(planOptions.length, 3) : 'grid-cols-1'"
+                        :class="
+                            planOptions.length > 1
+                                ? 'sm:grid-cols- grid-cols-1' +
+                                  Math.min(planOptions.length, 3)
+                                : 'grid-cols-1'
+                        "
                     >
                         <label
                             v-for="plan in planOptions"
@@ -140,21 +145,38 @@ defineOptions({
                             <!-- Tích chọn -->
                             <span
                                 v-if="isPlanSelected(plan.code)"
-                                class="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                                class="absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
                                 aria-hidden="true"
                             >
-                                <svg class="h-3 w-3" fill="none" viewBox="0 0 12 12">
-                                    <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                <svg
+                                    class="h-3 w-3"
+                                    fill="none"
+                                    viewBox="0 0 12 12"
+                                >
+                                    <path
+                                        d="M2 6l3 3 5-5"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
                                 </svg>
                             </span>
-                            <span class="text-sm font-semibold leading-none text-foreground">{{ plan.name }}</span>
-                            <span class="text-xs text-muted-foreground">{{ formatPrice(plan.price) }}</span>
+                            <span
+                                class="text-sm leading-none font-semibold text-foreground"
+                                >{{ plan.name }}</span
+                            >
+                            <span class="text-xs text-muted-foreground">{{
+                                formatPrice(plan.price)
+                            }}</span>
                         </label>
                     </div>
                     <!-- Fallback nếu không load được plan -->
                     <div v-else>
                         <input type="hidden" name="plan_code" value="free" />
-                        <p class="text-xs text-muted-foreground">Bắt đầu với gói miễn phí. Nâng cấp bất cứ lúc nào.</p>
+                        <p class="text-xs text-muted-foreground">
+                            Bắt đầu với gói miễn phí. Nâng cấp bất cứ lúc nào.
+                        </p>
                     </div>
                     <InputError :message="errors.plan_code" />
                 </div>
@@ -197,18 +219,28 @@ defineOptions({
                     data-test="register-user-button"
                 >
                     <Spinner v-if="processing" />
-                    {{ processing ? 'Đang khởi tạo hệ thống...' : 'Tạo doanh nghiệp ngay' }}
+                    {{
+                        processing
+                            ? 'Đang khởi tạo hệ thống...'
+                            : 'Tạo doanh nghiệp ngay'
+                    }}
                 </Button>
 
                 <p class="text-center text-xs text-muted-foreground">
-                    Sau khi đăng ký, hệ thống tự động thiết lập bàn, menu và kho mẫu — sẵn sàng bán hàng trong dưới 3 giây.
+                    Sau khi đăng ký, hệ thống tự động thiết lập bàn, menu và kho
+                    mẫu — sẵn sàng bán hàng trong dưới 3 giây.
                 </p>
             </div>
         </Form>
 
         <div class="text-center text-sm text-muted-foreground">
             Đã có tài khoản?
-            <TextLink :href="login()" class="underline underline-offset-4" :tabindex="9">Đăng nhập</TextLink>
+            <TextLink
+                :href="login()"
+                class="underline underline-offset-4"
+                :tabindex="9"
+                >Đăng nhập</TextLink
+            >
         </div>
     </div>
 </template>
