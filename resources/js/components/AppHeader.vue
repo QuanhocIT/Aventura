@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -78,9 +78,7 @@ const rightNavItems: NavItem[] = [
 
 <template>
     <div>
-        <div
-            class="flex items-center justify-between border-b border-sidebar-border/80 px-4 py-2"
-        >
+        <div class="flex items-center justify-between px-4 py-2 border-b border-sidebar-border/80">
             <div class="flex items-center gap-2">
                 <Sheet>
                     <SheetTrigger :as-child="true">

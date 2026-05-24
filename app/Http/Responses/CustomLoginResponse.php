@@ -30,10 +30,7 @@ class CustomLoginResponse implements LoginResponseContract
             // Ignore if Spatie Permission registrar is not registered or throws an error
         }
 
-        if ($user->hasRole('super_admin') || 
-            $user->hasRole('admin') || 
-            $user->roles()->whereIn('name', ['super_admin', 'admin'])->exists()
-        ) {
+        if ($user->isSuperAdmin()) {
             return redirect('/super-admin/dashboard');
         }
 
@@ -41,7 +38,7 @@ class CustomLoginResponse implements LoginResponseContract
             return redirect()->intended('/dashboard');
         }
 
-        // Khách hàng / user chưa được gán role → về trang chủ
+        // KhÃ¡ch hÃ ng / user chÆ°a Ä‘Æ°á»£c gÃ¡n role â†’ vá» trang chá»§
         return redirect('/');
     }
 }

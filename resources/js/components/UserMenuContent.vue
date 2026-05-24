@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
 import { LogOut, Settings } from 'lucide-vue-next';
 import {
@@ -20,13 +20,9 @@ defineProps<Props>();
 
 const handleLogout = () => {
     router.flushAll();
-    router.post(
-        logout.url(),
-        {},
-        {
-            onSuccess: () => router.visit('/login', { replace: true }),
-        },
-    );
+    router.post(logout.url(), {}, {
+        onSuccess: () => router.visit('/login', { replace: true }),
+    });
 };
 </script>
 

@@ -15,6 +15,7 @@ use App\Models\SubscriptionPlan;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
+use App\Jobs\SendWelcomeEmail;
 use App\Services\QrCodeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -31,9 +32,9 @@ class RestaurantOnboardingService
      */
     public function onboard(array $input): User
     {
-        return DB::transaction(function () use ($input): User {
-            // Luôn khởi tạo doanh nghiệp ở gói 'free' trước (kể cả khi họ chọn trả phí như Pro)
-            // Họ sẽ chỉ được nâng lên gói trả phí sau khi thanh toán thành công qua SePay.
+        $user = DB::transaction(function () use ($input): User {
+            // LuÃ´n khá»Ÿi táº¡o doanh nghiá»‡p á»Ÿ gÃ³i 'free' trÆ°á»›c (ká»ƒ cáº£ khi há» chá»n tráº£ phÃ­ nhÆ° Pro)
+            // Há» sáº½ chá»‰ Ä‘Æ°á»£c nÃ¢ng lÃªn gÃ³i tráº£ phÃ­ sau khi thanh toÃ¡n thÃ nh cÃ´ng qua SePay.
             $plan = SubscriptionPlan::query()
                 ->where('code', 'free')
                 ->where('status', 'active')
@@ -65,9 +66,9 @@ class RestaurantOnboardingService
                 'phone' => $input['phone'] ?? null,
                 'restaurant_id' => $restaurant->id,
                 'status' => 'active',
-                // Thiết kế SaaS Onboarding nhanh: xác minh email tự động ngay khi đăng ký.
-                // Chủ nhà hàng cần vào hệ thống NGAY để trải nghiệm bán hàng trong phút đầu tiên.
-                // Nếu muốn bắt buộc xác minh email, xóa dòng này và implement MustVerifyEmail trên User model.
+                // Thiáº¿t káº¿ SaaS Onboarding nhanh: xÃ¡c minh email tá»± Ä‘á»™ng ngay khi Ä‘Äƒng kÃ½.
+                // Chá»§ nhÃ  hÃ ng cáº§n vÃ o há»‡ thá»‘ng NGAY Ä‘á»ƒ tráº£i nghiá»‡m bÃ¡n hÃ ng trong phÃºt Ä‘áº§u tiÃªn.
+                // Náº¿u muá»‘n báº¯t buá»™c xÃ¡c minh email, xÃ³a dÃ²ng nÃ y vÃ  implement MustVerifyEmail trÃªn User model.
                 'email_verified_at' => now(),
                 'last_login_at' => now(),
             ]);
@@ -93,7 +94,12 @@ class RestaurantOnboardingService
 
             return $user;
         });
+
+        dispatch(new SendWelcomeEmail($user->id));
+
+        return $user;
     }
+
 
     private function seedDefaults(Restaurant $restaurant, User $owner): void
     {
@@ -173,10 +179,10 @@ class RestaurantOnboardingService
     }
 
     /**
-     * Sinh QR token, URL đặt món, ảnh SVG và lưu đồng thời vào cả 3 cột.
-     * qr_token  – token ngắn để build URL (không thay đổi sau khi tạo)
-     * qr_code   – chuỗi URL đầy đủ được mã hoá trong ảnh QR
-     * qr_code_path – đường dẫn file SVG trong Storage::disk('public')
+     * Sinh QR token, URL Ä‘áº·t mÃ³n, áº£nh SVG vÃ  lÆ°u Ä‘á»“ng thá»i vÃ o cáº£ 3 cá»™t.
+     * qr_token  â€“ token ngáº¯n Ä‘á»ƒ build URL (khÃ´ng thay Ä‘á»•i sau khi táº¡o)
+     * qr_code   â€“ chuá»—i URL Ä‘áº§y Ä‘á»§ Ä‘Æ°á»£c mÃ£ hoÃ¡ trong áº£nh QR
+     * qr_code_path â€“ Ä‘Æ°á»ng dáº«n file SVG trong Storage::disk('public')
      */
     private function attachQrCode(Restaurant $restaurant, RestaurantTable $table): void
     {
@@ -187,15 +193,15 @@ class RestaurantOnboardingService
         try {
             $path = $this->qrCodeService->generateAndStore($orderUrl, $filename);
         } catch (\Throwable $e) {
-            // Nếu storage không khả dụng (ví dụ: môi trường CI), bỏ qua việc lưu file;
-            // qr_token vẫn được ghi để URL hoạt động.
-            Log::warning('QrCodeService: không thể sinh file SVG', ['error' => $e->getMessage(), 'table_id' => $table->id]);
+            // Náº¿u storage khÃ´ng kháº£ dá»¥ng (vÃ­ dá»¥: mÃ´i trÆ°á»ng CI), bá» qua viá»‡c lÆ°u file;
+            // qr_token váº«n Ä‘Æ°á»£c ghi Ä‘á»ƒ URL hoáº¡t Ä‘á»™ng.
+            Log::warning('QrCodeService: khÃ´ng thá»ƒ sinh file SVG', ['error' => $e->getMessage(), 'table_id' => $table->id]);
             $path = null;
         }
 
         $table->forceFill([
             'qr_token'     => $token,
-            'qr_code'      => $orderUrl, // lưu URL đầy đủ để backward compatible
+            'qr_code'      => $orderUrl, // lÆ°u URL Ä‘áº§y Ä‘á»§ Ä‘á»ƒ backward compatible
             'qr_code_path' => $path,
         ])->save();
     }

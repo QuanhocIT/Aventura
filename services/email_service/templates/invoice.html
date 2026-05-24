@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hóa đơn Aventura</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; }
+  .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); padding: 36px 32px; }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .brand { color: #fff; }
+  .brand h1 { margin: 0; font-size: 24px; font-weight: 700; }
+  .brand p { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,0.8); }
+  .invoice-label { text-align: right; }
+  .invoice-label .badge { display: inline-block; background: #27ae60; color: #fff; border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .invoice-label h2 { margin: 0; color: #fff; font-size: 20px; font-weight: 700; }
+  .body { padding: 36px 32px; }
+  .success-banner { background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 16px 20px; margin-bottom: 28px; text-align: center; }
+  .success-banner p { margin: 0; color: #155724; font-size: 15px; font-weight: 600; }
+  .section-title { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 12px; }
+  .info-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  .info-table td { padding: 10px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+  .info-table td:first-child { color: #777; width: 45%; }
+  .info-table td:last-child { font-weight: 600; color: #333; text-align: right; }
+  .amount-box { background: #1e3a5f; border-radius: 10px; padding: 20px 24px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center; }
+  .amount-box .label { color: rgba(255,255,255,0.8); font-size: 14px; }
+  .amount-box .value { color: #fff; font-size: 26px; font-weight: 700; }
+  .amount-box .currency { color: rgba(255,255,255,0.7); font-size: 14px; margin-left: 6px; }
+  .cta-section { text-align: center; margin: 28px 0; }
+  .cta-btn { display: inline-block; background: #2d6a9f; color: #ffffff !important; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+  .divider { height: 1px; background: #eee; margin: 24px 0; }
+  .note { font-size: 13px; color: #888; line-height: 1.6; }
+  .footer { background: #f8f9fa; padding: 20px 32px; text-align: center; }
+  .footer p { margin: 4px 0; font-size: 12px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="header-row">
+      <div class="brand">
+        <h1>🍽️ Aventura</h1>
+        <p>Hệ thống quản lý nhà hàng SaaS</p>
+      </div>
+      <div class="invoice-label">
+        <div class="badge">✓ Đã thanh toán</div>
+        <h2>#{{ invoice_number }}</h2>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="success-banner">
+      <p>🎉 Thanh toán thành công! Cảm ơn bạn đã tin dùng Aventura.</p>
+    </div>
+
+    <p class="section-title">Thông tin đăng ký</p>
+    <table class="info-table">
+      <tr>
+        <td>Nhà hàng</td>
+        <td>{{ restaurant_name }}</td>
+      </tr>
+      <tr>
+        <td>Gói dịch vụ</td>
+        <td>{{ plan_name }}</td>
+      </tr>
+      <tr>
+        <td>Số hóa đơn</td>
+        <td>{{ invoice_number }}</td>
+      </tr>
+      <tr>
+        <td>Ngày phát hành</td>
+        <td>{{ issued_on }}</td>
+      </tr>
+      <tr>
+        <td>Hiệu lực đến</td>
+        <td>{{ due_on }}</td>
+      </tr>
+    </table>
+
+    <div class="amount-box">
+      <span class="label">Tổng thanh toán</span>
+      <span>
+        <span class="value">{{ amount }}</span>
+        <span class="currency">{{ currency }}</span>
+      </span>
+    </div>
+
+    {% if pdf_url %}
+    <div class="cta-section">
+      <a href="{{ pdf_url }}" class="cta-btn">📄 Tải hóa đơn PDF</a>
+    </div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <p class="note">
+      Gói <strong>{{ plan_name }}</strong> của nhà hàng <strong>{{ restaurant_name }}</strong> đã được kích hoạt thành công.
+      Bạn có thể tiếp tục sử dụng đầy đủ các tính năng cho đến ngày <strong>{{ due_on }}</strong>.
+    </p>
+
+    <p class="note">
+      Nếu có bất kỳ thắc mắc nào về hóa đơn, vui lòng liên hệ bộ phận hỗ trợ qua hệ thống ticket trong ứng dụng.
+    </p>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 Aventura — Hóa đơn này được tạo tự động, vui lòng không reply email này.</p>
+    <p>Số hóa đơn: {{ invoice_number }}</p>
+  </div>
+</div>
+</body>
+</html>

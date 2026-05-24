@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -26,9 +26,9 @@ const isMobileOpen = ref(false);
 const { getInitials } = useInitials();
 
 const navItems = [
-    { label: 'Tính năng', href: '#features' },
-    { label: 'Bảng giá', href: '#pricing' },
-    { label: 'Demo POS', href: '#features' },
+    { label: 'TÃ­nh nÄƒng', href: '#features' },
+    { label: 'Báº£ng giÃ¡', href: '#pricing' },
+    { label: 'Tin tá»©c', href: '/tin-tuc' },
 ];
 
 const handleLogout = () => {
@@ -74,10 +74,10 @@ const handleLogout = () => {
 
                 <template v-if="!user">
                     <Button as-child variant="outline" size="sm">
-                        <Link href="/login">Đăng nhập</Link>
+                        <Link href="/login">ÄÄƒng nháº­p</Link>
                     </Button>
                     <Button as-child size="sm">
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register">DÃ¹ng miá»…n phÃ­</Link>
                     </Button>
                 </template>
 
@@ -148,7 +148,7 @@ const handleLogout = () => {
                                     class="flex cursor-pointer items-center"
                                 >
                                     <Monitor class="mr-2 h-4 w-4" />
-                                    Vào hệ thống
+                                    VÃ o há»‡ thá»‘ng
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
@@ -157,7 +157,7 @@ const handleLogout = () => {
                                     class="flex cursor-pointer items-center"
                                 >
                                     <Settings class="mr-2 h-4 w-4" />
-                                    Cài đặt tài khoản
+                                    CÃ i Ä‘áº·t tÃ i khoáº£n
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -168,7 +168,7 @@ const handleLogout = () => {
                             @click="handleLogout"
                         >
                             <LogOut class="mr-2 h-4 w-4" />
-                            Đăng xuất
+                            ÄÄƒng xuáº¥t
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -182,7 +182,7 @@ const handleLogout = () => {
             >
                 <X v-if="isMobileOpen" class="size-4" />
                 <Menu v-else class="size-4" />
-                <span class="sr-only">Mở menu</span>
+                <span class="sr-only">Má»Ÿ menu</span>
             </Button>
         </div>
 
@@ -205,14 +205,14 @@ const handleLogout = () => {
                 <AppearanceToggleInline />
                 <template v-if="!user">
                     <Button as-child variant="outline" size="sm" class="flex-1">
-                        <Link href="/login">Đăng nhập</Link>
+                        <Link href="/login">ÄÄƒng nháº­p</Link>
                     </Button>
                     <Button as-child size="sm" class="flex-1">
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register">DÃ¹ng miá»…n phÃ­</Link>
                     </Button>
                 </template>
                 <Button v-else as-child size="sm" class="flex-1">
-                    <Link href="/dashboard">Vào hệ thống</Link>
+                    <Link href="/dashboard">VÃ o há»‡ thá»‘ng</Link>
                 </Button>
             </div>
         </div>

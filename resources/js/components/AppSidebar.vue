@@ -1,10 +1,13 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import {
     LayoutGrid,
+    Bot,
     Building2,
     BadgeDollarSign,
+    Image,
+    Newspaper,
     Users,
     FileSearch2,
     Headset,
@@ -55,134 +58,123 @@ const isSubscriptionActive = computed(() => {
 
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
-    return Array.isArray(raw)
-        ? raw
-        : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 
-const isSuperAdmin = computed(() => hasRole('admin', 'super_admin'));
-const isOwner = computed(() => hasRole('owner'));
-const isManager = computed(() => hasRole('manager'));
-const isCashier = computed(() => hasRole('cashier'));
-const isKitchen = computed(() => hasRole('kitchen'));
-const isInventory = computed(() => hasRole('inventory_staff'));
-const isCustomer = computed(() => hasRole('customer'));
+const isSuperAdmin  = computed(() => hasRole('admin', 'super_admin'));
+const isOwner       = computed(() => hasRole('owner'));
+const isManager     = computed(() => hasRole('manager'));
+const isCashier     = computed(() => hasRole('cashier'));
+const isKitchen     = computed(() => hasRole('kitchen'));
+const isInventory   = computed(() => hasRole('inventory_staff'));
+const isCustomer    = computed(() => hasRole('customer'));
 
-// ─── SUPER ADMIN MENU ────────────────────────────────────────────────────────
+// â”€â”€â”€ SUPER ADMIN MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const superAdminNav: NavItem[] = [
-    { title: 'Dashboard', href: superAdminDashboard().url, icon: LayoutGrid },
-    { title: 'Nhà hàng', href: '/super-admin/restaurants', icon: Building2 },
-    { title: 'Gói dịch vụ', href: '/super-admin/plans', icon: BadgeDollarSign },
-    { title: 'Tài khoản', href: '/super-admin/accounts', icon: Users },
-    {
-        title: 'Billing Center',
-        href: '/super-admin/billing',
-        icon: BadgeDollarSign,
-    },
-    { title: 'Audit Log', href: '/super-admin/audit-logs', icon: FileSearch2 },
-    { title: 'DevOps & Support', href: '/super-admin/support', icon: Headset },
+    { title: 'Dashboard',      href: superAdminDashboard().url, icon: LayoutGrid },
+    { title: 'NhÃ  hÃ ng',       href: '/super-admin/restaurants', icon: Building2 },
+    { title: 'GÃ³i dá»‹ch vá»¥',   href: '/super-admin/plans',       icon: BadgeDollarSign },
+    { title: 'TÃ i khoáº£n',      href: '/super-admin/accounts',    icon: Users },
+    { title: 'Billing Center', href: '/super-admin/billing',     icon: BadgeDollarSign },
+    { title: 'Banner & Slideshow', href: '/super-admin/banners', icon: Image },
+    { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
+    { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
+    { title: 'Chatbot AI',      href: '/super-admin/chatbot',   icon: Bot },
+    { title: 'Tin tá»©c',         href: '/super-admin/news',      icon: Newspaper },
 ];
 
-// ─── OWNER MENU ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ OWNER MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ownerNav: NavItem[] = [
-    { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
-    { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
-    { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
-    { title: 'Kho nguyên liệu', href: '/inventory', icon: Package },
-    { title: 'Nhà cung cấp', href: '/suppliers', icon: Truck },
-    { title: 'Nhân sự', href: '/employees', icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules', icon: CalendarDays },
-    { title: 'Bảng lương', href: '/salaries', icon: Wallet },
-    { title: 'Khách hàng', href: '/customers', icon: Users },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Báo cáo & AI', href: '/reports', icon: BarChart3 },
-    { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
-    { title: 'Audit Log', href: '/audit-logs', icon: ScrollText },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    { title: 'Tá»•ng quan',        href: '/dashboard',              icon: LayoutGrid },
+    { title: 'Quáº£n lÃ½ Ä‘Æ¡n hÃ ng', href: '/orders',                 icon: ShoppingCart },
+    { title: 'Thá»±c Ä‘Æ¡n & MÃ³n',   href: '/products',               icon: UtensilsCrossed },
+    { title: 'Kho nguyÃªn liá»‡u',  href: '/inventory',              icon: Package },
+    { title: 'NhÃ  cung cáº¥p',     href: '/suppliers',              icon: Truck },
+    { title: 'NhÃ¢n sá»±',          href: '/employees',              icon: UserCheck },
+    { title: 'Cháº¥m cÃ´ng & Lá»‹ch', href: '/schedules',              icon: CalendarDays },
+    { title: 'Báº£ng lÆ°Æ¡ng',       href: '/salaries',               icon: Wallet },
+    { title: 'KhÃ¡ch hÃ ng',       href: '/customers',              icon: Users },
+    { title: 'Khuyáº¿n mÃ£i',       href: '/promotions',             icon: Tag },
+    { title: 'BÃ¡o cÃ¡o & AI',     href: '/reports',                icon: BarChart3 },
+    { title: 'SÆ¡ Ä‘á»“ bÃ n',        href: '/tables',                 icon: Building2 },
+    { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText },
+    { title: 'Tin tá»©c',          href: '/tin-tuc',                icon: Newspaper },
+    { title: 'LiÃªn há»‡ & Há»— trá»£', href: '/support',                icon: Headset },
 ];
 
-// ─── MANAGER MENU ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ MANAGER MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const managerNav: NavItem[] = [
-    { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
-    { title: 'Đơn hàng hôm nay', href: '/orders', icon: ShoppingCart },
-    { title: 'Nhân sự', href: '/employees', icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules', icon: CalendarDays },
-    { title: 'Bảng lương', href: '/salaries', icon: Wallet },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Phản hồi KH', href: '/feedback', icon: MessageSquare },
-    { title: 'Báo cáo doanh thu', href: '/reports', icon: BarChart3 },
-    { title: 'Vi phạm nội bộ', href: '/violations', icon: FileSearch2 },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    { title: 'Tá»•ng quan',        href: '/dashboard',              icon: LayoutGrid },
+    { title: 'ÄÆ¡n hÃ ng hÃ´m nay', href: '/orders',                 icon: ShoppingCart },
+    { title: 'NhÃ¢n sá»±',          href: '/employees',              icon: UserCheck },
+    { title: 'Cháº¥m cÃ´ng & Lá»‹ch', href: '/schedules',              icon: CalendarDays },
+    { title: 'Báº£ng lÆ°Æ¡ng',       href: '/salaries',               icon: Wallet },
+    { title: 'Khuyáº¿n mÃ£i',       href: '/promotions',             icon: Tag },
+    { title: 'Pháº£n há»“i KH',      href: '/feedback',               icon: MessageSquare },
+    { title: 'BÃ¡o cÃ¡o doanh thu', href: '/reports',               icon: BarChart3 },
+    { title: 'Vi pháº¡m ná»™i bá»™',   href: '/violations',             icon: FileSearch2 },
+    { title: 'Tin tá»©c',          href: '/tin-tuc',                icon: Newspaper },
+    { title: 'LiÃªn há»‡ & Há»— trá»£', href: '/support',                icon: Headset },
 ];
 
-// ─── CASHIER MENU ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ CASHIER MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const cashierNav: NavItem[] = [
-    { title: 'Tạo đơn hàng', href: '/orders/create', icon: ShoppingCart },
-    { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
-    { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
-    { title: 'Doanh thu ca', href: '/reports/shift', icon: Wallet },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'Táº¡o Ä‘Æ¡n hÃ ng',    href: '/orders/create',           icon: ShoppingCart },
+    { title: 'SÆ¡ Ä‘á»“ bÃ n',       href: '/tables',                  icon: Building2 },
+    { title: 'Lá»‹ch sá»­ Ä‘Æ¡n',     href: '/orders',                  icon: ScrollText },
+    { title: 'Doanh thu ca',     href: '/reports/shift',           icon: Wallet },
+    { title: 'Lá»‹ch lÃ m viá»‡c',   href: '/schedules',               icon: CalendarDays },
 ];
 
-// ─── KITCHEN MENU ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ KITCHEN MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const kitchenNav: NavItem[] = [
-    { title: 'Màn hình bếp', href: '/kitchen', icon: ChefHat },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'MÃ n hÃ¬nh báº¿p',    href: '/kitchen',                  icon: ChefHat },
+    { title: 'Lá»‹ch lÃ m viá»‡c',   href: '/schedules',                icon: CalendarDays },
 ];
 
-// ─── INVENTORY STAFF MENU ─────────────────────────────────────────────────────
+// â”€â”€â”€ INVENTORY STAFF MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const inventoryNav: NavItem[] = [
-    { title: 'Tồn kho', href: '/inventory', icon: Package },
-    { title: 'Nhập kho', href: '/inventory/receive', icon: Truck },
-    {
-        title: 'Lịch sử giao dịch',
-        href: '/inventory/transactions',
-        icon: Clock,
-    },
-    { title: 'Nhà cung cấp', href: '/suppliers', icon: Truck },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'Tá»“n kho',         href: '/inventory',                icon: Package },
+    { title: 'Nháº­p kho',        href: '/inventory/receive',        icon: Truck },
+    { title: 'Lá»‹ch sá»­ giao dá»‹ch', href: '/inventory/transactions', icon: Clock },
+    { title: 'NhÃ  cung cáº¥p',    href: '/suppliers',                icon: Truck },
+    { title: 'Lá»‹ch lÃ m viá»‡c',   href: '/schedules',                icon: CalendarDays },
 ];
 
-// ─── CUSTOMER MENU ────────────────────────────────────────────────────────────
+// â”€â”€â”€ CUSTOMER MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const customerNav: NavItem[] = [
-    { title: 'Thực đơn', href: '/menu', icon: UtensilsCrossed },
-    { title: 'Đơn hàng của tôi', href: '/my-orders', icon: ShoppingCart },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Phản hồi', href: '/feedback', icon: MessageSquare },
+    { title: 'Thá»±c Ä‘Æ¡n',        href: '/menu',                     icon: UtensilsCrossed },
+    { title: 'ÄÆ¡n hÃ ng cá»§a tÃ´i', href: '/my-orders',               icon: ShoppingCart },
+    { title: 'Khuyáº¿n mÃ£i',      href: '/promotions',               icon: Tag },
+    { title: 'Pháº£n há»“i',        href: '/feedback',                 icon: MessageSquare },
 ];
 
-// ─── Chọn menu dựa trên role và hạn gói ──────────────────────────────────────────
+// â”€â”€â”€ Chá»n menu dá»±a trÃªn role vÃ  háº¡n gÃ³i â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const mainNavItems = computed<NavItem[]>(() => {
     if (isSuperAdmin.value) return superAdminNav;
-
-    // Nếu gói hết hạn / bị khóa, giới hạn chỉ cho phép xem Tổng quan
+    
+    // Náº¿u gÃ³i háº¿t háº¡n / bá»‹ khÃ³a, giá»›i háº¡n chá»‰ cho phÃ©p xem Tá»•ng quan
     if (!isSubscriptionActive.value) {
-        return [{ title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid }];
+        return [
+            { title: 'Tá»•ng quan', href: '/dashboard', icon: LayoutGrid }
+        ];
     }
-
-    if (isOwner.value) return ownerNav;
-    if (isManager.value) return managerNav;
-    if (isCashier.value) return cashierNav;
-    if (isKitchen.value) return kitchenNav;
-    if (isInventory.value) return inventoryNav;
-    if (isCustomer.value) return customerNav;
+    
+    if (isOwner.value)      return ownerNav;
+    if (isManager.value)    return managerNav;
+    if (isCashier.value)    return cashierNav;
+    if (isKitchen.value)    return kitchenNav;
+    if (isInventory.value)  return inventoryNav;
+    if (isCustomer.value)   return customerNav;
     return [];
 });
 
 const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
-        icon: BookOpen,
-    },
+    { title: 'Repository',    href: 'https://github.com/laravel/vue-starter-kit', icon: FolderGit2 },
+    { title: 'Documentation', href: 'https://laravel.com/docs/starter-kits#vue',   icon: BookOpen },
 ];
 </script>
 
@@ -203,10 +195,10 @@ const footerNavItems: NavItem[] = [
         <SidebarContent>
             <NavMain v-if="mainNavItems.length" :items="mainNavItems" />
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
-                Không có menu khả dụng cho tài khoản này.
+                KhÃ´ng cÃ³ menu kháº£ dá»¥ng cho tÃ i khoáº£n nÃ y.
             </div>
-
-            <!-- Widget hạn ngạch & dùng thử chuyên nghiệp -->
+            
+            <!-- Widget háº¡n ngáº¡ch & dÃ¹ng thá»­ chuyÃªn nghiá»‡p -->
             <SubscriptionWidget v-if="tenant && !isSuperAdmin" />
         </SidebarContent>
 

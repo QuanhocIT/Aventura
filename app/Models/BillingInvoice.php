@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BillingInvoice extends Model
 {
+    use SoftDeletes;
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -27,5 +30,10 @@ class BillingInvoice extends Model
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(RestaurantSubscription::class, 'restaurant_subscription_id');
+    }
+
+    public function restaurantSubscription(): BelongsTo
+    {
+        return $this->subscription();
     }
 }

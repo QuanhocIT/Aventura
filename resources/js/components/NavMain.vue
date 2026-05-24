@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import {
     SidebarGroup,
@@ -19,7 +19,7 @@ const { isCurrentUrl } = useCurrentUrl();
 
 <template>
     <SidebarGroup class="px-2 py-0">
-        <SidebarGroupLabel>Quản trị hệ thống</SidebarGroupLabel>
+        <SidebarGroupLabel>Quáº£n trá»‹ há»‡ thá»‘ng</SidebarGroupLabel>
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton
@@ -27,10 +27,7 @@ const { isCurrentUrl } = useCurrentUrl();
                     :is-active="isCurrentUrl(item.href)"
                     :tooltip="item.title"
                 >
-                    <Link
-                        :id="'sidebar-link-' + item.href.replace('/', '')"
-                        :href="item.href"
-                    >
+                    <Link :id="'sidebar-link-' + item.href.replace('/', '')" :href="item.href">
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                     </Link>
