@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { 
@@ -17,19 +17,19 @@ import { Button } from '@/components/ui/button';
 const page = usePage();
 const tenant = computed(() => page.props.tenant as any);
 
-// State Äá» hiá»n thá» Modal NÃ¢ng cáº¥p
+// State để hiển thị Modal Nâng cấp
 const isUpgradeModalOpen = ref(false);
 
 if (!tenant.value) {
-    // KhÃ´ng hiá»n thá» náº¿u chÆ°a ÄÄng nháº­p / khÃ´ng thuá»c nhÃ  hÃ ng nÃ o
+    // Không hiển thị nếu chưa đăng nhập / không thuộc nhà hàng nào
 }
 
-const planName = computed(() => tenant.value?.plan?.name ?? 'Miá»n phÃ­');
+const planName = computed(() => tenant.value?.plan?.name ?? 'Miễn phí');
 const planCode = computed(() => tenant.value?.plan?.code?.toUpperCase() ?? 'FREE');
 const isFree = computed(() => planCode.value === 'FREE');
 const isTrial = computed(() => tenant.value?.status === 'trial');
 
-// TÃ­nh sá» ngÃ y cÃ²n láº¡i cá»§a trial hoáº·c subscription
+// Tính số ngày còn lại của trial hoặc subscription
 const daysRemaining = computed(() => {
     const targetDateStr = tenant.value?.subscription_ends_at || tenant.value?.trial_ends_at;
     if (!targetDateStr) return null;
@@ -44,13 +44,13 @@ const daysRemaining = computed(() => {
     return diffDays > 0 ? diffDays : 0;
 });
 
-// Thá»ng kÃª tÃ i nguyÃªn
+// Thống kê tài nguyên
 const resources = computed(() => {
     const summary = tenant.value?.quota_summary?.resources ?? {};
     return [
         {
             key: 'branches',
-            label: 'Chi nhÃ¡nh',
+            label: 'Chi nhánh',
             icon: Building2,
             used: summary.branches?.used ?? 0,
             limit: summary.branches?.limit,
@@ -59,7 +59,7 @@ const resources = computed(() => {
         },
         {
             key: 'tables',
-            label: 'BÃ n hoáº¡t Äá»ng',
+            label: 'Bàn hoạt động',
             icon: Grid,
             used: summary.tables?.used ?? 0,
             limit: summary.tables?.limit,
@@ -68,7 +68,7 @@ const resources = computed(() => {
         },
         {
             key: 'employees',
-            label: 'NhÃ¢n viÃªn',
+            label: 'Nhân viên',
             icon: Users2,
             used: summary.employees?.used ?? 0,
             limit: summary.employees?.limit,
@@ -78,12 +78,71 @@ const resources = computed(() => {
     ];
 });
 
-// Quyáº¿t Äá»nh mÃ u sáº¯c cá»§a thanh tiáº¿n trÃ¬nh dá»±a trÃªn tá» lá» pháº§n trÄm sá»­ dá»¥ng
+// Quyết định màu sắc của thanh tiến trình dựa trên tỉ lệ phần trăm sử dụng
 function getProgressColorClass(pct: number) {
-    if (pct >= 90) return 'bg-rose-500'; // Äá» khi Äáº§y / gáº§n Äáº§y
-    if (pct >= 70) return 'bg-amber-500'; // Cam khi á» má»©c cáº£nh bÃ¡o
-    return 'bg-emerald-500'; // Xanh lÃ¡ khi an toÃ n
+    if (pct >= 90) return 'bg-rose-500'; // Đỏ khi đầy / gần đầy
+    if (pct >= 70) return 'bg-amber-500'; // Cam khi ở mức cảnh báo
+    return 'bg-emerald-500'; // Xanh lá khi an toàn
 }
+
+const plans = [
+    {
+        code: 'free',
+        name: 'Gói Miễn phí (Free)',
+        price: '0đ',
+        note: 'Dành cho quán ăn mới lập nghiệp để làm quen vận hành.',
+        features: [
+            { text: 'Tối đa 1 chi nhánh', supported: true },
+            { text: 'Tối đa 10 bàn hoạt động', supported: true },
+            { text: 'Tối đa 5 nhân viên', supported: true },
+            { text: 'Không hỗ trợ AI Dự báo kho', supported: false },
+            { text: 'Không hỗ trợ AI phát hiện gian lận', supported: false },
+        ]
+    },
+    {
+        code: 'pro',
+        name: 'Gói Cao cấp (Pro)',
+        price: '499.000đ',
+        note: 'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
+        isRecommended: true,
+        features: [
+            { text: 'Không giới hạn bàn & nhân sự', supported: true },
+            { text: 'Quản lý nhiều chi nhánh', supported: true },
+            { text: 'AI dự báo nguyên liệu & tồn kho', supported: true },
+            { text: 'Thuật toán AI phát hiện gian lận', supported: true },
+            { text: 'Hệ thống Audit Log bảo mật', supported: true },
+        ]
+    },
+    {
+        code: 'max',
+        name: 'Gói Chuyên nghiệp (Max)',
+        price: '999.000đ',
+        note: 'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
+        features: [
+            { text: 'Tối đa 10 chi nhánh', supported: true },
+            { text: 'Tối đa 300 bàn hoạt động', supported: true },
+            { text: 'Tối đa 80 nhân viên', supported: true },
+            { text: 'AI dự báo nguyên liệu & tồn kho', supported: true },
+            { text: 'Thuật toán AI phát hiện gian lận', supported: true },
+            { text: 'Hệ thống Audit Log bảo mật', supported: true },
+        ]
+    },
+    {
+        code: 'ultra',
+        name: 'Gói Doanh nghiệp (Ultra)',
+        price: '1.999.000đ',
+        note: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+        isVip: true,
+        features: [
+            { text: 'Không giới hạn chi nhánh', supported: true },
+            { text: 'Không giới hạn bàn hoạt động', supported: true },
+            { text: 'Không giới hạn nhân viên', supported: true },
+            { text: 'AI dự báo nguyên liệu & tồn kho', supported: true },
+            { text: 'Thuật toán AI phát hiện gian lận', supported: true },
+            { text: 'Hệ thống Audit Log bảo mật', supported: true },
+        ]
+    }
+];
 
 function openUpgradeModal() {
     isUpgradeModalOpen.value = true;
@@ -93,17 +152,17 @@ function closeUpgradeModal() {
     isUpgradeModalOpen.value = false;
 }
 
-function goToUpgradeCheckout() {
-    window.location.href = '/billing/checkout?plan=pro';
+function goToUpgradeCheckout(code: string) {
+    window.location.href = `/billing/checkout?plan=${code}`;
 }
 </script>
 
 <template>
     <div v-if="tenant" class="px-4 py-2">
-        <!-- Widget hiá»n thá» thÃ´ng tin gÃ³i -->
+        <!-- Widget hiển thị thông tin gói -->
         <div class="relative overflow-hidden rounded-xl border border-border/60 bg-gradient-to-b from-card to-background/50 p-4 shadow-sm backdrop-blur-md">
             
-            <!-- Hiá»u á»©ng sÃ¡ng má» á» background cho gÃ³i PRO -->
+            <!-- Hiệu ứng sáng mờ ở background cho gói PRO -->
             <div v-if="!isFree" class="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-primary/10 blur-2xl pointer-events-none"></div>
             
             <div class="flex items-center justify-between mb-3">
@@ -113,25 +172,25 @@ function goToUpgradeCheckout() {
                         <span class="relative inline-flex rounded-full h-2 w-2" :class="isFree ? 'bg-amber-500' : 'bg-emerald-500'"></span>
                     </span>
                     <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        GÃ³i {{ planName }}
+                        Gói {{ planName }}
                     </span>
                 </div>
                 
-                <!-- Huy hiá»u VIP cho PRO -->
+                <!-- Huy hiệu VIP cho PRO -->
                 <span v-if="!isFree" class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                     <Sparkles class="size-3" /> PRO
                 </span>
             </div>
 
-            <!-- Cáº£nh bÃ¡o dÃ¹ng thá»­ hoáº·c háº¿t háº¡n -->
+            <!-- Cảnh báo dùng thử hoặc hết hạn -->
             <div v-if="isTrial && daysRemaining !== null" class="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 text-xs text-amber-600 dark:text-amber-400">
                 <p class="font-medium flex items-center gap-1.5">
                     <Sparkles class="size-3.5 animate-pulse" />
-                    Äang thá»­ nghiá»m PRO (CÃ²n {{ daysRemaining }} ngÃ y)
+                    Đang thử nghiệm PRO (Còn {{ daysRemaining }} ngày)
                 </p>
             </div>
 
-            <!-- Chi tiáº¿t háº¡n ngáº¡ch tÃ i nguyÃªn -->
+            <!-- Chi tiết hạn ngạch tài nguyên -->
             <div class="space-y-3.5">
                 <div v-for="res in resources" :key="res.key" class="space-y-1.5">
                     <div class="flex items-center justify-between text-xs">
@@ -140,11 +199,11 @@ function goToUpgradeCheckout() {
                             <span>{{ res.label }}</span>
                         </div>
                         <span class="font-medium text-foreground">
-                            {{ res.used }} / <span v-if="res.unlimited">â</span><span v-else>{{ res.limit }}</span>
+                            {{ res.used }} / <span v-if="res.unlimited">∞</span><span v-else>{{ res.limit }}</span>
                         </span>
                     </div>
                     
-                    <!-- Thanh tiáº¿n trÃ¬nh custom mÆ°á»£t mÃ  -->
+                    <!-- Thanh tiến trình custom mượt mà -->
                     <div class="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
                         <div 
                             class="h-full rounded-full transition-all duration-700 ease-out" 
@@ -155,24 +214,24 @@ function goToUpgradeCheckout() {
                 </div>
             </div>
 
-            <!-- NÃºt nÃ¢ng cáº¥p hoáº·c Äá»i gÃ³i -->
+            <!-- Nút nâng cấp hoặc đổi gói -->
             <div class="mt-4 pt-3 border-t border-border/40">
                 <button 
                     @click="openUpgradeModal"
                     class="w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 transition-all duration-200 shadow-sm shadow-violet-500/15"
                 >
                     <Sparkles class="size-3.5" />
-                    <span>{{ isFree ? 'NÃ¢ng cáº¥p lÃªn gÃ³i PRO' : 'Xem thÃ´ng tin dá»ch vá»¥' }}</span>
+                    <span>{{ isFree ? 'Nâng cấp lên gói PRO' : 'Xem thông tin dịch vụ' }}</span>
                     <ArrowUpRight class="size-3.5" />
                 </button>
             </div>
         </div>
 
-        <!-- MODAL NÃNG Cáº¤P GÃI CHUYÃN NGHIá»P VÃ SANG TRá»NG -->
+        <!-- MODAL NÂNG CẤP GÓI CHUYÊN NGHIỆP VÀ SANG TRỌNG -->
         <div v-if="isUpgradeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
-            <div class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all">
+            <div class="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all">
                 
-                <!-- NÃºt ÄÃ³ng -->
+                <!-- Nút đóng -->
                 <button @click="closeUpgradeModal" class="absolute top-4 right-4 rounded-full p-1.5 text-muted-foreground hover:bg-muted transition-colors">
                     <X class="size-5" />
                 </button>
@@ -183,48 +242,105 @@ function goToUpgradeCheckout() {
                         <Sparkles class="size-6 text-primary animate-pulse" />
                     </div>
                     <h3 class="text-xl font-bold tracking-tight text-foreground">
-                        NÃ¢ng táº§m quÃ¡n Än cá»§a báº¡n cÃ¹ng GÃ³i Pro
+                        Nâng cấp gói dịch vụ Aventura của bạn
                     </h3>
                     <p class="mt-2 text-sm text-muted-foreground">
-                        Má» khÃ³a toÃ n diá»n sá»©c máº¡nh cá»§a há» thá»ng quáº£n lÃ½ Aventura thÃ´ng minh.
+                        Mở khóa toàn diện sức mạnh của hệ thống quản lý Aventura thông minh.
                     </p>
                 </div>
 
-                <!-- So sÃ¡nh hai gÃ³i -->
-                <div class="px-6 py-4 grid gap-4 md:grid-cols-2">
-                    <!-- GÃ³i Free -->
-                    <div class="rounded-xl border border-border bg-muted/40 p-4 relative opacity-70">
-                        <h4 class="text-sm font-semibold text-foreground">GÃ³i Miá»n phÃ­ (Free)</h4>
-                        <p class="mt-1 text-xs text-muted-foreground">DÃ nh cho quÃ¡n Än má»i láº­p nghiá»p Äá» lÃ m quen váº­n hÃ nh.</p>
-                        <p class="mt-3 text-lg font-bold text-foreground">0Ä <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
-                        
-                        <ul class="mt-4 space-y-2 text-xs">
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 1 chi nhÃ¡nh</li>
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 10 bÃ n hoáº¡t Äá»ng</li>
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 5 nhÃ¢n viÃªn</li>
-                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há» trá»£ AI Dá»± bÃ¡o kho</li>
-                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há» trá»£ AI phÃ¡t hiá»n gian láº­n</li>
-                        </ul>
-                    </div>
-
-                    <!-- GÃ³i Pro -->
-                    <div class="rounded-xl border-2 border-primary bg-gradient-to-b from-primary/5 to-transparent p-4 relative shadow-md">
-                        <div class="absolute top-3 right-3 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary uppercase">
+                <!-- So sánh các gói -->
+                <div class="px-6 py-4 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                    <div 
+                        v-for="plan in plans" 
+                        :key="plan.code"
+                        class="rounded-xl border p-4 relative flex flex-col justify-between transition-all duration-300"
+                        :class="[
+                            plan.code === tenant?.plan?.code?.toLowerCase() 
+                                ? 'border-2 border-emerald-500 bg-emerald-500/5 shadow-sm' 
+                                : plan.isRecommended 
+                                    ? 'border-2 border-primary bg-gradient-to-b from-primary/5 to-transparent shadow-md hover:scale-[1.02]' 
+                                    : plan.isVip
+                                        ? 'border-2 border-violet-500 bg-gradient-to-b from-violet-500/10 to-transparent hover:scale-[1.02] shadow-sm hover:shadow-violet-500/10'
+                                        : 'border-border bg-muted/40 opacity-90 hover:opacity-100 hover:scale-[1.02]'
+                        ]"
+                    >
+                        <!-- Huy hiệu -->
+                        <div 
+                            v-if="plan.isRecommended" 
+                            class="absolute top-3 right-3 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary uppercase"
+                        >
+                            Khuyến nghị
+                        </div>
+                        <div 
+                            v-else-if="plan.isVip" 
+                            class="absolute top-3 right-3 rounded-full bg-violet-600/15 px-2 py-0.5 text-[9px] font-bold text-violet-600 uppercase tracking-wider"
+                        >
                             VIP
                         </div>
-                        <h4 class="text-sm font-semibold text-foreground flex items-center gap-1">
-                            GÃ³i Cao cáº¥p (Pro)
-                        </h4>
-                        <p class="mt-1 text-xs text-muted-foreground">Tá»i Æ°u hiá»u nÄng, chá»ng tháº¥t thoÃ¡t cho mÃ´ hÃ¬nh chuyÃªn nghiá»p.</p>
-                        <p class="mt-3 text-lg font-bold text-primary">499.000Ä <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
-                        
-                        <ul class="mt-4 space-y-2 text-xs">
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> KhÃ´ng giá»i háº¡n bÃ n & nhÃ¢n sá»±</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Quáº£n lÃ½ nhiá»u chi nhÃ¡nh</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> AI dá»± bÃ¡o nguyÃªn liá»u & tá»n kho</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Thuáº­t toÃ¡n AI phÃ¡t hiá»n gian láº­n</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Há» thá»ng Audit Log báº£o máº­t</li>
-                        </ul>
+                        <div 
+                            v-else-if="plan.code === tenant?.plan?.code?.toLowerCase()" 
+                            class="absolute top-3 right-3 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-600 uppercase"
+                        >
+                            Hiện tại
+                        </div>
+
+                        <div>
+                            <h4 class="text-sm font-bold text-foreground">{{ plan.name }}</h4>
+                            <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground min-h-[34px]">{{ plan.note }}</p>
+                            
+                            <div class="mt-3 flex items-end gap-0.5">
+                                <span 
+                                    class="text-lg font-extrabold"
+                                    :class="[
+                                        plan.isRecommended ? 'text-primary' : plan.isVip ? 'text-violet-600 dark:text-violet-400' : 'text-foreground'
+                                    ]"
+                                >
+                                    {{ plan.price }}
+                                </span>
+                                <span class="text-[10px] text-muted-foreground pb-0.5">/ tháng</span>
+                            </div>
+
+                            <ul class="mt-4 space-y-2 text-[11px] mb-5">
+                                <li 
+                                    v-for="feat in plan.features" 
+                                    :key="feat.text" 
+                                    class="flex items-start gap-1.5"
+                                    :class="feat.supported ? 'text-foreground' : 'text-muted-foreground opacity-60'"
+                                >
+                                    <Check v-if="feat.supported" class="size-3.5 flex-shrink-0" :class="plan.isRecommended ? 'text-primary' : plan.isVip ? 'text-violet-500' : 'text-emerald-500'" />
+                                    <X v-else class="size-3.5 flex-shrink-0 text-muted-foreground" />
+                                    <span>{{ feat.text }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Nút hành động trực tiếp -->
+                        <div class="mt-auto pt-2">
+                            <Button 
+                                v-if="plan.code === tenant?.plan?.code?.toLowerCase()"
+                                disabled 
+                                variant="secondary" 
+                                class="w-full text-xs font-semibold"
+                            >
+                                Gói hiện tại
+                            </Button>
+                            <Button 
+                                v-else
+                                :variant="plan.isRecommended ? 'default' : 'outline'" 
+                                class="w-full text-xs font-semibold"
+                                :class="[
+                                    plan.isRecommended 
+                                        ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/95 hover:to-primary/75 text-white border-0' 
+                                        : plan.isVip 
+                                            ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0' 
+                                            : ''
+                                ]"
+                                @click="goToUpgradeCheckout(plan.code)"
+                            >
+                                {{ plan.code === 'free' ? 'Chọn Free' : 'Nâng cấp ngay' }}
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -232,13 +348,10 @@ function goToUpgradeCheckout() {
                 <div class="px-6 py-5 border-t border-border bg-muted/30 flex flex-col sm:flex-row gap-2 justify-between items-center text-xs">
                     <span class="text-muted-foreground flex items-center gap-1">
                         <Lock class="size-3.5 text-muted-foreground" />
-                        Giao dá»ch thanh toán mã hóa an toàn.
+                        Giao dịch thanh toán mã hóa an toàn.
                     </span>
                     <div class="flex gap-2">
                         <Button variant="outline" size="sm" @click="closeUpgradeModal">Đóng</Button>
-                        <Button size="sm" class="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0" @click="goToUpgradeCheckout">
-                            Nâng cấp gói ngay
-                        </Button>
                     </div>
                 </div>
             </div>

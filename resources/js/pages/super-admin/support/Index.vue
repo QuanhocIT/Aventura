@@ -62,14 +62,14 @@ const systemHealth = computed(() => {
     const failed = props.monitoring.failed_jobs;
 
     if (failed > 0 || rate > 5) {
-return { label: 'Cáº£nh bÃ¡o', color: 'text-amber-500', bg: 'bg-amber-50', dot: 'bg-amber-500' };
+return { label: 'Cảnh báo', color: 'text-amber-500', bg: 'bg-amber-50', dot: 'bg-amber-500' };
 }
 
     if (rate > 2) {
-return { label: 'ChÃº Ã½', color: 'text-orange-500', bg: 'bg-orange-50', dot: 'bg-orange-500' };
+return { label: 'Chú ý', color: 'text-orange-500', bg: 'bg-orange-50', dot: 'bg-orange-500' };
 }
 
-    return { label: 'Hoáº¡t Äá»ng tá»t', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
+    return { label: 'Hoạt động tốt', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
 });
 
 function runAlertCheck() {
@@ -106,7 +106,7 @@ function submitRule() {
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">DevOps & Support Portal</h1>
-                    <p class="text-sm text-muted-foreground">GiÃ¡m sÃ¡t háº¡ táº§ng Â· Ticket há» trá»£ Â· Broadcast realtime Â· Knowledge base</p>
+                    <p class="text-sm text-muted-foreground">Giám sát hạ tầng · Ticket hỗ trợ · Broadcast realtime · Knowledge base</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -115,10 +115,10 @@ function submitRule() {
                     {{ systemHealth.label }}
                 </div>
                 <Button variant="outline" size="sm" @click="runAlertCheck">
-                    <Siren class="mr-2 size-4" /> QuÃ©t cáº£nh bÃ¡o
+                    <Siren class="mr-2 size-4" /> Quét cảnh báo
                 </Button>
                 <Button variant="outline" size="sm" @click="router.reload({ only: ['stats', 'monitoring', 'tickets', 'alerts'] })">
-                    <RefreshCcw class="mr-2 size-4" /> LÃ m má»i
+                    <RefreshCcw class="mr-2 size-4" /> Làm mới
                 </Button>
             </div>
         </div>
@@ -128,7 +128,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-sky-50 to-sky-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-sky-600">Ticket má»</p>
+                        <p class="text-xs font-medium text-sky-600">Ticket mở</p>
                         <p class="mt-1 text-3xl font-bold text-sky-900">{{ stats.tickets_open ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-200/60">
@@ -139,7 +139,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-red-50 to-red-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-red-600">Nguy cáº¥p</p>
+                        <p class="text-xs font-medium text-red-600">Nguy cấp</p>
                         <p class="mt-1 text-3xl font-bold text-red-900">{{ stats.tickets_critical ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-200/60">
@@ -150,7 +150,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-amber-50 to-amber-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-amber-600">Alert má»</p>
+                        <p class="text-xs font-medium text-amber-600">Alert mở</p>
                         <p class="mt-1 text-3xl font-bold text-amber-900">{{ stats.alerts_open ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-200/60">
@@ -172,7 +172,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-emerald-600">BÃ i KB</p>
+                        <p class="text-xs font-medium text-emerald-600">Bài KB</p>
                         <p class="mt-1 text-3xl font-bold text-emerald-900">{{ stats.kb_published ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-200/60">
@@ -186,7 +186,7 @@ function submitRule() {
         <Tabs v-model="activeTab" class="w-full">
             <TabsList class="grid w-full grid-cols-5">
                 <TabsTrigger value="monitoring" class="gap-1.5">
-                    <Activity class="size-4" /><span class="hidden sm:inline">GiÃ¡m sÃ¡t</span>
+                    <Activity class="size-4" /><span class="hidden sm:inline">Giám sát</span>
                 </TabsTrigger>
                 <TabsTrigger value="tickets" class="gap-1.5">
                     <Ticket class="size-4" /><span class="hidden sm:inline">Ticket</span>
@@ -218,7 +218,7 @@ function submitRule() {
                             <p :class="['mt-3 text-3xl font-bold', monitoring.failed_jobs > 0 ? 'text-red-600' : 'text-foreground']">
                                 {{ monitoring.failed_jobs }}
                             </p>
-                            <p class="mt-1 text-xs text-muted-foreground">Jobs tháº¥t báº¡i trong queue</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Jobs thất bại trong queue</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -228,7 +228,7 @@ function submitRule() {
                                 <Clock class="size-5 text-amber-400" />
                             </div>
                             <p class="mt-3 text-3xl font-bold">{{ monitoring.pending_jobs }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">Äang chá» xá»­ lÃ½</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Đang chờ xử lý</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -241,7 +241,7 @@ function submitRule() {
                                 {{ monitoring.api_error_rate }}%
                             </p>
                             <p class="mt-1 text-xs text-muted-foreground">
-                                {{ monitoring.api_error_total }}/{{ monitoring.api_request_total }} requests Â· SLA &lt; 5%
+                                {{ monitoring.api_error_total }}/{{ monitoring.api_request_total }} requests · SLA &lt; 5%
                             </p>
                         </CardContent>
                     </Card>
@@ -254,7 +254,7 @@ function submitRule() {
                             <p :class="['mt-3 text-3xl font-bold', monitoring.slow_queries > 10 ? 'text-amber-600' : 'text-foreground']">
                                 {{ monitoring.slow_queries }}
                             </p>
-                            <p class="mt-1 text-xs text-muted-foreground">Truy váº¥n &gt; 1000ms</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Truy vấn &gt; 1000ms</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -264,7 +264,7 @@ function submitRule() {
                                 <Activity class="size-5 text-sky-400" />
                             </div>
                             <p class="mt-3 text-3xl font-bold">{{ monitoring.queue_backlog }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">Tá»ng tá»n Äá»ng hÃ ng Äá»£i</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Tổng tồn đọng hàng đợi</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -274,7 +274,7 @@ function submitRule() {
                                 <Zap class="size-5 text-violet-400" />
                             </div>
                             <p class="mt-3 text-3xl font-bold">{{ monitoring.pulse_exceptions }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">Ngoáº¡i lá» ghi nháº­n bá»i Pulse</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Ngoại lệ ghi nhận bởi Pulse</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -292,7 +292,7 @@ function submitRule() {
                     <Card class="border-dashed bg-muted/20">
                         <CardContent class="flex h-full flex-col items-center justify-center p-5 text-center">
                             <CheckCircle2 class="size-8 text-emerald-400" />
-                            <p class="mt-2 text-sm font-semibold">SLA cam káº¿t</p>
+                            <p class="mt-2 text-sm font-semibold">SLA cam kết</p>
                             <p class="text-xs text-muted-foreground">API Response &lt; 2s</p>
                         </CardContent>
                     </Card>
@@ -303,11 +303,11 @@ function submitRule() {
                     <CardHeader class="pb-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <CardTitle class="text-base">Cáº£nh bÃ¡o gáº§n ÄÃ¢y</CardTitle>
-                                <CardDescription>CÃ¡c alert ÄÆ°á»£c kÃ­ch hoáº¡t bá»i rule engine</CardDescription>
+                                <CardTitle class="text-base">Cảnh báo gần đây</CardTitle>
+                                <CardDescription>Các alert được kích hoạt bởi rule engine</CardDescription>
                             </div>
                             <Button variant="outline" size="sm" @click="activeTab = 'alerts'">
-                                Quáº£n lÃ½ rules <ChevronRight class="ml-1 size-4" />
+                                Quản lý rules <ChevronRight class="ml-1 size-4" />
                             </Button>
                         </div>
                     </CardHeader>
@@ -325,7 +325,7 @@ function submitRule() {
                                         <p class="text-xs text-muted-foreground">
                                             {{ alert.metric_key }}: <span class="font-mono font-semibold">{{ alert.metric_value }}</span>
                                             / threshold <span class="font-mono">{{ alert.threshold }}</span>
-                                            Â· {{ alert.triggered_at }}
+                                            · {{ alert.triggered_at }}
                                         </p>
                                     </div>
                                 </div>
@@ -336,8 +336,8 @@ function submitRule() {
                         </div>
                         <div v-else class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
                             <CheckCircle2 class="size-10 text-emerald-400" />
-                            <p class="text-sm font-medium">KhÃ´ng cÃ³ cáº£nh bÃ¡o nÃ o</p>
-                            <p class="text-xs">Há» thá»ng Äang hoáº¡t Äá»ng bÃ¬nh thÆ°á»ng</p>
+                            <p class="text-sm font-medium">Không có cảnh báo nào</p>
+                            <p class="text-xs">Hệ thống đang hoạt động bình thường</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -348,72 +348,72 @@ function submitRule() {
             <!-- ============================================================ -->
             <TabsContent value="tickets" class="mt-6">
                 <div class="grid gap-6 xl:grid-cols-5">
-                    <!-- Form táº¡o ticket -->
+                    <!-- Form tạo ticket -->
                     <Card class="xl:col-span-2">
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <PlusCircle class="size-4 text-sky-500" /> Táº¡o Ticket Há» Trá»£
+                                <PlusCircle class="size-4 text-sky-500" /> Tạo Ticket Hỗ Trợ
                             </CardTitle>
-                            <CardDescription>Tiáº¿p nháº­n sá»± cá», bÃ¡o cÃ¡o lá»i tá»« nhÃ  hÃ ng</CardDescription>
+                            <CardDescription>Tiếp nhận sự cố, báo cáo lỗi từ nhà hàng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitTicket">
                                 <div class="grid gap-1.5">
-                                    <Label>NhÃ  hÃ ng</Label>
+                                    <Label>Nhà hàng</Label>
                                     <Select v-model="ticketForm.restaurant_id">
-                                        <SelectTrigger><SelectValue placeholder="Chá»n nhÃ  hÃ ng" /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Chọn nhà hàng" /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="system">Há» thá»ng / ChÆ°a gÃ¡n</SelectItem>
+                                            <SelectItem value="system">Hệ thống / Chưa gán</SelectItem>
                                             <SelectItem v-for="r in restaurants" :key="r.id" :value="String(r.id)">{{ r.name }}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Danh má»¥c</Label>
+                                    <Label>Danh mục</Label>
                                     <Select v-model="ticketForm.category">
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="realtime">Realtime / MÃ n hÃ¬nh báº¿p</SelectItem>
-                                            <SelectItem value="queue">Queue / Job tháº¥t báº¡i</SelectItem>
-                                            <SelectItem value="billing">Billing / HoÃ¡ ÄÆ¡n</SelectItem>
-                                            <SelectItem value="ui">UI / Ná»i dung</SelectItem>
-                                            <SelectItem value="performance">Hiá»u nÄng</SelectItem>
-                                            <SelectItem value="other">KhÃ¡c</SelectItem>
+                                            <SelectItem value="realtime">Realtime / Màn hình bếp</SelectItem>
+                                            <SelectItem value="queue">Queue / Job thất bại</SelectItem>
+                                            <SelectItem value="billing">Billing / Hoá đơn</SelectItem>
+                                            <SelectItem value="ui">UI / Nội dung</SelectItem>
+                                            <SelectItem value="performance">Hiệu năng</SelectItem>
+                                            <SelectItem value="other">Khác</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Äá» <span class="text-red-500">*</span></Label>
-                                    <Input v-model="ticketForm.title" placeholder="MÃ n hÃ¬nh báº¿p khÃ´ng nháº­n realtime" />
+                                    <Label>Tiêu đề <span class="text-red-500">*</span></Label>
+                                    <Input v-model="ticketForm.title" placeholder="Màn hình bếp không nhận realtime" />
                                     <p v-if="ticketForm.errors.title" class="text-xs text-red-500">{{ ticketForm.errors.title }}</p>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>MÃ´ táº£ chi tiáº¿t <span class="text-red-500">*</span></Label>
+                                    <Label>Mô tả chi tiết <span class="text-red-500">*</span></Label>
                                     <textarea
                                         v-model="ticketForm.description"
                                         rows="4"
-                                        placeholder="MÃ´ táº£ sá»± cá», bÆ°á»c tÃ¡i hiá»n, áº£nh hÆ°á»ng..."
+                                        placeholder="Mô tả sự cố, bước tái hiện, ảnh hưởng..."
                                         class="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     />
                                     <p v-if="ticketForm.errors.description" class="text-xs text-red-500">{{ ticketForm.errors.description }}</p>
                                 </div>
                                 <p class="text-xs text-muted-foreground">
-                                    Há» thá»ng sáº½ tá»± Äá»ng phÃ¢n loáº¡i má»©c Äá»: <strong>Nguy cáº¥p / Cao / Trung bÃ¬nh / Tháº¥p</strong>
+                                    Hệ thống sẽ tự động phân loại mức độ: <strong>Nguy cấp / Cao / Trung bình / Thấp</strong>
                                 </p>
                                 <Button type="submit" class="w-full" :disabled="ticketForm.processing">
                                     <Send class="mr-2 size-4" />
-                                    {{ ticketForm.processing ? 'Äang táº¡o...' : 'Táº¡o Ticket' }}
+                                    {{ ticketForm.processing ? 'Đang tạo...' : 'Tạo Ticket' }}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
 
-                    <!-- Danh sÃ¡ch ticket -->
+                    <!-- Danh sách ticket -->
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
-                                <CardTitle class="text-base">Danh sÃ¡ch Ticket ({{ tickets.length }})</CardTitle>
-                                <CardDescription>12 ticket gáº§n nháº¥t Â· tá»± Äá»ng phÃ¢n loáº¡i theo má»©c Äá» nghiÃªm trá»ng</CardDescription>
+                                <CardTitle class="text-base">Danh sách Ticket ({{ tickets.length }})</CardTitle>
+                                <CardDescription>12 ticket gần nhất · tự động phân loại theo mức độ nghiêm trọng</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div v-if="tickets.length" class="space-y-3">
@@ -431,7 +431,7 @@ function submitRule() {
                                                 </div>
                                                 <p class="mt-1 font-medium text-sm truncate">{{ ticket.title }}</p>
                                                 <p class="text-xs text-muted-foreground">
-                                                    {{ ticket.restaurant }} Â· {{ ticket.category }} Â· {{ ticket.created_at }}
+                                                    {{ ticket.restaurant }} · {{ ticket.category }} · {{ ticket.created_at }}
                                                 </p>
                                             </div>
                                         </div>
@@ -441,26 +441,26 @@ function submitRule() {
                                                 size="sm" variant="outline"
                                                 class="h-7 text-xs"
                                                 @click="updateTicket(ticket.id, 'in_progress')"
-                                            >Nháº­n xá»­ lÃ½</Button>
+                                            >Nhận xử lý</Button>
                                             <Button
                                                 v-if="['open', 'in_progress', 'waiting_restaurant'].includes(ticket.status)"
                                                 size="sm" variant="outline"
                                                 class="h-7 text-xs text-emerald-600 hover:text-emerald-700"
                                                 @click="updateTicket(ticket.id, 'resolved')"
-                                            >â ÄÃ¡nh dáº¥u resolved</Button>
+                                            >✓ Đánh dấu resolved</Button>
                                             <Button
                                                 v-if="ticket.status === 'resolved'"
                                                 size="sm" variant="outline"
                                                 class="h-7 text-xs"
                                                 @click="updateTicket(ticket.id, 'closed')"
-                                            >ÄÃ³ng</Button>
+                                            >Đóng</Button>
                                         </div>
                                     </div>
                                 </div>
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <Ticket class="size-10 text-slate-300" />
-                                    <p class="text-sm font-medium">KhÃ´ng cÃ³ ticket nÃ o</p>
-                                    <p class="text-xs">ChÆ°a cÃ³ sá»± cá» nÃ o ÄÆ°á»£c ghi nháº­n</p>
+                                    <p class="text-sm font-medium">Không có ticket nào</p>
+                                    <p class="text-xs">Chưa có sự cố nào được ghi nhận</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -473,72 +473,72 @@ function submitRule() {
             <!-- ============================================================ -->
             <TabsContent value="broadcast" class="mt-6">
                 <div class="grid gap-6 xl:grid-cols-5">
-                    <!-- Form táº¡o thÃ´ng bÃ¡o -->
+                    <!-- Form tạo thông báo -->
                     <Card class="xl:col-span-2">
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <BellRing class="size-4 text-violet-500" /> Táº¡o ThÃ´ng BÃ¡o Broadcast
+                                <BellRing class="size-4 text-violet-500" /> Tạo Thông Báo Broadcast
                             </CardTitle>
-                            <CardDescription>Popup realtime qua Laravel Reverb Â· Gá»­i Äáº¿n Thu ngÃ¢n, Chá»§ quÃ¡n, Báº¿p</CardDescription>
+                            <CardDescription>Popup realtime qua Laravel Reverb · Gửi đến Thu ngân, Chủ quán, Bếp</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitAnnouncement">
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Äá»</Label>
-                                    <Input v-model="announcementForm.title" placeholder="Báº£o trÃ¬ há» thá»ng 23:00-24:00" />
+                                    <Label>Tiêu đề</Label>
+                                    <Input v-model="announcementForm.title" placeholder="Bảo trì hệ thống 23:00-24:00" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Ná»i dung</Label>
+                                    <Label>Nội dung</Label>
                                     <textarea
                                         v-model="announcementForm.message"
                                         rows="4"
-                                        placeholder="Chi tiáº¿t thÃ´ng bÃ¡o..."
+                                        placeholder="Chi tiết thông báo..."
                                         class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     />
                                 </div>
                                 <div class="grid gap-4 sm:grid-cols-2">
                                     <div class="grid gap-1.5">
-                                        <Label>Äá»i tÆ°á»£ng nháº­n</Label>
+                                        <Label>Đối tượng nhận</Label>
                                         <Select v-model="announcementForm.audience">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Táº¥t cáº£</SelectItem>
-                                                <SelectItem value="cashier">Thu ngÃ¢n</SelectItem>
-                                                <SelectItem value="owner">Chá»§ quÃ¡n</SelectItem>
-                                                <SelectItem value="kitchen">Báº¿p</SelectItem>
+                                                <SelectItem value="all">Tất cả</SelectItem>
+                                                <SelectItem value="cashier">Thu ngân</SelectItem>
+                                                <SelectItem value="owner">Chủ quán</SelectItem>
+                                                <SelectItem value="kitchen">Bếp</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label>Má»©c Äá»</Label>
+                                        <Label>Mức độ</Label>
                                         <Select v-model="announcementForm.level">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="info">â¹ Info</SelectItem>
-                                                <SelectItem value="warning">â  Warning</SelectItem>
-                                                <SelectItem value="critical">ð¨ Critical</SelectItem>
+                                                <SelectItem value="info">ℹ Info</SelectItem>
+                                                <SelectItem value="warning">⚠ Warning</SelectItem>
+                                                <SelectItem value="critical">🚨 Critical</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3">
                                     <input id="publish_now" v-model="announcementForm.publish_now" type="checkbox" class="size-4 rounded border-violet-300 accent-violet-600" />
-                                    <label for="publish_now" class="text-sm font-medium text-violet-800">PhÃ¡t ngay láº­p tá»©c (Reverb broadcast)</label>
+                                    <label for="publish_now" class="text-sm font-medium text-violet-800">Phát ngay lập tức (Reverb broadcast)</label>
                                 </div>
                                 <Button type="submit" class="w-full" :disabled="announcementForm.processing">
                                     <Radio class="mr-2 size-4" />
-                                    {{ announcementForm.processing ? 'Äang phÃ¡t...' : 'LÆ°u & Broadcast' }}
+                                    {{ announcementForm.processing ? 'Đang phát...' : 'Lưu & Broadcast' }}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
 
-                    <!-- Lá»ch sá»­ thÃ´ng bÃ¡o -->
+                    <!-- Lịch sử thông báo -->
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
-                                <CardTitle class="text-base">Lá»ch sá»­ thÃ´ng bÃ¡o</CardTitle>
-                                <CardDescription>6 thÃ´ng bÃ¡o gáº§n nháº¥t</CardDescription>
+                                <CardTitle class="text-base">Lịch sử thông báo</CardTitle>
+                                <CardDescription>6 thông báo gần nhất</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div v-if="announcements.length" class="space-y-3">
@@ -550,14 +550,14 @@ function submitRule() {
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex items-center gap-2 flex-wrap">
-                                                    <span v-if="a.level === 'critical'" class="text-base">ð¨</span>
-                                                    <span v-else-if="a.level === 'warning'" class="text-base">â ï¸</span>
-                                                    <span v-else class="text-base">â¹ï¸</span>
+                                                    <span v-if="a.level === 'critical'" class="text-base">🚨</span>
+                                                    <span v-else-if="a.level === 'warning'" class="text-base">⚠️</span>
+                                                    <span v-else class="text-base">ℹ️</span>
                                                     <p class="font-medium text-sm">{{ a.title }}</p>
                                                 </div>
                                                 <p class="mt-1 text-xs text-muted-foreground">
-                                                    Äá»i tÆ°á»£ng: <strong>{{ a.audience }}</strong>
-                                                    Â· {{ a.published_at ?? 'ChÆ°a phÃ¡t' }}
+                                                    Đối tượng: <strong>{{ a.audience }}</strong>
+                                                    · {{ a.published_at ?? 'Chưa phát' }}
                                                 </p>
                                             </div>
                                             <Badge :class="statusBadge[String(a.status)] || 'bg-slate-100 text-slate-600'">
@@ -568,8 +568,8 @@ function submitRule() {
                                 </div>
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <MonitorSpeaker class="size-10 text-slate-300" />
-                                    <p class="text-sm font-medium">ChÆ°a cÃ³ thÃ´ng bÃ¡o nÃ o</p>
-                                    <p class="text-xs">Táº¡o thÃ´ng bÃ¡o Äá» broadcast Äáº¿n táº¥t cáº£ mÃ n hÃ¬nh</p>
+                                    <p class="text-sm font-medium">Chưa có thông báo nào</p>
+                                    <p class="text-xs">Tạo thông báo để broadcast đến tất cả màn hình</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -582,18 +582,18 @@ function submitRule() {
             <!-- ============================================================ -->
             <TabsContent value="alerts" class="mt-6">
                 <div class="grid gap-6 xl:grid-cols-5">
-                    <!-- Form táº¡o rule -->
+                    <!-- Form tạo rule -->
                     <Card class="xl:col-span-2">
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <Siren class="size-4 text-amber-500" /> Táº¡o Alert Rule
+                                <Siren class="size-4 text-amber-500" /> Tạo Alert Rule
                             </CardTitle>
-                            <CardDescription>Há» thá»ng tá»± gá»­i cáº£nh bÃ¡o qua Telegram/Discord khi vÆ°á»£t ngÆ°á»¡ng</CardDescription>
+                            <CardDescription>Hệ thống tự gửi cảnh báo qua Telegram/Discord khi vượt ngưỡng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitRule">
                                 <div class="grid gap-1.5">
-                                    <Label>TÃªn rule</Label>
+                                    <Label>Tên rule</Label>
                                     <Input v-model="ruleForm.name" placeholder="API Error Rate > 5%" />
                                 </div>
                                 <div class="grid gap-4 sm:grid-cols-2">
@@ -615,11 +615,11 @@ function submitRule() {
                                         <Select v-model="ruleForm.operator">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value=">">&#62; lá»n hÆ¡n</SelectItem>
-                                                <SelectItem value=">=">&#62;= lá»n hÆ¡n báº±ng</SelectItem>
-                                                <SelectItem value="<">&#60; nhá» hÆ¡n</SelectItem>
-                                                <SelectItem value="<=">&#60;= nhá» hÆ¡n báº±ng</SelectItem>
-                                                <SelectItem value="=">=  báº±ng</SelectItem>
+                                                <SelectItem value=">">&#62; lớn hơn</SelectItem>
+                                                <SelectItem value=">=">&#62;= lớn hơn bằng</SelectItem>
+                                                <SelectItem value="<">&#60; nhỏ hơn</SelectItem>
+                                                <SelectItem value="<=">&#60;= nhỏ hơn bằng</SelectItem>
+                                                <SelectItem value="=">=  bằng</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -630,29 +630,29 @@ function submitRule() {
                                         <Input v-model="ruleForm.threshold" type="number" step="0.01" />
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label>Cooldown (phÃºt)</Label>
+                                        <Label>Cooldown (phút)</Label>
                                         <Input v-model="ruleForm.cooldown_minutes" type="number" min="1" />
                                     </div>
                                 </div>
                                 <Button type="submit" class="w-full" :disabled="ruleForm.processing">
                                     <PlusCircle class="mr-2 size-4" />
-                                    {{ ruleForm.processing ? 'Äang táº¡o...' : 'Táº¡o Alert Rule' }}
+                                    {{ ruleForm.processing ? 'Đang tạo...' : 'Tạo Alert Rule' }}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
 
-                    <!-- Danh sÃ¡ch rules -->
+                    <!-- Danh sách rules -->
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <CardTitle class="text-base">Alert Rules ({{ rules.length }})</CardTitle>
-                                        <CardDescription>Rules kÃ­ch hoáº¡t gá»­i cáº£nh bÃ¡o tá»± Äá»ng</CardDescription>
+                                        <CardDescription>Rules kích hoạt gửi cảnh báo tự động</CardDescription>
                                     </div>
                                     <Button variant="outline" size="sm" @click="runAlertCheck">
-                                        <Siren class="mr-2 size-4" /> QuÃ©t ngay
+                                        <Siren class="mr-2 size-4" /> Quét ngay
                                     </Button>
                                 </div>
                             </CardHeader>
@@ -669,7 +669,7 @@ function submitRule() {
                                                 <p class="text-sm font-medium">{{ rule.name }}</p>
                                                 <p class="text-xs text-muted-foreground font-mono">
                                                     {{ rule.metric_key }} {{ rule.operator }} {{ rule.threshold }}
-                                                    Â· cooldown {{ rule.cooldown_minutes }}m
+                                                    · cooldown {{ rule.cooldown_minutes }}m
                                                 </p>
                                             </div>
                                         </div>
@@ -683,8 +683,8 @@ function submitRule() {
                                 </div>
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <Siren class="size-10 text-slate-300" />
-                                    <p class="text-sm font-medium">ChÆ°a cÃ³ rule nÃ o</p>
-                                    <p class="text-xs">Táº¡o rule Äá» há» thá»ng tá»± cáº£nh bÃ¡o khi vÆ°á»£t ngÆ°á»¡ng</p>
+                                    <p class="text-sm font-medium">Chưa có rule nào</p>
+                                    <p class="text-xs">Tạo rule để hệ thống tự cảnh báo khi vượt ngưỡng</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -697,59 +697,59 @@ function submitRule() {
             <!-- ============================================================ -->
             <TabsContent value="kb" class="mt-6">
                 <div class="grid gap-6 xl:grid-cols-5">
-                    <!-- Form táº¡o bÃ i viáº¿t -->
+                    <!-- Form tạo bài viết -->
                     <Card class="xl:col-span-2">
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <BookOpenText class="size-4 text-emerald-500" /> ThÃªm BÃ i Viáº¿t
+                                <BookOpenText class="size-4 text-emerald-500" /> Thêm Bài Viết
                             </CardTitle>
-                            <CardDescription>TÃ i liá»u hÆ°á»ng dáº«n tá»± phá»¥c vá»¥ cho nhÃ  hÃ ng</CardDescription>
+                            <CardDescription>Tài liệu hướng dẫn tự phục vụ cho nhà hàng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitArticle">
                                 <div class="grid gap-1.5">
-                                    <Label>Danh má»¥c</Label>
+                                    <Label>Danh mục</Label>
                                     <Input v-model="articleForm.category" placeholder="onboarding / billing / kitchen / realtime" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Äá»</Label>
-                                    <Input v-model="articleForm.title" placeholder="HÆ°á»ng dáº«n cáº¥u hÃ¬nh mÃ n hÃ¬nh báº¿p" />
+                                    <Label>Tiêu đề</Label>
+                                    <Input v-model="articleForm.title" placeholder="Hướng dẫn cấu hình màn hình bếp" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>TÃ³m táº¯t</Label>
-                                    <Input v-model="articleForm.summary" placeholder="MÃ´ táº£ ngáº¯n (hiá»n thá» trong danh sÃ¡ch)" />
+                                    <Label>Tóm tắt</Label>
+                                    <Input v-model="articleForm.summary" placeholder="Mô tả ngắn (hiển thị trong danh sách)" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Ná»i dung</Label>
+                                    <Label>Nội dung</Label>
                                     <textarea
                                         v-model="articleForm.content"
                                         rows="5"
-                                        placeholder="Ná»i dung hÆ°á»ng dáº«n chi tiáº¿t..."
+                                        placeholder="Nội dung hướng dẫn chi tiết..."
                                         class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Video hÆ°á»ng dáº«n (URL)</Label>
+                                    <Label>Video hướng dẫn (URL)</Label>
                                     <Input v-model="articleForm.video_url" placeholder="https://youtube.com/..." />
                                 </div>
                                 <div class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                                     <input id="is_published" v-model="articleForm.is_published" type="checkbox" class="size-4 rounded border-emerald-300 accent-emerald-600" />
-                                    <label for="is_published" class="text-sm font-medium text-emerald-800">Xuáº¥t báº£n ngay cho nhÃ  hÃ ng xem</label>
+                                    <label for="is_published" class="text-sm font-medium text-emerald-800">Xuất bản ngay cho nhà hàng xem</label>
                                 </div>
                                 <Button type="submit" class="w-full" :disabled="articleForm.processing">
                                     <BookOpenText class="mr-2 size-4" />
-                                    {{ articleForm.processing ? 'Äang lÆ°u...' : 'ThÃªm bÃ i viáº¿t' }}
+                                    {{ articleForm.processing ? 'Đang lưu...' : 'Thêm bài viết' }}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
 
-                    <!-- Danh sÃ¡ch bÃ i viáº¿t -->
+                    <!-- Danh sách bài viết -->
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
-                                <CardTitle class="text-base">Kho tÃ i liá»u ({{ articles.length }})</CardTitle>
-                                <CardDescription>Self-service knowledge base Â· NhÃ  hÃ ng tá»± tra cá»©u vÃ  giáº£i quyáº¿t sá»± cá»</CardDescription>
+                                <CardTitle class="text-base">Kho tài liệu ({{ articles.length }})</CardTitle>
+                                <CardDescription>Self-service knowledge base · Nhà hàng tự tra cứu và giải quyết sự cố</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div v-if="articles.length" class="space-y-3">
@@ -765,8 +765,8 @@ function submitRule() {
                                             <div class="min-w-0">
                                                 <p class="truncate text-sm font-medium">{{ article.title }}</p>
                                                 <p class="text-xs text-muted-foreground">
-                                                    {{ article.category }} Â· {{ article.view_count }} lÆ°á»£t xem
-                                                    <span v-if="article.video_url"> Â· ð¬ video</span>
+                                                    {{ article.category }} · {{ article.view_count }} lượt xem
+                                                    <span v-if="article.video_url"> · 🎬 video</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -787,8 +787,8 @@ function submitRule() {
                                 </div>
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <BookOpenText class="size-10 text-slate-300" />
-                                    <p class="text-sm font-medium">ChÆ°a cÃ³ bÃ i viáº¿t nÃ o</p>
-                                    <p class="text-xs">ThÃªm tÃ i liá»u hÆ°á»ng dáº«n Äá» nhà hàng tự tra cứu</p>
+                                    <p class="text-sm font-medium">Chưa có bài viết nào</p>
+                                    <p class="text-xs">Thêm tài liệu hướng dẫn để nhà hàng tự tra cứu</p>
                                 </div>
                             </CardContent>
                         </Card>

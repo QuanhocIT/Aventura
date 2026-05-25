@@ -2,304 +2,566 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
-    BarChart3, Bot, Building2, Check, ChevronLeft, ChevronRight,
-    Clock3, LineChart, Monitor, Package, QrCode, Rocket,
-    ShieldCheck, Star, Users, X,
+    BarChart3,
+    Bot,
+    Building2,
+    Check,
+    ChevronRight,
+    Clock3,
+    LineChart,
+    Monitor,
+    Package,
+    Play,
+    Pause,
+    QrCode,
+    Rocket,
+    ShieldCheck,
+    Star,
+    Users,
+    X,
 } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import ChatbotWidget from '@/components/ChatbotWidget.vue';
-import NewsCard from '@/components/NewsCard.vue';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
 
-interface BannerItem {
-    id: number; title?: string | null; subtitle?: string | null;
-    image_url: string; link_url?: string | null;
-}
-interface NewsItem {
-    id: number; title: string; slug: string; excerpt: string | null;
-    category: string; featured_image_url: string | null;
-    is_featured: boolean; published_at: string;
-}
-interface PlanItem {
-    id: number; code: string; name: string; price: number;
-    billing_cycle: string; max_branches: number; max_tables: number;
-    max_users: number; features: Record<string, unknown>;
-}
-
-const props = defineProps<{
+defineProps<{
     canRegister: boolean;
-    banners?: Record<string, BannerItem[]>;
-    latestNews?: NewsItem[];
-    plans?: PlanItem[];
 }>();
 
-const heroBanners = computed(() => props.banners?.hero ?? []);
-const promoBanners = computed(() => props.banners?.promo ?? []);
-const freePlan = computed(() => props.plans?.find(p => p.price === 0) ?? null);
-const proPlan = computed(() => props.plans?.find(p => p.price > 0) ?? null);
-const formatPrice = (price: number) =>
-    price === 0 ? '0đ' : price.toLocaleString('vi-VN') + 'đ';
+const plans = [
+    {
+        code: 'free',
+        name: 'Free',
+        price: '0đ',
+        cycle: '/tháng',
+        maxBranches: '1 chi nhánh',
+        maxTables: '10 bàn',
+        maxUsers: '5 nhân viên',
+        note: 'Gói cơ bản trải nghiệm miễn phí.',
+        features: [
+            '1 chi nhánh',
+            '10 bàn hoạt động',
+            '5 nhân viên',
+            '500 MB dung lượng lưu trữ',
+            'Rate limit: 60 yêu cầu/phút',
+        ],
+        unsupportedFeatures: [
+            'AI dự báo nguyên liệu & tồn kho',
+            'Thuật toán AI phát hiện gian lận',
+            'Realtime sync & Advanced Analytics',
+        ],
+        isRecommended: false,
+    },
+    {
+        code: 'pro',
+        name: 'Pro',
+        price: '499.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Không giới hạn chi nhánh',
+        maxTables: 'Không giới hạn bàn',
+        maxUsers: 'Không giới hạn nhân viên',
+        note: 'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
+        features: [
+            'Không giới hạn chi nhánh',
+            'Không giới hạn bàn',
+            'Không giới hạn nhân viên',
+            '10 GB dung lượng lưu trữ',
+            'Rate limit: 600 yêu cầu/phút',
+            'AI dự báo nguyên liệu & tồn kho',
+            'Thuật toán AI phát hiện gian lận',
+            'Realtime sync & Advanced Analytics',
+            'Hệ thống Audit Log bảo mật',
+        ],
+        isRecommended: true,
+    },
+    {
+        code: 'max',
+        name: 'Max',
+        price: '999.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Tối đa 10 chi nhánh',
+        maxTables: 'Tối đa 300 bàn',
+        maxUsers: 'Tối đa 80 nhân viên',
+        note: 'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
+        features: [
+            'Tối đa 10 chi nhánh',
+            'Tối đa 300 bàn',
+            'Tối đa 80 nhân viên',
+            '50 GB dung lượng lưu trữ',
+            'Rate limit: 1.200 yêu cầu/phút',
+            'AI dự báo nguyên liệu & tồn kho',
+            'Thuật toán AI phát hiện gian lận',
+            'Realtime sync & Advanced Analytics',
+            'Hệ thống Audit Log bảo mật',
+        ],
+        isRecommended: false,
+    },
+    {
+        code: 'ultra',
+        name: 'Ultra',
+        price: '1.999.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Không giới hạn chi nhánh',
+        maxTables: 'Không giới hạn bàn',
+        maxUsers: 'Không giới hạn nhân viên',
+        note: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+        features: [
+            'Không giới hạn chi nhánh',
+            'Không giới hạn bàn',
+            'Không giới hạn nhân viên',
+            '200 GB dung lượng lưu trữ',
+            'Rate limit: 3.000 yêu cầu/phút',
+            'AI dự báo nguyên liệu & tồn kho',
+            'Thuật toán AI phát hiện gian lận',
+            'Realtime sync & Advanced Analytics',
+            'Hệ thống Audit Log bảo mật',
+        ],
+        isRecommended: false,
+    },
+];
 
-// ── Hero carousel ──────────────────────────────────────────────────────────────
-const heroIndex = ref(0);
-const progress = ref(0);
-const SLIDE_DURATION = 6000;
-let heroTimer: ReturnType<typeof setInterval> | null = null;
-let progressTimer: ReturnType<typeof setInterval> | null = null;
+const featureMap = [
+    {
+        step: 1,
+        icon: QrCode,
+        title: 'QR order',
+        description:
+            'Khách quét QR tại bàn -> tạo order nhanh, giảm sai sót, giảm tải nhân viên.',
+        category: 'sales',
+        color: 'indigo',
+        status: 'Realtime',
+        dbTables: ['orders', 'order_items', 'tables'],
+        techNote:
+            'Sử dụng WebSockets qua Pusher/Laravel Echo giúp đồng bộ order tức thì từ điện thoại khách tới bếp.',
+        flow: {
+            trigger: 'Khách quét QR, gọi món trên di động',
+            process: 'Laravel Broadcast -> WebSockets Event',
+            storage: 'Lưu schema orders & order_items',
+        },
+        sla: 'Đồng bộ < 150ms',
+    },
+    {
+        step: 2,
+        icon: Monitor,
+        title: 'Kitchen display',
+        description:
+            'Đơn lên bếp theo realtime, trạng thái rõ ràng, ít nhầm lẫn.',
+        category: 'sales',
+        color: 'emerald',
+        status: 'Realtime',
+        dbTables: ['kds_tickets', 'order_items'],
+        techNote:
+            'KDS lắng nghe sự kiện đẩy đơn từ POS/QR order để cập nhật trạng thái nấu ăn tức thời.',
+        flow: {
+            trigger: 'Hệ thống nhận order mới của khách',
+            process: 'Pusher Broadcast -> Màn hình bếp KDS',
+            storage: 'Đồng bộ trạng thái kds_tickets',
+        },
+        sla: 'Trực quan realtime',
+    },
+    {
+        step: 3,
+        icon: Package,
+        title: 'Inventory',
+        description:
+            'Trừ kho theo định lượng, theo dõi nhập xuất, cảnh báo thiếu nguyên liệu.',
+        category: 'mgmt',
+        color: 'amber',
+        status: 'Auto',
+        dbTables: ['ingredients', 'recipes', 'inventory_transactions'],
+        techNote:
+            'Tự động trừ nguyên vật liệu trong kho dựa trên công thức món ăn (recipe) ngay khi thanh toán hóa đơn.',
+        flow: {
+            trigger: 'POS hoàn tất thanh toán hóa đơn',
+            process: 'Recipe Engine tính toán định lượng món',
+            storage: 'Trừ stock, ghi vết inventory_transactions',
+        },
+        sla: 'Chính xác 100%',
+    },
+    {
+        step: 4,
+        icon: Users,
+        title: 'Staff',
+        description:
+            'Quản lý nhân sự, ca làm, vai trò, chấm công và hỗ trợ tính lương.',
+        category: 'mgmt',
+        color: 'sky',
+        status: 'Secure',
+        dbTables: ['users', 'roles', 'shifts', 'time_sheets'],
+        techNote:
+            'Phân quyền chi tiết (Spatie ACL) kết hợp chấm công theo ca thực tế để lập bảng tính lương tự động.',
+        flow: {
+            trigger: 'Nhân viên check-in ca làm việc',
+            process: 'Kiểm tra Spatie Policy & IP chi nhánh',
+            storage: 'Ghi nhận bảng chấm công time_sheets',
+        },
+        sla: 'Bảo mật chặt chẽ',
+    },
+    {
+        step: 5,
+        icon: ShieldCheck,
+        title: 'Audit log',
+        description:
+            'Ghi vết thao tác nhạy cảm để tra soát, giảm phụ thuộc vào tính trung thực.',
+        category: 'system',
+        color: 'teal',
+        status: 'Secure',
+        dbTables: ['audit_logs'],
+        techNote:
+            'Middleware tự động chụp lại trạng thái dữ liệu trước/sau khi thay đổi và định danh IP người thực hiện.',
+        flow: {
+            trigger: 'Thay đổi giá món, xóa đơn hoặc hủy hóa đơn',
+            process: 'Audit Trail Middleware ghi nhận payload',
+            storage: 'Lưu vết immutable vào bảng audit_logs',
+        },
+        sla: 'Không thể tẩy xóa',
+    },
+    {
+        step: 6,
+        icon: BarChart3,
+        title: 'Analytics',
+        description:
+            'Theo dõi doanh thu, hiệu suất, xu hướng món bán chạy, báo cáo vận hành.',
+        category: 'sales',
+        color: 'rose',
+        status: 'Sync',
+        dbTables: ['orders', 'payments'],
+        techNote:
+            'Các chỉ số tổng hợp được cache bằng Redis, tối ưu hóa database index để tải báo cáo chuỗi siêu tốc.',
+        flow: {
+            trigger: 'Quản lý mở xem báo cáo doanh thu',
+            process: 'Redis Cache Checker -> DB Query Aggregates',
+            storage: 'Kết xuất JSON báo cáo hiệu suất',
+        },
+        sla: 'Truy vấn < 10ms',
+    },
+    {
+        step: 7,
+        icon: Building2,
+        title: 'Multi-branch',
+        description:
+            'Một tài khoản quản lý nhiều chi nhánh, dữ liệu tách biệt theo tenant.',
+        category: 'mgmt',
+        color: 'blue',
+        status: 'Tenant Scope',
+        dbTables: ['branches', 'tenant_scopes'],
+        techNote:
+            'Áp dụng Laravel Global Query Scope tự động lọc mọi câu lệnh SQL theo branch_id của tenant.',
+        flow: {
+            trigger: 'User thực hiện bất kỳ thao tác đọc/ghi',
+            process: 'Global Query Scope tự động chèn branch_id',
+            storage: 'Cô lập dữ liệu tuyệt đối giữa các Tenant',
+        },
+        sla: 'Bảo mật dữ liệu',
+    },
+    {
+        step: 8,
+        icon: Bot,
+        title: 'AI insights',
+        description:
+            'Tổng hợp tín hiệu dữ liệu để gợi ý cảnh báo, dự báo và phát hiện bất thường.',
+        category: 'system',
+        color: 'violet',
+        status: 'AI Model',
+        dbTables: ['ai_predictions', 'stock_trends'],
+        techNote:
+            'Hồi quy tuyến tính học máy chạy nền để phân tích xu hướng và đưa ra cảnh báo sớm về hao hụt kho.',
+        flow: {
+            trigger: 'Chạy Cronjob định kỳ hàng đêm',
+            process: 'Ingest lịch sử orders & stock -> AI Prediction',
+            storage: 'Lưu dự báo xu hướng vào ai_predictions',
+        },
+        sla: 'Chính xác > 92%',
+    },
+];
 
-function startProgress() {
-    if (progressTimer) clearInterval(progressTimer);
-    progress.value = 0;
-    if (heroBanners.value.length < 2) return;
-    const step = 100 / (SLIDE_DURATION / 50);
-    progressTimer = setInterval(() => {
-        progress.value = Math.min(progress.value + step, 100);
-    }, 50);
-}
+const categories = [
+    { key: 'all', label: 'Tất cả' },
+    { key: 'sales', label: 'Bán hàng & POS' },
+    { key: 'mgmt', label: 'Quản lý & Hậu cần' },
+    { key: 'system', label: 'Hệ thống & AI' },
+] as const;
 
-function heroPrev() {
-    heroIndex.value = (heroIndex.value - 1 + heroBanners.value.length) % heroBanners.value.length;
-    resetHeroTimer();
-}
-function heroNext() {
-    heroIndex.value = (heroIndex.value + 1) % heroBanners.value.length;
-    resetHeroTimer();
-}
-function goToSlide(i: number) {
-    if (i === heroIndex.value) return;
-    heroIndex.value = i;
-    resetHeroTimer();
-}
-function resetHeroTimer() {
-    if (heroTimer) clearInterval(heroTimer);
-    startProgress();
-    if (heroBanners.value.length > 1) {
-        heroTimer = setInterval(() => {
-            heroIndex.value = (heroIndex.value + 1) % heroBanners.value.length;
-            startProgress();
-        }, SLIDE_DURATION);
+const activeCategory = ref<string>('all');
+const activeFeatureTitle = ref<string>('QR order');
+
+const filteredFeatureMap = computed(() => {
+    if (activeCategory.value === 'all') return featureMap;
+    return featureMap.filter((item) => item.category === activeCategory.value);
+});
+
+const activeFeature = computed(() => {
+    return (
+        featureMap.find((f) => f.title === activeFeatureTitle.value) ||
+        featureMap[0]
+    );
+});
+
+const colorGlowBorder = computed(() => {
+    switch (activeFeature.value.color) {
+        case 'indigo':
+            return 'rgba(99, 102, 241, 0.4)';
+        case 'emerald':
+            return 'rgba(16, 185, 129, 0.4)';
+        case 'amber':
+            return 'rgba(245, 158, 11, 0.4)';
+        case 'sky':
+            return 'rgba(14, 165, 233, 0.4)';
+        case 'rose':
+            return 'rgba(244, 63, 94, 0.4)';
+        case 'blue':
+            return 'rgba(59, 130, 246, 0.4)';
+        case 'teal':
+            return 'rgba(20, 184, 166, 0.4)';
+        case 'violet':
+            return 'rgba(139, 92, 246, 0.4)';
+        case 'cyan':
+            return 'rgba(6, 182, 212, 0.4)';
+        default:
+            return 'rgba(255, 255, 255, 0.1)';
     }
-}
+});
 
-// ── Scroll reveal ──────────────────────────────────────────────────────────────
-let revealObserver: IntersectionObserver | null = null;
+const goToNextStep = () => {
+    const currentIndex = featureMap.findIndex(
+        (f) => f.title === activeFeatureTitle.value,
+    );
+    const nextIndex = (currentIndex + 1) % featureMap.length;
+    activeFeatureTitle.value = featureMap[nextIndex].title;
+
+    if (
+        activeCategory.value !== 'all' &&
+        activeCategory.value !== featureMap[nextIndex].category
+    ) {
+        activeCategory.value = 'all';
+    }
+};
+
+const isAutoPlaying = ref(false);
+let autoPlayTimer: any = null;
+
+const startAutoPlay = () => {
+    isAutoPlaying.value = true;
+    autoPlayTimer = setInterval(() => {
+        goToNextStep();
+    }, 3000);
+};
+
+const stopAutoPlay = () => {
+    isAutoPlaying.value = false;
+    if (autoPlayTimer) {
+        clearInterval(autoPlayTimer);
+        autoPlayTimer = null;
+    }
+};
+
+const toggleAutoPlay = () => {
+    if (isAutoPlaying.value) {
+        stopAutoPlay();
+    } else {
+        startAutoPlay();
+    }
+};
 
 onMounted(() => {
-    resetHeroTimer();
-    revealObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('is-visible');
-                revealObserver?.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.12 });
-    document.querySelectorAll('.reveal').forEach(el => revealObserver!.observe(el));
+    startAutoPlay();
 });
 
 onUnmounted(() => {
-    if (heroTimer) clearInterval(heroTimer);
-    if (progressTimer) clearInterval(progressTimer);
-    revealObserver?.disconnect();
+    stopAutoPlay();
 });
 
-// ── Demo tabs ──────────────────────────────────────────────────────────────────
+const faq = [
+    {
+        q: 'Free có đủ để chạy quán nhỏ không?',
+        a: 'Có. Free phù hợp để thử vận hành thực tế với 1 chi nhánh, 10 bàn, 5 nhân viên. Đây là đúng hạn mức DB hiện có.',
+    },
+    {
+        q: 'Pro khác gì về mặt vận hành?',
+        a: 'Pro mở multi-branch, analytics, queue, audit, staff, inventory và AI insights. Đây là gói dành cho mô hình cần kiểm soát chặt.',
+    },
+    {
+        q: 'Landing này có demo thật không?',
+        a: 'Có khối demo POS mô phỏng luồng order -> bếp -> thanh toán, kèm chatbot FAQ để người dùng tự kiểm tra nhanh.',
+    },
+    {
+        q: 'Dữ liệu gói bám schema nào?',
+        a: 'Bám `subscription_plans` trong `aventura.sql`, gồm `price`, `max_branches`, `max_tables`, `max_users`, `features`.',
+    },
+];
+
 const demoTabs = [
     { key: 'pos', label: 'POS' },
     { key: 'kds', label: 'Bếp' },
     { key: 'report', label: 'Báo cáo' },
 ] as const;
+
 const activeDemo = ref<(typeof demoTabs)[number]['key']>('pos');
+
 const demoState = computed(() => {
-    if (activeDemo.value === 'kds') return {
-        title: 'Kitchen board',
-        left: ['2 order chờ', '1 order đang làm', '0 trễ SLA'],
-        right: [{ label: 'Bún bò', status: 'Đang làm' }, { label: 'Cơm gà', status: 'Sẵn sàng' }, { label: 'Trà đào', status: 'Chờ in bill' }],
-    };
-    if (activeDemo.value === 'report') return {
-        title: 'Daily snapshot',
-        left: ['Doanh thu: 12,8M', 'Tỷ lệ hoàn thành: 98%', 'Món bán chạy: Phở bò'],
-        right: [{ label: 'Giờ cao điểm', status: '11:30–13:30' }, { label: 'Cảnh báo kho', status: '2 nguyên liệu' }, { label: 'Audit', status: '1 thay đổi giá' }],
-    };
+    if (activeDemo.value === 'kds') {
+        return {
+            title: 'Kitchen board',
+            left: ['2 order chờ', '1 order đang làm', '0 trễ SLA'],
+            right: [
+                { label: 'Bún bò', status: 'Đang làm' },
+                { label: 'Cơm gà', status: 'Sẵn sàng' },
+                { label: 'Trà đào', status: 'Chờ in bill' },
+            ],
+        };
+    }
+
+    if (activeDemo.value === 'report') {
+        return {
+            title: 'Daily snapshot',
+            left: [
+                'Doanh thu: 12,8M',
+                'Tỷ lệ hoàn thành: 98%',
+                'Món bán chạy: Phở bò',
+            ],
+            right: [
+                { label: 'Giờ cao điểm', status: '11:30 - 13:30' },
+                { label: 'Cảnh báo kho', status: '2 nguyên liệu thấp' },
+                { label: 'Audit', status: '1 thay đổi giá' },
+            ],
+        };
+    }
+
     return {
         title: 'POS checkout',
         left: ['Bàn 12', '3 món', 'Tổng: 168.000đ'],
-        right: [{ label: 'Phở bò tái', status: 'x2' }, { label: 'Trà chanh', status: 'x1' }, { label: 'Thanh toán', status: 'Hoàn tất' }],
+        right: [
+            { label: 'Phở bò tái', status: 'x2' },
+            { label: 'Trà chanh', status: 'x1' },
+            { label: 'Thanh toán', status: 'Hoàn tất' },
+        ],
     };
 });
-
-// ── Data ───────────────────────────────────────────────────────────────────────
-const featureMap = [
-    { icon: QrCode, title: 'QR Order', description: 'Khách quét QR tại bàn — tạo order nhanh, giảm sai sót, giảm tải nhân viên.' },
-    { icon: Monitor, title: 'Kitchen Display', description: 'Đơn lên bếp theo realtime, trạng thái rõ ràng, hạn chế nhầm lẫn giờ cao điểm.' },
-    { icon: Package, title: 'Inventory', description: 'Trừ kho theo định lượng, theo dõi nhập xuất, cảnh báo thiếu nguyên liệu.' },
-    { icon: Users, title: 'Nhân sự', description: 'Quản lý nhân sự, ca làm, vai trò, chấm công và hỗ trợ tính lương.' },
-    { icon: BarChart3, title: 'Analytics', description: 'Theo dõi doanh thu, hiệu suất, xu hướng món bán chạy, báo cáo vận hành.' },
-    { icon: Building2, title: 'Multi-branch', description: 'Một tài khoản quản lý nhiều chi nhánh, dữ liệu tách biệt theo tenant.' },
-    { icon: ShieldCheck, title: 'Audit Log', description: 'Ghi vết thao tác nhạy cảm để tra soát, giảm phụ thuộc vào tính trung thực.' },
-    { icon: Bot, title: 'AI Insights', description: 'Tổng hợp tín hiệu dữ liệu để gợi ý cảnh báo, dự báo và phát hiện bất thường.' },
-    { icon: Clock3, title: 'Queue', description: 'Tác vụ nặng chạy nền, giữ UI bán hàng phản hồi nhanh trong mọi điều kiện.' },
-];
-
-const faq = [
-    { q: 'Gói Free có phù hợp cho quán nhỏ không?', a: 'Có. Free phù hợp để thử vận hành thực tế với 1 chi nhánh, 10 bàn, 5 nhân viên — đủ để cảm nhận hệ thống trước khi nâng cấp.' },
-    { q: 'Gói Pro mở thêm những gì?', a: 'Pro mở khóa multi-branch, analytics, queue, audit log, staff, inventory và AI insights — dành cho mô hình cần kiểm soát chặt chẽ hơn.' },
-    { q: 'Có thể dùng thử trước khi đăng ký trả phí không?', a: 'Có. Đăng ký Free ngay, trải nghiệm toàn bộ luồng vận hành thực tế. Nâng cấp Pro bất cứ lúc nào mà không mất dữ liệu.' },
-    { q: 'Hệ thống có hỗ trợ nhiều chi nhánh không?', a: 'Gói Pro hỗ trợ không giới hạn chi nhánh. Dữ liệu mỗi chi nhánh tách biệt, báo cáo tổng hợp theo chuỗi.' },
-];
 </script>
 
 <template>
     <AppTopbarLayout>
-        <Head title="Aventura | Nền tảng quản lý nhà hàng" />
+        <Head title="Aventura | SaaS quản lý nhà hàng" />
 
-        <!-- ══ HERO BANNER CAROUSEL (khi có ảnh) ════════════════════════════════ -->
-        <section v-if="heroBanners.length > 0" class="hero-carousel">
-            <!-- Progress bar -->
-            <div v-if="heroBanners.length > 1" class="progress-track">
-                <div class="progress-fill" :style="{ width: progress + '%' }" />
-            </div>
-
-            <!-- Slides -->
+        <section class="px-4 pt-16 lg:px-8 lg:pt-20">
             <div
-                v-for="(banner, i) in heroBanners"
-                :key="banner.id"
-                class="carousel-slide"
-                :class="i === heroIndex ? 'slide-active' : 'slide-inactive'"
+                class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center"
             >
-                <component
-                    :is="banner.link_url ? 'a' : 'div'"
-                    :href="banner.link_url ?? undefined"
-                    :target="banner.link_url ? '_blank' : undefined"
-                    :rel="banner.link_url ? 'noopener noreferrer' : undefined"
-                    class="block h-full w-full"
-                >
-                    <img
-                        :src="banner.image_url"
-                        :alt="banner.title ?? 'Banner'"
-                        class="h-full w-full object-cover"
-                    />
-                </component>
-
-                <!-- Text overlay (chỉ khi có title) -->
-                <div
-                    v-if="banner.title"
-                    class="slide-overlay"
-                    :class="i === heroIndex ? 'overlay-visible' : ''"
-                >
-                    <div class="slide-overlay-bg" />
-                    <div class="slide-text">
-                        <p class="slide-eyebrow">Aventura</p>
-                        <h2 class="slide-title">{{ banner.title }}</h2>
-                        <p v-if="banner.subtitle" class="slide-subtitle">{{ banner.subtitle }}</p>
-                        <a v-if="banner.link_url" :href="banner.link_url" class="slide-cta">
-                            Khám phá ngay →
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Bottom fade -->
-            <div class="carousel-bottom-fade pointer-events-none" />
-
-            <!-- Nav arrows -->
-            <template v-if="heroBanners.length > 1">
-                <button @click.prevent="heroPrev" class="carousel-btn carousel-btn-l" aria-label="Previous">
-                    <ChevronLeft class="h-5 w-5" />
-                </button>
-                <button @click.prevent="heroNext" class="carousel-btn carousel-btn-r" aria-label="Next">
-                    <ChevronRight class="h-5 w-5" />
-                </button>
-
-                <!-- Dot indicators -->
-                <div class="carousel-dots">
-                    <button
-                        v-for="(_, i) in heroBanners" :key="i"
-                        @click="goToSlide(i)"
-                        class="dot-btn"
-                        :class="i === heroIndex ? 'dot-active' : 'dot-inactive'"
-                        :aria-label="`Slide ${i + 1}`"
-                    />
-                </div>
-            </template>
-        </section>
-
-        <!-- ══ HERO DEFAULT (khi không có ảnh) ═══════════════════════════════════ -->
-        <section v-else class="hero-default relative overflow-hidden px-4 pt-20 pb-24 lg:px-8 lg:pt-28 lg:pb-32">
-            <!-- Animated background orbs -->
-            <div class="orb orb-1" />
-            <div class="orb orb-2" />
-            <div class="orb orb-3" />
-            <div class="hero-grid-overlay" />
-
-            <div class="relative z-10 mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-                <!-- Left: Text -->
                 <div>
-                    <div class="hero-badge animate-fade-in-up" style="animation-delay:0.05s">
-                        <span class="badge-dot" />
-                        Nền tảng SaaS quản lý nhà hàng
-                    </div>
-                    <h1 class="hero-h1 animate-fade-in-up" style="animation-delay:0.15s">
-                        Quản lý quán ăn<br>
-                        <span class="hero-gradient-text">theo nhịp vận hành</span><br>
-                        thật sự.
+                    <Badge variant="outline" class="mb-5 w-fit"
+                        >SaaS quản lý nhà hàng</Badge
+                    >
+                    <h1
+                        class="max-w-2xl text-4xl font-semibold tracking-tight lg:text-6xl"
+                    >
+                        Quản lý quán ăn theo nhịp vận hành thật.
                     </h1>
-                    <p class="hero-desc animate-fade-in-up" style="animation-delay:0.28s">
-                        Aventura gom order, bếp, kho, nhân sự, audit và AI vào một nền tảng.
-                        Giảm lệ thuộc thủ công, tăng kiểm soát và cho chủ quán nhìn thấy dữ liệu rõ hơn.
+                    <p
+                        class="mt-5 max-w-2xl text-base leading-7 text-muted-foreground lg:text-lg"
+                    >
+                        Aventura gom order, bếp, kho, nhân sự, audit và AI vào
+                        một nền tảng. Mục tiêu là giảm lệ thuộc thủ công, tăng
+                        khả năng kiểm soát và cho chủ quán nhìn thấy dữ liệu rõ
+                        hơn.
                     </p>
-                    <div class="mt-9 flex flex-wrap gap-3 animate-fade-in-up" style="animation-delay:0.4s">
-                        <Button v-if="canRegister" as-child size="lg" class="cta-primary">
-                            <Link :href="register()">Tạo tài khoản miễn phí</Link>
-                        </Button>
-                        <Button as-child variant="outline" size="lg" class="cta-outline">
-                            <a href="#pricing">Xem gói dịch vụ</a>
-                        </Button>
-                    </div>
-                    <div class="mt-8 flex flex-wrap gap-5 animate-fade-in-up" style="animation-delay:0.52s">
-                        <span class="hero-check"><Check class="size-4 text-primary" /> Free: 1 chi nhánh, 10 bàn</span>
-                        <span class="hero-check"><Check class="size-4 text-primary" /> Pro: {{ formatPrice(proPlan?.price ?? 499000) }}/tháng</span>
-                        <span class="hero-check"><Check class="size-4 text-primary" /> AI + Audit + Queue</span>
-                    </div>
-                </div>
-
-                <!-- Right: Demo card -->
-                <div class="animate-fade-in-right" style="animation-delay:0.3s">
-                    <div class="demo-card">
-                        <div class="demo-card-header">
-                            <div>
-                                <p class="text-xs text-muted-foreground">Live demo</p>
-                                <p class="text-base font-semibold">{{ demoState.title }}</p>
-                            </div>
-                            <Badge variant="secondary" class="text-xs">Interactive</Badge>
-                        </div>
-                        <div class="mt-4 flex gap-2">
-                            <button
-                                v-for="tab in demoTabs" :key="tab.key"
-                                @click="activeDemo = tab.key"
-                                class="demo-tab"
-                                :class="activeDemo === tab.key ? 'demo-tab-active' : 'demo-tab-inactive'"
+                    <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                        <Button v-if="canRegister" as-child size="lg">
+                            <Link :href="register()"
+                                >Tạo tài khoản miễn phí</Link
                             >
-                                {{ tab.label }}
-                            </button>
+                        </Button>
+                        <Button as-child variant="outline" size="lg">
+                            <a href="#pricing">Xem gói</a>
+                        </Button>
+                    </div>
+                    <div
+                        class="mt-8 flex flex-wrap gap-3 text-sm text-muted-foreground"
+                    >
+                        <span class="inline-flex items-center gap-2"
+                            ><Check class="size-4 text-primary" /> 4 gói linh
+                            hoạt: Free, Pro, Max, Ultra</span
+                        >
+                        <span class="inline-flex items-center gap-2"
+                            ><Check class="size-4 text-primary" /> Chỉ từ
+                            499.000đ/tháng</span
+                        >
+                        <span class="inline-flex items-center gap-2"
+                            ><Check class="size-4 text-primary" /> Đầy đủ tính
+                            năng Audit, AI, Realtime</span
+                        >
+                    </div>
+                </div>
+
+                <div class="border border-border bg-card p-4 shadow-sm lg:p-5">
+                    <div
+                        class="flex items-center justify-between border-b border-border pb-4"
+                    >
+                        <div>
+                            <p class="text-sm text-muted-foreground">
+                                Live demo
+                            </p>
+                            <p class="text-lg font-semibold">POS flow</p>
                         </div>
-                        <div class="demo-panel">
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <div class="demo-list">
-                                    <p v-for="item in demoState.left" :key="item" class="demo-list-item">
-                                        <ChevronRight class="size-3.5 text-primary shrink-0" />
-                                        {{ item }}
-                                    </p>
-                                </div>
-                                <div class="demo-list">
-                                    <p v-for="item in demoState.right" :key="item.label" class="flex items-center justify-between gap-2 text-sm">
-                                        <span class="text-muted-foreground">{{ item.label }}</span>
-                                        <Badge variant="outline" class="text-xs shrink-0">{{ item.status }}</Badge>
-                                    </p>
-                                </div>
+                        <Badge variant="secondary">Interactive</Badge>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <Button
+                            v-for="tab in demoTabs"
+                            :key="tab.key"
+                            size="sm"
+                            :variant="
+                                activeDemo === tab.key ? 'default' : 'outline'
+                            "
+                            @click="activeDemo = tab.key"
+                        >
+                            {{ tab.label }}
+                        </Button>
+                    </div>
+                    <div
+                        class="mt-4 grid gap-3 rounded-md border border-border p-4"
+                    >
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">{{
+                                demoState.title
+                            }}</span>
+                            <span class="text-xs text-muted-foreground"
+                                >Realtime</span
+                            >
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <div
+                                class="space-y-2 rounded-md bg-muted/40 p-3 text-sm"
+                            >
+                                <p
+                                    v-for="item in demoState.left"
+                                    :key="item"
+                                    class="flex items-center gap-2"
+                                >
+                                    <ChevronRight class="size-4 text-primary" />
+                                    {{ item }}
+                                </p>
+                            </div>
+                            <div
+                                class="space-y-2 rounded-md bg-muted/40 p-3 text-sm"
+                            >
+                                <p
+                                    v-for="item in demoState.right"
+                                    :key="item.label"
+                                    class="flex items-center justify-between gap-3"
+                                >
+                                    <span>{{ item.label }}</span>
+                                    <Badge variant="outline">{{
+                                        item.status
+                                    }}</Badge>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -307,547 +569,824 @@ const faq = [
             </div>
         </section>
 
-        <!-- ══ FEATURES ═══════════════════════════════════════════════════════════ -->
-        <section id="features" class="section-alt px-4 py-20 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="section-header reveal">
-                    <p class="section-eyebrow">Tính năng</p>
-                    <h2 class="section-title">Mọi thứ một nhà hàng cần</h2>
-                    <p class="section-desc">Từ order đến báo cáo — tích hợp sẵn, không cần ghép nhiều phần mềm.</p>
-                </div>
-                <div class="mt-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    <div
-                        v-for="(item, idx) in featureMap" :key="item.title"
-                        class="feature-card reveal"
-                        :style="`transition-delay:${(idx % 3) * 80}ms`"
-                    >
-                        <div class="feature-icon-wrap">
-                            <component :is="item.icon" class="size-5 text-primary" />
-                        </div>
-                        <h3 class="feature-title">{{ item.title }}</h3>
-                        <p class="feature-desc">{{ item.description }}</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+        <section
+            id="features"
+            class="relative mt-16 overflow-hidden border-y border-border bg-muted/30 px-4 py-16 lg:px-8"
+        >
+            <!-- Decorative subtle background grids or glows -->
+            <div
+                class="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] bg-[size:14px_24px]"
+            ></div>
 
-        <!-- ══ PROMO BANNER ════════════════════════════════════════════════════════ -->
-        <section v-if="promoBanners.length > 0" class="px-4 py-8 lg:px-8">
-            <div class="mx-auto max-w-7xl space-y-4">
-                <a
-                    v-for="banner in promoBanners" :key="banner.id"
-                    :href="banner.link_url ?? undefined"
-                    :target="banner.link_url ? '_blank' : undefined"
-                    :rel="banner.link_url ? 'noopener noreferrer' : undefined"
-                    class="promo-banner reveal"
-                    :class="banner.link_url ? 'cursor-pointer' : 'cursor-default'"
+            <div class="relative z-10 mx-auto max-w-7xl">
+                <div
+                    class="flex flex-col justify-between gap-6 md:flex-row md:items-end"
                 >
-                    <img :src="banner.image_url" :alt="banner.title ?? ''" class="h-auto w-full object-cover" />
-                </a>
-            </div>
-        </section>
+                    <div class="max-w-2xl">
+                        <Badge
+                            variant="outline"
+                            class="mb-3 border-primary/30 bg-primary/5 text-primary"
+                        >
+                            Kiến Trúc Minh Bạch
+                        </Badge>
+                        <h2
+                            class="bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl"
+                        >
+                            Map tính năng theo DB + vận hành
+                        </h2>
+                        <p
+                            class="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base"
+                        >
+                            Không marketing mơ hồ. Đây là các lớp chức năng khớp
+                            trực tiếp với schema database và báo cáo kỹ thuật
+                            thực tế đã chốt.
+                        </p>
+                    </div>
 
-        <!-- ══ SOCIAL PROOF STRIP ═════════════════════════════════════════════════ -->
-        <section class="border-y border-border/50 bg-muted/20 px-4 py-10 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="grid gap-6 sm:grid-cols-3 reveal">
-                    <div class="proof-card">
-                        <Star class="size-5 text-primary mb-3" />
-                        <h3 class="font-semibold text-foreground">Quản lý chuỗi</h3>
-                        <p class="mt-1 text-sm text-muted-foreground">Multi-branch + tenant isolation cho mô hình nhiều chi nhánh.</p>
-                    </div>
-                    <div class="proof-card">
-                        <LineChart class="size-5 text-primary mb-3" />
-                        <h3 class="font-semibold text-foreground">Minh bạch vận hành</h3>
-                        <p class="mt-1 text-sm text-muted-foreground">Audit log + analytics giúp nhìn rõ thay đổi và hiệu suất thực.</p>
-                    </div>
-                    <div class="proof-card">
-                        <Rocket class="size-5 text-primary mb-3" />
-                        <h3 class="font-semibold text-foreground">Onboarding nhanh</h3>
-                        <p class="mt-1 text-sm text-muted-foreground">Đăng ký xong vào được luồng demo ngay, không cần hướng dẫn dài.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ══ PRICING ════════════════════════════════════════════════════════════ -->
-        <section id="pricing" class="px-4 py-20 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="section-header reveal">
-                    <p class="section-eyebrow">Bảng giá</p>
-                    <h2 class="section-title">Bảng giá dịch vụ</h2>
-                    <p class="section-desc">Minh bạch, không phí ẩn. Chọn gói phù hợp và nâng cấp bất cứ lúc nào.</p>
-                </div>
-                <div class="mt-12 grid gap-6 lg:grid-cols-2">
-                    <!-- Free -->
-                    <div class="pricing-card reveal" style="transition-delay:0ms">
-                        <div class="flex items-start justify-between">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{{ freePlan?.name ?? 'Miễn phí' }}</p>
-                                <h3 class="mt-1 text-3xl font-bold">{{ formatPrice(freePlan?.price ?? 0) }}</h3>
-                                <p class="text-sm text-muted-foreground">/tháng</p>
-                            </div>
-                            <Badge variant="secondary">Mặc định</Badge>
-                        </div>
-                        <ul class="mt-8 space-y-3">
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> {{ freePlan ? (freePlan.max_branches === 1 ? '1 chi nhánh' : `${freePlan.max_branches} chi nhánh`) : '1 chi nhánh' }}</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> {{ freePlan ? (freePlan.max_tables > 0 ? `${freePlan.max_tables} bàn` : 'Bàn không giới hạn') : '10 bàn' }}</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> {{ freePlan ? (freePlan.max_users > 0 ? `${freePlan.max_users} nhân viên` : 'Nhân viên không giới hạn') : '5 nhân viên' }}</li>
-                            <li class="pricing-feature pricing-feature-off"><X class="size-4 shrink-0" /> AI insights</li>
-                            <li class="pricing-feature pricing-feature-off"><X class="size-4 shrink-0" /> Multi-branch</li>
-                        </ul>
-                        <div class="mt-8">
-                            <Button v-if="canRegister" as-child variant="outline" class="w-full">
-                                <Link :href="register()">Bắt đầu miễn phí</Link>
-                            </Button>
-                        </div>
-                    </div>
-                    <!-- Pro -->
-                    <div class="pricing-card pricing-card-pro reveal" style="transition-delay:100ms">
-                        <div class="pricing-pro-glow" />
-                        <div class="relative flex items-start justify-between">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-widest text-primary">{{ proPlan?.name ?? 'Pro' }}</p>
-                                <h3 class="mt-1 text-3xl font-bold">{{ formatPrice(proPlan?.price ?? 499000) }}</h3>
-                                <p class="text-sm text-muted-foreground">/tháng</p>
-                            </div>
-                            <Badge class="bg-primary text-primary-foreground">Khuyến nghị</Badge>
-                        </div>
-                        <ul class="relative mt-8 space-y-3">
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> Chi nhánh không giới hạn</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> Bàn không giới hạn</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> Nhân viên không giới hạn</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> AI insights + Dự báo</li>
-                            <li class="pricing-feature"><Check class="size-4 text-primary shrink-0" /> Analytics + Audit log</li>
-                        </ul>
-                        <div class="relative mt-8">
-                            <Button v-if="canRegister" as-child class="w-full">
-                                <Link :href="register()">Chọn gói {{ proPlan?.name ?? 'Pro' }}</Link>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ══ NEWS ═══════════════════════════════════════════════════════════════ -->
-        <section v-if="latestNews?.length" class="section-alt px-4 py-16 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="mb-10 flex items-end justify-between reveal">
-                    <div>
-                        <p class="section-eyebrow">Blog</p>
-                        <h2 class="section-title !text-2xl">Mới nhất từ Aventura</h2>
-                    </div>
-                    <Link href="/tin-tuc" class="hidden text-sm font-medium text-primary hover:underline underline-offset-2 sm:block">
-                        Xem tất cả →
-                    </Link>
-                </div>
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                    <div v-for="(news, idx) in latestNews" :key="news.id" class="reveal" :style="`transition-delay:${idx * 70}ms`">
-                        <NewsCard v-bind="news" />
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ══ FAQ ════════════════════════════════════════════════════════════════ -->
-        <section class="px-4 py-20 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="section-header reveal">
-                    <p class="section-eyebrow">FAQ</p>
-                    <h2 class="section-title">Câu hỏi thường gặp</h2>
-                </div>
-                <div class="mt-12 grid gap-4 lg:grid-cols-2">
+                    <!-- Category Pills Filter -->
                     <div
-                        v-for="(item, idx) in faq" :key="item.q"
-                        class="faq-card reveal"
-                        :style="`transition-delay:${(idx % 2) * 80}ms`"
+                        class="flex w-fit flex-wrap gap-1.5 rounded-xl border border-border/80 bg-muted p-1"
                     >
-                        <h3 class="font-semibold text-foreground">{{ item.q }}</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{{ item.a }}</p>
+                        <button
+                            v-for="cat in categories"
+                            :key="cat.key"
+                            @click="activeCategory = cat.key"
+                            class="cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200"
+                            :class="
+                                activeCategory === cat.key
+                                    ? 'bg-background font-bold text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                            "
+                        >
+                            {{ cat.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Grid Split: 12 Columns -->
+                <div class="mt-10 grid items-start gap-8 lg:grid-cols-12">
+                    <!-- LEFT COLUMN: Operations & Data Flow Console (5/12 columns) -->
+                    <div class="space-y-4 lg:col-span-5">
+                        <div
+                            class="relative flex min-h-[480px] flex-col justify-between overflow-hidden rounded-2xl border bg-zinc-950 p-6 text-zinc-100 shadow-2xl transition-all duration-500"
+                            :style="`border-color: ${colorGlowBorder}; box-shadow: 0 10px 30px -10px ${colorGlowBorder}`"
+                        >
+                            <!-- Color Glow Effects behind the console -->
+                            <div
+                                class="absolute -top-16 -right-16 h-36 w-36 rounded-full opacity-40 blur-[80px] transition-all duration-500"
+                                :class="{
+                                    'bg-indigo-500':
+                                        activeFeature.color === 'indigo',
+                                    'bg-emerald-500':
+                                        activeFeature.color === 'emerald',
+                                    'bg-amber-500':
+                                        activeFeature.color === 'amber',
+                                    'bg-sky-500': activeFeature.color === 'sky',
+                                    'bg-rose-500':
+                                        activeFeature.color === 'rose',
+                                    'bg-blue-500':
+                                        activeFeature.color === 'blue',
+                                    'bg-teal-500':
+                                        activeFeature.color === 'teal',
+                                    'bg-violet-500':
+                                        activeFeature.color === 'violet',
+                                    'bg-cyan-500':
+                                        activeFeature.color === 'cyan',
+                                }"
+                            ></div>
+
+                            <!-- Console Header -->
+                            <div
+                                class="flex items-center justify-between border-b border-zinc-900 pb-4"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <div class="flex gap-1.5">
+                                        <span
+                                            class="h-2.5 w-2.5 rounded-full bg-red-500/80"
+                                        ></span>
+                                        <span
+                                            class="h-2.5 w-2.5 rounded-full bg-yellow-500/80"
+                                        ></span>
+                                        <span
+                                            class="h-2.5 w-2.5 rounded-full bg-green-500/80"
+                                        ></span>
+                                    </div>
+                                    <span
+                                        class="ml-2 font-mono text-[9px] tracking-wider text-zinc-500"
+                                        >DATAFLOW_MONITOR v1.0.0</span
+                                    >
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <button
+                                        @click="toggleAutoPlay"
+                                        class="flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-[9.5px] font-bold transition-all duration-300 active:scale-95"
+                                        :class="
+                                            isAutoPlaying
+                                                ? 'animate-pulse border-primary bg-primary font-extrabold text-primary-foreground'
+                                                : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800/80 hover:text-white'
+                                        "
+                                    >
+                                        <component
+                                            :is="isAutoPlaying ? Pause : Play"
+                                            class="size-3"
+                                        />
+                                        <span>{{
+                                            isAutoPlaying
+                                                ? 'Dừng phát'
+                                                : 'Tự động chạy'
+                                        }}</span>
+                                    </button>
+                                    <button
+                                        @click="goToNextStep"
+                                        class="flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-[9.5px] font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:bg-zinc-800/80 hover:text-white active:scale-95"
+                                    >
+                                        <span>Bước tiếp theo</span>
+                                        <ChevronRight
+                                            class="size-3 animate-pulse text-primary"
+                                        />
+                                    </button>
+                                    <Badge
+                                        class="border px-2 py-0.5 font-mono text-[9px] tracking-wider uppercase"
+                                        :class="{
+                                            'border-indigo-500/30 bg-indigo-950/20 text-indigo-400':
+                                                activeFeature.color ===
+                                                'indigo',
+                                            'border-emerald-500/30 bg-emerald-950/20 text-emerald-400':
+                                                activeFeature.color ===
+                                                'emerald',
+                                            'border-cyan-500/30 bg-cyan-950/20 text-cyan-400':
+                                                activeFeature.color === 'cyan',
+                                            'border-amber-500/30 bg-amber-950/20 text-amber-400':
+                                                activeFeature.color === 'amber',
+                                            'border-sky-500/30 bg-sky-950/20 text-sky-400':
+                                                activeFeature.color === 'sky',
+                                            'border-teal-500/30 bg-teal-950/20 text-teal-400':
+                                                activeFeature.color === 'teal',
+                                            'border-rose-500/30 bg-rose-950/20 text-rose-400':
+                                                activeFeature.color === 'rose',
+                                            'border-blue-500/30 bg-blue-950/20 text-blue-400':
+                                                activeFeature.color === 'blue',
+                                            'border-violet-500/30 bg-violet-950/20 text-violet-400':
+                                                activeFeature.color ===
+                                                'violet',
+                                        }"
+                                    >
+                                        {{ activeFeature.status }}
+                                    </Badge>
+                                </div>
+                            </div>
+
+                            <!-- Selected Feature Overview -->
+                            <div class="mt-4 space-y-3">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="rounded-xl border p-2.5 transition-all duration-300"
+                                        :class="{
+                                            'border-indigo-500/30 bg-indigo-950/50 text-indigo-400':
+                                                activeFeature.color ===
+                                                'indigo',
+                                            'border-emerald-500/30 bg-emerald-950/50 text-emerald-400':
+                                                activeFeature.color ===
+                                                'emerald',
+                                            'border-amber-500/30 bg-amber-950/50 text-amber-400':
+                                                activeFeature.color === 'amber',
+                                            'border-sky-500/30 bg-sky-950/50 text-sky-400':
+                                                activeFeature.color === 'sky',
+                                            'border-rose-500/30 bg-rose-950/50 text-rose-400':
+                                                activeFeature.color === 'rose',
+                                            'border-blue-500/30 bg-blue-950/50 text-blue-400':
+                                                activeFeature.color === 'blue',
+                                            'border-teal-500/30 bg-teal-950/50 text-teal-400':
+                                                activeFeature.color === 'teal',
+                                            'border-violet-500/30 bg-violet-950/50 text-violet-400':
+                                                activeFeature.color ===
+                                                'violet',
+                                            'border-cyan-500/30 bg-cyan-950/50 text-cyan-400':
+                                                activeFeature.color === 'cyan',
+                                        }"
+                                    >
+                                        <component
+                                            :is="activeFeature.icon"
+                                            class="size-6 animate-pulse"
+                                        />
+                                    </div>
+                                    <div>
+                                        <h3
+                                            class="flex items-center gap-2 text-base font-bold tracking-tight text-white"
+                                        >
+                                            Bước {{ activeFeature.step }}:
+                                            {{ activeFeature.title }}
+                                        </h3>
+                                        <p
+                                            class="mt-0.5 text-xs leading-relaxed text-zinc-400"
+                                        >
+                                            {{ activeFeature.description }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Flow Visualization -->
+                            <div
+                                class="mt-5 flex-grow space-y-3.5 border-y border-zinc-900/60 py-4"
+                            >
+                                <p
+                                    class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
+                                >
+                                    LUỒNG HOẠT ĐỘNG & ĐỒNG BỘ
+                                </p>
+
+                                <!-- Step 1: TRIGGER -->
+                                <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                                        :class="{
+                                            'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                activeFeature.color ===
+                                                'indigo',
+                                            'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                activeFeature.color ===
+                                                'emerald',
+                                            'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                activeFeature.color === 'amber',
+                                            'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                activeFeature.color === 'sky',
+                                            'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                activeFeature.color === 'rose',
+                                            'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                activeFeature.color === 'blue',
+                                            'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                activeFeature.color === 'teal',
+                                            'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                activeFeature.color ===
+                                                'violet',
+                                            'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                activeFeature.color === 'cyan',
+                                        }"
+                                    ></div>
+                                    <div
+                                        class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
+                                    ></div>
+                                    <div class="space-y-0.5">
+                                        <span
+                                            class="font-mono text-[9px] text-zinc-500 uppercase"
+                                            >Tác nhân (Trigger)</span
+                                        >
+                                        <p
+                                            class="text-xs font-semibold text-zinc-200"
+                                        >
+                                            {{ activeFeature.flow.trigger }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2: PROCESS -->
+                                <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                                        :class="{
+                                            'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                activeFeature.color ===
+                                                'indigo',
+                                            'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                activeFeature.color ===
+                                                'emerald',
+                                            'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                activeFeature.color === 'amber',
+                                            'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                activeFeature.color === 'sky',
+                                            'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                activeFeature.color === 'rose',
+                                            'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                activeFeature.color === 'blue',
+                                            'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                activeFeature.color === 'teal',
+                                            'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                activeFeature.color ===
+                                                'violet',
+                                            'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                activeFeature.color === 'cyan',
+                                        }"
+                                    ></div>
+                                    <div
+                                        class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
+                                    ></div>
+                                    <div class="space-y-0.5">
+                                        <span
+                                            class="font-mono text-[9px] text-zinc-500 uppercase"
+                                            >Xử lý (Processing)</span
+                                        >
+                                        <p
+                                            class="text-xs font-semibold text-zinc-200"
+                                        >
+                                            {{ activeFeature.flow.process }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Step 3: STORAGE -->
+                                <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full"
+                                        :class="{
+                                            'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                activeFeature.color ===
+                                                'indigo',
+                                            'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                activeFeature.color ===
+                                                'emerald',
+                                            'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                activeFeature.color === 'amber',
+                                            'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                activeFeature.color === 'sky',
+                                            'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                activeFeature.color === 'rose',
+                                            'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                activeFeature.color === 'blue',
+                                            'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                activeFeature.color === 'teal',
+                                            'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                activeFeature.color ===
+                                                'violet',
+                                            'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                activeFeature.color === 'cyan',
+                                        }"
+                                    ></div>
+                                    <div class="flex-grow space-y-0.5">
+                                        <span
+                                            class="font-mono text-[9px] text-zinc-500 uppercase"
+                                            >Lưu trữ Database</span
+                                        >
+                                        <p
+                                            class="text-xs font-semibold text-white"
+                                        >
+                                            {{ activeFeature.flow.storage }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Technology & DB details -->
+                            <div class="mt-4 space-y-3 pt-3">
+                                <div class="space-y-1">
+                                    <span
+                                        class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
+                                        >MAPPED SCHEMAS (DATABASE TABLES)</span
+                                    >
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <code
+                                            v-for="tbl in activeFeature.dbTables"
+                                            :key="tbl"
+                                            class="rounded border border-zinc-800 bg-zinc-900 px-2 py-0.5 font-mono text-[10px] font-bold text-zinc-300 transition-colors hover:border-zinc-700"
+                                        >
+                                            {{ tbl }}
+                                        </code>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="rounded-xl border border-zinc-900/60 bg-zinc-900/30 p-3 text-[11px] leading-relaxed text-zinc-400"
+                                >
+                                    <span class="font-bold text-zinc-200"
+                                        >Tech note: </span
+                                    >{{ activeFeature.techNote }}
+                                </div>
+
+                                <div
+                                    class="flex items-center justify-between border-t border-zinc-900/40 pt-3 font-mono text-[10px] text-zinc-500"
+                                >
+                                    <span
+                                        >Mục tiêu SLA:
+                                        <strong
+                                            class="font-medium text-zinc-300"
+                                            >{{ activeFeature.sla }}</strong
+                                        ></span
+                                    >
+                                    <span
+                                        >STATUS:
+                                        <strong class="text-green-500"
+                                            >ACTIVE</strong
+                                        ></span
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Global SaaS Operations Step-by-Step Flow Map -->
+                            <div
+                                class="relative z-10 mt-4 space-y-2 border-t border-zinc-900/60 pt-3"
+                            >
+                                <span
+                                    class="flex items-center gap-1.5 font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
+                                >
+                                    <span
+                                        class="h-1.5 w-1.5 animate-ping rounded-full bg-primary"
+                                    ></span>
+                                    TIẾN TRÌNH LUỒNG DỮ LIỆU SAAS (8 BƯỚC VẬN
+                                    HÀNH CHÍNH)
+                                </span>
+                                <div
+                                    class="flex scrollbar-none items-center justify-between gap-1 overflow-x-auto rounded-xl border border-zinc-900/80 bg-zinc-900/20 p-2"
+                                >
+                                    <div
+                                        v-for="(item, idx) in featureMap"
+                                        :key="item.title"
+                                        class="flex flex-shrink-0 items-center"
+                                    >
+                                        <button
+                                            @click="
+                                                activeFeatureTitle = item.title;
+                                                if (
+                                                    activeCategory !== 'all' &&
+                                                    activeCategory !==
+                                                        item.category
+                                                )
+                                                    activeCategory = 'all';
+                                            "
+                                            class="group relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border font-mono text-xs transition-all duration-300"
+                                            :class="
+                                                activeFeatureTitle ===
+                                                item.title
+                                                    ? 'scale-110 border-white bg-white font-extrabold text-zinc-950 shadow-lg'
+                                                    : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                                            "
+                                            :style="
+                                                activeFeatureTitle ===
+                                                item.title
+                                                    ? `box-shadow: 0 0 10px ${colorGlowBorder}`
+                                                    : ''
+                                            "
+                                        >
+                                            <span>{{ item.step }}</span>
+                                            <!-- Tooltip hint -->
+                                            <span
+                                                class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 rounded border border-zinc-900 bg-zinc-950 px-2 py-1 font-sans text-[9px] whitespace-nowrap text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
+                                            >
+                                                Bước {{ item.step }}:
+                                                {{ item.title }}
+                                            </span>
+                                        </button>
+                                        <span
+                                            v-if="idx < featureMap.length - 1"
+                                            class="mx-0.5 font-mono text-[9px] text-zinc-800"
+                                            >➔</span
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Interactive Grid (7/12 columns) -->
+                    <div class="lg:col-span-7">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div
+                                v-for="item in filteredFeatureMap"
+                                :key="item.title"
+                                @mouseenter="activeFeatureTitle = item.title"
+                                @click="activeFeatureTitle = item.title"
+                                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-lg"
+                                :class="
+                                    activeFeatureTitle === item.title
+                                        ? 'ring-2 ring-offset-2 ring-offset-background'
+                                        : 'hover:border-zinc-300 dark:hover:border-zinc-700'
+                                "
+                                :style="
+                                    activeFeatureTitle === item.title
+                                        ? `border-color: ${item.color === 'indigo' ? 'rgba(99, 102, 241, 0.5)' : item.color === 'emerald' ? 'rgba(16, 185, 129, 0.5)' : item.color === 'amber' ? 'rgba(245, 158, 11, 0.5)' : item.color === 'sky' ? 'rgba(14, 165, 233, 0.5)' : item.color === 'rose' ? 'rgba(244, 63, 94, 0.5)' : item.color === 'blue' ? 'rgba(59, 130, 246, 0.5)' : item.color === 'teal' ? 'rgba(20, 184, 166, 0.5)' : item.color === 'violet' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(6, 182, 212, 0.5)'}; --tw-ring-color: ${item.color === 'indigo' ? '#6366f1' : item.color === 'emerald' ? '#10b981' : item.color === 'amber' ? '#f59e0b' : item.color === 'sky' ? '#0ea5e9' : item.color === 'rose' ? '#f43f5e' : item.color === 'blue' ? '#3b82f6' : item.color === 'teal' ? '#14b8a6' : item.color === 'violet' ? '#8b5cf6' : '#06b6d4'}`
+                                        : ''
+                                "
+                            >
+                                <!-- Interactive Hover Glow matching the icon color -->
+                                <div
+                                    class="absolute -right-10 -bottom-10 h-24 w-24 rounded-full opacity-0 blur-2xl transition-all duration-300 group-hover:opacity-10"
+                                    :class="{
+                                        'bg-indigo-500':
+                                            item.color === 'indigo',
+                                        'bg-emerald-500':
+                                            item.color === 'emerald',
+                                        'bg-amber-500': item.color === 'amber',
+                                        'bg-sky-500': item.color === 'sky',
+                                        'bg-rose-500': item.color === 'rose',
+                                        'bg-blue-500': item.color === 'blue',
+                                        'bg-teal-500': item.color === 'teal',
+                                        'bg-violet-500':
+                                            item.color === 'violet',
+                                        'bg-cyan-500': item.color === 'cyan',
+                                    }"
+                                ></div>
+
+                                <div
+                                    class="relative z-10 mb-3 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300 group-hover:scale-110"
+                                        :class="{
+                                            'border-indigo-100 bg-indigo-50 text-indigo-600 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-indigo-400':
+                                                item.color === 'indigo',
+                                            'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-400':
+                                                item.color === 'emerald',
+                                            'border-cyan-100 bg-cyan-50 text-cyan-600 dark:border-cyan-900/40 dark:bg-cyan-950/20 dark:text-cyan-400':
+                                                item.color === 'cyan',
+                                            'border-amber-100 bg-amber-50 text-amber-600 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-400':
+                                                item.color === 'amber',
+                                            'border-sky-100 bg-sky-50 text-sky-600 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-400':
+                                                item.color === 'sky',
+                                            'border-teal-100 bg-teal-50 text-teal-600 dark:border-teal-900/40 dark:bg-teal-950/20 dark:text-teal-400':
+                                                item.color === 'teal',
+                                            'border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400':
+                                                item.color === 'rose',
+                                            'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-400':
+                                                item.color === 'blue',
+                                            'border-violet-100 bg-violet-50 text-violet-600 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-400':
+                                                item.color === 'violet',
+                                        }"
+                                    >
+                                        <component
+                                            :is="item.icon"
+                                            class="size-5"
+                                        />
+                                    </div>
+
+                                    <div class="flex items-center gap-1.5">
+                                        <!-- Step Number Indicator -->
+                                        <span
+                                            class="animate-pulse rounded-md px-1.5 py-0.5 font-mono text-[10px] font-extrabold"
+                                            :class="{
+                                                'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400':
+                                                    item.color === 'indigo',
+                                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400':
+                                                    item.color === 'emerald',
+                                                'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-400':
+                                                    item.color === 'cyan',
+                                                'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400':
+                                                    item.color === 'amber',
+                                                'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400':
+                                                    item.color === 'sky',
+                                                'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400':
+                                                    item.color === 'teal',
+                                                'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400':
+                                                    item.color === 'rose',
+                                                'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400':
+                                                    item.color === 'blue',
+                                                'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400':
+                                                    item.color === 'violet',
+                                            }"
+                                        >
+                                            {{
+                                                String(item.step).padStart(
+                                                    2,
+                                                    '0',
+                                                )
+                                            }}
+                                        </span>
+                                        <!-- Inline DB Table hint -->
+                                        <span
+                                            class="rounded border border-border bg-muted px-2 py-0.5 font-mono text-[9px] text-muted-foreground"
+                                        >
+                                            {{ item.dbTables[0] }}
+                                        </span>
+                                        <Badge
+                                            variant="outline"
+                                            class="px-1.5 py-0 text-[9px] tracking-wider uppercase"
+                                        >
+                                            {{ item.status }}
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                <div class="relative z-10 space-y-1.5">
+                                    <h3
+                                        class="flex items-center gap-2 text-base font-bold tracking-tight text-card-foreground transition-colors group-hover:text-primary"
+                                    >
+                                        {{ item.title }}
+                                        <ChevronRight
+                                            class="size-3.5 -translate-x-1 text-primary opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"
+                                        />
+                                    </h3>
+                                    <p
+                                        class="line-clamp-2 text-xs leading-relaxed text-muted-foreground"
+                                    >
+                                        {{ item.description }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- ══ CTA BOTTOM ══════════════════════════════════════════════════════════ -->
-        <section class="cta-section px-4 py-24 lg:px-8">
-            <div class="cta-glow" />
-            <div class="relative mx-auto flex max-w-2xl flex-col items-center gap-6 text-center reveal">
-                <h2 class="text-3xl font-bold tracking-tight lg:text-4xl">Bắt đầu ngay hôm nay</h2>
-                <p class="text-base text-muted-foreground">
-                    Aventura đủ gọn để thử, đủ sâu để chạy thật.<br>
-                    Gói Free không giới hạn thời gian — nâng Pro khi sẵn sàng.
+        <section id="pricing" class="px-4 py-16 lg:px-8">
+            <div class="mx-auto max-w-7xl">
+                <div class="max-w-2xl">
+                    <h2 class="text-3xl font-semibold">
+                        Bảng giá bám `subscription_plans`
+                    </h2>
+                    <p class="mt-3 text-muted-foreground">
+                        Các gói dịch vụ được dựng đúng theo schema DB, đảm bảo
+                        tính nhất quán tuyệt đối giữa giao diện và dữ liệu hệ
+                        thống.
+                    </p>
+                </div>
+                <div
+                    class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+                >
+                    <Card
+                        v-for="plan in plans"
+                        :key="plan.code"
+                        class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md"
+                        :class="{
+                            'border-2 border-primary shadow-sm':
+                                plan.isRecommended,
+                            'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent':
+                                plan.code === 'ultra',
+                        }"
+                    >
+                        <CardHeader>
+                            <div class="mb-2 flex items-center justify-between">
+                                <CardTitle
+                                    class="flex items-center gap-1.5 text-2xl font-bold"
+                                    :class="{
+                                        'text-primary': plan.isRecommended,
+                                        'text-violet-500':
+                                            plan.code === 'ultra',
+                                    }"
+                                >
+                                    {{ plan.name }}
+                                </CardTitle>
+                                <Badge
+                                    v-if="plan.code === 'free'"
+                                    variant="secondary"
+                                    >Mặc định</Badge
+                                >
+                                <Badge v-else-if="plan.isRecommended"
+                                    >Khuyến nghị</Badge
+                                >
+                                <Badge
+                                    v-else-if="plan.code === 'ultra'"
+                                    class="bg-violet-600 text-white hover:bg-violet-700"
+                                    >VIP</Badge
+                                >
+                            </div>
+                            <div class="mt-2 flex items-end gap-1">
+                                <span
+                                    class="text-3xl font-extrabold text-foreground"
+                                    :class="{
+                                        'text-primary': plan.isRecommended,
+                                        'text-violet-500':
+                                            plan.code === 'ultra',
+                                    }"
+                                >
+                                    {{ plan.price }}
+                                </span>
+                                <span
+                                    class="pb-1 text-xs text-muted-foreground"
+                                    >{{ plan.cycle }}</span
+                                >
+                            </div>
+                            <CardDescription class="mt-2 min-h-[40px] text-xs">
+                                {{ plan.note }}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex-grow space-y-2 text-xs">
+                            <p
+                                v-for="feat in plan.features"
+                                :key="feat"
+                                class="flex items-center gap-2"
+                            >
+                                <Check
+                                    class="size-4 flex-shrink-0 text-emerald-500"
+                                    :class="{
+                                        'text-primary': plan.isRecommended,
+                                        'text-violet-500':
+                                            plan.code === 'ultra',
+                                    }"
+                                />
+                                <span>{{ feat }}</span>
+                            </p>
+                            <p
+                                v-for="unfeat in plan.unsupportedFeatures"
+                                :key="unfeat"
+                                class="flex items-center gap-2 text-muted-foreground opacity-60"
+                            >
+                                <X class="size-4 flex-shrink-0" />
+                                <span>{{ unfeat }}</span>
+                            </p>
+                        </CardContent>
+                        <div class="mt-4 px-6 pb-6">
+                            <Button
+                                v-if="canRegister"
+                                as-child
+                                :variant="
+                                    plan.isRecommended
+                                        ? 'default'
+                                        : plan.code === 'ultra'
+                                          ? 'default'
+                                          : 'outline'
+                                "
+                                class="w-full text-xs font-semibold"
+                                :class="{
+                                    'border-0 bg-violet-600 text-white hover:bg-violet-700':
+                                        plan.code === 'ultra',
+                                }"
+                            >
+                                <Link :href="register() + '?plan=' + plan.code"
+                                    >Chọn {{ plan.name }}</Link
+                                >
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        </section>
+
+        <section class="px-4 py-16 lg:px-8">
+            <div class="mx-auto max-w-7xl">
+                <div class="max-w-2xl">
+                    <h2 class="text-3xl font-semibold">Chatbot FAQ</h2>
+                    <p class="mt-3 text-muted-foreground">
+                        Khối này thay phần mô tả dài bằng câu hỏi ngắn, đúng
+                        nhịp onboarding thực tế.
+                    </p>
+                </div>
+                <div class="mt-8 grid gap-4 lg:grid-cols-2">
+                    <Card
+                        v-for="item in faq"
+                        :key="item.q"
+                        class="border-border"
+                    >
+                        <CardHeader>
+                            <CardTitle class="text-base">{{
+                                item.q
+                            }}</CardTitle>
+                            <CardDescription>{{ item.a }}</CardDescription>
+                        </CardHeader>
+                    </Card>
+                </div>
+            </div>
+        </section>
+
+        <section class="border-y border-border bg-muted/30 px-4 py-16 lg:px-8">
+            <div class="mx-auto max-w-7xl">
+                <div class="grid gap-4 md:grid-cols-3">
+                    <Card class="border-border">
+                        <CardHeader>
+                            <Star class="size-5 text-primary" />
+                            <CardTitle class="text-base"
+                                >Quản lý chuỗi</CardTitle
+                            >
+                            <CardDescription
+                                >Multi-branch + tenant separation cho mô hình
+                                nhiều chi nhánh.</CardDescription
+                            >
+                        </CardHeader>
+                    </Card>
+                    <Card class="border-border">
+                        <CardHeader>
+                            <LineChart class="size-5 text-primary" />
+                            <CardTitle class="text-base"
+                                >Minh bạch vận hành</CardTitle
+                            >
+                            <CardDescription
+                                >Audit log + analytics giúp nhìn rõ thay đổi và
+                                hiệu suất.</CardDescription
+                            >
+                        </CardHeader>
+                    </Card>
+                    <Card class="border-border">
+                        <CardHeader>
+                            <Rocket class="size-5 text-primary" />
+                            <CardTitle class="text-base"
+                                >Onboarding nhanh</CardTitle
+                            >
+                            <CardDescription
+                                >Đăng ký xong có thể vào luồng demo, không cần
+                                giải thích dài dòng.</CardDescription
+                            >
+                        </CardHeader>
+                    </Card>
+                </div>
+            </div>
+        </section>
+
+        <section class="px-4 py-16 lg:px-8">
+            <div
+                class="mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
+            >
+                <h2 class="text-3xl font-semibold">Đăng ký và thử ngay</h2>
+                <p class="max-w-2xl text-muted-foreground">
+                    Aventura đủ gọn để thử, đủ sâu để chạy thật. Gói Free có hạn
+                    mức rõ; gói Pro mở khóa phần cần kiểm soát.
                 </p>
-                <div class="flex flex-wrap justify-center gap-3">
-                    <Button v-if="canRegister" as-child size="lg" class="cta-primary">
-                        <Link :href="register()">Tạo tài khoản miễn phí</Link>
+                <div class="flex flex-col gap-3 sm:flex-row">
+                    <Button v-if="canRegister" as-child size="lg">
+                        <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
                     <Button as-child variant="outline" size="lg">
-                        <a href="#features">Khám phá tính năng</a>
+                        <a href="#features">Xem lại tính năng</a>
                     </Button>
                 </div>
             </div>
         </section>
-
-        <ChatbotWidget source="landing" />
     </AppTopbarLayout>
 </template>
-
-<style scoped>
-/* ── Keyframes ─────────────────────────────────────────────────────────────── */
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(28px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeInRight {
-    from { opacity: 0; transform: translateX(32px); }
-    to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes floatA {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50%       { transform: translate(30px, -40px) scale(1.05); }
-}
-@keyframes floatB {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50%       { transform: translate(-25px, 35px) scale(1.03); }
-}
-@keyframes floatC {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50%       { transform: translate(20px, 20px) scale(0.97); }
-}
-@keyframes kenBurns {
-    from { transform: scale(1); }
-    to   { transform: scale(1.07); }
-}
-@keyframes gradientShift {
-    0%, 100% { background-position: 0% 50%; }
-    50%       { background-position: 100% 50%; }
-}
-@keyframes shimmerText {
-    0%   { background-position: -200% center; }
-    100% { background-position: 200% center; }
-}
-
-/* ── Scroll reveal ─────────────────────────────────────────────────────────── */
-.reveal {
-    opacity: 0;
-    transform: translateY(28px);
-    transition: opacity 0.65s cubic-bezier(.22,.68,0,1.2), transform 0.65s cubic-bezier(.22,.68,0,1.2);
-}
-.reveal.is-visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* ── Mount animations ──────────────────────────────────────────────────────── */
-.animate-fade-in-up {
-    animation: fadeInUp 0.7s cubic-bezier(.22,.68,0,1.2) both;
-}
-.animate-fade-in-right {
-    animation: fadeInRight 0.7s cubic-bezier(.22,.68,0,1.2) both;
-}
-
-/* ── Carousel ──────────────────────────────────────────────────────────────── */
-.hero-carousel {
-    position: relative;
-    width: 100%;
-    overflow: hidden;
-    height: clamp(380px, 56vw, 600px);
-    background: #080B12;
-}
-.carousel-slide {
-    position: absolute;
-    inset: 0;
-    transition: opacity 1s cubic-bezier(.4,0,.2,1), transform 1s cubic-bezier(.4,0,.2,1);
-}
-.slide-active  { opacity: 1; z-index: 10; }
-.slide-inactive { opacity: 0; z-index: 0; }
-
-/* Progress bar */
-.progress-track {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: rgba(255,255,255,0.1);
-    z-index: 40;
-}
-.progress-fill {
-    height: 100%;
-    background: rgba(255,255,255,0.7);
-    transition: width 50ms linear;
-}
-
-/* Nav buttons */
-.carousel-btn {
-    position: absolute;
-    top: 50%;
-    z-index: 30;
-    display: flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 50%;
-    background: rgba(0,0,0,0.35);
-    color: white;
-    border: 1px solid rgba(255,255,255,0.12);
-    backdrop-filter: blur(8px);
-    transition: background 0.2s, transform 0.2s, opacity 0.2s;
-    transform: translateY(-50%);
-}
-.carousel-btn-l { left: 20px; }
-.carousel-btn-r { right: 20px; }
-.carousel-btn:hover {
-    background: rgba(0,0,0,0.6);
-    transform: translateY(-50%) scale(1.08);
-    border-color: rgba(255,255,255,0.25);
-}
-
-/* Dots */
-.carousel-dots {
-    position: absolute;
-    bottom: 22px;
-    left: 50%;
-    z-index: 30;
-    display: flex;
-    gap: 8px;
-    transform: translateX(-50%);
-}
-.dot-btn { border-radius: 9999px; transition: all 0.4s cubic-bezier(.22,.68,0,1.2); }
-.dot-active   { width: 28px; height: 6px; background: rgba(255,255,255,0.9); }
-.dot-inactive { width: 6px;  height: 6px; background: rgba(255,255,255,0.35); }
-.dot-inactive:hover { background: rgba(255,255,255,0.65); transform: scale(1.2); }
-
-/* Bottom fade */
-.carousel-bottom-fade {
-    position: absolute;
-    inset-x: 0; bottom: 0;
-    height: 100px;
-    background: linear-gradient(to top, hsl(var(--background)/0.5), transparent);
-    z-index: 20;
-}
-
-/* Slide text overlay */
-.slide-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 15;
-    display: flex;
-    align-items: center;
-}
-.slide-overlay-bg {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.3) 50%, transparent 80%);
-}
-.slide-text {
-    position: relative;
-    padding-left: clamp(24px, 5vw, 80px);
-    max-width: 600px;
-}
-.slide-eyebrow {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 10px;
-    opacity: 0; transform: translateY(10px);
-    transition: opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s;
-}
-.slide-title {
-    font-size: clamp(1.6rem, 3.2vw, 3rem);
-    font-weight: 800;
-    color: white;
-    letter-spacing: -0.025em;
-    line-height: 1.15;
-    opacity: 0; transform: translateY(18px);
-    transition: opacity 0.65s ease 0.2s, transform 0.65s ease 0.2s;
-}
-.slide-subtitle {
-    margin-top: 10px;
-    font-size: clamp(0.875rem, 1.2vw, 1rem);
-    color: rgba(255,255,255,0.65);
-    line-height: 1.6;
-    opacity: 0; transform: translateY(14px);
-    transition: opacity 0.65s ease 0.35s, transform 0.65s ease 0.35s;
-}
-.slide-cta {
-    display: inline-flex;
-    margin-top: 18px;
-    padding: 10px 24px;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.28);
-    border-radius: 9999px;
-    color: white;
-    font-size: 14px; font-weight: 600;
-    text-decoration: none;
-    backdrop-filter: blur(8px);
-    opacity: 0; transform: translateY(10px);
-    transition: opacity 0.6s ease 0.5s, transform 0.6s ease 0.5s, background 0.2s;
-}
-.slide-cta:hover { background: rgba(255,255,255,0.22); }
-.overlay-visible .slide-eyebrow,
-.overlay-visible .slide-title,
-.overlay-visible .slide-subtitle,
-.overlay-visible .slide-cta { opacity: 1; transform: translateY(0); }
-
-/* ── Hero default ──────────────────────────────────────────────────────────── */
-.hero-default { background: radial-gradient(ellipse at 60% 0%, hsl(var(--primary)/0.06) 0%, transparent 60%), hsl(var(--background)); }
-.hero-grid-overlay {
-    position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background-image: linear-gradient(hsl(var(--border)/0.35) 1px, transparent 1px),
-                      linear-gradient(90deg, hsl(var(--border)/0.35) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 20%, transparent 100%);
-}
-.orb {
-    position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none;
-}
-.orb-1 {
-    width: 600px; height: 600px; top: -200px; right: -100px;
-    background: hsl(var(--primary)/0.12);
-    animation: floatA 14s ease-in-out infinite;
-}
-.orb-2 {
-    width: 400px; height: 400px; bottom: -100px; left: -80px;
-    background: hsl(var(--primary)/0.07);
-    animation: floatB 18s ease-in-out infinite;
-}
-.orb-3 {
-    width: 300px; height: 300px; top: 40%; left: 45%;
-    background: hsl(var(--primary)/0.05);
-    animation: floatC 22s ease-in-out infinite;
-}
-
-/* ── Hero text ─────────────────────────────────────────────────────────────── */
-.hero-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px; border-radius: 9999px; margin-bottom: 20px;
-    font-size: 13px; font-weight: 500;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--muted)/0.5);
-    color: hsl(var(--muted-foreground));
-    backdrop-filter: blur(4px);
-}
-.badge-dot {
-    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-    background: hsl(var(--primary));
-    box-shadow: 0 0 6px hsl(var(--primary)/0.6);
-}
-.hero-h1 {
-    font-size: clamp(2.4rem, 5vw, 3.75rem);
-    font-weight: 800; line-height: 1.1; letter-spacing: -0.03em;
-    color: hsl(var(--foreground));
-}
-.hero-gradient-text {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)/0.7) 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: shimmerText 4s linear infinite;
-}
-.hero-desc {
-    margin-top: 20px; max-width: 520px;
-    font-size: 1.05rem; line-height: 1.75;
-    color: hsl(var(--muted-foreground));
-}
-.hero-check {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 13px; color: hsl(var(--muted-foreground));
-}
-.cta-primary { transition: transform 0.2s, box-shadow 0.2s; }
-.cta-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px hsl(var(--primary)/0.25); }
-.cta-outline { transition: transform 0.2s; }
-.cta-outline:hover { transform: translateY(-2px); }
-
-/* ── Demo card ─────────────────────────────────────────────────────────────── */
-.demo-card {
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
-    border-radius: 16px; padding: 20px;
-    box-shadow: 0 4px 40px rgba(0,0,0,0.08);
-    backdrop-filter: blur(8px);
-}
-.demo-card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding-bottom: 16px; border-bottom: 1px solid hsl(var(--border));
-}
-.demo-tab {
-    padding: 5px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
-    transition: all 0.2s;
-}
-.demo-tab-active  { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-.demo-tab-inactive { background: transparent; color: hsl(var(--muted-foreground)); border: 1px solid hsl(var(--border)); }
-.demo-tab-inactive:hover { background: hsl(var(--muted)/0.5); }
-.demo-panel { margin-top: 14px; border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 14px; }
-.demo-list { display: flex; flex-direction: column; gap: 8px; }
-.demo-list-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-
-/* ── Section shared ────────────────────────────────────────────────────────── */
-.section-alt { background: hsl(var(--muted)/0.25); border-top: 1px solid hsl(var(--border)/0.5); border-bottom: 1px solid hsl(var(--border)/0.5); }
-.section-header { text-align: center; max-width: 560px; margin: 0 auto; }
-.section-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: hsl(var(--primary)); margin-bottom: 8px; }
-.section-title { font-size: clamp(1.7rem, 3vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em; color: hsl(var(--foreground)); }
-.section-desc { margin-top: 12px; font-size: 15px; line-height: 1.7; color: hsl(var(--muted-foreground)); }
-
-/* ── Feature cards ─────────────────────────────────────────────────────────── */
-.feature-card {
-    padding: 24px; border-radius: 14px;
-    border: 1px solid hsl(var(--border)/0.7);
-    background: hsl(var(--card));
-    transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s,
-                opacity 0.65s cubic-bezier(.22,.68,0,1.2), translate 0.65s cubic-bezier(.22,.68,0,1.2);
-}
-.feature-card:hover { border-color: hsl(var(--primary)/0.4); box-shadow: 0 4px 24px hsl(var(--primary)/0.08); transform: translateY(-3px); }
-.feature-icon-wrap {
-    display: flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px; border-radius: 10px;
-    background: hsl(var(--primary)/0.1); margin-bottom: 14px;
-    transition: background 0.25s;
-}
-.feature-card:hover .feature-icon-wrap { background: hsl(var(--primary)/0.18); }
-.feature-title { font-size: 15px; font-weight: 600; color: hsl(var(--foreground)); }
-.feature-desc  { margin-top: 6px; font-size: 13px; line-height: 1.65; color: hsl(var(--muted-foreground)); }
-
-/* ── Promo banner ──────────────────────────────────────────────────────────── */
-.promo-banner {
-    display: block; border-radius: 16px; overflow: hidden;
-    transition: opacity 0.25s, transform 0.25s,
-                opacity 0.65s cubic-bezier(.22,.68,0,1.2) !important;
-}
-.promo-banner:hover { opacity: 0.94; transform: scale(1.005); }
-
-/* ── Proof cards ───────────────────────────────────────────────────────────── */
-.proof-card { padding: 20px; border-radius: 12px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)/0.6); }
-
-/* ── Pricing cards ─────────────────────────────────────────────────────────── */
-.pricing-card {
-    position: relative; padding: 32px; border-radius: 16px;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
-    overflow: hidden;
-    transition: opacity 0.65s cubic-bezier(.22,.68,0,1.2), transform 0.65s cubic-bezier(.22,.68,0,1.2);
-}
-.pricing-card-pro { border-color: hsl(var(--primary)/0.5); box-shadow: 0 0 0 1px hsl(var(--primary)/0.15), 0 8px 40px hsl(var(--primary)/0.1); }
-.pricing-pro-glow {
-    position: absolute; top: 0; right: 0; width: 260px; height: 260px; border-radius: 50%;
-    background: radial-gradient(circle, hsl(var(--primary)/0.12) 0%, transparent 70%);
-    pointer-events: none;
-}
-.pricing-feature { display: flex; align-items: center; gap: 10px; font-size: 14px; color: hsl(var(--foreground)); }
-.pricing-feature-off { color: hsl(var(--muted-foreground)); text-decoration: line-through; opacity: 0.6; }
-
-/* ── FAQ cards ─────────────────────────────────────────────────────────────── */
-.faq-card {
-    padding: 24px; border-radius: 12px;
-    border: 1px solid hsl(var(--border)/0.7);
-    background: hsl(var(--card));
-    transition: border-color 0.2s, opacity 0.65s cubic-bezier(.22,.68,0,1.2), transform 0.65s cubic-bezier(.22,.68,0,1.2);
-}
-.faq-card:hover { border-color: hsl(var(--primary)/0.3); }
-
-/* ── CTA section ───────────────────────────────────────────────────────────── */
-.cta-section { position: relative; overflow: hidden; background: hsl(var(--muted)/0.2); border-top: 1px solid hsl(var(--border)/0.5); }
-.cta-glow {
-    position: absolute; top: 50%; left: 50%; width: 500px; height: 300px;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(ellipse, hsl(var(--primary)/0.1) 0%, transparent 70%);
-    pointer-events: none;
-}
-</style>
