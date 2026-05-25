@@ -26,6 +26,7 @@ const isMobileOpen = ref(false);
 const { getInitials } = useInitials();
 
 const navItems = [
+    { label: 'Demo', href: '#demo' },
     { label: 'Tính năng', href: '#features' },
     { label: 'Bảng giá', href: '#pricing' },
     { label: 'Tin tức', href: '/tin-tuc' },
@@ -77,7 +78,7 @@ const handleLogout = () => {
                         <Link href="/login">Đăng nhập</Link>
                     </Button>
                     <Button as-child size="sm">
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register">Dùng thử miễn phí</Link>
                     </Button>
                 </template>
 
@@ -208,7 +209,7 @@ const handleLogout = () => {
                         <Link href="/login">Đăng nhập</Link>
                     </Button>
                     <Button as-child size="sm" class="flex-1">
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register">Dùng thử miễn phí</Link>
                     </Button>
                 </template>
                 <Button v-else as-child size="sm" class="flex-1">
