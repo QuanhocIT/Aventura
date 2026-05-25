@@ -9,6 +9,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\AiInsightsClient;
 use App\Services\SupportPortalService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,32 @@ class DashboardController extends Controller
             'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
         ];
 
+        $tenantGrowthSeries = $this->tenantGrowthSeries($now, $subscriptions);
+
+        $orderCounts = Order::query()
+            ->selectRaw('restaurant_id, COUNT(*) as cnt')
+            ->where('created_at', '>=', $windowStart)
+            ->groupBy('restaurant_id')
+            ->pluck('cnt', 'restaurant_id');
+
+        $restaurantsData = Restaurant::with(['plan', 'activeSubscription'])
+            ->get()
+            ->map(fn (Restaurant $r) => [
+                'id'                           => $r->id,
+                'name'                         => $r->name,
+                'plan_code'                    => $r->plan?->code ?? 'free',
+                'status'                       => $r->status,
+                'is_trial'                     => $r->activeSubscription?->status === 'trial',
+                'days_since_created'           => (int) $r->created_at->diffInDays($now),
+                'days_until_subscription_ends' => $r->subscription_ends_at
+                    ? (int) $now->diffInDays($r->subscription_ends_at, false)
+                    : -1,
+                'order_count_30d'              => (int) ($orderCounts[$r->id] ?? 0),
+                'subscription_status'          => $r->activeSubscription?->status ?? 'none',
+            ])->toArray();
+
+        $aiInsights = app(AiInsightsClient::class)->getInsights($restaurantsData, $tenantGrowthSeries);
+
         $recentRestaurants = Restaurant::with(['plan', 'owner'])
             ->latest()
             ->take(10)
@@ -90,7 +117,8 @@ class DashboardController extends Controller
                     ->unique()
                     ->count(),
             ],
-            'tenantGrowth' => $this->tenantGrowthSeries($now, $subscriptions),
+            'tenantGrowth' => $tenantGrowthSeries,
+            'aiInsights'  => $aiInsights,
             'resourceInsights' => [
                 'top_order_restaurants' => $this->topOrderRestaurants($windowStart),
                 'top_storage_restaurants' => $this->topStorageRestaurants(),

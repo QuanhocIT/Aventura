@@ -15,8 +15,10 @@ class AccountController extends Controller
 {
     public function index(Request $request): Response
     {
+        $superAdminRoles = config('auth.super_admin_roles', ['admin', 'super_admin']);
+
         $query = User::with(['roles', 'restaurant'])
-            ->whereHas('roles', fn ($q) => $q->whereNotIn('name', ['admin']));
+            ->whereHas('roles', fn ($q) => $q->whereNotIn('name', $superAdminRoles));
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -57,7 +59,7 @@ class AccountController extends Controller
 
     public function resetPassword(User $user): RedirectResponse
     {
-        if ($user->hasRole('admin')) {
+        if ($user->isSuperAdmin()) {
             return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ reset mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 
@@ -73,7 +75,7 @@ class AccountController extends Controller
 
     public function disable2FA(User $user): RedirectResponse
     {
-        if ($user->hasRole('admin')) {
+        if ($user->isSuperAdmin()) {
             return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ tÃƒÂ¡Ã‚ÂºÃ‚Â¯t 2FA cÃƒÂ¡Ã‚Â»Ã‚Â§a tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 
@@ -94,7 +96,7 @@ class AccountController extends Controller
 
     public function toggleStatus(Request $request, User $user): RedirectResponse
     {
-        if ($user->hasRole('admin')) {
+        if ($user->isSuperAdmin()) {
             return back()->with('error', 'KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ thay Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i trÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n Super Admin.');
         }
 

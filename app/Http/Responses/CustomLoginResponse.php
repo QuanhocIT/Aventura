@@ -30,10 +30,7 @@ class CustomLoginResponse implements LoginResponseContract
             // Ignore if Spatie Permission registrar is not registered or throws an error
         }
 
-        if ($user->hasRole('super_admin') || 
-            $user->hasRole('admin') || 
-            $user->roles()->whereIn('name', ['super_admin', 'admin'])->exists()
-        ) {
+        if ($user->isSuperAdmin()) {
             return redirect('/super-admin/dashboard');
         }
 

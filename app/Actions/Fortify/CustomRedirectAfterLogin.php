@@ -2,14 +2,13 @@
 
 namespace App\Actions\Fortify;
 
-use Illuminate\Contracts\Auth\Authenticatable;
+use App\Models\User;
 
 class CustomRedirectAfterLogin
 {
-    public function __invoke(Authenticatable $user)
+    public function __invoke(User $user)
     {
-        // Nếu là super admin thì về dashboard super admin
-        if ($user->hasRole('super_admin')) {
+        if ($user->isSuperAdmin()) {
             return '/super-admin/dashboard';
         }
         // Các user khác về dashboard thường

@@ -9,17 +9,13 @@ import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 
-router.on(
-    'success',
-    (event: { detail: { page: { props: Record<string, any> } } }) => {
-        const announcement = (event.detail.page.props as Record<string, any>)
-            ?.flash?.success;
+router.on('success', (event: { detail: { page: { props: Record<string, any> } } }) => {
+    const announcement = (event.detail.page.props as Record<string, any>)?.flash?.success;
 
-        if (announcement) {
-            toast.success(String(announcement));
-        }
-    },
-);
+    if (announcement) {
+        toast.success(String(announcement));
+    }
+});
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

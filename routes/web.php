@@ -3,10 +3,20 @@
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Billing\CheckoutController;
 use App\Http\Controllers\Billing\PaymentWebhookController;
+use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\NewsController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
+
+// Chatbot API — public (rate limited)
+Route::middleware('throttle:30,1')->group(function () {
+    Route::post('api/chatbot/message', [ChatbotController::class, 'message'])->name('chatbot.message');
+    Route::get('api/chatbot/suggestions', [ChatbotController::class, 'suggestions'])->name('chatbot.suggestions');
+    Route::post('api/chatbot/feedback', [ChatbotController::class, 'feedback'])->name('chatbot.feedback');
+});
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
     Route::get('billing/pay/{code}', [CheckoutController::class, 'payPage'])->name('billing.pay');
@@ -18,9 +28,9 @@ Route::middleware('guest')->group(function () {
     Route::get('auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 });
 
-Route::inertia('/', 'Khach', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/tin-tuc', [NewsController::class, 'index'])->name('news.index');
+Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show');
 
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SupportController;

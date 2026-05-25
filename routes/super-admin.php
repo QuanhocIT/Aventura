@@ -2,8 +2,11 @@
 
 use App\Http\Controllers\SuperAdmin\AccountController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
+use App\Http\Controllers\SuperAdmin\BannerController;
 use App\Http\Controllers\SuperAdmin\BillingController;
 use App\Http\Controllers\SuperAdmin\BillingOverrideController;
+use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
+use App\Http\Controllers\SuperAdmin\NewsPostController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\RestaurantController;
 use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
@@ -45,4 +48,26 @@ Route::prefix('super-admin')
         Route::post('support/articles', [SupportPortalController::class, 'storeArticle'])->name('support.articles.store');
         Route::post('support/rules', [SupportPortalController::class, 'storeRule'])->name('support.rules.store');
         Route::post('support/alerts/run', [SupportPortalController::class, 'runAlertCheck'])->name('support.alerts.run');
+
+        // Banner Management
+        Route::get('banners', [BannerController::class, 'index'])->name('banners.index');
+        Route::post('banners', [BannerController::class, 'store'])->name('banners.store');
+        Route::patch('banners/{banner}', [BannerController::class, 'update'])->name('banners.update');
+        Route::delete('banners/{banner}', [BannerController::class, 'destroy'])->name('banners.destroy');
+
+        // Chatbot Knowledge Base Management
+        Route::get('chatbot', [ChatbotKnowledgeController::class, 'index'])->name('chatbot.index');
+        Route::post('chatbot', [ChatbotKnowledgeController::class, 'store'])->name('chatbot.store');
+        Route::put('chatbot/{knowledge}', [ChatbotKnowledgeController::class, 'update'])->name('chatbot.update');
+        Route::delete('chatbot/{knowledge}', [ChatbotKnowledgeController::class, 'destroy'])->name('chatbot.destroy');
+        Route::post('chatbot/reload-cache', [ChatbotKnowledgeController::class, 'reloadCache'])->name('chatbot.reload-cache');
+
+        // News / Blog Management
+        Route::get('news', [NewsPostController::class, 'index'])->name('news.index');
+        Route::post('news', [NewsPostController::class, 'store'])->name('news.store');
+        Route::put('news/{post}', [NewsPostController::class, 'update'])->name('news.update');
+        Route::delete('news/{post}', [NewsPostController::class, 'destroy'])->name('news.destroy');
+        Route::patch('news/{post}/publish', [NewsPostController::class, 'togglePublish'])->name('news.publish');
+        Route::patch('news/{post}/featured', [NewsPostController::class, 'toggleFeatured'])->name('news.featured');
+        Route::get('news/{post}/content', [NewsPostController::class, 'getContent'])->name('news.content');
     });

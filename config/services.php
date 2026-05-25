@@ -38,4 +38,12 @@ return [
         'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact'),
     ],
 
+    'email_microservice' => [
+        'url' => env('EMAIL_SERVICE_URL', ''),
+    ],
+
+    'chatbot' => [
+        'url' => env('CHATBOT_SERVICE_URL', ''),
+    ],
+
 ];

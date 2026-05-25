@@ -3,8 +3,11 @@ import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import {
     LayoutGrid,
+    Bot,
     Building2,
     BadgeDollarSign,
+    Image,
+    Newspaper,
     Users,
     FileSearch2,
     Headset,
@@ -55,134 +58,123 @@ const isSubscriptionActive = computed(() => {
 
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
-    return Array.isArray(raw)
-        ? raw
-        : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 
-const isSuperAdmin = computed(() => hasRole('admin', 'super_admin'));
-const isOwner = computed(() => hasRole('owner'));
-const isManager = computed(() => hasRole('manager'));
-const isCashier = computed(() => hasRole('cashier'));
-const isKitchen = computed(() => hasRole('kitchen'));
-const isInventory = computed(() => hasRole('inventory_staff'));
-const isCustomer = computed(() => hasRole('customer'));
+const isSuperAdmin  = computed(() => hasRole('admin', 'super_admin'));
+const isOwner       = computed(() => hasRole('owner'));
+const isManager     = computed(() => hasRole('manager'));
+const isCashier     = computed(() => hasRole('cashier'));
+const isKitchen     = computed(() => hasRole('kitchen'));
+const isInventory   = computed(() => hasRole('inventory_staff'));
+const isCustomer    = computed(() => hasRole('customer'));
 
 // ─── SUPER ADMIN MENU ────────────────────────────────────────────────────────
 const superAdminNav: NavItem[] = [
-    { title: 'Dashboard', href: superAdminDashboard().url, icon: LayoutGrid },
-    { title: 'Nhà hàng', href: '/super-admin/restaurants', icon: Building2 },
-    { title: 'Gói dịch vụ', href: '/super-admin/plans', icon: BadgeDollarSign },
-    { title: 'Tài khoản', href: '/super-admin/accounts', icon: Users },
-    {
-        title: 'Billing Center',
-        href: '/super-admin/billing',
-        icon: BadgeDollarSign,
-    },
-    { title: 'Audit Log', href: '/super-admin/audit-logs', icon: FileSearch2 },
-    { title: 'DevOps & Support', href: '/super-admin/support', icon: Headset },
+    { title: 'Dashboard',      href: superAdminDashboard().url, icon: LayoutGrid },
+    { title: 'Nhà hàng',       href: '/super-admin/restaurants', icon: Building2 },
+    { title: 'Gói dịch vụ',   href: '/super-admin/plans',       icon: BadgeDollarSign },
+    { title: 'Tài khoản',      href: '/super-admin/accounts',    icon: Users },
+    { title: 'Billing Center', href: '/super-admin/billing',     icon: BadgeDollarSign },
+    { title: 'Banner & Slideshow', href: '/super-admin/banners', icon: Image },
+    { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
+    { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
+    { title: 'Chatbot AI',      href: '/super-admin/chatbot',   icon: Bot },
+    { title: 'Tin tức',         href: '/super-admin/news',      icon: Newspaper },
 ];
 
 // ─── OWNER MENU ───────────────────────────────────────────────────────────────
 const ownerNav: NavItem[] = [
-    { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
-    { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
-    { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
-    { title: 'Kho nguyên liệu', href: '/inventory', icon: Package },
-    { title: 'Nhà cung cấp', href: '/suppliers', icon: Truck },
-    { title: 'Nhân sự', href: '/employees', icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules', icon: CalendarDays },
-    { title: 'Bảng lương', href: '/salaries', icon: Wallet },
-    { title: 'Khách hàng', href: '/customers', icon: Users },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Báo cáo & AI', href: '/reports', icon: BarChart3 },
-    { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
-    { title: 'Audit Log', href: '/audit-logs', icon: ScrollText },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
+    { title: 'Quản lý đơn hàng', href: '/orders',                 icon: ShoppingCart },
+    { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
+    { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
+    { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck },
+    { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
+    { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
+    { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
+    { title: 'Khách hàng',       href: '/customers',              icon: Users },
+    { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
+    { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3 },
+    { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
+    { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText },
+    { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
+    { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
 ];
 
 // ─── MANAGER MENU ─────────────────────────────────────────────────────────────
 const managerNav: NavItem[] = [
-    { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
-    { title: 'Đơn hàng hôm nay', href: '/orders', icon: ShoppingCart },
-    { title: 'Nhân sự', href: '/employees', icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules', icon: CalendarDays },
-    { title: 'Bảng lương', href: '/salaries', icon: Wallet },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Phản hồi KH', href: '/feedback', icon: MessageSquare },
-    { title: 'Báo cáo doanh thu', href: '/reports', icon: BarChart3 },
-    { title: 'Vi phạm nội bộ', href: '/violations', icon: FileSearch2 },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
+    { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
+    { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
+    { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
+    { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
+    { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
+    { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare },
+    { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3 },
+    { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2 },
+    { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
+    { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
 ];
 
 // ─── CASHIER MENU ─────────────────────────────────────────────────────────────
 const cashierNav: NavItem[] = [
-    { title: 'Tạo đơn hàng', href: '/orders/create', icon: ShoppingCart },
-    { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
-    { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
-    { title: 'Doanh thu ca', href: '/reports/shift', icon: Wallet },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'Tạo đơn hàng',    href: '/orders/create',           icon: ShoppingCart },
+    { title: 'Sơ đồ bàn',       href: '/tables',                  icon: Building2 },
+    { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
+    { title: 'Doanh thu ca',     href: '/reports/shift',           icon: Wallet },
+    { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays },
 ];
 
 // ─── KITCHEN MENU ─────────────────────────────────────────────────────────────
 const kitchenNav: NavItem[] = [
-    { title: 'Màn hình bếp', href: '/kitchen', icon: ChefHat },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'Màn hình bếp',    href: '/kitchen',                  icon: ChefHat },
+    { title: 'Lịch làm việc',   href: '/schedules',                icon: CalendarDays },
 ];
 
 // ─── INVENTORY STAFF MENU ─────────────────────────────────────────────────────
 const inventoryNav: NavItem[] = [
-    { title: 'Tồn kho', href: '/inventory', icon: Package },
-    { title: 'Nhập kho', href: '/inventory/receive', icon: Truck },
-    {
-        title: 'Lịch sử giao dịch',
-        href: '/inventory/transactions',
-        icon: Clock,
-    },
-    { title: 'Nhà cung cấp', href: '/suppliers', icon: Truck },
-    { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
+    { title: 'Tồn kho',         href: '/inventory',                icon: Package },
+    { title: 'Nhập kho',        href: '/inventory/receive',        icon: Truck },
+    { title: 'Lịch sử giao dịch', href: '/inventory/transactions', icon: Clock },
+    { title: 'Nhà cung cấp',    href: '/suppliers',                icon: Truck },
+    { title: 'Lịch làm việc',   href: '/schedules',                icon: CalendarDays },
 ];
 
 // ─── CUSTOMER MENU ────────────────────────────────────────────────────────────
 const customerNav: NavItem[] = [
-    { title: 'Thực đơn', href: '/menu', icon: UtensilsCrossed },
-    { title: 'Đơn hàng của tôi', href: '/my-orders', icon: ShoppingCart },
-    { title: 'Khuyến mãi', href: '/promotions', icon: Tag },
-    { title: 'Phản hồi', href: '/feedback', icon: MessageSquare },
+    { title: 'Thực đơn',        href: '/menu',                     icon: UtensilsCrossed },
+    { title: 'Đơn hàng của tôi', href: '/my-orders',               icon: ShoppingCart },
+    { title: 'Khuyến mãi',      href: '/promotions',               icon: Tag },
+    { title: 'Phản hồi',        href: '/feedback',                 icon: MessageSquare },
 ];
 
 // ─── Chọn menu dựa trên role và hạn gói ──────────────────────────────────────────
 const mainNavItems = computed<NavItem[]>(() => {
     if (isSuperAdmin.value) return superAdminNav;
-
+    
     // Nếu gói hết hạn / bị khóa, giới hạn chỉ cho phép xem Tổng quan
     if (!isSubscriptionActive.value) {
-        return [{ title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid }];
+        return [
+            { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid }
+        ];
     }
-
-    if (isOwner.value) return ownerNav;
-    if (isManager.value) return managerNav;
-    if (isCashier.value) return cashierNav;
-    if (isKitchen.value) return kitchenNav;
-    if (isInventory.value) return inventoryNav;
-    if (isCustomer.value) return customerNav;
+    
+    if (isOwner.value)      return ownerNav;
+    if (isManager.value)    return managerNav;
+    if (isCashier.value)    return cashierNav;
+    if (isKitchen.value)    return kitchenNav;
+    if (isInventory.value)  return inventoryNav;
+    if (isCustomer.value)   return customerNav;
     return [];
 });
 
 const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
-        icon: BookOpen,
-    },
+    { title: 'Repository',    href: 'https://github.com/laravel/vue-starter-kit', icon: FolderGit2 },
+    { title: 'Documentation', href: 'https://laravel.com/docs/starter-kits#vue',   icon: BookOpen },
 ];
 </script>
 
@@ -205,7 +197,7 @@ const footerNavItems: NavItem[] = [
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
                 Không có menu khả dụng cho tài khoản này.
             </div>
-
+            
             <!-- Widget hạn ngạch & dùng thử chuyên nghiệp -->
             <SubscriptionWidget v-if="tenant && !isSuperAdmin" />
         </SidebarContent>

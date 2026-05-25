@@ -15,6 +15,7 @@ use App\Models\SubscriptionPlan;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
+use App\Jobs\SendWelcomeEmail;
 use App\Services\QrCodeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -31,7 +32,7 @@ class RestaurantOnboardingService
      */
     public function onboard(array $input): User
     {
-        return DB::transaction(function () use ($input): User {
+        $user = DB::transaction(function () use ($input): User {
             // Luôn khởi tạo doanh nghiệp ở gói 'free' trước (kể cả khi họ chọn trả phí như Pro)
             // Họ sẽ chỉ được nâng lên gói trả phí sau khi thanh toán thành công qua SePay.
             $plan = SubscriptionPlan::query()
@@ -93,7 +94,12 @@ class RestaurantOnboardingService
 
             return $user;
         });
+
+        dispatch(new SendWelcomeEmail($user->id));
+
+        return $user;
     }
+
 
     private function seedDefaults(Restaurant $restaurant, User $owner): void
     {

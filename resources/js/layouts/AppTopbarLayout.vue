@@ -28,7 +28,7 @@ const { getInitials } = useInitials();
 const navItems = [
     { label: 'Tính năng', href: '#features' },
     { label: 'Bảng giá', href: '#pricing' },
-    { label: 'Demo POS', href: '#features' },
+    { label: 'Tin tức', href: '/tin-tuc' },
 ];
 
 const handleLogout = () => {

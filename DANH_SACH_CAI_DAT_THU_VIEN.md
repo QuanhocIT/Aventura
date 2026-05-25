@@ -57,12 +57,42 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 
 ## 3) Thư viện cần cài thêm (nếu phát triển Python service)
 
-### Python service (tùy chọn)
-
-Nếu muốn chạy AI/microservice, cần cài Python 3.10+ và các package:
+### Email Microservice (`services/email_service/`) — port 8001
 
 ```bash
-pip install fastapi uvicorn pandas scikit-learn numpy pydantic python-dotenv httpx
+cd services/email_service
+pip install -r requirements.txt
+uvicorn main:app --port 8001
+```
+
+### Chatbot AI Microservice (`services/chatbot_service/`) — port 8002
+
+Chatbot dùng TF-IDF (scikit-learn, char n-gram tiếng Việt) để khớp câu hỏi với knowledge base trong DB.
+
+```bash
+cd services/chatbot_service
+pip install -r requirements.txt
+# requirements.txt gồm:
+#   fastapi==0.115.0, uvicorn==0.30.6, pymysql==1.1.1
+#   scikit-learn==1.5.2, numpy==1.26.4, pydantic==2.9.2, python-dotenv==1.0.1
+uvicorn main:app --port 8002
+```
+
+Cấu hình `.env` trong thư mục `services/chatbot_service/`:
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=aventura
+DB_USERNAME=root
+DB_PASSWORD=
+CACHE_TTL_SECONDS=300
+SIMILARITY_THRESHOLD=0.28
+MAX_SUGGESTIONS=5
+```
+
+Trong `.env` của Laravel, thêm:
+```env
+CHATBOT_SERVICE_URL=http://localhost:8002
 ```
 
 
@@ -161,7 +191,8 @@ SENTRY_TRACES_SAMPLE_RATE=0.2
 - Redis service (bắt buộc nếu dùng queue/cache)
 - Meilisearch service (nếu bật Scout)
 - Reverb server (nếu dùng realtime)
-- Python FastAPI service (nếu dùng AI/microservice)
+- Email Microservice: `cd services/email_service && uvicorn main:app --port 8001`
+- Chatbot AI Microservice: `cd services/chatbot_service && uvicorn main:app --port 8002`
 
 Lenh thuong dung:
 

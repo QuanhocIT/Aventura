@@ -84,4 +84,9 @@ class User extends Authenticatable
         return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
             ->where('collection', 'user_avatar');
     }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasAnyRole(config('auth.super_admin_roles', ['admin', 'super_admin']));
+    }
 }

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Database\Seeders\Restaurant\RestaurantDemoSeeder;
+use Database\Seeders\System\ChatbotKnowledgeSeeder;
 use Database\Seeders\System\SubscriptionPlanSeeder;
 use Database\Seeders\System\SystemDemoSeeder;
 use Database\Seeders\Tenant\TenantDemoSeeder;
@@ -18,6 +19,7 @@ class DatabaseSeeder extends Seeder
             TenantDemoSeeder::class,
             RestaurantDemoSeeder::class,
             \Database\Seeders\SuperAdminSeeder::class,
+            ChatbotKnowledgeSeeder::class,
         ]);
     }
 }
