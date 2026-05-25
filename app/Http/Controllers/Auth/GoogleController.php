@@ -38,7 +38,7 @@ class GoogleController extends Controller
                 ->first();
 
             if ($user) {
-                // Tài khoản đã tồn tại — cập nhật google_id nếu chưa có
+                // Tài khoản đã tồn tại  cập nhật google_id nếu chưa có
                 $user->google_id     = $googleUser->getId();
                 $user->last_login_at = now();
 

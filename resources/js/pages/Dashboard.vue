@@ -37,23 +37,23 @@ defineProps<{
 const freePlan = {
     code: 'free',
     name: 'Free',
-    price: '0Ä‘',
-    cycle: '/thÃ¡ng',
-    maxBranches: '1 chi nhÃ¡nh',
-    maxTables: '10 bÃ n',
-    maxUsers: '5 nhÃ¢n viÃªn',
-    note: 'BÃ¡m Ä‘Ãºng `subscription_plans`: free = 0, 1 branch, 10 tables.',
+    price: '0đ',
+    cycle: '/tháng',
+    maxBranches: '1 chi nhánh',
+    maxTables: '10 bàn',
+    maxUsers: '5 nhân viên',
+    note: 'Bám đúng `subscription_plans`: free = 0, 1 branch, 10 tables.',
 };
 
 const proPlan = {
     code: 'pro',
     name: 'Pro',
-    price: '499.000Ä‘',
-    cycle: '/thÃ¡ng',
-    maxBranches: 'KhÃ´ng giá»›i háº¡n',
-    maxTables: 'KhÃ´ng giá»›i háº¡n',
-    maxUsers: 'KhÃ´ng giá»›i háº¡n',
-    note: 'Má»Ÿ khÃ³a multi-branch, analytics, queue, audit, staff, inventory, AI insights.',
+    price: '499.000đ',
+    cycle: '/tháng',
+    maxBranches: 'Không giới hạn',
+    maxTables: 'Không giới hạn',
+    maxUsers: 'Không giới hạn',
+    note: 'Mở khóa multi-branch, analytics, queue, audit, staff, inventory, AI insights.',
 };
 
 const featureMap = [
@@ -61,80 +61,80 @@ const featureMap = [
         icon: QrCode,
         title: 'QR order',
         description:
-            'KhÃ¡ch quÃ©t QR táº¡i bÃ n -> táº¡o order nhanh, giáº£m sai sÃ³t, giáº£m táº£i nhÃ¢n viÃªn.',
+            'Khách quét QR tại bàn -> tạo order nhanh, giảm sai sót, giảm tải nhân viên.',
     },
     {
         icon: Monitor,
         title: 'Kitchen display',
         description:
-            'ÄÆ¡n lÃªn báº¿p theo realtime, tráº¡ng thÃ¡i rÃµ rÃ ng, Ã­t nháº§m láº«n.',
+            'Đơn lên bếp theo realtime, trạng thái rõ ràng, ít nhầm lẫn.',
     },
     {
         icon: Package,
         title: 'Inventory',
         description:
-            'Trá»« kho theo Ä‘á»‹nh lÆ°á»£ng, theo dÃµi nháº­p xuáº¥t, cáº£nh bÃ¡o thiáº¿u nguyÃªn liá»‡u.',
+            'Trừ kho theo định lượng, theo dõi nhập xuất, cảnh báo thiếu nguyên liệu.',
     },
     {
         icon: Users,
         title: 'Staff',
         description:
-            'Quáº£n lÃ½ nhÃ¢n sá»±, ca lÃ m, vai trÃ², cháº¥m cÃ´ng vÃ  há»— trá»£ tÃ­nh lÆ°Æ¡ng.',
+            'Quản lý nhân sự, ca làm, vai trò, chấm công và hỗ trợ tính lương.',
     },
     {
         icon: BarChart3,
         title: 'Analytics',
         description:
-            'Theo dÃµi doanh thu, hiá»‡u suáº¥t, xu hÆ°á»›ng mÃ³n bÃ¡n cháº¡y, bÃ¡o cÃ¡o váº­n hÃ nh.',
+            'Theo dõi doanh thu, hiệu suất, xu hướng món bán chạy, báo cáo vận hành.',
     },
     {
         icon: Building2,
         title: 'Multi-branch',
         description:
-            'Má»™t tÃ i khoáº£n quáº£n lÃ½ nhiá»u chi nhÃ¡nh, dá»¯ liá»‡u tÃ¡ch biá»‡t theo tenant.',
+            'Một tài khoản quản lý nhiều chi nhánh, dữ liệu tách biệt theo tenant.',
     },
     {
         icon: ShieldCheck,
         title: 'Audit log',
         description:
-            'Ghi váº¿t thao tÃ¡c nháº¡y cáº£m Ä‘á»ƒ tra soÃ¡t, giáº£m phá»¥ thuá»™c vÃ o tÃ­nh trung thá»±c.',
+            'Ghi vết thao tác nhạy cảm để tra soát, giảm phụ thuộc vào tính trung thực.',
     },
     {
         icon: Bot,
         title: 'AI insights',
         description:
-            'Tá»•ng há»£p tÃ­n hiá»‡u dá»¯ liá»‡u Ä‘á»ƒ gá»£i Ã½ cáº£nh bÃ¡o, dá»± bÃ¡o vÃ  phÃ¡t hiá»‡n báº¥t thÆ°á»ng.',
+            'Tổng hợp tín hiệu dữ liệu để gợi ý cảnh báo, dự báo và phát hiện bất thường.',
     },
     {
         icon: Clock3,
         title: 'Queue',
-        description: 'TÃ¡c vá»¥ náº·ng cháº¡y ná»n, giá»¯ UI bÃ¡n hÃ ng pháº£n há»“i nhanh.',
+        description: 'Tác vụ nặng chạy nền, giữ UI bán hàng phản hồi nhanh.',
     },
 ];
 
 const faq = [
     {
-        q: 'Free cÃ³ Ä‘á»§ Ä‘á»ƒ cháº¡y quÃ¡n nhá» khÃ´ng?',
-        a: 'CÃ³. Free phÃ¹ há»£p Ä‘á»ƒ thá»­ váº­n hÃ nh thá»±c táº¿ vá»›i 1 chi nhÃ¡nh, 10 bÃ n, 5 nhÃ¢n viÃªn. ÄÃ¢y lÃ  Ä‘Ãºng háº¡n má»©c DB hiá»‡n cÃ³.',
+        q: 'Free có đủ để chạy quán nhỏ không?',
+        a: 'Có. Free phù hợp để thử vận hành thực tế với 1 chi nhánh, 10 bàn, 5 nhân viên. Đây là đúng hạn mức DB hiện có.',
     },
     {
-        q: 'Pro khÃ¡c gÃ¬ vá» máº·t váº­n hÃ nh?',
-        a: 'Pro má»Ÿ multi-branch, analytics, queue, audit, staff, inventory vÃ  AI insights. ÄÃ¢y lÃ  gÃ³i dÃ nh cho mÃ´ hÃ¬nh cáº§n kiá»ƒm soÃ¡t cháº·t.',
+        q: 'Pro khác gì về mặt vận hành?',
+        a: 'Pro mở multi-branch, analytics, queue, audit, staff, inventory và AI insights. Đây là gói dành cho mô hình cần kiểm soát chặt.',
     },
     {
-        q: 'Landing nÃ y cÃ³ demo tháº­t khÃ´ng?',
-        a: 'CÃ³ khá»‘i demo POS mÃ´ phá»ng luá»“ng order -> báº¿p -> thanh toÃ¡n, kÃ¨m chatbot FAQ Ä‘á»ƒ ngÆ°á»i dÃ¹ng tá»± kiá»ƒm tra nhanh.',
+        q: 'Landing này có demo thật không?',
+        a: 'Có khối demo POS mô phỏng luồng order -> bếp -> thanh toán, kèm chatbot FAQ để người dùng tự kiểm tra nhanh.',
     },
     {
-        q: 'Dá»¯ liá»‡u gÃ³i bÃ¡m schema nÃ o?',
-        a: 'BÃ¡m `subscription_plans` trong `aventura.sql`, gá»“m `price`, `max_branches`, `max_tables`, `max_users`, `features`.',
+        q: 'Dữ liệu gói bám schema nào?',
+        a: 'Bám `subscription_plans` trong `aventura.sql`, gồm `price`, `max_branches`, `max_tables`, `max_users`, `features`.',
     },
 ];
 
 const demoTabs = [
     { key: 'pos', label: 'POS' },
-    { key: 'kds', label: 'Báº¿p' },
-    { key: 'report', label: 'BÃ¡o cÃ¡o' },
+    { key: 'kds', label: 'Bếp' },
+    { key: 'report', label: 'Báo cáo' },
 ] as const;
 
 const activeDemo = ref<(typeof demoTabs)[number]['key']>('pos');
@@ -143,11 +143,11 @@ const demoState = computed(() => {
     if (activeDemo.value === 'kds') {
         return {
             title: 'Kitchen board',
-            left: ['2 order chá»', '1 order Ä‘ang lÃ m', '0 trá»… SLA'],
+            left: ['2 order chờ', '1 order đang làm', '0 trễ SLA'],
             right: [
-                { label: 'BÃºn bÃ²', status: 'Äang lÃ m' },
-                { label: 'CÆ¡m gÃ ', status: 'Sáºµn sÃ ng' },
-                { label: 'TrÃ  Ä‘Ã o', status: 'Chá» in bill' },
+                { label: 'Bún bò', status: 'Đang làm' },
+                { label: 'Cơm gà', status: 'Sẵn sàng' },
+                { label: 'Trà đào', status: 'Chờ in bill' },
             ],
         };
     }
@@ -157,24 +157,24 @@ const demoState = computed(() => {
             title: 'Daily snapshot',
             left: [
                 'Doanh thu: 12,8M',
-                'Tá»· lá»‡ hoÃ n thÃ nh: 98%',
-                'MÃ³n bÃ¡n cháº¡y: Phá»Ÿ bÃ²',
+                'Tỷ lệ hoàn thành: 98%',
+                'Món bán chạy: Phở bò',
             ],
             right: [
-                { label: 'Giá» cao Ä‘iá»ƒm', status: '11:30 - 13:30' },
-                { label: 'Cáº£nh bÃ¡o kho', status: '2 nguyÃªn liá»‡u tháº¥p' },
-                { label: 'Audit', status: '1 thay Ä‘á»•i giÃ¡' },
+                { label: 'Giờ cao điểm', status: '11:30 - 13:30' },
+                { label: 'Cảnh báo kho', status: '2 nguyên liệu thấp' },
+                { label: 'Audit', status: '1 thay đổi giá' },
             ],
         };
     }
 
     return {
         title: 'POS checkout',
-        left: ['BÃ n 12', '3 mÃ³n', 'Tá»•ng: 168.000Ä‘'],
+        left: ['Bàn 12', '3 món', 'Tổng: 168.000đ'],
         right: [
-            { label: 'Phá»Ÿ bÃ² tÃ¡i', status: 'x2' },
-            { label: 'TrÃ  chanh', status: 'x1' },
-            { label: 'Thanh toÃ¡n', status: 'HoÃ n táº¥t' },
+            { label: 'Phở bò tái', status: 'x2' },
+            { label: 'Trà chanh', status: 'x1' },
+            { label: 'Thanh toán', status: 'Hoàn tất' },
         ],
     };
 });
@@ -182,7 +182,7 @@ const demoState = computed(() => {
 
 <template>
     <AppTopbarLayout>
-        <Head title="Aventura | SaaS quáº£n lÃ½ nhÃ  hÃ ng" />
+        <Head title="Aventura | SaaS quản lý nhà hàng" />
 
         <section class="px-4 pt-16 lg:px-8 lg:pt-20">
             <div
@@ -190,29 +190,29 @@ const demoState = computed(() => {
             >
                 <div>
                     <Badge variant="outline" class="mb-5 w-fit"
-                        >SaaS quáº£n lÃ½ nhÃ  hÃ ng</Badge
+                        >SaaS quản lý nhà hàng</Badge
                     >
                     <h1
                         class="max-w-2xl text-4xl font-semibold tracking-tight lg:text-6xl"
                     >
-                        Quáº£n lÃ½ quÃ¡n Äƒn theo nhá»‹p váº­n hÃ nh tháº­t.
+                        Quản lý quán ăn theo nhịp vận hành thật.
                     </h1>
                     <p
                         class="mt-5 max-w-2xl text-base leading-7 text-muted-foreground lg:text-lg"
                     >
-                        Aventura gom order, báº¿p, kho, nhÃ¢n sá»±, audit vÃ  AI vÃ o
-                        má»™t ná»n táº£ng. Má»¥c tiÃªu lÃ  giáº£m lá»‡ thuá»™c thá»§ cÃ´ng, tÄƒng
-                        kháº£ nÄƒng kiá»ƒm soÃ¡t vÃ  cho chá»§ quÃ¡n nhÃ¬n tháº¥y dá»¯ liá»‡u rÃµ
-                        hÆ¡n.
+                        Aventura gom order, bếp, kho, nhân sự, audit và AI vào
+                        một nền tảng. Mục tiêu là giảm lệ thuộc thủ công, tăng
+                        khả năng kiểm soát và cho chủ quán nhìn thấy dữ liệu rõ
+                        hơn.
                     </p>
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                         <Button v-if="canRegister" as-child size="lg">
                             <Link :href="register()"
-                                >Táº¡o tÃ i khoáº£n miá»…n phÃ­</Link
+                                >Tạo tài khoản miễn phí</Link
                             >
                         </Button>
                         <Button as-child variant="outline" size="lg">
-                            <a href="#pricing">Xem gÃ³i</a>
+                            <a href="#pricing">Xem gói</a>
                         </Button>
                     </div>
                     <div
@@ -220,11 +220,11 @@ const demoState = computed(() => {
                     >
                         <span class="inline-flex items-center gap-2"
                             ><Check class="size-4 text-primary" /> Free: 1 chi
-                            nhÃ¡nh, 10 bÃ n</span
+                            nhánh, 10 bàn</span
                         >
                         <span class="inline-flex items-center gap-2"
                             ><Check class="size-4 text-primary" /> Pro:
-                            499.000Ä‘/thÃ¡ng</span
+                            499.000đ/tháng</span
                         >
                         <span class="inline-flex items-center gap-2"
                             ><Check class="size-4 text-primary" /> Audit + AI +
@@ -309,11 +309,11 @@ const demoState = computed(() => {
             <div class="mx-auto max-w-7xl">
                 <div class="max-w-2xl">
                     <h2 class="text-3xl font-semibold">
-                        Map tÃ­nh nÄƒng theo DB + váº­n hÃ nh
+                        Map tính năng theo DB + vận hành
                     </h2>
                     <p class="mt-3 text-muted-foreground">
-                        KhÃ´ng marketing mÆ¡ há»“. ÄÃ¢y lÃ  cÃ¡c lá»›p chá»©c nÄƒng khá»›p
-                        trá»±c tiáº¿p vá»›i schema vÃ  bÃ¡o cÃ¡o ká»¹ thuáº­t Ä‘Ã£ chá»‘t.
+                        Không marketing mơ hồ. Đây là các lớp chức năng khớp
+                        trực tiếp với schema và báo cáo kỹ thuật đã chốt.
                     </p>
                 </div>
                 <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -347,11 +347,11 @@ const demoState = computed(() => {
             <div class="mx-auto max-w-7xl">
                 <div class="max-w-2xl">
                     <h2 class="text-3xl font-semibold">
-                        Báº£ng giÃ¡ bÃ¡m `subscription_plans`
+                        Bảng giá bám `subscription_plans`
                     </h2>
                     <p class="mt-3 text-muted-foreground">
-                        Free vÃ  Pro Ä‘Æ°á»£c dá»±ng Ä‘Ãºng theo schema DB, trÃ¡nh lá»‡ch
-                        giá»¯a UI vÃ  dá»¯ liá»‡u há»‡ thá»‘ng.
+                        Free và Pro được dựng đúng theo schema DB, tránh lệch
+                        giữa UI và dữ liệu hệ thống.
                     </p>
                 </div>
                 <div class="mt-8 grid gap-4 lg:grid-cols-2">
@@ -361,7 +361,7 @@ const demoState = computed(() => {
                                 <CardTitle class="text-2xl">{{
                                     freePlan.name
                                 }}</CardTitle>
-                                <Badge variant="secondary">Máº·c Ä‘á»‹nh</Badge>
+                                <Badge variant="secondary">Mặc định</Badge>
                             </div>
                             <div class="flex items-end gap-1">
                                 <span class="text-4xl font-semibold">{{
@@ -392,7 +392,7 @@ const demoState = computed(() => {
                             <p
                                 class="flex items-center gap-2 text-muted-foreground"
                             >
-                                <X class="size-4" /> KhÃ´ng má»Ÿ AI insights
+                                <X class="size-4" /> Không mở AI insights
                             </p>
                         </CardContent>
                         <div class="px-6 pb-6">
@@ -402,7 +402,7 @@ const demoState = computed(() => {
                                 variant="outline"
                                 class="w-full"
                             >
-                                <Link :href="register()">DÃ¹ng Free</Link>
+                                <Link :href="register()">Dùng Free</Link>
                             </Button>
                         </div>
                     </Card>
@@ -413,7 +413,7 @@ const demoState = computed(() => {
                                 <CardTitle class="text-2xl">{{
                                     proPlan.name
                                 }}</CardTitle>
-                                <Badge>Khuyáº¿n nghá»‹</Badge>
+                                <Badge>Khuyến nghị</Badge>
                             </div>
                             <div class="flex items-end gap-1">
                                 <span class="text-4xl font-semibold">{{
@@ -448,7 +448,7 @@ const demoState = computed(() => {
                         </CardContent>
                         <div class="px-6 pb-6">
                             <Button v-if="canRegister" as-child class="w-full">
-                                <Link :href="register()">Chá»n Pro</Link>
+                                <Link :href="register()">Chọn Pro</Link>
                             </Button>
                         </div>
                     </Card>
@@ -461,8 +461,8 @@ const demoState = computed(() => {
                 <div class="max-w-2xl">
                     <h2 class="text-3xl font-semibold">Chatbot FAQ</h2>
                     <p class="mt-3 text-muted-foreground">
-                        Khá»‘i nÃ y thay pháº§n mÃ´ táº£ dÃ i báº±ng cÃ¢u há»i ngáº¯n, Ä‘Ãºng
-                        nhá»‹p onboarding thá»±c táº¿.
+                        Khối này thay phần mô tả dài bằng câu hỏi ngắn, đúng
+                        nhịp onboarding thực tế.
                     </p>
                 </div>
                 <div class="mt-8 grid gap-4 lg:grid-cols-2">
@@ -489,11 +489,11 @@ const demoState = computed(() => {
                         <CardHeader>
                             <Star class="size-5 text-primary" />
                             <CardTitle class="text-base"
-                                >Quáº£n lÃ½ chuá»—i</CardTitle
+                                >Quản lý chuỗi</CardTitle
                             >
                             <CardDescription
-                                >Multi-branch + tenant separation cho mÃ´ hÃ¬nh
-                                nhiá»u chi nhÃ¡nh.</CardDescription
+                                >Multi-branch + tenant separation cho mô hình
+                                nhiều chi nhánh.</CardDescription
                             >
                         </CardHeader>
                     </Card>
@@ -501,11 +501,11 @@ const demoState = computed(() => {
                         <CardHeader>
                             <LineChart class="size-5 text-primary" />
                             <CardTitle class="text-base"
-                                >Minh báº¡ch váº­n hÃ nh</CardTitle
+                                >Minh bạch vận hành</CardTitle
                             >
                             <CardDescription
-                                >Audit log + analytics giÃºp nhÃ¬n rÃµ thay Ä‘á»•i vÃ 
-                                hiá»‡u suáº¥t.</CardDescription
+                                >Audit log + analytics giúp nhìn rõ thay đổi và
+                                hiệu suất.</CardDescription
                             >
                         </CardHeader>
                     </Card>
@@ -516,8 +516,8 @@ const demoState = computed(() => {
                                 >Onboarding nhanh</CardTitle
                             >
                             <CardDescription
-                                >ÄÄƒng kÃ½ xong cÃ³ thá»ƒ vÃ o luá»“ng demo, khÃ´ng cáº§n
-                                giáº£i thÃ­ch dÃ i dÃ²ng.</CardDescription
+                                >Đăng ký xong có thể vào luồng demo, không cần
+                                giải thích dài dòng.</CardDescription
                             >
                         </CardHeader>
                     </Card>
@@ -529,17 +529,17 @@ const demoState = computed(() => {
             <div
                 class="mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
             >
-                <h2 class="text-3xl font-semibold">ÄÄƒng kÃ½ vÃ  thá»­ ngay</h2>
+                <h2 class="text-3xl font-semibold">Đăng ký và thử ngay</h2>
                 <p class="max-w-2xl text-muted-foreground">
-                    Aventura Ä‘á»§ gá»n Ä‘á»ƒ thá»­, Ä‘á»§ sÃ¢u Ä‘á»ƒ cháº¡y tháº­t. GÃ³i Free cÃ³ háº¡n
-                    má»©c rÃµ; gÃ³i Pro má»Ÿ khÃ³a pháº§n cáº§n kiá»ƒm soÃ¡t.
+                    Aventura đủ gọn để thử, đủ sâu để chạy thật. Gói Free có hạn
+                    mức rõ; gói Pro mở khóa phần cần kiểm soát.
                 </p>
                 <div class="flex flex-col gap-3 sm:flex-row">
                     <Button v-if="canRegister" as-child size="lg">
-                        <Link :href="register()">Báº¯t Ä‘áº§u miá»…n phÃ­</Link>
+                        <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
                     <Button as-child variant="outline" size="lg">
-                        <a href="#features">Xem láº¡i tÃ­nh nÄƒng</a>
+                        <a href="#features">Xem lại tính năng</a>
                     </Button>
                 </div>
             </div>

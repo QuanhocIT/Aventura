@@ -53,10 +53,10 @@ class RestaurantController extends Controller
                 'name'            => $r->name,
                 'code'            => $r->code,
                 'status'          => $r->status,
-                'plan'            => $r->plan?->name ?? '—',
+                'plan'            => $r->plan?->name ?? 'Â—',
                 'plan_code'       => $r->plan?->code ?? 'FREE',
-                'owner'           => $r->owner?->name ?? '—',
-                'owner_email'     => $r->owner?->email ?? '—',
+                'owner'           => $r->owner?->name ?? 'Â—',
+                'owner_email'     => $r->owner?->email ?? 'Â—',
                 'branches_count'  => $r->branches_count,
                 'employees_count' => $r->employees_count,
                 'tables_count'    => $r->tables_count,
@@ -222,7 +222,7 @@ class RestaurantController extends Controller
         $this->seedDemoData($restaurant);
 
         return redirect()->route('superadmin.restaurants.show', $restaurant)
-            ->with('success', "Ğã t?o nhà hàng \"{$restaurant->name}\" thành công.");
+            ->with('success', "ÄÄƒ t?o nhÃ  hÃ ng \"{$restaurant->name}\" thÃ nh cÃ´ng.");
     }
 
     public function updateStatus(Request $request, Restaurant $restaurant): RedirectResponse
@@ -235,12 +235,12 @@ class RestaurantController extends Controller
         $restaurant->update(['status' => $request->status]);
 
         $labels = [
-            'active'    => 'kích ho?t',
+            'active'    => 'kÃ­ch ho?t',
             'suspended' => 't?m ngung',
             'expired'   => 'h?t h?n',
         ];
 
-        return back()->with('success', "Ğã {$labels[$request->status]} nhà hàng \"{$restaurant->name}\".");
+        return back()->with('success', "ÄÄƒ {$labels[$request->status]} nhÃ  hÃ ng \"{$restaurant->name}\".");
     }
 
     public function updatePlan(Request $request, Restaurant $restaurant): RedirectResponse
@@ -262,7 +262,7 @@ class RestaurantController extends Controller
             'price'         => $plan->price,
         ]);
 
-        return back()->with('success', "Ğã chuy?n sang gói {$plan->name}.");
+        return back()->with('success', "ÄÄƒ chuy?n sang gÃ³i {$plan->name}.");
     }
 
     private function seedDemoData(Restaurant $restaurant): void
@@ -270,7 +270,7 @@ class RestaurantController extends Controller
         $branch = RestaurantBranch::create([
             'restaurant_id' => $restaurant->id,
             'code'          => 'CN01',
-            'name'          => 'Chi nhánh chính',
+            'name'          => 'Chi nhÃ¡nh chÃ­nh',
             'phone'         => $restaurant->phone,
             'email'         => $restaurant->email,
             'address'       => $restaurant->address,

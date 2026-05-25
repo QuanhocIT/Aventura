@@ -157,10 +157,10 @@ const healthBarColor: Record<string, string> = {
 const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
     return [
-        { label: 'Pro Ä‘ang hoáº¡t Ä‘á»™ng', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/40', border: 'border-violet-500/30', icon: 'ðŸ‘‘' },
-        { label: 'Äang dÃ¹ng Trial', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/40', border: 'border-sky-500/30', icon: 'ðŸ”µ' },
-        { label: 'Free â€“ Ãt hoáº¡t Ä‘á»™ng', value: s.free_inactive ?? 0, color: 'text-amber-400', gradient: 'from-amber-600/20 to-amber-900/40', border: 'border-amber-500/30', icon: 'ðŸ’›' },
-        { label: 'Nguy cÆ¡ rá»i bá»', value: s.at_risk ?? 0, color: 'text-rose-400', gradient: 'from-rose-600/20 to-rose-900/40', border: 'border-rose-500/30', icon: 'âš ï¸' },
+        { label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/40', border: 'border-violet-500/30', icon: '👑' },
+        { label: 'Đang dùng Trial', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/40', border: 'border-sky-500/30', icon: '🔵' },
+        { label: 'Free – Ít hoạt động', value: s.free_inactive ?? 0, color: 'text-amber-400', gradient: 'from-amber-600/20 to-amber-900/40', border: 'border-amber-500/30', icon: '💛' },
+        { label: 'Nguy cơ rời bỏ', value: s.at_risk ?? 0, color: 'text-rose-400', gradient: 'from-rose-600/20 to-rose-900/40', border: 'border-rose-500/30', icon: '⚠️' },
     ];
 });
 
@@ -383,7 +383,7 @@ const freeToProPath = computed(() => {
                     </div>
                     <div>
                         <h2 class="text-lg font-bold tracking-tight">AI Insights</h2>
-                        <p class="text-xs text-muted-foreground">PhÃ¢n tÃ­ch & dá»± Ä‘oÃ¡n hÃ nh vi khÃ¡ch hÃ ng theo thá»i gian thá»±c</p>
+                        <p class="text-xs text-muted-foreground">Phân tích & dự đoán hành vi khách hàng theo thời gian thực</p>
                     </div>
                 </div>
 
@@ -420,7 +420,7 @@ const freeToProPath = computed(() => {
                             <div class="flex size-7 items-center justify-center rounded-lg bg-rose-500/15">
                                 <AlertTriangle class="size-4 text-rose-400" />
                             </div>
-                            <CardTitle class="text-sm font-semibold">Nguy cÆ¡ rá»i bá» (Churn Risk)</CardTitle>
+                            <CardTitle class="text-sm font-semibold">Nguy cơ rời bỏ (Churn Risk)</CardTitle>
                         </div>
                         <Badge variant="secondary" class="text-xs">Top {{ aiInsights.churn_risks.length }}</Badge>
                     </CardHeader>
@@ -429,7 +429,7 @@ const freeToProPath = computed(() => {
                             <div class="flex items-center justify-between gap-2">
                                 <p class="font-semibold text-sm truncate">{{ r.name }}</p>
                                 <span :class="['shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold', riskColor[r.risk_level]]">
-                                    {{ r.risk_level === 'high' ? 'ðŸ”´ Cao' : r.risk_level === 'medium' ? 'ðŸŸ¡ Trung bÃ¬nh' : 'ðŸŸ¢ Tháº¥p' }}
+                                    {{ r.risk_level === 'high' ? '🔴 Cao' : r.risk_level === 'medium' ? '🟡 Trung bình' : '🟢 Thấp' }}
                                 </span>
                             </div>
                             <!-- Progress bar -->
@@ -442,25 +442,25 @@ const freeToProPath = computed(() => {
                             </div>
                             <!-- Reasons -->
                             <div v-if="r.reasons.length" class="space-y-1">
-                                <p class="text-xs font-medium text-muted-foreground">NguyÃªn nhÃ¢n:</p>
+                                <p class="text-xs font-medium text-muted-foreground">Nguyên nhân:</p>
                                 <ul class="space-y-0.5">
                                     <li v-for="reason in r.reasons" :key="reason" class="text-xs text-muted-foreground flex items-start gap-1.5">
-                                        <span class="shrink-0 mt-0.5 text-rose-400">â€º</span>{{ reason }}
+                                        <span class="shrink-0 mt-0.5 text-rose-400">›</span>{{ reason }}
                                     </li>
                                 </ul>
                             </div>
                             <!-- Actions -->
                             <div v-if="r.actions?.length" class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2 space-y-1">
-                                <p class="text-xs font-semibold text-amber-400">ðŸ’¡ Gá»£i Ã½ hÃ nh Ä‘á»™ng:</p>
+                                <p class="text-xs font-semibold text-amber-400">💡 Gợi ý hành động:</p>
                                 <ul class="space-y-0.5">
                                     <li v-for="action in r.actions" :key="action" class="text-xs text-amber-300/80 flex items-start gap-1.5">
-                                        <span class="shrink-0">â†’</span>{{ action }}
+                                        <span class="shrink-0">→</span>{{ action }}
                                     </li>
                                 </ul>
                             </div>
                         </div>
                         <div v-if="!aiInsights.churn_risks.length" class="px-4 py-8 text-center text-sm text-muted-foreground">
-                            âœ… KhÃ´ng phÃ¡t hiá»‡n rá»§i ro churn nÃ o
+                            ✅ Không phát hiện rủi ro churn nào
                         </div>
                     </CardContent>
                 </Card>
@@ -472,14 +472,14 @@ const freeToProPath = computed(() => {
                             <div class="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15">
                                 <Heart class="size-4 text-emerald-400" />
                             </div>
-                            <CardTitle class="text-sm font-semibold">Sá»©c khoáº» Tenant (Health Score)</CardTitle>
+                            <CardTitle class="text-sm font-semibold">Sức khoẻ Tenant (Health Score)</CardTitle>
                         </CardHeader>
                         <CardContent class="pt-3 space-y-3">
                             <div v-for="(h, idx) in aiInsights.health_scores" :key="h.restaurant_id" class="flex items-center gap-3">
                                 <span class="text-xs font-bold text-muted-foreground w-4 text-center">{{ idx + 1 }}</span>
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium truncate">{{ h.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ h.order_count_30d }} Ä‘Æ¡n / 30 ngÃ y</p>
+                                    <p class="text-xs text-muted-foreground">{{ h.order_count_30d }} đơn / 30 ngày</p>
                                 </div>
                                 <div class="flex items-center gap-2 shrink-0">
                                     <div class="h-2 w-24 rounded-full bg-muted overflow-hidden">
@@ -491,7 +491,7 @@ const freeToProPath = computed(() => {
                                     </span>
                                 </div>
                             </div>
-                            <p v-if="!aiInsights.health_scores.length" class="text-sm text-muted-foreground text-center py-3">ChÆ°a cÃ³ dá»¯ liá»‡u.</p>
+                            <p v-if="!aiInsights.health_scores.length" class="text-sm text-muted-foreground text-center py-3">Chưa có dữ liệu.</p>
                         </CardContent>
                     </Card>
 
@@ -502,7 +502,7 @@ const freeToProPath = computed(() => {
                                 <div class="flex size-7 items-center justify-center rounded-lg bg-cyan-500/15">
                                     <TrendingUp class="size-4 text-cyan-400" />
                                 </div>
-                                <CardTitle class="text-sm font-semibold">Dá»± bÃ¡o MRR (3 thÃ¡ng tá»›i)</CardTitle>
+                                <CardTitle class="text-sm font-semibold">Dự báo MRR (3 tháng tới)</CardTitle>
                             </div>
                             <Badge variant="secondary" class="text-xs text-cyan-400">AI Forecast</Badge>
                         </CardHeader>
@@ -516,7 +516,7 @@ const freeToProPath = computed(() => {
                                     </div>
                                     <div class="flex flex-col items-center gap-0.5">
                                         <span class="text-xs text-muted-foreground">{{ f.month }}</span>
-                                        <span class="text-xs">{{ f.trend === 'up' ? 'â†‘' : 'â†“' }}</span>
+                                        <span class="text-xs">{{ f.trend === 'up' ? '↑' : '↓' }}</span>
                                     </div>
                                 </div>
                             </div>

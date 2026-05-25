@@ -93,15 +93,15 @@ class SupportPortalService
     {
         $content = Str::lower($title.' '.$description);
 
-        if (Str::contains($content, ['bep', 'kitchen', 'realtime', 'khong nhan', 'không nh?n', 'thanh toan', 'thanh toán', 'khong vao don'])) {
+        if (Str::contains($content, ['bep', 'kitchen', 'realtime', 'khong nhan', 'khÃ´ng nh?n', 'thanh toan', 'thanh toÃ¡n', 'khong vao don'])) {
             return ['severity' => 'critical', 'priority' => 'p1'];
         }
 
-        if (Str::contains($content, ['api', 'queue', 'dong bo', 'd?ng b?', 'email', 'hoa don', 'hóa don'])) {
+        if (Str::contains($content, ['api', 'queue', 'dong bo', 'd?ng b?', 'email', 'hoa don', 'hÃ³a don'])) {
             return ['severity' => 'high', 'priority' => 'p2'];
         }
 
-        if (Str::contains($content, ['giao dien', 'giao di?n', 'chinh ta', 'chính t?', 'menu'])) {
+        if (Str::contains($content, ['giao dien', 'giao di?n', 'chinh ta', 'chÃ­nh t?', 'menu'])) {
             return ['severity' => 'low', 'priority' => 'p4'];
         }
 

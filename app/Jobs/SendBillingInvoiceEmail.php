@@ -23,7 +23,7 @@ class SendBillingInvoiceEmail implements ShouldQueue
             ->findOrFail($this->invoiceId);
 
         if (! $invoice->recipient_email) {
-            Log::warning('SendBillingInvoiceEmail: khÃ´ng cÃ³ recipient_email', ['invoice_id' => $this->invoiceId]);
+            Log::warning('SendBillingInvoiceEmail: không có recipient_email', ['invoice_id' => $this->invoiceId]);
             return;
         }
 

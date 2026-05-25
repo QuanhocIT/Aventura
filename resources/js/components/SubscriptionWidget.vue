@@ -17,19 +17,19 @@ import { Button } from '@/components/ui/button';
 const page = usePage();
 const tenant = computed(() => page.props.tenant as any);
 
-// State Ä‘á»ƒ hiá»ƒn thá»‹ Modal NÃ¢ng cáº¥p
+// State Äá» hiá»n thá» Modal NÃ¢ng cáº¥p
 const isUpgradeModalOpen = ref(false);
 
 if (!tenant.value) {
-    // KhÃ´ng hiá»ƒn thá»‹ náº¿u chÆ°a Ä‘Äƒng nháº­p / khÃ´ng thuá»™c nhÃ  hÃ ng nÃ o
+    // KhÃ´ng hiá»n thá» náº¿u chÆ°a ÄÄng nháº­p / khÃ´ng thuá»c nhÃ  hÃ ng nÃ o
 }
 
-const planName = computed(() => tenant.value?.plan?.name ?? 'Miá»…n phÃ­');
+const planName = computed(() => tenant.value?.plan?.name ?? 'Miá»n phÃ­');
 const planCode = computed(() => tenant.value?.plan?.code?.toUpperCase() ?? 'FREE');
 const isFree = computed(() => planCode.value === 'FREE');
 const isTrial = computed(() => tenant.value?.status === 'trial');
 
-// TÃ­nh sá»‘ ngÃ y cÃ²n láº¡i cá»§a trial hoáº·c subscription
+// TÃ­nh sá» ngÃ y cÃ²n láº¡i cá»§a trial hoáº·c subscription
 const daysRemaining = computed(() => {
     const targetDateStr = tenant.value?.subscription_ends_at || tenant.value?.trial_ends_at;
     if (!targetDateStr) return null;
@@ -44,7 +44,7 @@ const daysRemaining = computed(() => {
     return diffDays > 0 ? diffDays : 0;
 });
 
-// Thá»‘ng kÃª tÃ i nguyÃªn
+// Thá»ng kÃª tÃ i nguyÃªn
 const resources = computed(() => {
     const summary = tenant.value?.quota_summary?.resources ?? {};
     return [
@@ -59,7 +59,7 @@ const resources = computed(() => {
         },
         {
             key: 'tables',
-            label: 'BÃ n hoáº¡t Ä‘á»™ng',
+            label: 'BÃ n hoáº¡t Äá»ng',
             icon: Grid,
             used: summary.tables?.used ?? 0,
             limit: summary.tables?.limit,
@@ -78,10 +78,10 @@ const resources = computed(() => {
     ];
 });
 
-// Quyáº¿t Ä‘á»‹nh mÃ u sáº¯c cá»§a thanh tiáº¿n trÃ¬nh dá»±a trÃªn tá»‰ lá»‡ pháº§n trÄƒm sá»­ dá»¥ng
+// Quyáº¿t Äá»nh mÃ u sáº¯c cá»§a thanh tiáº¿n trÃ¬nh dá»±a trÃªn tá» lá» pháº§n trÄm sá»­ dá»¥ng
 function getProgressColorClass(pct: number) {
-    if (pct >= 90) return 'bg-rose-500'; // Äá» khi Ä‘áº§y / gáº§n Ä‘áº§y
-    if (pct >= 70) return 'bg-amber-500'; // Cam khi á»Ÿ má»©c cáº£nh bÃ¡o
+    if (pct >= 90) return 'bg-rose-500'; // Äá» khi Äáº§y / gáº§n Äáº§y
+    if (pct >= 70) return 'bg-amber-500'; // Cam khi á» má»©c cáº£nh bÃ¡o
     return 'bg-emerald-500'; // Xanh lÃ¡ khi an toÃ n
 }
 
@@ -100,10 +100,10 @@ function goToUpgradeCheckout() {
 
 <template>
     <div v-if="tenant" class="px-4 py-2">
-        <!-- Widget hiá»ƒn thá»‹ thÃ´ng tin gÃ³i -->
+        <!-- Widget hiá»n thá» thÃ´ng tin gÃ³i -->
         <div class="relative overflow-hidden rounded-xl border border-border/60 bg-gradient-to-b from-card to-background/50 p-4 shadow-sm backdrop-blur-md">
             
-            <!-- Hiá»‡u á»©ng sÃ¡ng má» á»Ÿ background cho gÃ³i PRO -->
+            <!-- Hiá»u á»©ng sÃ¡ng má» á» background cho gÃ³i PRO -->
             <div v-if="!isFree" class="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-primary/10 blur-2xl pointer-events-none"></div>
             
             <div class="flex items-center justify-between mb-3">
@@ -117,7 +117,7 @@ function goToUpgradeCheckout() {
                     </span>
                 </div>
                 
-                <!-- Huy hiá»‡u VIP cho PRO -->
+                <!-- Huy hiá»u VIP cho PRO -->
                 <span v-if="!isFree" class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                     <Sparkles class="size-3" /> PRO
                 </span>
@@ -127,7 +127,7 @@ function goToUpgradeCheckout() {
             <div v-if="isTrial && daysRemaining !== null" class="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 text-xs text-amber-600 dark:text-amber-400">
                 <p class="font-medium flex items-center gap-1.5">
                     <Sparkles class="size-3.5 animate-pulse" />
-                    Äang thá»­ nghiá»‡m PRO (CÃ²n {{ daysRemaining }} ngÃ y)
+                    Äang thá»­ nghiá»m PRO (CÃ²n {{ daysRemaining }} ngÃ y)
                 </p>
             </div>
 
@@ -140,7 +140,7 @@ function goToUpgradeCheckout() {
                             <span>{{ res.label }}</span>
                         </div>
                         <span class="font-medium text-foreground">
-                            {{ res.used }} / <span v-if="res.unlimited">âˆž</span><span v-else>{{ res.limit }}</span>
+                            {{ res.used }} / <span v-if="res.unlimited">â</span><span v-else>{{ res.limit }}</span>
                         </span>
                     </div>
                     
@@ -155,24 +155,24 @@ function goToUpgradeCheckout() {
                 </div>
             </div>
 
-            <!-- NÃºt nÃ¢ng cáº¥p hoáº·c Ä‘á»•i gÃ³i -->
+            <!-- NÃºt nÃ¢ng cáº¥p hoáº·c Äá»i gÃ³i -->
             <div class="mt-4 pt-3 border-t border-border/40">
                 <button 
                     @click="openUpgradeModal"
                     class="w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 transition-all duration-200 shadow-sm shadow-violet-500/15"
                 >
                     <Sparkles class="size-3.5" />
-                    <span>{{ isFree ? 'NÃ¢ng cáº¥p lÃªn gÃ³i PRO' : 'Xem thÃ´ng tin dá»‹ch vá»¥' }}</span>
+                    <span>{{ isFree ? 'NÃ¢ng cáº¥p lÃªn gÃ³i PRO' : 'Xem thÃ´ng tin dá»ch vá»¥' }}</span>
                     <ArrowUpRight class="size-3.5" />
                 </button>
             </div>
         </div>
 
-        <!-- MODAL NÃ‚NG Cáº¤P GÃ“I CHUYÃŠN NGHIá»†P VÃ€ SANG TRá»ŒNG -->
+        <!-- MODAL NÃNG Cáº¤P GÃI CHUYÃN NGHIá»P VÃ SANG TRá»NG -->
         <div v-if="isUpgradeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
             <div class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all">
                 
-                <!-- NÃºt Ä‘Ã³ng -->
+                <!-- NÃºt ÄÃ³ng -->
                 <button @click="closeUpgradeModal" class="absolute top-4 right-4 rounded-full p-1.5 text-muted-foreground hover:bg-muted transition-colors">
                     <X class="size-5" />
                 </button>
@@ -183,10 +183,10 @@ function goToUpgradeCheckout() {
                         <Sparkles class="size-6 text-primary animate-pulse" />
                     </div>
                     <h3 class="text-xl font-bold tracking-tight text-foreground">
-                        NÃ¢ng táº§m quÃ¡n Äƒn cá»§a báº¡n cÃ¹ng GÃ³i Pro
+                        NÃ¢ng táº§m quÃ¡n Än cá»§a báº¡n cÃ¹ng GÃ³i Pro
                     </h3>
                     <p class="mt-2 text-sm text-muted-foreground">
-                        Má»Ÿ khÃ³a toÃ n diá»‡n sá»©c máº¡nh cá»§a há»‡ thá»‘ng quáº£n lÃ½ Aventura thÃ´ng minh.
+                        Má» khÃ³a toÃ n diá»n sá»©c máº¡nh cá»§a há» thá»ng quáº£n lÃ½ Aventura thÃ´ng minh.
                     </p>
                 </div>
 
@@ -194,16 +194,16 @@ function goToUpgradeCheckout() {
                 <div class="px-6 py-4 grid gap-4 md:grid-cols-2">
                     <!-- GÃ³i Free -->
                     <div class="rounded-xl border border-border bg-muted/40 p-4 relative opacity-70">
-                        <h4 class="text-sm font-semibold text-foreground">GÃ³i Miá»…n phÃ­ (Free)</h4>
-                        <p class="mt-1 text-xs text-muted-foreground">DÃ nh cho quÃ¡n Äƒn má»›i láº­p nghiá»‡p Ä‘á»ƒ lÃ m quen váº­n hÃ nh.</p>
-                        <p class="mt-3 text-lg font-bold text-foreground">0Ä‘ <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
+                        <h4 class="text-sm font-semibold text-foreground">GÃ³i Miá»n phÃ­ (Free)</h4>
+                        <p class="mt-1 text-xs text-muted-foreground">DÃ nh cho quÃ¡n Än má»i láº­p nghiá»p Äá» lÃ m quen váº­n hÃ nh.</p>
+                        <p class="mt-3 text-lg font-bold text-foreground">0Ä <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
                         
                         <ul class="mt-4 space-y-2 text-xs">
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»‘i Ä‘a 1 chi nhÃ¡nh</li>
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»‘i Ä‘a 10 bÃ n hoáº¡t Ä‘á»™ng</li>
-                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»‘i Ä‘a 5 nhÃ¢n viÃªn</li>
-                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há»— trá»£ AI Dá»± bÃ¡o kho</li>
-                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há»— trá»£ AI phÃ¡t hiá»‡n gian láº­n</li>
+                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 1 chi nhÃ¡nh</li>
+                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 10 bÃ n hoáº¡t Äá»ng</li>
+                            <li class="flex items-center gap-2"><Check class="size-3.5 text-amber-500" /> Tá»i Äa 5 nhÃ¢n viÃªn</li>
+                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há» trá»£ AI Dá»± bÃ¡o kho</li>
+                            <li class="flex items-center gap-2 text-muted-foreground"><X class="size-3.5" /> KhÃ´ng há» trá»£ AI phÃ¡t hiá»n gian láº­n</li>
                         </ul>
                     </div>
 
@@ -215,15 +215,15 @@ function goToUpgradeCheckout() {
                         <h4 class="text-sm font-semibold text-foreground flex items-center gap-1">
                             GÃ³i Cao cáº¥p (Pro)
                         </h4>
-                        <p class="mt-1 text-xs text-muted-foreground">Tá»‘i Æ°u hiá»‡u nÄƒng, chá»‘ng tháº¥t thoÃ¡t cho mÃ´ hÃ¬nh chuyÃªn nghiá»‡p.</p>
-                        <p class="mt-3 text-lg font-bold text-primary">499.000Ä‘ <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
+                        <p class="mt-1 text-xs text-muted-foreground">Tá»i Æ°u hiá»u nÄng, chá»ng tháº¥t thoÃ¡t cho mÃ´ hÃ¬nh chuyÃªn nghiá»p.</p>
+                        <p class="mt-3 text-lg font-bold text-primary">499.000Ä <span class="text-xs font-normal text-muted-foreground">/ thÃ¡ng</span></p>
                         
                         <ul class="mt-4 space-y-2 text-xs">
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> KhÃ´ng giá»›i háº¡n bÃ n & nhÃ¢n sá»±</li>
+                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> KhÃ´ng giá»i háº¡n bÃ n & nhÃ¢n sá»±</li>
                             <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Quáº£n lÃ½ nhiá»u chi nhÃ¡nh</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> AI dá»± bÃ¡o nguyÃªn liá»‡u & tá»“n kho</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Thuáº­t toÃ¡n AI phÃ¡t hiá»‡n gian láº­n</li>
-                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Há»‡ thá»‘ng Audit Log báº£o máº­t</li>
+                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> AI dá»± bÃ¡o nguyÃªn liá»u & tá»n kho</li>
+                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Thuáº­t toÃ¡n AI phÃ¡t hiá»n gian láº­n</li>
+                            <li class="flex items-center gap-2 font-medium text-foreground"><Check class="size-3.5 text-primary" /> Há» thá»ng Audit Log báº£o máº­t</li>
                         </ul>
                     </div>
                 </div>
@@ -232,12 +232,12 @@ function goToUpgradeCheckout() {
                 <div class="px-6 py-5 border-t border-border bg-muted/30 flex flex-col sm:flex-row gap-2 justify-between items-center text-xs">
                     <span class="text-muted-foreground flex items-center gap-1">
                         <Lock class="size-3.5 text-muted-foreground" />
-                        Giao dá»‹ch thanh toÃ¡n mÃ£ hÃ³a an toÃ n.
+                        Giao dá»ch thanh toán mã hóa an toàn.
                     </span>
                     <div class="flex gap-2">
-                        <Button variant="outline" size="sm" @click="closeUpgradeModal">ÄÃ³ng</Button>
+                        <Button variant="outline" size="sm" @click="closeUpgradeModal">Đóng</Button>
                         <Button size="sm" class="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0" @click="goToUpgradeCheckout">
-                            NÃ¢ng cáº¥p gÃ³i ngay
+                            Nâng cấp gói ngay
                         </Button>
                     </div>
                 </div>

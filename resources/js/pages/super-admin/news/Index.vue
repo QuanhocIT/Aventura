@@ -271,7 +271,7 @@ const hasFilters = computed(() => !!search.value || !!category.value || !!status
                                     <span v-if="post.published_at" class="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                                         <Calendar class="size-3" />{{ post.published_at }}
                                     </span>
-                                    <span v-else class="text-xs text-muted-foreground">—</span>
+                                    <span v-else class="text-xs text-muted-foreground"></span>
                                 </td>
                                 <!-- Actions -->
                                 <td class="px-4 py-3 text-right">

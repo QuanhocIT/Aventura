@@ -43,7 +43,7 @@ function applyFilter() {
     }, { preserveState: true, replace: true });
 }
 
-// Dialog táº¡o nhÃ  hÃ ng
+// Dialog tạo nhà hàng
 const showCreate = ref(false);
 const createForm = useForm({
     name: '', tax_code: '', phone: '', email: '', address: '',
@@ -58,7 +58,7 @@ function submitCreate() {
     });
 }
 
-// Dialog Ä‘á»•i tráº¡ng thÃ¡i
+// Dialog đổi trạng thái
 const showStatus = ref(false);
 const selectedRestaurant = ref<{ id: number; name: string; status: string } | null>(null);
 const statusForm = useForm({ status: '', reason: '' });
@@ -85,66 +85,66 @@ const statusColor: Record<string, string> = {
     expired:   'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
 };
 const statusLabel: Record<string, string> = {
-    active: 'Hoáº¡t Ä‘á»™ng', suspended: 'Táº¡m ngÆ°ng', expired: 'Háº¿t háº¡n',
+    active: 'Hoạt động', suspended: 'Tạm ngưng', expired: 'Hết hạn',
 };
 </script>
 
 <template>
-    <Head title="Quáº£n lÃ½ nhÃ  hÃ ng" />
+    <Head title="Quản lý nhà hàng" />
 
     <div class="flex flex-col gap-6 p-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold">Quáº£n lÃ½ nhÃ  hÃ ng</h1>
+                <h1 class="text-2xl font-bold">Quản lý nhà hàng</h1>
                 <p class="text-sm text-muted-foreground">
-                    Tá»•ng cá»™ng {{ restaurants.meta?.total ?? 0 }} nhÃ  hÃ ng
+                    Tổng cộng {{ restaurants.meta?.total ?? 0 }} nhà hàng
                 </p>
             </div>
             <Button @click="showCreate = true" class="gap-2">
-                <Plus class="size-4" /> ThÃªm nhÃ  hÃ ng
+                <Plus class="size-4" /> Thêm nhà hàng
             </Button>
         </div>
 
-        <!-- Bá»™ lá»c -->
+        <!-- Bộ lọc -->
         <Card>
             <CardContent class="flex flex-wrap gap-3 p-4">
                 <div class="relative flex-1 min-w-48">
                     <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input v-model="search" placeholder="TÃ¬m tÃªn, mÃ£, mÃ£ thuáº¿..." class="pl-9" />
+                    <Input v-model="search" placeholder="Tìm tên, mã, mã thuế..." class="pl-9" />
                 </div>
                 <select
                     v-model="status"
                     @change="applyFilter"
                     class="h-9 rounded-md border bg-background px-3 text-sm"
                 >
-                    <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
-                    <option value="active">Hoáº¡t Ä‘á»™ng</option>
-                    <option value="suspended">Táº¡m ngÆ°ng</option>
-                    <option value="expired">Háº¿t háº¡n</option>
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="active">Hoạt động</option>
+                    <option value="suspended">Tạm ngưng</option>
+                    <option value="expired">Hết hạn</option>
                 </select>
                 <select
                     v-model="planFilter"
                     @change="applyFilter"
                     class="h-9 rounded-md border bg-background px-3 text-sm"
                 >
-                    <option value="">Táº¥t cáº£ gÃ³i</option>
+                    <option value="">Tất cả gói</option>
                     <option v-for="p in plans" :key="p.code" :value="p.code">{{ p.name }}</option>
                 </select>
             </CardContent>
         </Card>
 
-        <!-- Báº£ng danh sÃ¡ch -->
+        <!-- Bảng danh sách -->
         <Card>
             <CardContent class="p-0">
                 <table class="w-full text-sm">
                     <thead class="border-b bg-muted/50">
                         <tr class="text-left text-xs text-muted-foreground">
-                            <th class="px-6 py-3 font-medium">NhÃ  hÃ ng</th>
-                            <th class="px-4 py-3 font-medium">GÃ³i</th>
-                            <th class="px-4 py-3 font-medium">TÃ i nguyÃªn</th>
-                            <th class="px-4 py-3 font-medium">Tráº¡ng thÃ¡i</th>
-                            <th class="px-4 py-3 font-medium">NgÃ y táº¡o</th>
-                            <th class="px-4 py-3 font-medium text-right">Thao tÃ¡c</th>
+                            <th class="px-6 py-3 font-medium">Nhà hàng</th>
+                            <th class="px-4 py-3 font-medium">Gói</th>
+                            <th class="px-4 py-3 font-medium">Tài nguyên</th>
+                            <th class="px-4 py-3 font-medium">Trạng thái</th>
+                            <th class="px-4 py-3 font-medium">Ngày tạo</th>
+                            <th class="px-4 py-3 font-medium text-right">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -165,9 +165,9 @@ const statusLabel: Record<string, string> = {
                                 </span>
                             </td>
                             <td class="px-4 py-4 text-xs text-muted-foreground">
-                                <span>{{ r.branches_count }} chi nhÃ¡nh</span> Â·
-                                <span>{{ r.employees_count }} NV</span> Â·
-                                <span>{{ r.tables_count }} bÃ n</span>
+                                <span>{{ r.branches_count }} chi nhánh</span> ·
+                                <span>{{ r.employees_count }} NV</span> ·
+                                <span>{{ r.tables_count }} bàn</span>
                             </td>
                             <td class="px-4 py-4">
                                 <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', statusColor[r.status]]">
@@ -178,13 +178,13 @@ const statusLabel: Record<string, string> = {
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-end gap-1">
                                     <Link :href="`/super-admin/restaurants/${r.id}`">
-                                        <Button variant="ghost" size="icon-sm" title="Xem chi tiáº¿t">
+                                        <Button variant="ghost" size="icon-sm" title="Xem chi tiết">
                                             <Eye class="size-4" />
                                         </Button>
                                     </Link>
                                     <Button
                                         variant="ghost" size="icon-sm"
-                                        :title="r.status === 'active' ? 'Táº¡m ngÆ°ng' : 'KÃ­ch hoáº¡t'"
+                                        :title="r.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'"
                                         @click="openStatus(r)"
                                     >
                                         <ShieldOff v-if="r.status === 'active'" class="size-4 text-yellow-600" />
@@ -195,7 +195,7 @@ const statusLabel: Record<string, string> = {
                         </tr>
                         <tr v-if="!restaurants.data.length">
                             <td colspan="6" class="px-6 py-12 text-center text-muted-foreground">
-                                KhÃ´ng tÃ¬m tháº¥y nhÃ  hÃ ng nÃ o
+                                Không tìm thấy nhà hàng nào
                             </td>
                         </tr>
                     </tbody>
@@ -216,86 +216,86 @@ const statusLabel: Record<string, string> = {
         </Card>
     </div>
 
-    <!-- Dialog Táº¡o nhÃ  hÃ ng -->
+    <!-- Dialog Tạo nhà hàng -->
     <Dialog v-model:open="showCreate">
         <DialogContent class="max-w-lg">
             <DialogHeader>
-                <DialogTitle>ThÃªm nhÃ  hÃ ng má»›i</DialogTitle>
+                <DialogTitle>Thêm nhà hàng mới</DialogTitle>
             </DialogHeader>
             <form @submit.prevent="submitCreate" class="grid gap-4 py-2">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2 grid gap-1.5">
-                        <Label>TÃªn nhÃ  hÃ ng *</Label>
-                        <Input v-model="createForm.name" placeholder="NhÃ  hÃ ng ABC" required />
+                        <Label>Tên nhà hàng *</Label>
+                        <Input v-model="createForm.name" placeholder="Nhà hàng ABC" required />
                         <p v-if="createForm.errors.name" class="text-xs text-destructive">{{ createForm.errors.name }}</p>
                     </div>
                     <div class="grid gap-1.5">
-                        <Label>MÃ£ sá»‘ thuáº¿</Label>
+                        <Label>Mã số thuế</Label>
                         <Input v-model="createForm.tax_code" placeholder="0123456789" />
                     </div>
                     <div class="grid gap-1.5">
-                        <Label>Sá»‘ Ä‘iá»‡n thoáº¡i</Label>
+                        <Label>Số điện thoại</Label>
                         <Input v-model="createForm.phone" placeholder="0901234567" />
                     </div>
                     <div class="col-span-2 grid gap-1.5">
-                        <Label>Email nhÃ  hÃ ng</Label>
+                        <Label>Email nhà hàng</Label>
                         <Input v-model="createForm.email" type="email" placeholder="contact@restaurant.com" />
                     </div>
                     <div class="col-span-2 grid gap-1.5">
-                        <Label>Äá»‹a chá»‰</Label>
-                        <Input v-model="createForm.address" placeholder="123 ÄÆ°á»ng ABC, Quáº­n 1..." />
+                        <Label>Địa chỉ</Label>
+                        <Input v-model="createForm.address" placeholder="123 Đường ABC, Quận 1..." />
                     </div>
                     <div class="col-span-2 grid gap-1.5">
-                        <Label>GÃ³i dá»‹ch vá»¥ *</Label>
+                        <Label>Gói dịch vụ *</Label>
                         <select v-model="createForm.plan_id" required class="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                            <option value="">Chá»n gÃ³i...</option>
+                            <option value="">Chọn gói...</option>
                             <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }}</option>
                         </select>
                         <p v-if="createForm.errors.plan_id" class="text-xs text-destructive">{{ createForm.errors.plan_id }}</p>
                     </div>
                     <div class="grid gap-1.5">
-                        <Label>TÃªn chá»§ sá»Ÿ há»¯u *</Label>
-                        <Input v-model="createForm.owner_name" placeholder="Nguyá»…n VÄƒn A" required />
+                        <Label>Tên chủ sở hữu *</Label>
+                        <Input v-model="createForm.owner_name" placeholder="Nguyễn Văn A" required />
                         <p v-if="createForm.errors.owner_name" class="text-xs text-destructive">{{ createForm.errors.owner_name }}</p>
                     </div>
                     <div class="grid gap-1.5">
-                        <Label>Email chá»§ sá»Ÿ há»¯u *</Label>
+                        <Label>Email chủ sở hữu *</Label>
                         <Input v-model="createForm.owner_email" type="email" placeholder="owner@email.com" required />
                         <p v-if="createForm.errors.owner_email" class="text-xs text-destructive">{{ createForm.errors.owner_email }}</p>
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="outline" @click="showCreate = false">Há»§y</Button>
+                    <Button type="button" variant="outline" @click="showCreate = false">Hủy</Button>
                     <Button type="submit" :disabled="createForm.processing">
-                        {{ createForm.processing ? 'Äang táº¡o...' : 'Táº¡o nhÃ  hÃ ng' }}
+                        {{ createForm.processing ? 'Đang tạo...' : 'Tạo nhà hàng' }}
                     </Button>
                 </DialogFooter>
             </form>
         </DialogContent>
     </Dialog>
 
-    <!-- Dialog Äá»•i tráº¡ng thÃ¡i -->
+    <!-- Dialog Đổi trạng thái -->
     <Dialog v-model:open="showStatus">
         <DialogContent class="max-w-sm">
             <DialogHeader>
-                <DialogTitle>Äá»•i tráº¡ng thÃ¡i: {{ selectedRestaurant?.name }}</DialogTitle>
+                <DialogTitle>Đổi trạng thái: {{ selectedRestaurant?.name }}</DialogTitle>
             </DialogHeader>
             <form @submit.prevent="submitStatus" class="grid gap-4 py-2">
                 <div class="grid gap-1.5">
-                    <Label>Tráº¡ng thÃ¡i má»›i</Label>
+                    <Label>Trạng thái mới</Label>
                     <select v-model="statusForm.status" class="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                        <option value="active">âœ… KÃ­ch hoáº¡t</option>
-                        <option value="suspended">â¸ Táº¡m ngÆ°ng</option>
-                        <option value="expired">âŒ Háº¿t háº¡n</option>
+                        <option value="active">✅ Kích hoạt</option>
+                        <option value="suspended">⏸ Tạm ngưng</option>
+                        <option value="expired">❌ Hết hạn</option>
                     </select>
                 </div>
                 <div class="grid gap-1.5">
-                    <Label>LÃ½ do (tuá»³ chá»n)</Label>
-                    <Input v-model="statusForm.reason" placeholder="Ghi chÃº lÃ½ do..." />
+                    <Label>Lý do (tuỳ chọn)</Label>
+                    <Input v-model="statusForm.reason" placeholder="Ghi chú lý do..." />
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="outline" @click="showStatus = false">Há»§y</Button>
-                    <Button type="submit" :disabled="statusForm.processing">XÃ¡c nháº­n</Button>
+                    <Button type="button" variant="outline" @click="showStatus = false">Hủy</Button>
+                    <Button type="submit" :disabled="statusForm.processing">Xác nhận</Button>
                 </DialogFooter>
             </form>
         </DialogContent>

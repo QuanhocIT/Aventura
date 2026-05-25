@@ -46,7 +46,7 @@ class AccountController extends Controller
                 'phone'          => $u->phone ?? null,
                 'status'         => $u->status ?? 'active',
                 'roles'          => $u->roles->pluck('name'),
-                'restaurant'     => $u->restaurant?->name ?? 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â',
+                'restaurant'     => $u->restaurant?->name ?? 'ÃÆÃÂ¢ÃÂ¢Ã¢â¬Å¡ÃÂ¬ÃÂ¢Ã¢âÂ¬ÃÂ',
                 'restaurant_id'  => $u->restaurant_id,
                 'has_2fa'        => ! is_null($u->two_factor_confirmed_at),
                 'last_login_at'  => $u->last_login_at?->format('d/m/Y H:i'),
@@ -60,7 +60,7 @@ class AccountController extends Controller
     public function resetPassword(User $user): RedirectResponse
     {
         if ($user->isSuperAdmin()) {
-            return back()->with('error', 'KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ reset mÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t khÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â©u tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â i khoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£n Super Admin.');
+            return back()->with('error', 'KhÃÆÃâÃâÃÂ´ng thÃÆÃÂ¡ÃâÃÂ»Ãâ Ã¢â¬â¢ reset mÃÆÃÂ¡ÃâÃÂºÃâÃÂ­t khÃÆÃÂ¡ÃâÃÂºÃâÃÂ©u tÃÆÃâÃâÃÂ i khoÃÆÃÂ¡ÃâÃÂºÃâÃÂ£n Super Admin.');
         }
 
         $tempPassword = Str::random(10) . rand(10, 99) . '!';
@@ -70,17 +70,17 @@ class AccountController extends Controller
 
         return back()
             ->with('temp_password', $tempPassword)
-            ->with('success', "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ reset mÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t khÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â©u cho {$user->name}.");
+            ->with('success', "ÃÆÃ¢â¬Å¾ÃâÃÂÃÆÃâÃâÃÂ£ reset mÃÆÃÂ¡ÃâÃÂºÃâÃÂ­t khÃÆÃÂ¡ÃâÃÂºÃâÃÂ©u cho {$user->name}.");
     }
 
     public function disable2FA(User $user): RedirectResponse
     {
         if ($user->isSuperAdmin()) {
-            return back()->with('error', 'KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t 2FA cÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â§a tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â i khoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£n Super Admin.');
+            return back()->with('error', 'KhÃÆÃâÃâÃÂ´ng thÃÆÃÂ¡ÃâÃÂ»Ãâ Ã¢â¬â¢ tÃÆÃÂ¡ÃâÃÂºÃâÃÂ¯t 2FA cÃÆÃÂ¡ÃâÃÂ»ÃâÃÂ§a tÃÆÃâÃâÃÂ i khoÃÆÃÂ¡ÃâÃÂºÃâÃÂ£n Super Admin.');
         }
 
         if (is_null($user->two_factor_confirmed_at)) {
-            return back()->with('error', 'TÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â i khoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£n nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â y chÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°a bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t 2FA.');
+            return back()->with('error', 'TÃÆÃâÃâÃÂ i khoÃÆÃÂ¡ÃâÃÂºÃâÃÂ£n nÃÆÃâÃâÃÂ y chÃÆÃ¢â¬Â ÃâÃÂ°a bÃÆÃÂ¡ÃâÃÂºÃâÃÂ­t 2FA.');
         }
 
         $user->forceFill([
@@ -91,13 +91,13 @@ class AccountController extends Controller
 
         $this->writeAuditLog('disable_2fa', $user);
 
-        return back()->with('success', "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t xÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡c thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â±c 2FA cho {$user->name}.");
+        return back()->with('success', "ÃÆÃ¢â¬Å¾ÃâÃÂÃÆÃâÃâÃÂ£ tÃÆÃÂ¡ÃâÃÂºÃâÃÂ¯t xÃÆÃâÃâÃÂ¡c thÃÆÃÂ¡ÃâÃÂ»ÃâÃÂ±c 2FA cho {$user->name}.");
     }
 
     public function toggleStatus(Request $request, User $user): RedirectResponse
     {
         if ($user->isSuperAdmin()) {
-            return back()->with('error', 'KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ thay ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢i trÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡ng thÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡i tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â i khoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£n Super Admin.');
+            return back()->with('error', 'KhÃÆÃâÃâÃÂ´ng thÃÆÃÂ¡ÃâÃÂ»Ãâ Ã¢â¬â¢ thay ÃÆÃ¢â¬Å¾ÃÂ¢Ã¢âÂ¬ÃÅÃÆÃÂ¡ÃâÃÂ»ÃÂ¢Ã¢âÂ¬ÃÂ¢i trÃÆÃÂ¡ÃâÃÂºÃâÃÂ¡ng thÃÆÃâÃâÃÂ¡i tÃÆÃâÃâÃÂ i khoÃÆÃÂ¡ÃâÃÂºÃâÃÂ£n Super Admin.');
         }
 
         $request->validate(['status' => 'required|in:active,suspended']);
@@ -120,9 +120,9 @@ class AccountController extends Controller
             'user_agent'    => $request->userAgent(),
         ]);
 
-        $label = $request->status === 'active' ? 'kÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡t' : 'tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡m ngÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ng';
+        $label = $request->status === 'active' ? 'kÃÆÃâÃâÃÂ­ch hoÃÆÃÂ¡ÃâÃÂºÃâÃÂ¡t' : 'tÃÆÃÂ¡ÃâÃÂºÃâÃÂ¡m ngÃÆÃ¢â¬Â ÃâÃÂ°ng';
 
-        return back()->with('success', "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ {$label} tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â i khoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£n {$user->name}.");
+        return back()->with('success', "ÃÆÃ¢â¬Å¾ÃâÃÂÃÆÃâÃâÃÂ£ {$label} tÃÆÃâÃâÃÂ i khoÃÆÃÂ¡ÃâÃÂºÃâÃ£n {$user->name}.");
     }
 
     private function writeAuditLog(string $action, User $subject): void

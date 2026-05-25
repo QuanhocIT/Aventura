@@ -76,14 +76,14 @@ const eventColor: Record<string, string> = {
     deleted: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
 };
 const eventLabel: Record<string, string> = {
-    created: 'Táº¡o má»›i', updated: 'Cáº­p nháº­t', deleted: 'XÃ³a',
+    created: 'Táº¡o má»i', updated: 'Cáº­p nháº­t', deleted: 'XÃ³a',
 };
 
 const actionLabel: Record<string, string> = {
     reset_password:        'Reset máº­t kháº©u',
     disable_2fa:           'Táº¯t 2FA',
-    toggle_account_status: 'Äá»•i tráº¡ng thÃ¡i TK',
-    seed_demo_order:       'Seed Ä‘Æ¡n demo',
+    toggle_account_status: 'Äá»i tráº¡ng thÃ¡i TK',
+    seed_demo_order:       'Seed ÄÆ¡n demo',
 };
 
 function formatAction(action: string): string {
@@ -96,30 +96,30 @@ const hasActiveFilter = () =>
 </script>
 
 <template>
-    <Head title="Audit Log há»‡ thá»‘ng" />
+    <Head title="Audit Log há» thá»ng" />
 
     <div class="flex flex-col gap-6 p-6">
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold">Audit Log há»‡ thá»‘ng</h1>
+                <h1 class="text-2xl font-bold">Audit Log há» thá»ng</h1>
                 <p class="text-sm text-muted-foreground">
-                    Nháº­t kÃ½ thao tÃ¡c cáº¥p há»‡ thá»‘ng Â· Tá»•ng {{ total.toLocaleString() }} báº£n ghi
+                    Nháº­t kÃ½ thao tÃ¡c cáº¥p há» thá»ng Â· Tá»ng {{ total.toLocaleString() }} báº£n ghi
                 </p>
             </div>
             <a
                 href="/super-admin/accounts"
                 class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
             >
-                Quáº£n lÃ½ tÃ i khoáº£n â†’
+                Quáº£n lÃ½ tÃ i khoáº£n â
             </a>
         </div>
 
-        <!-- Bá»™ lá»c -->
+        <!-- Bá» lá»c -->
         <Card>
             <CardHeader class="pb-3">
                 <CardTitle class="flex items-center gap-2 text-sm font-medium">
-                    <Filter class="size-4" /> Bá»™ lá»c
+                    <Filter class="size-4" /> Bá» lá»c
                     <button
                         v-if="hasActiveFilter()"
                         class="ml-auto text-xs text-muted-foreground hover:text-foreground"
@@ -137,18 +137,18 @@ const hasActiveFilter = () =>
                     @change="applyFilter"
                 >
                     <option value="">Táº¥t cáº£ nhÃ  hÃ ng</option>
-                    <option value="system">â€” Há»‡ thá»‘ng â€”</option>
+                    <option value="system">â Há» thá»ng â</option>
                     <option v-for="r in restaurants" :key="r.id" :value="r.id">{{ r.name }}</option>
                 </select>
 
-                <!-- Loáº¡i sá»± kiá»‡n -->
+                <!-- Loáº¡i sá»± kiá»n -->
                 <select
                     v-model="eventFilter"
                     class="h-9 rounded-md border bg-background px-3 text-sm"
                     @change="applyFilter"
                 >
-                    <option value="">Táº¥t cáº£ sá»± kiá»‡n</option>
-                    <option value="created">Táº¡o má»›i</option>
+                    <option value="">Táº¥t cáº£ sá»± kiá»n</option>
+                    <option value="created">Táº¡o má»i</option>
                     <option value="updated">Cáº­p nháº­t</option>
                     <option value="deleted">XÃ³a</option>
                 </select>
@@ -156,7 +156,7 @@ const hasActiveFilter = () =>
                 <!-- Action -->
                 <div class="relative">
                     <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input v-model="actionFilter" placeholder="TÃ¬m hÃ nh Ä‘á»™ng..." class="pl-9" />
+                    <Input v-model="actionFilter" placeholder="TÃ¬m hÃ nh Äá»ng..." class="pl-9" />
                 </div>
 
                 <!-- Tá»« ngÃ y -->
@@ -176,10 +176,10 @@ const hasActiveFilter = () =>
                             <th class="w-8 px-4 py-3" />
                             <th class="px-4 py-3 font-medium">Thá»i gian</th>
                             <th class="px-4 py-3 font-medium">NhÃ  hÃ ng</th>
-                            <th class="px-4 py-3 font-medium">NgÆ°á»i thá»±c hiá»‡n</th>
-                            <th class="px-4 py-3 font-medium">Sá»± kiá»‡n</th>
-                            <th class="px-4 py-3 font-medium">HÃ nh Ä‘á»™ng</th>
-                            <th class="px-4 py-3 font-medium">Äá»‘i tÆ°á»£ng</th>
+                            <th class="px-4 py-3 font-medium">NgÆ°á»i thá»±c hiá»n</th>
+                            <th class="px-4 py-3 font-medium">Sá»± kiá»n</th>
+                            <th class="px-4 py-3 font-medium">HÃ nh Äá»ng</th>
+                            <th class="px-4 py-3 font-medium">Äá»i tÆ°á»£ng</th>
                             <th class="px-4 py-3 font-medium">IP</th>
                         </tr>
                     </thead>
@@ -200,7 +200,7 @@ const hasActiveFilter = () =>
                                 </td>
                                 <td class="px-4 py-3 text-xs">
                                     <span v-if="log.restaurant" class="font-medium">{{ log.restaurant }}</span>
-                                    <span v-else class="italic text-muted-foreground">â€” Há»‡ thá»‘ng â€”</span>
+                                    <span v-else class="italic text-muted-foreground">â Há» thá»ng â</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     <p class="font-medium text-xs">{{ log.user_name }}</p>
@@ -227,10 +227,10 @@ const hasActiveFilter = () =>
                                         {{ log.subject_type }}
                                         <span v-if="log.subject_id" class="font-mono">#{{ log.subject_id }}</span>
                                     </span>
-                                    <span v-else>â€”</span>
+                                    <span v-else>â</span>
                                 </td>
                                 <td class="px-4 py-3 text-xs font-mono text-muted-foreground">
-                                    {{ log.ip_address ?? 'â€”' }}
+                                    {{ log.ip_address ?? 'â' }}
                                 </td>
                             </tr>
 
@@ -239,20 +239,20 @@ const hasActiveFilter = () =>
                                 <td colspan="8" class="px-8 py-4">
                                     <div class="grid grid-cols-2 gap-6 text-xs">
                                         <div>
-                                            <p class="mb-2 font-semibold text-muted-foreground uppercase tracking-wide">Dá»¯ liá»‡u cÅ©</p>
+                                            <p class="mb-2 font-semibold text-muted-foreground uppercase tracking-wide">Dá»¯ liá»u cÅ©</p>
                                             <pre
                                                 v-if="log.old_values"
                                                 class="rounded bg-red-50 dark:bg-red-900/20 p-3 text-red-800 dark:text-red-300 overflow-auto max-h-40"
                                             >{{ JSON.stringify(log.old_values, null, 2) }}</pre>
-                                            <span v-else class="italic text-muted-foreground">â€” KhÃ´ng cÃ³ â€”</span>
+                                            <span v-else class="italic text-muted-foreground">â KhÃ´ng cÃ³ â</span>
                                         </div>
                                         <div>
-                                            <p class="mb-2 font-semibold text-muted-foreground uppercase tracking-wide">Dá»¯ liá»‡u má»›i</p>
+                                            <p class="mb-2 font-semibold text-muted-foreground uppercase tracking-wide">Dá»¯ liá»u má»i</p>
                                             <pre
                                                 v-if="log.new_values"
                                                 class="rounded bg-green-50 dark:bg-green-900/20 p-3 text-green-800 dark:text-green-300 overflow-auto max-h-40"
                                             >{{ JSON.stringify(log.new_values, null, 2) }}</pre>
-                                            <span v-else class="italic text-muted-foreground">â€” KhÃ´ng cÃ³ â€”</span>
+                                            <span v-else class="italic text-muted-foreground">â KhÃ´ng cÃ³ â</span>
                                         </div>
                                     </div>
                                 </td>
@@ -262,7 +262,7 @@ const hasActiveFilter = () =>
                         <tr v-if="!logs.data.length">
                             <td colspan="8" class="px-6 py-16 text-center">
                                 <FileText class="mx-auto mb-3 size-10 text-muted-foreground/40" />
-                                <p class="text-muted-foreground">KhÃ´ng cÃ³ báº£n ghi nÃ o phÃ¹ há»£p</p>
+                                <p class="text-muted-foreground">Không có bản ghi nào phù hợp</p>
                             </td>
                         </tr>
                     </tbody>

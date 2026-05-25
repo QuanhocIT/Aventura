@@ -26,7 +26,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'dang-ky',
                 'question' => 'Tôi quên mật khẩu, phải làm sao?',
-                'answer' => "Đừng lo! Bạn có thể lấy lại mật khẩu dễ dàng:\n\n1. Vào trang đăng nhập, nhấn **\"Quên mật khẩu\"**\n2. Nhập địa chỉ email đã đăng ký\n3. Kiểm tra hộp thư — chúng tôi sẽ gửi link đặt lại mật khẩu trong vòng 2 phút\n4. Nhấn link trong email và tạo mật khẩu mới\n\n> Nếu không nhận được email, hãy kiểm tra thư mục **Spam/Junk**.",
+                'answer' => "Đừng lo! Bạn có thể lấy lại mật khẩu dễ dàng:\n\n1. Vào trang đăng nhập, nhấn **\"Quên mật khẩu\"**\n2. Nhập địa chỉ email đã đăng ký\n3. Kiểm tra hộp thư  chúng tôi sẽ gửi link đặt lại mật khẩu trong vòng 2 phút\n4. Nhấn link trong email và tạo mật khẩu mới\n\n> Nếu không nhận được email, hãy kiểm tra thư mục **Spam/Junk**.",
                 'alt_questions' => ['Quên mật khẩu', 'Không nhớ mật khẩu', 'Đổi mật khẩu', 'Lấy lại mật khẩu', 'Reset password'],
                 'keywords' => ['mật khẩu', 'quên', 'reset', 'password', 'lấy lại'],
                 'suggested_questions' => ['Làm sao để đổi email tài khoản?', 'Đăng nhập bằng Google được không?'],
@@ -35,7 +35,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'dang-ky',
                 'question' => 'Tôi có thể đăng nhập bằng Google không?',
-                'answer' => "**Có!** Aventura hỗ trợ đăng nhập nhanh bằng tài khoản Google.\n\nChỉ cần nhấn nút **\"Đăng nhập với Google\"** trên trang đăng nhập, chọn tài khoản Google của bạn và xác nhận quyền truy cập — không cần nhớ thêm mật khẩu nào cả.",
+                'answer' => "**Có!** Aventura hỗ trợ đăng nhập nhanh bằng tài khoản Google.\n\nChỉ cần nhấn nút **\"Đăng nhập với Google\"** trên trang đăng nhập, chọn tài khoản Google của bạn và xác nhận quyền truy cập  không cần nhớ thêm mật khẩu nào cả.",
                 'alt_questions' => ['Đăng nhập Google', 'Login bằng Google', 'Dùng tài khoản Google', 'Google sign in'],
                 'keywords' => ['google', 'đăng nhập', 'login'],
                 'suggested_questions' => ['Hệ thống có bảo mật 2 lớp không?', 'Dữ liệu của tôi có an toàn không?'],
@@ -64,7 +64,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'gia-ca',
                 'question' => 'Dùng thử bao nhiêu ngày? Có cần nhập thẻ không?',
-                'answer' => "Bạn được **dùng thử gói Pro đầy đủ tính năng trong 7 ngày** hoàn toàn miễn phí.\n\n✅ **Không cần nhập thông tin thẻ tín dụng**\n✅ Không cần ký hợp đồng\n✅ Hủy bất cứ lúc nào\n\nSau 7 ngày, nếu không nâng cấp, tài khoản tự động chuyển về gói Free — **dữ liệu của bạn vẫn được giữ nguyên**.",
+                'answer' => "Bạn được **dùng thử gói Pro đầy đủ tính năng trong 7 ngày** hoàn toàn miễn phí.\n\n✅ **Không cần nhập thông tin thẻ tín dụng**\n✅ Không cần ký hợp đồng\n✅ Hủy bất cứ lúc nào\n\nSau 7 ngày, nếu không nâng cấp, tài khoản tự động chuyển về gói Free  **dữ liệu của bạn vẫn được giữ nguyên**.",
                 'alt_questions' => ['Dùng thử', 'Trial', 'Thử miễn phí', 'Free trial', 'Có demo không'],
                 'keywords' => ['dùng thử', 'trial', 'demo', 'thử', 'miễn phí'],
                 'suggested_questions' => ['Phần mềm có miễn phí không?', 'Thanh toán như thế nào?'],
@@ -216,7 +216,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'ky-thuat',
                 'question' => 'Cần thiết bị gì để sử dụng Aventura?',
-                'answer' => "Aventura là **ứng dụng web**, chạy trực tiếp trên trình duyệt — **không cần cài đặt phần mềm**.\n\n**Thiết bị tương thích:**\n- 💻 Máy tính / Laptop (cho quản lý, thu ngân)\n- 📱 Máy tính bảng (cho phục vụ di động)\n- 📺 Màn hình bếp (tablet hoặc màn hình cảm ứng)\n- 📱 Điện thoại khách hàng (quét QR đặt món)\n\n**Trình duyệt:** Chrome, Edge, Safari, Firefox (phiên bản mới)\n\n**Kết nối:** WiFi ổn định cho hoạt động tốt nhất. Có hỗ trợ offline khi mất mạng.",
+                'answer' => "Aventura là **ứng dụng web**, chạy trực tiếp trên trình duyệt  **không cần cài đặt phần mềm**.\n\n**Thiết bị tương thích:**\n- 💻 Máy tính / Laptop (cho quản lý, thu ngân)\n- 📱 Máy tính bảng (cho phục vụ di động)\n- 📺 Màn hình bếp (tablet hoặc màn hình cảm ứng)\n- 📱 Điện thoại khách hàng (quét QR đặt món)\n\n**Trình duyệt:** Chrome, Edge, Safari, Firefox (phiên bản mới)\n\n**Kết nối:** WiFi ổn định cho hoạt động tốt nhất. Có hỗ trợ offline khi mất mạng.",
                 'alt_questions' => ['Thiết bị gì', 'Dùng máy gì', 'Cài đặt thế nào', 'Tương thích thiết bị', 'Phần cứng'],
                 'keywords' => ['thiết bị', 'máy tính', 'tablet', 'cài đặt', 'trình duyệt'],
                 'suggested_questions' => ['Có ứng dụng mobile không?', 'Có hỗ trợ offline không?'],
@@ -225,7 +225,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'ky-thuat',
                 'question' => 'Có ứng dụng mobile (app) không?',
-                'answer' => "Hiện tại Aventura là **ứng dụng web** tối ưu cho mobile — tức là bạn mở bằng trình duyệt điện thoại mà giao diện vẫn đẹp và dễ dùng.\n\n**Ưu điểm:**\n- Không cần tải app từ App Store / CH Play\n- Luôn cập nhật phiên bản mới nhất tự động\n- Giao diện responsive — dùng tốt trên mọi màn hình\n\nBạn có thể **thêm vào màn hình chính** (Add to Home Screen) của điện thoại để dùng như một app thực sự.\n\n> Ứng dụng mobile native đang trong lộ trình phát triển.",
+                'answer' => "Hiện tại Aventura là **ứng dụng web** tối ưu cho mobile  tức là bạn mở bằng trình duyệt điện thoại mà giao diện vẫn đẹp và dễ dùng.\n\n**Ưu điểm:**\n- Không cần tải app từ App Store / CH Play\n- Luôn cập nhật phiên bản mới nhất tự động\n- Giao diện responsive  dùng tốt trên mọi màn hình\n\nBạn có thể **thêm vào màn hình chính** (Add to Home Screen) của điện thoại để dùng như một app thực sự.\n\n> Ứng dụng mobile native đang trong lộ trình phát triển.",
                 'alt_questions' => ['App mobile', 'Ứng dụng điện thoại', 'Tải app', 'iOS', 'Android', 'App Store'],
                 'keywords' => ['app', 'mobile', 'điện thoại', 'iOS', 'Android', 'ứng dụng'],
                 'suggested_questions' => ['Cần thiết bị gì?', 'Giao diện có responsive không?'],
@@ -254,7 +254,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'ho-tro',
                 'question' => 'Có tài liệu hướng dẫn sử dụng không?',
-                'answer' => "**Có đầy đủ!** Aventura cung cấp:\n\n📖 **Knowledge Base**: Bài viết hướng dẫn từng tính năng tại mục **Hỗ trợ** trong ứng dụng\n\n🎥 **Video hướng dẫn**: Xem trực quan cách sử dụng từng module\n\n🗺️ **Guided Tour**: Khi đăng nhập lần đầu, hệ thống **tự động hướng dẫn** từng bước setup nhà hàng trong 3 ngày đầu\n\n> Không cần đọc tài liệu dày — hệ thống chủ động chỉ dẫn bạn từng bước!",
+                'answer' => "**Có đầy đủ!** Aventura cung cấp:\n\n📖 **Knowledge Base**: Bài viết hướng dẫn từng tính năng tại mục **Hỗ trợ** trong ứng dụng\n\n🎥 **Video hướng dẫn**: Xem trực quan cách sử dụng từng module\n\n🗺️ **Guided Tour**: Khi đăng nhập lần đầu, hệ thống **tự động hướng dẫn** từng bước setup nhà hàng trong 3 ngày đầu\n\n> Không cần đọc tài liệu dày  hệ thống chủ động chỉ dẫn bạn từng bước!",
                 'alt_questions' => ['Tài liệu', 'Hướng dẫn sử dụng', 'Manual', 'Video tutorial', 'Hướng dẫn'],
                 'keywords' => ['tài liệu', 'hướng dẫn', 'manual', 'tutorial', 'video'],
                 'suggested_questions' => ['Onboarding là gì?', 'Liên hệ hỗ trợ bằng cách nào?'],
@@ -283,7 +283,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'chung',
                 'question' => 'Aventura khác gì so với các phần mềm khác như KiotViet?',
-                'answer' => "Aventura được xây dựng với **triết lý khác biệt** so với các phần mềm quản lý thông thường:\n\n| Tính năng | Aventura | Phần mềm thông thường |\n|---|---|---|\n| Phát hiện gian lận AI | ✅ Tự động | ❌ Không có |\n| Dự báo kho AI | ✅ | ❌ |\n| Màn hình bếp realtime | ✅ | ⚠️ Hạn chế |\n| Offline mode | ✅ | ⚠️ |\n| Audit Log chi tiết | ✅ | ⚠️ |\n| Giá | Miễn phí → Pro | Chủ yếu trả phí |\n\nĐặc biệt, Aventura **đề cao tính minh bạch** — mọi hành động của nhân viên đều có dấu vết.",
+                'answer' => "Aventura được xây dựng với **triết lý khác biệt** so với các phần mềm quản lý thông thường:\n\n| Tính năng | Aventura | Phần mềm thông thường |\n|---|---|---|\n| Phát hiện gian lận AI | ✅ Tự động | ❌ Không có |\n| Dự báo kho AI | ✅ | ❌ |\n| Màn hình bếp realtime | ✅ | ⚠️ Hạn chế |\n| Offline mode | ✅ | ⚠️ |\n| Audit Log chi tiết | ✅ | ⚠️ |\n| Giá | Miễn phí → Pro | Chủ yếu trả phí |\n\nĐặc biệt, Aventura **đề cao tính minh bạch**  mọi hành động của nhân viên đều có dấu vết.",
                 'alt_questions' => ['So sánh', 'Khác gì KiotViet', 'Tại sao chọn Aventura', 'Ưu điểm'],
                 'keywords' => ['so sánh', 'khác', 'KiotViet', 'ưu điểm', 'tại sao'],
                 'suggested_questions' => ['Aventura có những tính năng chính gì?', 'Dùng thử bao nhiêu ngày?'],
@@ -292,7 +292,7 @@ class ChatbotKnowledgeSeeder extends Seeder
             [
                 'category' => 'chung',
                 'question' => 'Sao lưu dữ liệu như thế nào? Có bị mất không?',
-                'answer' => "Dữ liệu của bạn được **sao lưu tự động hàng ngày**:\n\n☁️ **Database MySQL**: Backup toàn bộ dữ liệu mỗi đêm\n\n🖼️ **File & Hình ảnh**: Đồng bộ lên Cloud Storage (S3/MinIO)\n\n🔄 **Khôi phục nhanh**: Nếu có sự cố, có thể restore trong vòng 2-4 giờ\n\n**Cam kết Uptime > 99%** — Hệ thống giám sát 24/7 bằng Sentry & Laravel Pulse để phát hiện sự cố trước khi ảnh hưởng đến bạn.",
+                'answer' => "Dữ liệu của bạn được **sao lưu tự động hàng ngày**:\n\n☁️ **Database MySQL**: Backup toàn bộ dữ liệu mỗi đêm\n\n🖼️ **File & Hình ảnh**: Đồng bộ lên Cloud Storage (S3/MinIO)\n\n🔄 **Khôi phục nhanh**: Nếu có sự cố, có thể restore trong vòng 2-4 giờ\n\n**Cam kết Uptime > 99%**  Hệ thống giám sát 24/7 bằng Sentry & Laravel Pulse để phát hiện sự cố trước khi ảnh hưởng đến bạn.",
                 'alt_questions' => ['Sao lưu', 'Backup', 'Mất dữ liệu', 'Uptime', 'Phục hồi'],
                 'keywords' => ['sao lưu', 'backup', 'mất dữ liệu', 'uptime', 'phục hồi'],
                 'suggested_questions' => ['Dữ liệu có an toàn không?', 'Khi hết hạn dữ liệu có mất không?'],

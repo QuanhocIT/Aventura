@@ -6,7 +6,7 @@ use App\Http\Controllers\Billing\PaymentWebhookController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NewsController;
-// Chatbot API — public (rate limited)
+// Chatbot API  public (rate limited)
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 

@@ -39,7 +39,7 @@ const countdown = ref(3);
 
 let pollInterval: any = null;
 
-// Sao chÃ©p nhanh vÃ o clipboard
+// Sao chép nhanh vào clipboard
 function copyToClipboard(text: string, fieldName: string) {
     navigator.clipboard.writeText(text).then(() => {
         copiedField.value = fieldName;
@@ -51,12 +51,12 @@ function copyToClipboard(text: string, fieldName: string) {
     });
 }
 
-// Äá»‹nh dáº¡ng tiá»n tá»‡
+// Định dạng tiền tệ
 function formatCurrency(val: number) {
-    return val.toLocaleString('vi-VN') + ' â‚«';
+    return val.toLocaleString('vi-VN') + ' ₫';
 }
 
-// Kiá»ƒm tra tráº¡ng thÃ¡i thanh toÃ¡n tá»« API
+// Kiểm tra trạng thái thanh toán từ API
 async function checkPaymentStatus(silent = true) {
     if (!silent) isChecking.value = true;
     try {
@@ -67,31 +67,31 @@ async function checkPaymentStatus(silent = true) {
             triggerSuccess();
         }
     } catch (e) {
-        console.error('Lá»—i khi kiá»ƒm tra tráº¡ng thÃ¡i thanh toÃ¡n:', e);
+        console.error('Lỗi khi kiểm tra trạng thái thanh toán:', e);
     } finally {
         if (!silent) isChecking.value = false;
     }
 }
 
-// KÃ­ch hoáº¡t giao diá»‡n thÃ nh cÃ´ng vÃ  chuyá»ƒn trang
+// Kích hoạt giao diện thành công và chuyển trang
 function triggerSuccess() {
     isSuccess.value = true;
     if (pollInterval) clearInterval(pollInterval);
     
-    // Äáº¿m ngÆ°á»£c chuyá»ƒn hÆ°á»›ng vá» Dashboard
+    // Đếm ngược chuyển hướng về Dashboard
     const timer = setInterval(() => {
         countdown.value--;
         if (countdown.value <= 0) {
             clearInterval(timer);
             router.visit('/dashboard', {
-                flash: { success: 'GÃ³i dá»‹ch vá»¥ Ä‘Ã£ Ä‘Æ°á»£c kÃ­ch hoáº¡t thÃ nh cÃ´ng!' }
+                flash: { success: 'Gói dịch vụ đã được kích hoạt thành công!' }
             });
         }
     }, 1000);
 }
 
 onMounted(() => {
-    // Tá»± Ä‘á»™ng kiá»ƒm tra má»—i 3 giÃ¢y
+    // Tự động kiểm tra mỗi 3 giây
     pollInterval = setInterval(() => {
         checkPaymentStatus(true);
     }, 3000);
@@ -105,7 +105,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Thanh toÃ¡n dá»‹ch vá»¥',
+                title: 'Thanh toán dịch vụ',
                 href: '#',
             },
         ],
@@ -114,11 +114,11 @@ defineOptions({
 </script>
 
 <template>
-    <Head title="Thanh toÃ¡n hÃ³a Ä‘Æ¡n dá»‹ch vá»¥" />
+    <Head title="Thanh toán hóa đơn dịch vụ" />
 
     <div class="px-4 py-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        <!-- 1. MÃ€N HÃŒNH THANH TOÃN THÃ€NH CÃ”NG -->
+        <!-- 1. MÀN HÌNH THANH TOÁN THÀNH CÔNG -->
         <div 
             v-if="isSuccess" 
             class="w-full max-w-xl mx-auto rounded-2xl border border-emerald-500/20 bg-card p-8 sm:p-12 text-center shadow-lg animate-in fade-in zoom-in duration-500"
@@ -130,62 +130,62 @@ defineOptions({
             </div>
 
             <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-3">
-                Thanh ToÃ¡n ThÃ nh CÃ´ng!
+                Thanh Toán Thành Công!
             </h2>
             
             <p class="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto mb-8">
-                Cáº£m Æ¡n báº¡n! Há»‡ thá»‘ng Ä‘Ã£ nháº­n Ä‘Æ°á»£c tiá»n chuyá»ƒn khoáº£n vÃ  tá»± Ä‘á»™ng kÃ­ch hoáº¡t gÃ³i dá»‹ch vá»¥ chuyÃªn nghiá»‡p **{{ subscription.plan_name }}** thÃ nh cÃ´ng.
+                Cảm ơn bạn! Hệ thống đã nhận được tiền chuyển khoản và tự động kích hoạt gói dịch vụ chuyên nghiệp **{{ subscription.plan_name }}** thành công.
             </p>
 
             <div class="rounded-xl bg-muted border border-border p-4 inline-flex items-center gap-3 justify-center w-full max-w-xs mx-auto">
                 <RefreshCw class="size-4 animate-spin text-emerald-500 dark:text-emerald-400" />
                 <span class="text-xs font-semibold text-muted-foreground">
-                    Äang chuyá»ƒn hÆ°á»›ng vá» Dashboard sau {{ countdown }}s...
+                    Đang chuyển hướng về Dashboard sau {{ countdown }}s...
                 </span>
             </div>
         </div>
 
-        <!-- 2. MÃ€N HÃŒNH QUÃ‰T MÃƒ QR THANH TOÃN CHÃNH -->
+        <!-- 2. MÀN HÌNH QUÉT MÃ QR THANH TOÁN CHÍNH -->
         <div 
             v-else 
             class="w-full grid gap-8 md:grid-cols-12 rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm animate-in fade-in duration-500"
         >
             
-            <!-- BÃŠN TRÃI: THÃ”NG TIN CHI TIáº¾T GÃ“I VÃ€ TÃ€I KHOáº¢N -->
+            <!-- BÊN TRÁI: THÔNG TIN CHI TIẾT GÓI VÀ TÀI KHOẢN -->
             <div class="md:col-span-7 flex flex-col justify-between space-y-6">
                 <div class="space-y-6">
-                    <!-- ThÃ´ng tin gÃ³i Ä‘ang mua -->
+                    <!-- Thông tin gói đang mua -->
                     <div class="space-y-2">
                         <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-1 text-xs font-bold text-primary uppercase tracking-wider">
-                            <Sparkles class="size-3.5" /> GÃ³i {{ subscription.plan_name }}
+                            <Sparkles class="size-3.5" /> Gói {{ subscription.plan_name }}
                         </span>
                         <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                            XÃ¡c nháº­n thanh toÃ¡n dá»‹ch vá»¥
+                            Xác nhận thanh toán dịch vụ
                         </h2>
                         <p class="text-xs text-muted-foreground">
-                            HÃ£y quÃ©t mÃ£ QR bÃªn pháº£i hoáº·c chuyá»ƒn khoáº£n thá»§ cÃ´ng theo thÃ´ng tin bÃªn dÆ°á»›i Ä‘á»ƒ hoÃ n táº¥t.
+                            Hãy quét mã QR bên phải hoặc chuyển khoản thủ công theo thông tin bên dưới để hoàn tất.
                         </p>
                     </div>
 
-                    <!-- Card chi tiáº¿t thÃ´ng tin chuyá»ƒn khoáº£n -->
+                    <!-- Card chi tiết thông tin chuyển khoản -->
                     <div class="space-y-3 rounded-xl bg-muted/40 border border-border p-5">
                         
-                        <!-- HÃ ng Sá»‘ Tiá»n -->
+                        <!-- Hàng Số Tiền -->
                         <div class="flex items-center justify-between pb-3 border-b border-border/60">
                             <div class="flex items-center gap-2 text-muted-foreground text-xs">
                                 <DollarSign class="size-4 text-primary" />
-                                <span>Sá»‘ tiá»n chuyá»ƒn khoáº£n</span>
+                                <span>Số tiền chuyển khoản</span>
                             </div>
                             <span class="text-lg font-extrabold text-primary">
                                 {{ formatCurrency(bank_details.amount) }}
                             </span>
                         </div>
 
-                        <!-- HÃ ng Ná»™i Dung -->
+                        <!-- Hàng Nội Dung -->
                         <div class="flex items-center justify-between py-2 border-b border-border/60">
                             <div class="flex items-center gap-2 text-muted-foreground text-xs">
                                 <Hash class="size-4" />
-                                <span>Ná»™i dung chuyá»ƒn khoáº£n (Memo)</span>
+                                <span>Nội dung chuyển khoản (Memo)</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="font-mono text-sm font-bold text-foreground bg-muted px-2 py-1 rounded border border-border">
@@ -201,22 +201,22 @@ defineOptions({
                             </div>
                         </div>
 
-                        <!-- HÃ ng NgÃ¢n HÃ ng -->
+                        <!-- Hàng Ngân Hàng -->
                         <div class="flex items-center justify-between py-2 border-b border-border/60">
                             <div class="flex items-center gap-2 text-muted-foreground text-xs">
                                 <CreditCard class="size-4" />
-                                <span>NgÃ¢n hÃ ng thá»¥ hÆ°á»Ÿng</span>
+                                <span>Ngân hàng thụ hưởng</span>
                             </div>
                             <span class="text-xs font-bold text-foreground">
                                 {{ bank_details.bank }}
                             </span>
                         </div>
 
-                        <!-- HÃ ng Sá»‘ TÃ i Khoáº£n -->
+                        <!-- Hàng Số Tài Khoản -->
                         <div class="flex items-center justify-between py-2 border-b border-border/60">
                             <div class="flex items-center gap-2 text-muted-foreground text-xs">
                                 <CreditCard class="size-4" />
-                                <span>Sá»‘ tÃ i khoáº£n</span>
+                                <span>Số tài khoản</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="font-mono text-xs font-bold text-foreground">
@@ -232,11 +232,11 @@ defineOptions({
                             </div>
                         </div>
 
-                        <!-- HÃ ng TÃªn TÃ i Khoáº£n -->
+                        <!-- Hàng Tên Tài Khoản -->
                         <div class="flex items-center justify-between pt-2">
                             <div class="flex items-center gap-2 text-muted-foreground text-xs">
                                 <User class="size-4" />
-                                <span>TÃªn chá»§ tÃ i khoáº£n</span>
+                                <span>Tên chủ tài khoản</span>
                             </div>
                             <span class="text-xs font-bold text-foreground uppercase tracking-wide">
                                 {{ bank_details.account_name }}
@@ -246,11 +246,11 @@ defineOptions({
                     </div>
                 </div>
 
-                <!-- Footer thÃ´ng tin báº£o máº­t -->
+                <!-- Footer thông tin bảo mật -->
                 <div class="pt-4 flex flex-col sm:flex-row gap-4 items-center justify-between border-t border-border/60">
                     <div class="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
                         <ShieldCheck class="size-4 text-emerald-500 shrink-0" />
-                        <span>Giao dá»‹ch mÃ£ hÃ³a an toÃ n & Tá»± Ä‘á»™ng xá»­ lÃ½</span>
+                        <span>Giao dịch mã hóa an toàn & Tự động xử lý</span>
                     </div>
                     <div class="flex gap-2 w-full sm:w-auto">
                         <Button 
@@ -261,7 +261,7 @@ defineOptions({
                             :disabled="isChecking"
                         >
                             <RefreshCw class="size-3.5 mr-1.5" :class="isChecking ? 'animate-spin' : ''" />
-                            Kiá»ƒm tra láº¡i
+                            Kiểm tra lại
                         </Button>
                         <Button 
                             variant="secondary" 
@@ -270,36 +270,36 @@ defineOptions({
                             @click="router.visit('/dashboard')"
                         >
                             <ArrowLeft class="size-3.5 mr-1.5" />
-                            Quay láº¡i
+                            Quay lại
                         </Button>
                     </div>
                 </div>
             </div>
 
-            <!-- BÃŠN PHáº¢I: MÃƒ QR QUÃ‰T MÃƒ -->
+            <!-- BÊN PHẢI: MÃ QR QUÉT MÃ -->
             <div class="md:col-span-5 flex flex-col items-center justify-center bg-muted/20 border border-border rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden">
                 
-                <!-- Há»™p tráº¡ng thÃ¡i Live -->
+                <!-- Hộp trạng thái Live -->
                 <div class="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse">
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                    <span>Äang chá» chuyá»ƒn khoáº£n...</span>
+                    <span>Đang chờ chuyển khoản...</span>
                 </div>
 
-                <!-- Viá»n phÃ¡t sÃ¡ng nháº¹ xung quanh QR -->
+                <!-- Viền phát sáng nhẹ xung quanh QR -->
                 <div class="relative group mt-6 mb-4">
                     <div class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 opacity-20 blur-md"></div>
                     
                     <div class="relative rounded-xl border border-border bg-white p-3.5 shadow-md max-w-[210px] sm:max-w-[240px] aspect-square flex items-center justify-center">
                         <img 
                             :src="payment_url" 
-                            alt="MÃ£ QR thanh toÃ¡n SePay" 
+                            alt="Mã QR thanh toán SePay" 
                             class="w-full h-full object-contain"
                         />
                     </div>
                 </div>
 
                 <p class="text-[10px] sm:text-xs text-muted-foreground max-w-[220px] leading-relaxed">
-                    Má»Ÿ á»©ng dá»¥ng ngÃ¢n hÃ ng quÃ©t mÃ£ QR nÃ y Ä‘á»ƒ tá»± Ä‘á»™ng Ä‘iá»n sá»‘ tÃ i khoáº£n, sá»‘ tiá»n vÃ  ná»™i dung chuyá»ƒn khoáº£n.
+                    Mở ứng dụng ngân hàng quét mã QR này để tự động điền số tài khoản, số tiền và nội dung chuyển khoản.
                 </p>
             </div>
 

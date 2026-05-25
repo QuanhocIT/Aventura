@@ -29,8 +29,8 @@ const props = defineProps<{ banners: Banner[] }>();
 const activeSlot = ref<'hero' | 'promo'>('hero');
 
 const slots = [
-    { key: 'hero', label: 'Hero Banner', hint: '1920 Ã— 600px', color: 'from-violet-500 to-indigo-600' },
-    { key: 'promo', label: 'Promo Banner', hint: '1200 Ã— 300px', color: 'from-amber-500 to-orange-600' },
+    { key: 'hero', label: 'Hero Banner', hint: '1920 Ã 600px', color: 'from-violet-500 to-indigo-600' },
+    { key: 'promo', label: 'Promo Banner', hint: '1200 Ã 300px', color: 'from-amber-500 to-orange-600' },
 ] as const;
 
 const filteredBanners = computed(() =>
@@ -112,7 +112,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
             <!-- Header -->
             <div>
                 <h1 class="text-2xl font-bold text-white">Quáº£n lÃ½ Banner & Slideshow</h1>
-                <p class="mt-1 text-sm text-gray-400">Upload áº£nh Ä‘á»ƒ thay Ä‘á»•i giao diá»‡n trang khÃ¡ch hÃ ng mÃ  khÃ´ng cáº§n Ä‘á»¥ng code.</p>
+                <p class="mt-1 text-sm text-gray-400">Upload áº£nh Äá» thay Äá»i giao diá»n trang khÃ¡ch hÃ ng mÃ  khÃ´ng cáº§n Äá»¥ng code.</p>
             </div>
 
             <!-- Slot tabs -->
@@ -156,8 +156,8 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                 <input type="file" accept="image/jpg,image/jpeg,image/png,image/webp" class="hidden" @change="onFileChange" />
                                 <div v-if="!imagePreview" class="flex flex-col items-center justify-center gap-2 py-10 text-gray-500">
                                     <Upload class="h-8 w-8" />
-                                    <span class="text-sm">KÃ©o tháº£ hoáº·c click Ä‘á»ƒ chá»n áº£nh</span>
-                                    <span class="text-xs">JPG, PNG, WebP Â· Tá»‘i Ä‘a 5MB Â· {{ currentSlotMeta.hint }}</span>
+                                    <span class="text-sm">KÃ©o tháº£ hoáº·c click Äá» chá»n áº£nh</span>
+                                    <span class="text-xs">JPG, PNG, WebP Â· Tá»i Äa 5MB Â· {{ currentSlotMeta.hint }}</span>
                                 </div>
                                 <div v-else class="relative">
                                     <img :src="imagePreview" class="max-h-48 w-full rounded-xl object-cover" />
@@ -176,7 +176,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                         <!-- Fields -->
                         <div class="space-y-3">
                             <div>
-                                <Label class="text-gray-300">TiÃªu Ä‘á» <span class="text-gray-500">(tÃ¹y chá»n)</span></Label>
+                                <Label class="text-gray-300">TiÃªu Äá» <span class="text-gray-500">(tÃ¹y chá»n)</span></Label>
                                 <Input v-model="form.title" placeholder="VÃ­ dá»¥: Khuyáº¿n mÃ£i thÃ¡ng 6" class="mt-1 border-gray-700 bg-gray-800 text-white" />
                             </div>
                             <div>
@@ -190,7 +190,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label class="text-gray-300">Hiá»‡u lá»±c tá»«</Label>
+                                    <Label class="text-gray-300">Hiá»u lá»±c tá»«</Label>
                                     <Input v-model="form.starts_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
                                 </div>
                                 <div>
@@ -200,7 +200,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                             </div>
                             <div class="flex items-center gap-2">
                                 <input id="is_active" v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500" />
-                                <Label for="is_active" class="cursor-pointer text-gray-300">Hiá»ƒn thá»‹ ngay</Label>
+                                <Label for="is_active" class="cursor-pointer text-gray-300">Hiá»n thá» ngay</Label>
                             </div>
                         </div>
 
@@ -219,7 +219,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                 <Card class="border-gray-800 bg-gray-900">
                     <CardHeader>
                         <CardTitle class="text-base text-white">
-                            Banner hiá»‡n táº¡i
+                            Banner hiá»n táº¡i
                             <Badge class="ml-2 bg-gray-700 text-gray-300">{{ filteredBanners.length }}</Badge>
                         </CardTitle>
                     </CardHeader>
@@ -245,7 +245,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                 <!-- Info -->
                                 <div class="min-w-0 flex-1">
                                     <p class="truncate text-sm font-medium text-white">
-                                        {{ banner.title || '(KhÃ´ng cÃ³ tiÃªu Ä‘á»)' }}
+                                        {{ banner.title || '(KhÃ´ng cÃ³ tiÃªu Äá»)' }}
                                     </p>
                                     <p v-if="banner.subtitle" class="truncate text-xs text-gray-400">{{ banner.subtitle }}</p>
                                     <a
@@ -259,9 +259,9 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                     </a>
                                     <div class="mt-1 flex items-center gap-2">
                                         <Badge :class="banner.is_active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'" class="text-xs">
-                                            {{ banner.is_active ? 'Äang hiá»ƒn thá»‹' : 'áº¨n' }}
+                                            {{ banner.is_active ? 'Äang hiá»n thá»' : 'áº¨n' }}
                                         </Badge>
-                                        <span v-if="banner.ends_at" class="text-xs text-gray-500">Ä‘áº¿n {{ banner.ends_at }}</span>
+                                        <span v-if="banner.ends_at" class="text-xs text-gray-500">Äáº¿n {{ banner.ends_at }}</span>
                                     </div>
                                 </div>
 
@@ -269,7 +269,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                 <div class="flex flex-shrink-0 flex-col gap-1">
                                     <button
                                         @click="toggleActive(banner)"
-                                        :title="banner.is_active ? 'áº¨n banner' : 'Hiá»ƒn thá»‹ banner'"
+                                        :title="banner.is_active ? 'áº¨n banner' : 'Hiá»n thá» banner'"
                                         class="rounded-lg p-1.5 transition"
                                         :class="banner.is_active ? 'text-green-400 hover:bg-green-900/30' : 'text-gray-500 hover:bg-gray-700'"
                                     >
@@ -293,8 +293,8 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
             <!-- Preview note -->
             <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-4 text-sm text-gray-500">
                 <span class="font-medium text-gray-400">LÆ°u Ã½:</span>
-                Banner sáº½ hiá»ƒn thá»‹ ngay trÃªn trang <a href="/" target="_blank" class="text-indigo-400 hover:underline">trang chá»§</a> sau khi upload.
-                Náº¿u cÃ³ nhiá»u banner cÃ¹ng slot, sáº½ tá»± Ä‘á»™ng cháº¡y slideshow (Ä‘á»•i áº£nh má»—i 4 giÃ¢y).
+                Banner sáº½ hiá»n thá» ngay trÃªn trang <a href="/" target="_blank" class="text-indigo-400 hover:underline">trang chá»§</a> sau khi upload.
+                Náº¿u cÃ³ nhiá»u banner cÃ¹ng slot, sáº½ tá»± Äá»ng cháº¡y slideshow (Äá»i áº£nh má»i 4 giây).
             </div>
         </div>
     </div>

@@ -41,7 +41,7 @@ const replyForm = useForm({
     message: ''
 });
 
-// Form Ä‘áº·t lá»‹ch demo
+// Form Äáº·t lá»ch demo
 const bookingForm = useForm({
     date: '',
     time_slot: '',
@@ -62,9 +62,9 @@ const severityColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
     open: 'Äang chá» xá»­ lÃ½',
     in_progress: 'Äang xá»­ lÃ½',
-    waiting_restaurant: 'Chá» pháº£n há»“i',
+    waiting_restaurant: 'Chá» pháº£n há»i',
     resolved: 'ÄÃ£ giáº£i quyáº¿t',
-    closed: 'ÄÃ£ Ä‘Ã³ng'
+    closed: 'ÄÃ£ ÄÃ³ng'
 };
 
 const statusColors: Record<string, string> = {
@@ -75,7 +75,7 @@ const statusColors: Record<string, string> = {
     closed: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400',
 };
 
-// Lá»c cÃ¡c bÃ i viáº¿t tÃ i liá»‡u
+// Lá»c cÃ¡c bÃ i viáº¿t tÃ i liá»u
 const filteredArticles = computed(() => {
     if (!searchQuery.value) return props.articles;
     const query = searchQuery.value.toLowerCase();
@@ -104,7 +104,7 @@ const submitReply = (ticketId: number) => {
     replyForm.post(`/support/tickets/${ticketId}/replies`, {
         onSuccess: () => {
             replyForm.reset();
-            // Cáº­p nháº­t ticket Ä‘ang chá»n
+            // Cáº­p nháº­t ticket Äang chá»n
             const updated = props.tickets.find(t => t.id === ticketId);
             if (updated) {
                 selectedTicket.value = updated;
@@ -113,7 +113,7 @@ const submitReply = (ticketId: number) => {
     });
 };
 
-// Äáº·t lá»‹ch demo
+// Äáº·t lá»ch demo
 const availableSlots = [
     '09:00 - 10:00',
     '10:30 - 11:30',
@@ -134,7 +134,7 @@ const submitBooking = () => {
 const resetOnboarding = () => {
     router.post('/api/onboarding/reset', {}, {
         onSuccess: () => {
-            // Chuyá»ƒn vá» dashboard Ä‘á»ƒ báº¯t Ä‘áº§u tour
+            // Chuyá»n vá» dashboard Äá» báº¯t Äáº§u tour
             router.visit('/dashboard');
         }
     });
@@ -155,7 +155,7 @@ const triggerTour = (day: number) => {
     });
 };
 
-// TÃ­nh toÃ¡n pháº§n trÄƒm tiáº¿n Ä‘á»™ onboarding
+// TÃ­nh toÃ¡n pháº§n trÄm tiáº¿n Äá» onboarding
 const onboardingProgress = computed(() => {
     const userObj = router.page.props.auth.user as any;
     const status = userObj?.onboarding_status;
@@ -171,7 +171,7 @@ const onboardingProgress = computed(() => {
 </script>
 
 <template>
-    <Head title="LiÃªn há»‡ & Há»— trá»£" />
+    <Head title="LiÃªn há» & Há» trá»£" />
 
     <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
         <!-- Header -->
@@ -181,9 +181,9 @@ const onboardingProgress = computed(() => {
                     <Headset class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">Trung TÃ¢m Há»— Trá»£ & Váº­n HÃ nh</h1>
+                    <h1 class="text-2xl font-bold tracking-tight">Trung TÃ¢m Há» Trá»£ & Váº­n HÃ nh</h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
-                        Äáº·t lá»‹ch Demo 1-on-1 Â· Gá»­i ticket há»— trá»£ Â· TÃ i liá»‡u thÃ´ng minh Â· Guided Tours
+                        Äáº·t lá»ch Demo 1-on-1 Â· Gá»­i ticket há» trá»£ Â· TÃ i liá»u thÃ´ng minh Â· Guided Tours
                     </p>
                 </div>
             </div>
@@ -197,9 +197,9 @@ const onboardingProgress = computed(() => {
                     <CardHeader class="pb-3">
                         <CardTitle class="text-md flex items-center gap-2">
                             <Compass class="size-5 text-indigo-600 dark:text-indigo-400 animate-spin-slow" />
-                            ÄÃ o Táº¡o & HÆ°á»›ng Dáº«n TÆ°Æ¡ng TÃ¡c
+                            ÄÃ o Táº¡o & HÆ°á»ng Dáº«n TÆ°Æ¡ng TÃ¡c
                         </CardTitle>
-                        <CardDescription>Tráº£i nghiá»‡m há»‡ thá»‘ng hÆ°á»›ng dáº«n chuáº©n hÃ³a váº­n hÃ nh F&B</CardDescription>
+                        <CardDescription>Tráº£i nghiá»m há» thá»ng hÆ°á»ng dáº«n chuáº©n hÃ³a váº­n hÃ nh F&B</CardDescription>
                     </CardHeader>
                     <CardContent class="flex flex-col gap-4">
                         <!-- Progress bar -->
@@ -222,8 +222,8 @@ const onboardingProgress = computed(() => {
                                 <div class="flex items-center gap-3">
                                     <div class="size-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center font-bold text-sm text-indigo-600 dark:text-indigo-400">1</div>
                                     <div>
-                                        <p class="text-xs font-bold">NgÃ y 1: BÆ°á»›c chÃ¢n Ä‘áº§u tiÃªn</p>
-                                        <p class="text-[11px] text-slate-500">Táº¡o nhÃ³m thá»±c Ä‘Æ¡n & thÃªm mÃ³n má»›i</p>
+                                        <p class="text-xs font-bold">NgÃ y 1: BÆ°á»c chÃ¢n Äáº§u tiÃªn</p>
+                                        <p class="text-[11px] text-slate-500">Táº¡o nhÃ³m thá»±c ÄÆ¡n & thÃªm mÃ³n má»i</p>
                                     </div>
                                 </div>
                                 <Play class="size-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
@@ -237,7 +237,7 @@ const onboardingProgress = computed(() => {
                                     <div class="size-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center font-bold text-sm text-indigo-600 dark:text-indigo-400">2</div>
                                     <div>
                                         <p class="text-xs font-bold">NgÃ y 2: Chuáº©n hÃ³a váº­n hÃ nh</p>
-                                        <p class="text-[11px] text-slate-500">Cáº¥u hÃ¬nh Ä‘á»‹nh lÆ°á»£ng & trá»« kho tá»± Ä‘á»™ng</p>
+                                        <p class="text-[11px] text-slate-500">Cáº¥u hÃ¬nh Äá»nh lÆ°á»£ng & trá»« kho tá»± Äá»ng</p>
                                     </div>
                                 </div>
                                 <Play class="size-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
@@ -250,8 +250,8 @@ const onboardingProgress = computed(() => {
                                 <div class="flex items-center gap-3">
                                     <div class="size-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center font-bold text-sm text-indigo-600 dark:text-indigo-400">3</div>
                                     <div>
-                                        <p class="text-xs font-bold">NgÃ y 3: Quáº£n trá»‹ nhÃ¢n sá»±</p>
-                                        <p class="text-[11px] text-slate-500">ThÃªm nhÃ¢n viÃªn & xáº¿p lá»‹ch lÃ m viá»‡c</p>
+                                        <p class="text-xs font-bold">NgÃ y 3: Quáº£n trá» nhÃ¢n sá»±</p>
+                                        <p class="text-[11px] text-slate-500">ThÃªm nhÃ¢n viÃªn & xáº¿p lá»ch lÃ m viá»c</p>
                                     </div>
                                 </div>
                                 <Play class="size-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
@@ -260,7 +260,7 @@ const onboardingProgress = computed(() => {
 
                         <!-- Reset button -->
                         <Button variant="outline" size="sm" @click="resetOnboarding" class="w-full text-slate-600 dark:text-slate-300 font-medium">
-                            <RefreshCw class="size-4 mr-2" /> Reset & Báº¯t Ä‘áº§u láº¡i toÃ n bá»™
+                            <RefreshCw class="size-4 mr-2" /> Reset & Báº¯t Äáº§u láº¡i toÃ n bá»
                         </Button>
                     </CardContent>
                 </Card>
@@ -270,7 +270,7 @@ const onboardingProgress = computed(() => {
                     <CardHeader class="pb-2">
                         <CardTitle class="text-sm font-bold flex items-center gap-1.5">
                             <Clock class="size-4 text-rose-500" />
-                            ThÃ´ng BÃ¡o Há»‡ Thá»‘ng
+                            ThÃ´ng BÃ¡o Há» Thá»ng
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="flex flex-col gap-3">
@@ -285,7 +285,7 @@ const onboardingProgress = computed(() => {
                             </div>
                         </div>
                         <div v-else class="text-center py-6 text-slate-400 text-xs font-normal">
-                            KhÃ´ng cÃ³ thÃ´ng bÃ¡o má»›i nÃ o.
+                            KhÃ´ng cÃ³ thÃ´ng bÃ¡o má»i nÃ o.
                         </div>
                     </CardContent>
                 </Card>
@@ -296,13 +296,13 @@ const onboardingProgress = computed(() => {
                 <Tabs v-model="activeTab" class="w-full">
                     <TabsList class="grid w-full grid-cols-3 mb-6 bg-slate-100/60 dark:bg-slate-950 p-1 rounded-xl">
                         <TabsTrigger value="tickets" class="gap-1.5 py-2.5 rounded-lg text-xs font-semibold">
-                            <MessageSquare class="size-4" /> Cá»•ng Ticket
+                            <MessageSquare class="size-4" /> Cá»ng Ticket
                         </TabsTrigger>
                         <TabsTrigger value="booking" class="gap-1.5 py-2.5 rounded-lg text-xs font-semibold">
                             <Calendar class="size-4" /> Äáº·t ca Demo
                         </TabsTrigger>
                         <TabsTrigger value="docs" class="gap-1.5 py-2.5 rounded-lg text-xs font-semibold">
-                            <BookOpen class="size-4" /> HÆ°á»›ng Dáº«n ThÃ´ng Minh
+                            <BookOpen class="size-4" /> HÆ°á»ng Dáº«n ThÃ´ng Minh
                         </TabsTrigger>
                     </TabsList>
 
@@ -314,36 +314,36 @@ const onboardingProgress = computed(() => {
                         <Card v-if="showCreateTicket" class="shadow-sm">
                             <CardHeader>
                                 <CardTitle class="text-base flex items-center gap-2">
-                                    <Plus class="size-4 text-indigo-600" /> Táº¡o yÃªu cáº§u há»— trá»£ má»›i
+                                    <Plus class="size-4 text-indigo-600" /> Táº¡o yÃªu cáº§u há» trá»£ má»i
                                 </CardTitle>
-                                <CardDescription>Gáº·p sá»± cá»‘ váº­n hÃ nh? HÃ£y gá»­i ticket cho Ä‘á»™i DevOps xá»­ lÃ½ ngay láº­p tá»©c.</CardDescription>
+                                <CardDescription>Gáº·p sá»± cá» váº­n hÃ nh? HÃ£y gá»­i ticket cho Äá»i DevOps xá»­ lÃ½ ngay láº­p tá»©c.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <form @submit.prevent="submitTicket" class="space-y-4">
                                     <div class="grid gap-1.5">
-                                        <Label for="category">Danh má»¥c sá»± cá»‘</Label>
+                                        <Label for="category">Danh má»¥c sá»± cá»</Label>
                                         <Select v-model="ticketForm.category">
                                             <SelectTrigger><SelectValue placeholder="Chá»n danh má»¥c" /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="realtime">MÃ n hÃ¬nh Báº¿p / ÄÆ¡n hÃ ng realtime</SelectItem>
-                                                <SelectItem value="inventory">Trá»« kho / Äá»‹nh lÆ°á»£ng cÃ´ng thá»©c</SelectItem>
-                                                <SelectItem value="billing">HÃ³a Ä‘Æ¡n / GÃ³i Ä‘Äƒng kÃ½ dá»‹ch vá»¥</SelectItem>
-                                                <SelectItem value="ui">Lá»—i giao diá»‡n / KhÃ´ng hiá»ƒn thá»‹</SelectItem>
-                                                <SelectItem value="other">CÃ¡c váº¥n Ä‘á» khÃ¡c</SelectItem>
+                                                <SelectItem value="inventory">Trá»« kho / Äá»nh lÆ°á»£ng cÃ´ng thá»©c</SelectItem>
+                                                <SelectItem value="billing">HÃ³a ÄÆ¡n / GÃ³i ÄÄng kÃ½ dá»ch vá»¥</SelectItem>
+                                                <SelectItem value="ui">Lá»i giao diá»n / KhÃ´ng hiá»n thá»</SelectItem>
+                                                <SelectItem value="other">CÃ¡c váº¥n Äá» khÃ¡c</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label for="title">TiÃªu Ä‘á» yÃªu cáº§u</Label>
-                                        <Input id="title" v-model="ticketForm.title" placeholder="VÃ­ dá»¥: ÄÆ¡n hÃ ng má»›i tá»« QR Table khÃ´ng hiá»ƒn thá»‹ trÃªn Báº¿p" />
+                                        <Label for="title">TiÃªu Äá» yÃªu cáº§u</Label>
+                                        <Input id="title" v-model="ticketForm.title" placeholder="VÃ­ dá»¥: ÄÆ¡n hÃ ng má»i tá»« QR Table khÃ´ng hiá»n thá» trÃªn Báº¿p" />
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label for="description">MÃ´ táº£ chi tiáº¿t sá»± cá»‘</Label>
+                                        <Label for="description">MÃ´ táº£ chi tiáº¿t sá»± cá»</Label>
                                         <textarea
                                             id="description"
                                             v-model="ticketForm.description"
                                             rows="4"
-                                            placeholder="Vui lÃ²ng cung cáº¥p chi tiáº¿t lá»—i, cÃ¡c bÆ°á»›c tÃ¡i hiá»‡n lá»—i Ä‘á»ƒ chÃºng tÃ´i sá»­a nhanh nháº¥t cÃ³ thá»ƒ..."
+                                            placeholder="Vui lÃ²ng cung cáº¥p chi tiáº¿t lá»i, cÃ¡c bÆ°á»c tÃ¡i hiá»n lá»i Äá» chÃºng tÃ´i sá»­a nhanh nháº¥t cÃ³ thá»..."
                                             class="min-h-24 w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                         />
                                     </div>
@@ -393,8 +393,8 @@ const onboardingProgress = computed(() => {
                                 </div>
                                 <div v-else class="border border-dashed rounded-2xl flex flex-col items-center justify-center p-8 text-center text-slate-400">
                                     <HelpCircle class="size-8 text-slate-300 mb-2" />
-                                    <p class="text-xs font-medium">Báº¡n chÆ°a táº¡o yÃªu cáº§u há»— trá»£ nÃ o.</p>
-                                    <p class="text-[10px] mt-1">Há»‡ thá»‘ng hoáº¡t Ä‘á»™ng á»•n Ä‘á»‹nh.</p>
+                                    <p class="text-xs font-medium">Báº¡n chÆ°a táº¡o yÃªu cáº§u há» trá»£ nÃ o.</p>
+                                    <p class="text-[10px] mt-1">Há» thá»ng hoáº¡t Äá»ng á»n Äá»nh.</p>
                                 </div>
                             </div>
 
@@ -415,7 +415,7 @@ const onboardingProgress = computed(() => {
                                             </div>
                                         </div>
                                         <div class="mt-2.5 text-xs bg-slate-50 dark:bg-slate-900 border rounded-lg p-3 text-slate-600 dark:text-slate-300">
-                                            <strong>Sá»± cá»‘:</strong> {{ selectedTicket.description }}
+                                            <strong>Sá»± cá»:</strong> {{ selectedTicket.description }}
                                         </div>
                                     </CardHeader>
 
@@ -453,7 +453,7 @@ const onboardingProgress = computed(() => {
                                         <form @submit.prevent="submitReply(selectedTicket.id)" class="flex gap-2 items-center">
                                             <Input
                                                 v-model="replyForm.message"
-                                                placeholder="Nháº­p tin nháº¯n pháº£n há»“i..."
+                                                placeholder="Nháº­p tin nháº¯n pháº£n há»i..."
                                                 class="text-xs h-9 rounded-xl flex-1 bg-white"
                                             />
                                             <Button type="submit" size="sm" class="h-9 w-9 p-0 bg-indigo-600 text-white rounded-xl" :disabled="!replyForm.message.trim()">
@@ -464,7 +464,7 @@ const onboardingProgress = computed(() => {
                                 </Card>
                                 <div v-else class="h-full border border-dashed rounded-3xl flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-slate-50/20">
                                     <MessageSquare class="size-10 text-slate-200 mb-2 animate-pulse" />
-                                    <p class="text-xs font-semibold">Vui lÃ²ng chá»n hoáº·c táº¡o yÃªu cáº§u há»— trá»£ Ä‘á»ƒ tháº£o luáº­n</p>
+                                    <p class="text-xs font-semibold">Vui lÃ²ng chá»n hoáº·c táº¡o yÃªu cáº§u há» trá»£ Äá» tháº£o luáº­n</p>
                                 </div>
                             </div>
                         </div>
@@ -478,9 +478,9 @@ const onboardingProgress = computed(() => {
                             <CardHeader>
                                 <CardTitle class="text-base flex items-center gap-2">
                                     <Calendar class="size-5 text-indigo-600" />
-                                    Äáº·t Lá»‹ch Háº¹n Demo 1-on-1
+                                    Äáº·t Lá»ch Háº¹n Demo 1-on-1
                                 </CardTitle>
-                                <CardDescription>Gáº·p khÃ³ khÄƒn trong quÃ¡ trÃ¬nh thiáº¿t láº­p? Äáº·t lá»‹ch gá»i 1-on-1 trá»±c tiáº¿p (30 phÃºt) vá»›i Ä‘á»™i ngÅ© phÃ¡t triá»ƒn F&BViet Ä‘á»ƒ Ä‘Æ°á»£c thiáº¿t láº­p miá»…n phÃ­.</CardDescription>
+                                <CardDescription>Gáº·p khÃ³ khÄn trong quÃ¡ trÃ¬nh thiáº¿t láº­p? Äáº·t lá»ch gá»i 1-on-1 trá»±c tiáº¿p (30 phÃºt) vá»i Äá»i ngÅ© phÃ¡t triá»n F&BViet Äá» ÄÆ°á»£c thiáº¿t láº­p miá»n phÃ­.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <!-- Booking Success State -->
@@ -489,13 +489,13 @@ const onboardingProgress = computed(() => {
                                         <CheckCircle2 class="size-7" />
                                     </div>
                                     <div>
-                                        <h4 class="font-bold text-slate-800 dark:text-slate-100">ÄÃ£ Ä‘áº·t lá»‹ch thÃ nh cÃ´ng! ðŸŽ‰</h4>
+                                        <h4 class="font-bold text-slate-800 dark:text-slate-100">ÄÃ£ Äáº·t lá»ch thÃ nh cÃ´ng! ð</h4>
                                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">
                                             Thá»i gian: <strong class="text-indigo-600 dark:text-indigo-400">{{ selectedTimeSlot }}</strong> vÃ o ngÃ y <strong>{{ selectedDemoDate }}</strong>
                                         </p>
-                                        <p class="text-[11px] text-slate-500 mt-1">Äá»™i ngÅ© ká»¹ thuáº­t cá»§a chÃºng tÃ´i sáº½ gá»i Ä‘iá»‡n thoáº¡i xÃ¡c nháº­n vÃ  gá»­i liÃªn káº¿t Zalo/Google Meet trÆ°á»›c 15 phÃºt diá»…n ra.</p>
+                                        <p class="text-[11px] text-slate-500 mt-1">Äá»i ngÅ© ká»¹ thuáº­t cá»§a chÃºng tÃ´i sáº½ gá»i Äiá»n thoáº¡i xÃ¡c nháº­n vÃ  gá»­i liÃªn káº¿t Zalo/Google Meet trÆ°á»c 15 phÃºt diá»n ra.</p>
                                     </div>
-                                    <Button variant="outline" size="sm" @click="isBookingSuccess = false" class="mt-2 text-xs">Äáº·t lá»‹ch ca khÃ¡c</Button>
+                                    <Button variant="outline" size="sm" @click="isBookingSuccess = false" class="mt-2 text-xs">Äáº·t lá»ch ca khÃ¡c</Button>
                                 </div>
 
                                 <!-- Booking Form -->
@@ -516,21 +516,21 @@ const onboardingProgress = computed(() => {
                                         </div>
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label for="booking-phone">Sá»‘ Ä‘iá»‡n thoáº¡i liÃªn há»‡</Label>
-                                        <Input id="booking-phone" v-model="bookingForm.phone" placeholder="Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i Ä‘á»ƒ ká»¹ sÆ° liÃªn láº¡c..." required />
+                                        <Label for="booking-phone">Sá» Äiá»n thoáº¡i liÃªn há»</Label>
+                                        <Input id="booking-phone" v-model="bookingForm.phone" placeholder="Nháº­p sá» Äiá»n thoáº¡i Äá» ká»¹ sÆ° liÃªn láº¡c..." required />
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label for="booking-notes">YÃªu cáº§u Ä‘áº·c biá»‡t hoáº·c MÃ´ táº£ mÃ´ hÃ¬nh nhÃ  hÃ ng</Label>
+                                        <Label for="booking-notes">YÃªu cáº§u Äáº·c biá»t hoáº·c MÃ´ táº£ mÃ´ hÃ¬nh nhÃ  hÃ ng</Label>
                                         <textarea
                                             id="booking-notes"
                                             v-model="bookingForm.notes"
                                             rows="3"
-                                            placeholder="NÃªu rÃµ mÃ´ hÃ¬nh (VÃ­ dá»¥: quÃ¡n cafe, quÃ¡n phá»Ÿ, nhÃ  hÃ ng láº©u) vÃ  nhá»¯ng tháº¯c máº¯c cáº§n giáº£i Ä‘Ã¡p Ä‘á»ƒ ká»¹ sÆ° chuáº©n bá»‹..."
+                                            placeholder="NÃªu rÃµ mÃ´ hÃ¬nh (VÃ­ dá»¥: quÃ¡n cafe, quÃ¡n phá», nhÃ  hÃ ng láº©u) vÃ  nhá»¯ng tháº¯c máº¯c cáº§n giáº£i ÄÃ¡p Äá» ká»¹ sÆ° chuáº©n bá»..."
                                             class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                         />
                                     </div>
                                     <Button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5">
-                                        XÃ¡c nháº­n ÄÄƒng kÃ½ Demo
+                                        XÃ¡c nháº­n ÄÄng kÃ½ Demo
                                     </Button>
                                 </form>
                             </CardContent>
@@ -545,14 +545,14 @@ const onboardingProgress = computed(() => {
                             <CardHeader class="pb-3">
                                 <CardTitle class="text-base flex items-center gap-2">
                                     <BookOpen class="size-5 text-indigo-600" />
-                                    Cáº©m Nang HÆ°á»›ng Dáº«n ThÃ´ng Minh
+                                    Cáº©m Nang HÆ°á»ng Dáº«n ThÃ´ng Minh
                                 </CardTitle>
-                                <CardDescription>Giáº£i phÃ¡p tá»± váº­n hÃ nh nhÃ  hÃ ng chuáº©n hÃ³a, tá»« thá»±c Ä‘Æ¡n Ä‘áº¿n kho bÃ£i.</CardDescription>
+                                <CardDescription>Giáº£i phÃ¡p tá»± váº­n hÃ nh nhÃ  hÃ ng chuáº©n hÃ³a, tá»« thá»±c ÄÆ¡n Äáº¿n kho bÃ£i.</CardDescription>
                                 <div class="relative w-full mt-3">
                                     <Search class="absolute left-3 top-2.5 size-4 text-slate-400" />
                                     <Input
                                         v-model="searchQuery"
-                                        placeholder="TÃ¬m bÃ i viáº¿t hÆ°á»›ng dáº«n (vÃ­ dá»¥: cÃ´ng thá»©c Ä‘á»‹nh lÆ°á»£ng, táº¡o mÃ³n, thÃªm nhÃ¢n viÃªn)..."
+                                        placeholder="TÃ¬m bÃ i viáº¿t hÆ°á»ng dáº«n (vÃ­ dá»¥: cÃ´ng thá»©c Äá»nh lÆ°á»£ng, táº¡o mÃ³n, thÃªm nhÃ¢n viÃªn)..."
                                         class="pl-9 text-xs h-9 rounded-xl"
                                     />
                                 </div>
@@ -584,14 +584,14 @@ const onboardingProgress = computed(() => {
                                                 target="_blank"
                                                 class="flex items-center gap-1 font-semibold text-rose-600 hover:underline"
                                             >
-                                                Xem Video â–¶
+                                                Xem Video â¶
                                             </a>
                                         </div>
                                     </div>
                                 </div>
                                 <div v-else class="text-center py-12 text-slate-400">
                                     <AlertCircle class="size-8 text-slate-300 mx-auto mb-2 animate-bounce" />
-                                    <p class="text-xs">KhÃ´ng tÃ¬m tháº¥y tÃ i liá»‡u phÃ¹ há»£p.</p>
+                                    <p class="text-xs">KhÃ´ng tÃ¬m tháº¥y tÃ i liá»u phù hợp.</p>
                                 </div>
                             </CardContent>
                         </Card>

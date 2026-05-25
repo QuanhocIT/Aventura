@@ -43,7 +43,7 @@ function renderMarkdown(text: string): string {
 </script>
 
 <template>
-    <Head :title="`${post.title} — Aventura`">
+    <Head :title="`${post.title}  Aventura`">
         <meta property="og:title" :content="post.title" />
         <meta property="og:description" :content="post.excerpt ?? post.title" />
         <meta v-if="post.featured_image_url" property="og:image" :content="post.featured_image_url" />

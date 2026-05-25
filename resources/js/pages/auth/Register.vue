@@ -22,24 +22,24 @@ const props = defineProps<{
     planOptions: Array<{ code: string; name: string; price: number }>;
 }>();
 
-// Chá»n gÃ³i Ä‘áº§u tiÃªn lÃ m máº·c Ä‘á»‹nh (thÆ°á»ng lÃ  gÃ³i Free)
+// Chọn gói đầu tiên làm mặc định (thường là gói Free)
 const selectedPlan = ref<string>(props.planOptions[0]?.code ?? 'free');
 
 const formatPrice = (price: number): string =>
-    price === 0 ? 'Miá»…n phÃ­' : price.toLocaleString('vi-VN') + ' â‚«/thÃ¡ng';
+    price === 0 ? 'Miễn phí' : price.toLocaleString('vi-VN') + ' ₫/tháng';
 
 const isPlanSelected = (code: string) => selectedPlan.value === code;
 
 defineOptions({
     layout: {
-        title: 'ÄÄƒng kÃ½ doanh nghiá»‡p',
-        description: 'Nháº­p thÃ´ng tin nhÃ  hÃ ng Ä‘á»ƒ báº¯t Ä‘áº§u tráº£i nghiá»‡m miá»…n phÃ­',
+        title: 'Đăng ký doanh nghiệp',
+        description: 'Nhập thông tin nhà hàng để bắt đầu trải nghiệm miễn phí',
     },
 });
 </script>
 
 <template>
-    <Head title="ÄÄƒng kÃ½ doanh nghiá»‡p" />
+    <Head title="Đăng ký doanh nghiệp" />
 
     <div class="flex flex-col gap-6">
         <Form
@@ -49,9 +49,9 @@ defineOptions({
             class="flex flex-col gap-6"
         >
             <div class="grid gap-6">
-                <!-- TÃªn nhÃ  hÃ ng -->
+                <!-- Tên nhà hàng -->
                 <div class="grid gap-2">
-                    <Label for="restaurant_name">TÃªn nhÃ  hÃ ng</Label>
+                    <Label for="restaurant_name">Tên nhà hàng</Label>
                     <Input
                         id="restaurant_name"
                         type="text"
@@ -60,14 +60,14 @@ defineOptions({
                         :tabindex="1"
                         autocomplete="organization"
                         name="restaurant_name"
-                        placeholder="Phá»Ÿ Viá»‡t, QuÃ¡n Ä‚n 24h..."
+                        placeholder="Phở Việt, Quán Ăn 24h..."
                     />
                     <InputError :message="errors.restaurant_name" />
                 </div>
 
-                <!-- TÃªn chá»§ tÃ i khoáº£n -->
+                <!-- Tên chủ tài khoản -->
                 <div class="grid gap-2">
-                    <Label for="name">Há» vÃ  tÃªn chá»§ tÃ i khoáº£n</Label>
+                    <Label for="name">Họ và tên chủ tài khoản</Label>
                     <Input
                         id="name"
                         type="text"
@@ -75,7 +75,7 @@ defineOptions({
                         :tabindex="2"
                         autocomplete="name"
                         name="name"
-                        placeholder="Nguyá»…n VÄƒn A"
+                        placeholder="Nguyễn Văn A"
                     />
                     <InputError :message="errors.name" />
                 </div>
@@ -95,9 +95,9 @@ defineOptions({
                     <InputError :message="errors.email" />
                 </div>
 
-                <!-- Sá»‘ Ä‘iá»‡n thoáº¡i -->
+                <!-- Số điện thoại -->
                 <div class="grid gap-2">
-                    <Label for="phone">Sá»‘ Ä‘iá»‡n thoáº¡i</Label>
+                    <Label for="phone">Số điện thoại</Label>
                     <Input
                         id="phone"
                         type="tel"
@@ -109,9 +109,9 @@ defineOptions({
                     <InputError :message="errors.phone" />
                 </div>
 
-                <!-- Chá»n gÃ³i dá»‹ch vá»¥ â€” Card style -->
+                <!-- Chọn gói dịch vụ — Card style -->
                 <div class="grid gap-2">
-                    <Label>GÃ³i khá»Ÿi táº¡o</Label>
+                    <Label>Gói khởi tạo</Label>
                     <div
                         v-if="planOptions.length > 0"
                         class="grid gap-3"
@@ -137,7 +137,7 @@ defineOptions({
                                 class="sr-only"
                                 :tabindex="5"
                             />
-                            <!-- TÃ­ch chá»n -->
+                            <!-- Tích chọn -->
                             <span
                                 v-if="isPlanSelected(plan.code)"
                                 class="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
@@ -151,39 +151,39 @@ defineOptions({
                             <span class="text-xs text-muted-foreground">{{ formatPrice(plan.price) }}</span>
                         </label>
                     </div>
-                    <!-- Fallback náº¿u khÃ´ng load Ä‘Æ°á»£c plan -->
+                    <!-- Fallback nếu không load được plan -->
                     <div v-else>
                         <input type="hidden" name="plan_code" value="free" />
-                        <p class="text-xs text-muted-foreground">Báº¯t Ä‘áº§u vá»›i gÃ³i miá»…n phÃ­. NÃ¢ng cáº¥p báº¥t cá»© lÃºc nÃ o.</p>
+                        <p class="text-xs text-muted-foreground">Bắt đầu với gói miễn phí. Nâng cấp bất cứ lúc nào.</p>
                     </div>
                     <InputError :message="errors.plan_code" />
                 </div>
 
-                <!-- Máº­t kháº©u -->
+                <!-- Mật khẩu -->
                 <div class="grid gap-2">
-                    <Label for="password">Máº­t kháº©u</Label>
+                    <Label for="password">Mật khẩu</Label>
                     <PasswordInput
                         id="password"
                         required
                         :tabindex="6"
                         autocomplete="new-password"
                         name="password"
-                        placeholder="Tá»‘i thiá»ƒu 8 kÃ½ tá»±"
+                        placeholder="Tối thiểu 8 ký tự"
                         :passwordrules="passwordRules"
                     />
                     <InputError :message="errors.password" />
                 </div>
 
-                <!-- XÃ¡c nháº­n máº­t kháº©u -->
+                <!-- Xác nhận mật khẩu -->
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">XÃ¡c nháº­n máº­t kháº©u</Label>
+                    <Label for="password_confirmation">Xác nhận mật khẩu</Label>
                     <PasswordInput
                         id="password_confirmation"
                         required
                         :tabindex="7"
                         autocomplete="new-password"
                         name="password_confirmation"
-                        placeholder="Nháº­p láº¡i máº­t kháº©u"
+                        placeholder="Nhập lại mật khẩu"
                         :passwordrules="passwordRules"
                     />
                     <InputError :message="errors.password_confirmation" />
@@ -197,18 +197,18 @@ defineOptions({
                     data-test="register-user-button"
                 >
                     <Spinner v-if="processing" />
-                    {{ processing ? 'Äang khá»Ÿi táº¡o há»‡ thá»‘ng...' : 'Táº¡o doanh nghiá»‡p ngay' }}
+                    {{ processing ? 'Đang khởi tạo hệ thống...' : 'Tạo doanh nghiệp ngay' }}
                 </Button>
 
                 <p class="text-center text-xs text-muted-foreground">
-                    Sau khi Ä‘Äƒng kÃ½, há»‡ thá»‘ng tá»± Ä‘á»™ng thiáº¿t láº­p bÃ n, menu vÃ  kho máº«u â€” sáºµn sÃ ng bÃ¡n hÃ ng trong dÆ°á»›i 3 giÃ¢y.
+                    Sau khi đăng ký, hệ thống tự động thiết lập bàn, menu và kho mẫu — sẵn sàng bán hàng trong dưới 3 giây.
                 </p>
             </div>
         </Form>
 
         <div class="text-center text-sm text-muted-foreground">
-            ÄÃ£ cÃ³ tÃ i khoáº£n?
-            <TextLink :href="login()" class="underline underline-offset-4" :tabindex="9">ÄÄƒng nháº­p</TextLink>
+            Đã có tài khoản?
+            <TextLink :href="login()" class="underline underline-offset-4" :tabindex="9">Đăng nhập</TextLink>
         </div>
     </div>
 </template>

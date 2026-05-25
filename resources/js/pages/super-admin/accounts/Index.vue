@@ -84,7 +84,7 @@ function copyPassword() {
 // Reset password
 const processingReset = ref<number | null>(null);
 function resetPassword(account: { id: number; name: string }) {
-    if (!confirm(`Reset máº­t kháº©u cho "${account.name}"? Máº­t kháº©u má»›i sáº½ hiá»ƒn thá»‹ ngay sau thao tÃ¡c nÃ y.`)) {
+    if (!confirm(`Reset mật khẩu cho "${account.name}"? Mật khẩu mới sẽ hiển thị ngay sau thao tác này.`)) {
 return;
 }
 
@@ -99,7 +99,7 @@ return;
 // Disable 2FA
 const processingDisable2FA = ref<number | null>(null);
 function disable2FA(account: { id: number; name: string }) {
-    if (!confirm(`Táº¯t xÃ¡c thá»±c 2FA cho "${account.name}"?`)) {
+    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) {
 return;
 }
 
@@ -135,8 +135,8 @@ return;
 
 // Helpers
 const roleLabel: Record<string, string> = {
-    owner: 'Chá»§ sá»Ÿ há»¯u', manager: 'Quáº£n lÃ½', cashier: 'Thu ngÃ¢n',
-    kitchen: 'Báº¿p', inventory_staff: 'Kho', staff: 'NhÃ¢n viÃªn',
+    owner: 'Chủ sở hữu', manager: 'Quản lý', cashier: 'Thu ngân',
+    kitchen: 'Bếp', inventory_staff: 'Kho', staff: 'Nhân viên',
 };
 const roleColor: Record<string, string> = {
     owner:           'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
@@ -150,15 +150,15 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
 </script>
 
 <template>
-    <Head title="Quáº£n lÃ½ tÃ i khoáº£n" />
+    <Head title="Quản lý tài khoản" />
 
     <div class="flex flex-col gap-6 p-6">
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold">Quáº£n lÃ½ tÃ i khoáº£n</h1>
+                <h1 class="text-2xl font-bold">Quản lý tài khoản</h1>
                 <p class="text-sm text-muted-foreground">
-                    Tá»•ng cá»™ng {{ accounts.meta?.total ?? 0 }} tÃ i khoáº£n chá»§ doanh nghiá»‡p
+                    Tổng cộng {{ accounts.meta?.total ?? 0 }} tài khoản chủ doanh nghiệp
                 </p>
             </div>
             <a
@@ -176,7 +176,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                 <CardContent class="flex items-center gap-4 p-4">
                     <UserCheck class="size-8 text-green-500" />
                     <div>
-                        <p class="text-xs text-muted-foreground">Äang hoáº¡t Ä‘á»™ng</p>
+                        <p class="text-xs text-muted-foreground">Đang hoạt động</p>
                         <p class="text-2xl font-bold text-green-600">{{ accounts.meta?.total ?? 0 }}</p>
                     </div>
                 </CardContent>
@@ -185,7 +185,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                 <CardContent class="flex items-center gap-4 p-4">
                     <ShieldCheck class="size-8 text-blue-500" />
                     <div>
-                        <p class="text-xs text-muted-foreground">ÄÃ£ báº­t 2FA (trang nÃ y)</p>
+                        <p class="text-xs text-muted-foreground">Đã bật 2FA (trang này)</p>
                         <p class="text-2xl font-bold text-blue-600">{{ totalWith2FA }}</p>
                     </div>
                 </CardContent>
@@ -194,30 +194,30 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                 <CardContent class="flex items-center gap-4 p-4">
                     <Users class="size-8 text-purple-500" />
                     <div>
-                        <p class="text-xs text-muted-foreground">Tá»•ng trang nÃ y</p>
+                        <p class="text-xs text-muted-foreground">Tổng trang này</p>
                         <p class="text-2xl font-bold">{{ accounts.data.length }}</p>
                     </div>
                 </CardContent>
             </Card>
         </div>
 
-        <!-- Bá»™ lá»c -->
+        <!-- Bộ lọc -->
         <Card>
             <CardContent class="flex flex-wrap gap-3 p-4">
                 <div class="relative min-w-64 flex-1">
                     <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input v-model="search" placeholder="TÃ¬m tÃªn, email..." class="pl-9" />
+                    <Input v-model="search" placeholder="Tìm tên, email..." class="pl-9" />
                 </div>
                 <select
                     v-model="roleFilter"
                     class="h-9 rounded-md border bg-background px-3 text-sm"
                     @change="applyFilter"
                 >
-                    <option value="">Táº¥t cáº£ vai trÃ²</option>
-                    <option value="owner">Chá»§ sá»Ÿ há»¯u</option>
-                    <option value="manager">Quáº£n lÃ½</option>
-                    <option value="cashier">Thu ngÃ¢n</option>
-                    <option value="kitchen">Báº¿p</option>
+                    <option value="">Tất cả vai trò</option>
+                    <option value="owner">Chủ sở hữu</option>
+                    <option value="manager">Quản lý</option>
+                    <option value="cashier">Thu ngân</option>
+                    <option value="kitchen">Bếp</option>
                     <option value="inventory_staff">Kho</option>
                 </select>
                 <select
@@ -225,26 +225,26 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                     class="h-9 rounded-md border bg-background px-3 text-sm"
                     @change="applyFilter"
                 >
-                    <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
-                    <option value="active">Hoáº¡t Ä‘á»™ng</option>
-                    <option value="suspended">Bá»‹ khoÃ¡</option>
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="active">Hoạt động</option>
+                    <option value="suspended">Bị khoá</option>
                 </select>
             </CardContent>
         </Card>
 
-        <!-- Báº£ng tÃ i khoáº£n -->
+        <!-- Bảng tài khoản -->
         <Card>
             <CardContent class="p-0">
                 <table class="w-full text-sm">
                     <thead class="border-b bg-muted/50">
                         <tr class="text-left text-xs text-muted-foreground">
-                            <th class="px-6 py-3 font-medium">TÃ i khoáº£n</th>
-                            <th class="px-4 py-3 font-medium">NhÃ  hÃ ng</th>
-                            <th class="px-4 py-3 font-medium">Vai trÃ²</th>
-                            <th class="px-4 py-3 font-medium">Báº£o máº­t</th>
-                            <th class="px-4 py-3 font-medium">Tráº¡ng thÃ¡i</th>
-                            <th class="px-4 py-3 font-medium">ÄÄƒng nháº­p cuá»‘i</th>
-                            <th class="px-4 py-3 font-medium text-right">Thao tÃ¡c</th>
+                            <th class="px-6 py-3 font-medium">Tài khoản</th>
+                            <th class="px-4 py-3 font-medium">Nhà hàng</th>
+                            <th class="px-4 py-3 font-medium">Vai trò</th>
+                            <th class="px-4 py-3 font-medium">Bảo mật</th>
+                            <th class="px-4 py-3 font-medium">Trạng thái</th>
+                            <th class="px-4 py-3 font-medium">Đăng nhập cuối</th>
+                            <th class="px-4 py-3 font-medium text-right">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -253,7 +253,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                             :key="a.id"
                             class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                         >
-                            <!-- TÃ i khoáº£n -->
+                            <!-- Tài khoản -->
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <Avatar class="h-8 w-8 shrink-0">
@@ -269,10 +269,10 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                                 </div>
                             </td>
 
-                            <!-- NhÃ  hÃ ng -->
+                            <!-- Nhà hàng -->
                             <td class="px-4 py-4 text-sm">{{ a.restaurant }}</td>
 
-                            <!-- Vai trÃ² -->
+                            <!-- Vai trò -->
                             <td class="px-4 py-4">
                                 <div class="flex flex-wrap gap-1">
                                     <span
@@ -285,7 +285,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                                 </div>
                             </td>
 
-                            <!-- Báº£o máº­t -->
+                            <!-- Bảo mật -->
                             <td class="px-4 py-4">
                                 <div class="flex flex-col gap-1">
                                     <span
@@ -293,61 +293,61 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                                     >
                                         <ShieldCheck v-if="a.has_2fa" class="size-3" />
                                         <ShieldOff v-else class="size-3" />
-                                        {{ a.has_2fa ? '2FA báº­t' : '2FA táº¯t' }}
+                                        {{ a.has_2fa ? '2FA bật' : '2FA tắt' }}
                                     </span>
                                     <span
                                         :class="['inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs w-fit', a.email_verified ? 'text-green-600' : 'text-orange-500']"
                                     >
-                                        {{ a.email_verified ? 'âœ“ Email xÃ¡c thá»±c' : 'âš  ChÆ°a xÃ¡c thá»±c' }}
+                                        {{ a.email_verified ? '✓ Email xác thực' : '⚠ Chưa xác thực' }}
                                     </span>
                                 </div>
                             </td>
 
-                            <!-- Tráº¡ng thÃ¡i -->
+                            <!-- Trạng thái -->
                             <td class="px-4 py-4">
                                 <span
                                     :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', a.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300']"
                                 >
-                                    {{ a.status === 'active' ? 'Hoáº¡t Ä‘á»™ng' : 'Bá»‹ khoÃ¡' }}
+                                    {{ a.status === 'active' ? 'Hoạt động' : 'Bị khoá' }}
                                 </span>
                             </td>
 
-                            <!-- ÄÄƒng nháº­p cuá»‘i -->
+                            <!-- Đăng nhập cuối -->
                             <td class="px-4 py-4 text-xs text-muted-foreground">
-                                {{ a.last_login_at ?? 'ChÆ°a Ä‘Äƒng nháº­p' }}
+                                {{ a.last_login_at ?? 'Chưa đăng nhập' }}
                             </td>
 
-                            <!-- Thao tÃ¡c -->
+                            <!-- Thao tác -->
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-end gap-1">
-                                    <!-- Reset máº­t kháº©u -->
+                                    <!-- Reset mật khẩu -->
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         class="gap-1.5 text-xs"
                                         :disabled="processingReset === a.id"
-                                        title="Reset máº­t kháº©u"
+                                        title="Reset mật khẩu"
                                         @click="resetPassword(a)"
                                     >
                                         <KeyRound class="size-3.5" />
                                         Reset
                                     </Button>
 
-                                    <!-- Táº¯t 2FA -->
+                                    <!-- Tắt 2FA -->
                                     <Button
                                         v-if="a.has_2fa"
                                         variant="ghost"
                                         size="sm"
                                         class="gap-1.5 text-xs text-orange-600 hover:text-orange-700"
                                         :disabled="processingDisable2FA === a.id"
-                                        title="Táº¯t 2FA"
+                                        title="Tắt 2FA"
                                         @click="disable2FA(a)"
                                     >
                                         <ShieldX class="size-3.5" />
-                                        Táº¯t 2FA
+                                        Tắt 2FA
                                     </Button>
 
-                                    <!-- KhoÃ¡ / Má»Ÿ khoÃ¡ -->
+                                    <!-- Khoá / Mở khoá -->
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -356,7 +356,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                                     >
                                         <UserX v-if="a.status === 'active'" class="size-3.5" />
                                         <UserCheck v-else class="size-3.5" />
-                                        {{ a.status === 'active' ? 'KhoÃ¡' : 'Má»Ÿ khoÃ¡' }}
+                                        {{ a.status === 'active' ? 'Khoá' : 'Mở khoá' }}
                                     </Button>
                                 </div>
                             </td>
@@ -364,7 +364,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
 
                         <tr v-if="!accounts.data.length">
                             <td colspan="7" class="px-6 py-12 text-center text-muted-foreground">
-                                KhÃ´ng tÃ¬m tháº¥y tÃ i khoáº£n nÃ o
+                                Không tìm thấy tài khoản nào
                             </td>
                         </tr>
                     </tbody>
@@ -384,18 +384,18 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
         </Card>
     </div>
 
-    <!-- Dialog: Máº­t kháº©u táº¡m thá»i -->
+    <!-- Dialog: Mật khẩu tạm thời -->
     <Dialog v-model:open="showTempPassword">
         <DialogContent class="max-w-sm">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     <KeyRound class="size-5 text-primary" />
-                    Máº­t kháº©u táº¡m thá»i
+                    Mật khẩu tạm thời
                 </DialogTitle>
             </DialogHeader>
             <div class="space-y-3 py-2">
                 <p class="text-sm text-muted-foreground">
-                    Cung cáº¥p máº­t kháº©u nÃ y cho ngÆ°á»i dÃ¹ng. Há»‡ thá»‘ng khÃ´ng lÆ°u máº­t kháº©u dáº¡ng vÄƒn báº£n â€” Ä‘Ã¢y lÃ  láº§n duy nháº¥t báº¡n tháº¥y nÃ³.
+                    Cung cấp mật khẩu này cho người dùng. Hệ thống không lưu mật khẩu dạng văn bản — đây là lần duy nhất bạn thấy nó.
                 </p>
                 <div class="flex items-center gap-2">
                     <code class="flex-1 rounded bg-muted px-4 py-3 font-mono text-lg font-bold tracking-widest select-all">
@@ -404,38 +404,38 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                 </div>
             </div>
             <DialogFooter class="gap-2">
-                <Button variant="outline" @click="showTempPassword = false">ÄÃ³ng</Button>
+                <Button variant="outline" @click="showTempPassword = false">Đóng</Button>
                 <Button @click="copyPassword">
-                    {{ copied ? 'âœ“ ÄÃ£ sao chÃ©p' : 'Sao chÃ©p' }}
+                    {{ copied ? '✓ Đã sao chép' : 'Sao chép' }}
                 </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
 
-    <!-- Dialog: Äá»•i tráº¡ng thÃ¡i -->
+    <!-- Dialog: Đổi trạng thái -->
     <Dialog v-model:open="showStatusDialog">
         <DialogContent class="max-w-sm">
             <DialogHeader>
                 <DialogTitle>
-                    {{ statusForm.status === 'suspended' ? 'KhoÃ¡ tÃ i khoáº£n' : 'Má»Ÿ khoÃ¡ tÃ i khoáº£n' }}
+                    {{ statusForm.status === 'suspended' ? 'Khoá tài khoản' : 'Mở khoá tài khoản' }}
                 </DialogTitle>
             </DialogHeader>
             <p class="text-sm text-muted-foreground py-2">
-                Báº¡n cÃ³ cháº¯c muá»‘n
-                <strong>{{ statusForm.status === 'suspended' ? 'khoÃ¡' : 'má»Ÿ khoÃ¡' }}</strong>
-                tÃ i khoáº£n <strong>{{ selectedAccount?.name }}</strong>?
+                Bạn có chắc muốn
+                <strong>{{ statusForm.status === 'suspended' ? 'khoá' : 'mở khoá' }}</strong>
+                tài khoản <strong>{{ selectedAccount?.name }}</strong>?
                 <span v-if="statusForm.status === 'suspended'" class="block mt-1 text-red-600">
-                    NgÆ°á»i dÃ¹ng sáº½ khÃ´ng thá»ƒ Ä‘Äƒng nháº­p vÃ o há»‡ thá»‘ng.
+                    Người dùng sẽ không thể đăng nhập vào hệ thống.
                 </span>
             </p>
             <DialogFooter>
-                <Button variant="outline" @click="showStatusDialog = false">Há»§y</Button>
+                <Button variant="outline" @click="showStatusDialog = false">Hủy</Button>
                 <Button
                     :variant="statusForm.status === 'suspended' ? 'destructive' : 'default'"
                     :disabled="statusForm.processing"
                     @click="submitStatus"
                 >
-                    {{ statusForm.processing ? 'Äang xá»­ lÃ½...' : 'XÃ¡c nháº­n' }}
+                    {{ statusForm.processing ? 'Đang xử lý...' : 'Xác nhận' }}
                 </Button>
             </DialogFooter>
         </DialogContent>

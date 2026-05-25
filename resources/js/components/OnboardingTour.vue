@@ -18,10 +18,10 @@ const isSuperAdmin = computed(() => {
     return Array.isArray(roles) ? roles.includes('super_admin') || roles.includes('admin') : false;
 });
 
-// Tiáº¿n Ä‘á»™ Onboarding lÆ°u trong User Model
+// Tiến độ Onboarding lưu trong User Model
 const onboardingStatus = computed(() => user.value?.onboarding_status);
 
-// Tráº¡ng thÃ¡i Tour hiá»‡n táº¡i
+// Trạng thái Tour hiện tại
 const currentDay = ref(1);
 const activeStepIndex = ref(0);
 const isTourActive = ref(false);
@@ -30,27 +30,27 @@ const tooltipStyle = ref<any>({});
 const scrollPosition = ref({ x: window.scrollX, y: window.scrollY });
 const isSuccessOpen = ref(false);
 
-// Äá»‹nh nghÄ©a táº¥t cáº£ cÃ¡c bÆ°á»›c Tour cho 3 NgÃ y
+// Định nghĩa tất cả các bước Tour cho 3 Ngày
 const tourSteps: Record<number, TourStep[]> = {
     1: [
         {
             selector: '#sidebar-link-products',
-            title: 'BÆ°á»›c chÃ¢n Ä‘áº§u tiÃªn ðŸ‘£',
-            content: 'ChÃ o má»«ng báº¡n Ä‘áº¿n vá»›i F&BViet! Äáº§u tiÃªn, hÃ£y truy cáº­p vÃ o menu Thá»±c Ä‘Æ¡n & MÃ³n Ä‘á»ƒ thiáº¿t láº­p menu bÃ¡n hÃ ng cá»§a quÃ¡n.',
+            title: 'Bước chân đầu tiên 👣',
+            content: 'Chào mừng bạn đến với F&BViet! Đầu tiên, hãy truy cập vào menu Thực đơn & Món để thiết lập menu bán hàng của quán.',
             placement: 'right',
             page: 'dashboard'
         },
         {
             selector: '#btn-add-category',
-            title: 'Táº¡o nhÃ³m mÃ³n Äƒn ðŸ“‚',
-            content: 'Tuyá»‡t vá»i! HÃ£y nháº¥p vÃ o Ä‘Ã¢y Ä‘á»ƒ thÃªm nhÃ³m thá»±c Ä‘Æ¡n má»›i (vÃ­ dá»¥: Khai vá»‹, MÃ³n nÆ°á»›c, NÆ°á»›c Ã©p).',
+            title: 'Tạo nhóm món ăn 📂',
+            content: 'Tuyệt vời! Hãy nhấp vào đây để thêm nhóm thực đơn mới (ví dụ: Khai vị, Món nước, Nước ép).',
             placement: 'bottom',
             page: 'products'
         },
         {
             selector: '#btn-add-product',
-            title: 'ThÃªm mÃ³n Äƒn Ä‘áº§u tiÃªn ðŸ²',
-            content: 'BÃ¢y giá» hÃ£y báº¥m nÃºt nÃ y Ä‘á»ƒ nháº­p cÃ¡c mÃ³n Äƒn thá»±c táº¿ cá»§a quÃ¡n vÃ o nhÃ³m thá»±c Ä‘Æ¡n tÆ°Æ¡ng á»©ng.',
+            title: 'Thêm món ăn đầu tiên 🍲',
+            content: 'Bây giờ hãy bấm nút này để nhập các món ăn thực tế của quán vào nhóm thực đơn tương ứng.',
             placement: 'top',
             page: 'products'
         }
@@ -58,15 +58,15 @@ const tourSteps: Record<number, TourStep[]> = {
     2: [
         {
             selector: '#sidebar-link-inventory',
-            title: 'Chuáº©n hÃ³a váº­n hÃ nh ðŸ“¦',
-            content: 'NgÃ y 2: Quáº£n lÃ½ kho. HÃ£y báº¥m vÃ o Kho nguyÃªn liá»‡u Ä‘á»ƒ cáº¥u hÃ¬nh nguyÃªn liá»‡u vÃ  kÃ­ch hoáº¡t cÆ¡ cháº¿ trá»« kho tá»± Ä‘á»™ng.',
+            title: 'Chuẩn hóa vận hành 📦',
+            content: 'Ngày 2: Quản lý kho. Hãy bấm vào Kho nguyên liệu để cấu hình nguyên liệu và kích hoạt cơ chế trừ kho tự động.',
             placement: 'right',
             page: 'dashboard'
         },
         {
             selector: '.btn-set-recipe:first-of-type',
-            title: 'CÃ i Ä‘áº·t Ä‘á»‹nh lÆ°á»£ng ðŸ§ª',
-            content: 'Nháº¥p vÃ o nÃºt Thiáº¿t láº­p cá»§a má»™t mÃ³n Äƒn Ä‘á»ƒ xÃ¢y dá»±ng cÃ´ng thá»©c náº¥u (vÃ­ dá»¥: 1 bÃ¡t phá»Ÿ = 150g bÃ¡nh phá»Ÿ, 80g thá»‹t bÃ²).',
+            title: 'Cài đặt định lượng 🧪',
+            content: 'Nhấp vào nút Thiết lập của một món ăn để xây dựng công thức nấu (ví dụ: 1 bát phở = 150g bánh phở, 80g thịt bò).',
             placement: 'left',
             page: 'inventory'
         }
@@ -74,33 +74,33 @@ const tourSteps: Record<number, TourStep[]> = {
     3: [
         {
             selector: '#sidebar-link-employees',
-            title: 'Quáº£n trá»‹ nhÃ¢n sá»± ðŸ‘¥',
-            content: 'NgÃ y 3: Thiáº¿t láº­p nhÃ¢n sá»±. Nháº¥p vÃ o Ä‘Ã¢y Ä‘á»ƒ thÃªm nhÃ¢n viÃªn vÃ  phÃ¢n quyá»n Thu ngÃ¢n, Báº¿p nhanh chÃ³ng.',
+            title: 'Quản trị nhân sự 👥',
+            content: 'Ngày 3: Thiết lập nhân sự. Nhấp vào đây để thêm nhân viên và phân quyền Thu ngân, Bếp nhanh chóng.',
             placement: 'right',
             page: 'dashboard'
         },
         {
             selector: '#btn-add-employee',
-            title: 'ThÃªm nhÃ¢n sá»± má»›i âž•',
-            content: 'Báº¥m vÃ o Ä‘Ã¢y Ä‘á»ƒ táº¡o tÃ i khoáº£n Ä‘Äƒng nháº­p cho nhÃ¢n viÃªn cá»§a báº¡n.',
+            title: 'Thêm nhân sự mới ➕',
+            content: 'Bấm vào đây để tạo tài khoản đăng nhập cho nhân viên của bạn.',
             placement: 'bottom',
             page: 'employees'
         },
         {
             selector: '#scheduler-card',
-            title: 'Xáº¿p lá»‹ch lÃ m viá»‡c ðŸ“…',
-            content: 'Cuá»‘i cÃ¹ng, quáº£n lÃ½ ca lÃ m viá»‡c vÃ  xáº¿p lá»‹ch lÃ m viá»‡c hÃ ng tuáº§n cho nhÃ¢n viÃªn trá»±c quan ngay táº¡i Ä‘Ã¢y.',
+            title: 'Xếp lịch làm việc 📅',
+            content: 'Cuối cùng, quản lý ca làm việc và xếp lịch làm việc hàng tuần cho nhân viên trực quan ngay tại đây.',
             placement: 'top',
             page: 'employees'
         }
     ]
 };
 
-// Láº¥y danh sÃ¡ch cÃ¡c bÆ°á»›c cá»§a NgÃ y hiá»‡n táº¡i
+// Lấy danh sách các bước của Ngày hiện tại
 const currentSteps = computed(() => tourSteps[currentDay.value] ?? []);
 const activeStep = computed<TourStep | null>(() => currentSteps.value[activeStepIndex.value] ?? null);
 
-// HÃ m tÃ¬m pháº§n tá»­ vÃ  láº¥y vá»‹ trÃ­
+// Hàm tìm phần tử và lấy vị trí
 let searchInterval: any = null;
 
 const updateTargetPosition = () => {
@@ -108,11 +108,11 @@ const updateTargetPosition = () => {
 
     const el = document.querySelector(activeStep.value.selector) as HTMLElement;
     if (el) {
-        // Tá»± Ä‘á»™ng scroll pháº§n tá»­ vÃ o táº§m nhÃ¬n náº¿u cáº§n
+        // Tự động scroll phần tử vào tầm nhìn nếu cần
         const rect = el.getBoundingClientRect();
         targetRect.value = rect;
 
-        // TÃ­nh toÃ¡n vá»‹ trÃ­ cá»§a tooltip
+        // Tính toán vị trí của tooltip
         const margin = 12;
         let top = 0;
         let left = 0;
@@ -122,19 +122,19 @@ const updateTargetPosition = () => {
 
         if (activeStep.value.placement === 'bottom') {
             top = rect.bottom + scrollY + margin;
-            left = rect.left + scrollX + (rect.width / 2) - 160; // 160 lÃ  ná»­a width tooltip Æ°á»›c lÆ°á»£ng
+            left = rect.left + scrollX + (rect.width / 2) - 160; // 160 là nửa width tooltip ước lượng
         } else if (activeStep.value.placement === 'top') {
-            top = rect.top + scrollY - 180 - margin; // 180 lÃ  height Æ°á»›c lÆ°á»£ng
+            top = rect.top + scrollY - 180 - margin; // 180 là height ước lượng
             left = rect.left + scrollX + (rect.width / 2) - 160;
         } else if (activeStep.value.placement === 'right') {
             top = rect.top + scrollY + (rect.height / 2) - 80;
             left = rect.right + scrollX + margin;
         } else if (activeStep.value.placement === 'left') {
             top = rect.top + scrollY + (rect.height / 2) - 80;
-            left = rect.left + scrollX - 330 - margin; // 330 lÃ  width tooltip Æ°á»›c lÆ°á»£ng
+            left = rect.left + scrollX - 330 - margin; // 330 là width tooltip ước lượng
         }
 
-        // TrÃ¡nh tooltip vÄƒng ra ngoÃ i viewport
+        // Tránh tooltip văng ra ngoài viewport
         if (left < 10) left = 10;
         if (left + 320 > window.innerWidth) left = window.innerWidth - 340;
 
@@ -163,7 +163,7 @@ const stopTargetPolling = () => {
     }
 };
 
-// Khá»Ÿi cháº¡y Tour
+// Khởi chạy Tour
 const startTour = (day: number) => {
     currentDay.value = day;
     activeStepIndex.value = 0;
@@ -181,12 +181,12 @@ const skipTour = () => {
     targetRect.value = null;
 };
 
-// Xá»­ lÃ½ bÆ°á»›c káº¿ tiáº¿p
+// Xử lý bước kế tiếp
 const nextStep = () => {
     if (activeStepIndex.value < currentSteps.value.length - 1) {
         activeStepIndex.value++;
         
-        // Gá»­i API lÆ°u tiáº¿n Ä‘á»™ bÆ°á»›c
+        // Gửi API lưu tiến độ bước
         router.post('/api/onboarding/update', {
             current_day: currentDay.value,
             step: `step_${activeStepIndex.value}`,
@@ -197,31 +197,31 @@ const nextStep = () => {
             updateTargetPosition();
         });
     } else {
-        // HoÃ n thÃ nh tour cá»§a NgÃ y
+        // Hoàn thành tour của Ngày
         completeDay();
     }
 };
 
-// HoÃ n thÃ nh cáº£ ngÃ y
+// Hoàn thành cả ngày
 const completeDay = () => {
     isTourActive.value = false;
     stopTargetPolling();
     targetRect.value = null;
     isSuccessOpen.value = true;
 
-    // Gá»i API lÆ°u tráº¡ng thÃ¡i hoÃ n thÃ nh ngÃ y
+    // Gọi API lưu trạng thái hoàn thành ngày
     router.post('/api/onboarding/update', {
         current_day: currentDay.value,
         completed_day: currentDay.value
     }, {
         preserveScroll: true,
         onSuccess: () => {
-            // Táº£i láº¡i dá»¯ liá»‡u trang
+            // Tải lại dữ liệu trang
         }
     });
 };
 
-// Chuyá»ƒn sang ngÃ y káº¿ tiáº¿p
+// Chuyển sang ngày kế tiếp
 const startNextDay = () => {
     isSuccessOpen.value = false;
     const next = currentDay.value + 1;
@@ -238,24 +238,24 @@ const startNextDay = () => {
     }
 };
 
-// Theo dÃµi sá»± thay Ä‘á»•i URL Ä‘á»ƒ tá»± Ä‘á»™ng kÃ­ch hoáº¡t/cáº­p nháº­t vá»‹ trÃ­
+// Theo dõi sự thay đổi URL để tự động kích hoạt/cập nhật vị trí
 watch(() => page.url, () => {
     nextTick(() => {
         updateTargetPosition();
     });
 });
 
-// Láº¯ng nghe tráº¡ng thÃ¡i onboarding cá»§a User tá»« Backend Ä‘á»ƒ tá»± Ä‘á»™ng kÃ­ch hoáº¡t
+// Lắng nghe trạng thái onboarding của User từ Backend để tự động kích hoạt
 onMounted(() => {
     window.addEventListener('resize', updateTargetPosition);
     window.addEventListener('scroll', updateTargetPosition);
 
-    // KÃ­ch hoáº¡t tour tá»± Ä‘á»™ng náº¿u user Ä‘Äƒng nháº­p láº§n Ä‘áº§u vÃ  chÆ°a hoÃ n thÃ nh Day 1
+    // Kích hoạt tour tự động nếu user đăng nhập lần đầu và chưa hoàn thành Day 1
     setTimeout(() => {
         if (user.value && !isSuperAdmin.value) {
             const status = onboardingStatus.value;
             if (!status) {
-                // ÄÄƒng nháº­p láº§n Ä‘áº§u chÆ°a cÃ³ status, kÃ­ch hoáº¡t Day 1
+                // Đăng nhập lần đầu chưa có status, kích hoạt Day 1
                 startTour(1);
             } else {
                 const day1 = status.day_1;
@@ -271,7 +271,7 @@ onMounted(() => {
                 }
             }
         }
-    }, 2000); // Äá»£i 2 giÃ¢y sau khi app táº£i xong Ä‘á»ƒ gÃ¢y áº¥n tÆ°á»£ng tá»± nhiÃªn
+    }, 2000); // Đợi 2 giây sau khi app tải xong để gây ấn tượng tự nhiên
 });
 
 onUnmounted(() => {
@@ -280,7 +280,7 @@ onUnmounted(() => {
     stopTargetPolling();
 });
 
-// Xem cÃ³ Ä‘ang cháº¡y Ä‘Ãºng trang Ä‘Æ°á»£c cáº¥u hÃ¬nh cho Step hay khÃ´ng
+// Xem có đang chạy đúng trang được cấu hình cho Step hay không
 const isCorrectPage = computed(() => {
     if (!activeStep.value) return false;
     const currentUrl = page.url.toLowerCase();
@@ -291,14 +291,14 @@ const isCorrectPage = computed(() => {
     return currentUrl.includes('/' + activeStep.value.page);
 });
 
-// Äiá»u hÆ°á»›ng nhanh Ä‘áº¿n trang Ä‘Ãºng náº¿u khÃ¡ch hÃ ng Ä‘i láº¡c
+// Điều hướng nhanh đến trang đúng nếu khách hàng đi lạc
 const navigateToStepPage = () => {
     if (!activeStep.value) return;
     const dest = activeStep.value.page === 'dashboard' ? '/dashboard' : '/' + activeStep.value.page;
     router.visit(dest);
 };
 
-// Phá»¥c vá»¥ viá»‡c reset tour thá»§ cÃ´ng tá»« bÃªn ngoÃ i (vÃ­ dá»¥ tá»« Support Page)
+// Phục vụ việc reset tour thủ công từ bên ngoài (ví dụ từ Support Page)
 defineExpose({
     startTour
 });
@@ -306,7 +306,7 @@ defineExpose({
 
 <template>
     <div>
-        <!-- Backdrop Ä‘Ã¨ sÃ¡ng Ä‘Ã¨ lÃªn pháº§n tá»­ Ä‘Æ°á»£c chá»n -->
+        <!-- Backdrop đè sáng đè lên phần tử được chọn -->
         <div
             v-if="isTourActive && targetRect && isCorrectPage"
             class="pointer-events-none fixed inset-0 transition-opacity duration-300"
@@ -316,7 +316,7 @@ defineExpose({
             }"
         />
 
-        <!-- Pulse Highlight Ä‘Ã¨ trá»±c tiáº¿p lÃªn pháº§n tá»­ má»¥c tiÃªu -->
+        <!-- Pulse Highlight đè trực tiếp lên phần tử mục tiêu -->
         <div
             v-if="isTourActive && targetRect && isCorrectPage"
             class="pointer-events-none absolute rounded-md border-2 border-primary animate-pulse"
@@ -358,15 +358,15 @@ defineExpose({
                 </button>
             </div>
 
-            <!-- Cáº£nh bÃ¡o Ä‘i sai trang -->
+            <!-- Cảnh báo đi sai trang -->
             <div v-if="!isCorrectPage" class="rounded-lg bg-amber-50 dark:bg-amber-950/40 p-3 text-xs text-amber-800 dark:text-amber-300 border border-amber-200/50">
-                <p class="font-medium">Báº¡n Ä‘Ã£ chuyá»ƒn trang!</p>
-                <p class="mt-1">Äá»ƒ tiáº¿p tá»¥c pháº§n hÆ°á»›ng dáº«n, vui lÃ²ng nháº¥p vÃ o nÃºt bÃªn dÆ°á»›i Ä‘á»ƒ quay láº¡i Ä‘Ãºng trang.</p>
+                <p class="font-medium">Bạn đã chuyển trang!</p>
+                <p class="mt-1">Để tiếp tục phần hướng dẫn, vui lòng nhấp vào nút bên dưới để quay lại đúng trang.</p>
                 <button
                     @click="navigateToStepPage"
                     class="mt-2.5 flex items-center gap-1 font-semibold text-amber-900 dark:text-amber-200 hover:underline"
                 >
-                    Äáº¿n trang hÆ°á»›ng dáº«n <ChevronRight class="size-3" />
+                    Đến trang hướng dẫn <ChevronRight class="size-3" />
                 </button>
             </div>
 
@@ -393,13 +393,13 @@ defineExpose({
                     @click="nextStep"
                     class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium text-xs px-3.5 py-2 shadow-md shadow-indigo-600/10 transition-all"
                 >
-                    {{ activeStepIndex === currentSteps.length - 1 ? 'HoÃ n thÃ nh' : 'Tiáº¿p tá»¥c' }}
+                    {{ activeStepIndex === currentSteps.length - 1 ? 'Hoàn thành' : 'Tiếp tục' }}
                     <ArrowRight class="size-3.5" />
                 </button>
             </div>
         </div>
 
-        <!-- Success Modal (HoÃ n thÃ nh cáº£ ngÃ y) -->
+        <!-- Success Modal (Hoàn thành cả ngày) -->
         <div
             v-if="isSuccessOpen"
             class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300"
@@ -412,17 +412,17 @@ defineExpose({
 
                 <div>
                     <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">
-                        ChÃºc má»«ng báº¡n Ä‘Ã£ hoÃ n thÃ nh NgÃ y {{ currentDay }}! ðŸŽ‰
+                        Chúc mừng bạn đã hoàn thành Ngày {{ currentDay }}! 🎉
                     </h2>
                     <p class="mt-2.5 text-sm text-slate-500 dark:text-slate-400 leading-relaxed px-2">
                         <span v-if="currentDay === 1">
-                            Tuyá»‡t vá»i! Báº¡n Ä‘Ã£ náº¯m vá»¯ng cÃ¡c bÆ°á»›c táº¡o nhÃ³m thá»±c Ä‘Æ¡n vÃ  thÃªm mÃ³n Äƒn thá»±c táº¿. Cá»­a hÃ ng cá»§a báº¡n Ä‘Ã£ sáºµn sÃ ng bÃ¡n sáº£n pháº©m Ä‘áº§u tiÃªn!
+                            Tuyệt vời! Bạn đã nắm vững các bước tạo nhóm thực đơn và thêm món ăn thực tế. Cửa hàng của bạn đã sẵn sàng bán sản phẩm đầu tiên!
                         </span>
                         <span v-else-if="currentDay === 2">
-                            Xuáº¥t sáº¯c! Viá»‡c thiáº¿t láº­p cÃ´ng thá»©c vÃ  Ä‘á»‹nh lÆ°á»£ng nguyÃªn liá»‡u sáº½ giÃºp pháº§n má»m tá»± Ä‘á»™ng tÃ­nh toÃ¡n tá»“n kho cá»§a báº¡n chÃ­nh xÃ¡c sau má»—i hÃ³a Ä‘Æ¡n bÃ¡n hÃ ng.
+                            Xuất sắc! Việc thiết lập công thức và định lượng nguyên liệu sẽ giúp phần mềm tự động tính toán tồn kho của bạn chính xác sau mỗi hóa đơn bán hàng.
                         </span>
                         <span v-else>
-                            HoÃ n háº£o! Báº¡n Ä‘Ã£ hoÃ n táº¥t chuá»—i Guided Tours chuáº©n hÃ³a F&B. Báº¡n hiá»‡n Ä‘Ã£ lÃ m chá»§ Ä‘Æ°á»£c nhÃ¢n sá»±, quáº£n lÃ½ lá»‹ch lÃ m viá»‡c vÃ  kho nguyÃªn liá»‡u!
+                            Hoàn hảo! Bạn đã hoàn tất chuỗi Guided Tours chuẩn hóa F&B. Bạn hiện đã làm chủ được nhân sự, quản lý lịch làm việc và kho nguyên liệu!
                         </span>
                     </p>
                 </div>
@@ -441,14 +441,14 @@ defineExpose({
                         @click="startNextDay"
                         class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-3 transition-colors shadow-lg shadow-indigo-600/10 active:scale-98"
                     >
-                        Tiáº¿n Ä‘áº¿n NgÃ y {{ currentDay + 1 }}
+                        Tiến đến Ngày {{ currentDay + 1 }}
                         <ChevronRight class="size-4" />
                     </button>
                     <button
                         @click="isSuccessOpen = false"
                         class="w-full inline-flex items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-semibold text-sm py-3 transition-colors"
                     >
-                        Äá»ƒ sau / ÄÃ³ng
+                        Để sau / Đóng
                     </button>
                 </div>
             </div>

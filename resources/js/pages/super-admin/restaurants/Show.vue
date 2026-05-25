@@ -128,7 +128,7 @@ function typeLabel(type: string) {
             </Link>
             <div class="flex-1">
                 <h1 class="text-2xl font-bold tracking-tight">{{ restaurant.name }}</h1>
-                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} ï¿½ Billing Center</p>
+                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} � Billing Center</p>
             </div>
             <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status] || 'bg-slate-100 text-slate-800']">
                 {{ statusLabel[restaurant.status] ?? restaurant.status }}
@@ -142,13 +142,13 @@ function typeLabel(type: string) {
                         <CardTitle class="text-base">Tong quan doanh nghiep</CardTitle>
                     </CardHeader>
                     <CardContent class="grid gap-4 md:grid-cols-2 text-sm">
-                        <div><p class="text-muted-foreground">Chu so huu</p><p class="font-medium">{{ restaurant.owner.name || 'ï¿½' }}</p></div>
-                        <div><p class="text-muted-foreground">Email chu</p><p class="font-medium">{{ restaurant.owner.email || 'ï¿½' }}</p></div>
-                        <div><p class="text-muted-foreground">Goi hien tai</p><p class="font-medium">{{ restaurant.plan.name || 'ï¿½' }}</p></div>
-                        <div><p class="text-muted-foreground">Het han dich vu</p><p class="font-medium">{{ restaurant.subscription_ends_at || 'ï¿½' }}</p></div>
-                        <div><p class="text-muted-foreground">Het han trial</p><p class="font-medium">{{ restaurant.trial_ends_at || 'ï¿½' }}</p></div>
+                        <div><p class="text-muted-foreground">Chu so huu</p><p class="font-medium">{{ restaurant.owner.name || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Email chu</p><p class="font-medium">{{ restaurant.owner.email || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Goi hien tai</p><p class="font-medium">{{ restaurant.plan.name || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han dich vu</p><p class="font-medium">{{ restaurant.subscription_ends_at || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han trial</p><p class="font-medium">{{ restaurant.trial_ends_at || '�' }}</p></div>
                         <div><p class="text-muted-foreground">Tien te</p><p class="font-medium">{{ restaurant.currency }}</p></div>
-                        <div class="md:col-span-2"><p class="text-muted-foreground">Dia chi</p><p class="font-medium">{{ restaurant.address || 'ï¿½' }}</p></div>
+                        <div class="md:col-span-2"><p class="text-muted-foreground">Dia chi</p><p class="font-medium">{{ restaurant.address || '�' }}</p></div>
                     </CardContent>
                 </Card>
 
@@ -189,7 +189,7 @@ function typeLabel(type: string) {
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="font-medium">{{ invoice.invoice_number }}</p>
-                                        <p class="text-xs text-muted-foreground">{{ typeLabel(invoice.type) }} ï¿½ Han {{ invoice.due_on || 'ï¿½' }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ typeLabel(invoice.type) }} � Han {{ invoice.due_on || '�' }}</p>
                                     </div>
                                     <span :class="['rounded-full px-2.5 py-1 text-xs font-medium', statusColor[invoice.status] || 'bg-slate-100 text-slate-800']">
                                         {{ statusLabel[invoice.status] ?? invoice.status }}

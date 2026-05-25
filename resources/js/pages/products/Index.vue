@@ -60,7 +60,7 @@ const formatCurrency = (val: number) => {
 </script>
 
 <template>
-    <Head title="Thá»±c Ä‘Æ¡n & MÃ³n" />
+    <Head title="Thực đơn & Món" />
 
     <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
         <!-- Header -->
@@ -70,9 +70,9 @@ const formatCurrency = (val: number) => {
                     <UtensilsCrossed class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">Thá»±c ÄÆ¡n & MÃ³n Ä‚n</h1>
+                    <h1 class="text-2xl font-bold tracking-tight">Thực Đơn & Món Ăn</h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
-                        Quáº£n lÃ½ cáº¥u trÃºc thá»±c Ä‘Æ¡n, nhÃ³m mÃ³n, giÃ¡ bÃ¡n sáº£n pháº©m thá»±c táº¿ cá»§a quÃ¡n.
+                        Quản lý cấu trúc thực đơn, nhóm món, giá bán sản phẩm thực tế của quán.
                     </p>
                 </div>
             </div>
@@ -86,7 +86,7 @@ const formatCurrency = (val: number) => {
                     class="h-10 text-xs border-slate-200"
                 >
                     <FolderPlus class="size-4 mr-2 text-indigo-600" />
-                    ThÃªm nhÃ³m mÃ³n
+                    Thêm nhóm món
                 </Button>
 
                 <!-- Day 1 Tour Anchor Point: btn-add-product -->
@@ -96,7 +96,7 @@ const formatCurrency = (val: number) => {
                     class="h-10 text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold"
                 >
                     <Plus class="size-4 mr-2" />
-                    ThÃªm mÃ³n Äƒn
+                    Thêm món ăn
                 </Button>
             </div>
         </div>
@@ -105,29 +105,29 @@ const formatCurrency = (val: number) => {
         <div v-if="showAddCategory" class="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4" style="z-index: 9999;">
             <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150">
                 <CardHeader>
-                    <CardTitle class="text-base">Táº¡o nhÃ³m thá»±c Ä‘Æ¡n má»›i</CardTitle>
-                    <CardDescription>PhÃ¢n loáº¡i mÃ³n Äƒn giÃºp khÃ¡ch hÃ ng order nhanh hÆ¡n.</CardDescription>
+                    <CardTitle class="text-base">Tạo nhóm thực đơn mới</CardTitle>
+                    <CardDescription>Phân loại món ăn giúp khách hàng order nhanh hơn.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form @submit.prevent="submitCategory" class="space-y-4">
                         <div class="grid gap-1.5">
-                            <Label for="cat-name">TÃªn nhÃ³m mÃ³n <span class="text-rose-500">*</span></Label>
-                            <Input id="cat-name" v-model="categoryForm.name" placeholder="VÃ­ dá»¥: MÃ³n nÆ°á»›ng, TrÃ  sá»¯a, Ä‚n váº·t..." required />
+                            <Label for="cat-name">Tên nhóm món <span class="text-rose-500">*</span></Label>
+                            <Input id="cat-name" v-model="categoryForm.name" placeholder="Ví dụ: Món nướng, Trà sữa, Ăn vặt..." required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="cat-desc">MÃ´ táº£ nhÃ³m</Label>
+                            <Label for="cat-desc">Mô tả nhóm</Label>
                             <textarea
                                 id="cat-desc"
                                 v-model="categoryForm.description"
                                 rows="2"
-                                placeholder="Ghi chÃº mÃ´ táº£ danh má»¥c..."
+                                placeholder="Ghi chú mô tả danh mục..."
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" @click="showAddCategory = false">Há»§y</Button>
+                            <Button type="button" variant="outline" @click="showAddCategory = false">Hủy</Button>
                             <Button type="submit" class="bg-indigo-600 text-white" :disabled="categoryForm.processing">
-                                {{ categoryForm.processing ? 'Äang táº¡o...' : 'Táº¡o nhÃ³m mÃ³n' }}
+                                {{ categoryForm.processing ? 'Đang tạo...' : 'Tạo nhóm món' }}
                             </Button>
                         </div>
                     </form>
@@ -139,45 +139,45 @@ const formatCurrency = (val: number) => {
         <div v-if="showAddProduct" class="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4" style="z-index: 9999;">
             <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150">
                 <CardHeader>
-                    <CardTitle class="text-base">ThÃªm mÃ³n Äƒn má»›i vÃ o thá»±c Ä‘Æ¡n</CardTitle>
-                    <CardDescription>Nháº­p thÃ´ng tin chi tiáº¿t vá» sáº£n pháº©m Ä‘á»ƒ phá»¥c vá»¥ bÃ¡n hÃ ng.</CardDescription>
+                    <CardTitle class="text-base">Thêm món ăn mới vào thực đơn</CardTitle>
+                    <CardDescription>Nhập thông tin chi tiết về sản phẩm để phục vụ bán hàng.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form @submit.prevent="submitProduct" class="space-y-4">
                         <div class="grid gap-1.5">
-                            <Label for="prod-cat">Thuá»™c nhÃ³m mÃ³n</Label>
+                            <Label for="prod-cat">Thuộc nhóm món</Label>
                             <select
                                 id="prod-cat"
                                 v-model="productForm.category_id"
                                 required
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             >
-                                <option value="" disabled>Chá»n má»™t nhÃ³m</option>
+                                <option value="" disabled>Chọn một nhóm</option>
                                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
                             </select>
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="prod-name">TÃªn mÃ³n Äƒn <span class="text-rose-500">*</span></Label>
-                            <Input id="prod-name" v-model="productForm.name" placeholder="VÃ­ dá»¥: Phá»Ÿ bÃ² tÃ¡i lÄƒn, TrÃ  Ä‘Ã o cam sáº£..." required />
+                            <Label for="prod-name">Tên món ăn <span class="text-rose-500">*</span></Label>
+                            <Input id="prod-name" v-model="productForm.name" placeholder="Ví dụ: Phở bò tái lăn, Trà đào cam sả..." required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="prod-price">GiÃ¡ bÃ¡n (VND) <span class="text-rose-500">*</span></Label>
-                            <Input id="prod-price" type="number" v-model="productForm.price" placeholder="VÃ­ dá»¥: 45000" required />
+                            <Label for="prod-price">Giá bán (VND) <span class="text-rose-500">*</span></Label>
+                            <Input id="prod-price" type="number" v-model="productForm.price" placeholder="Ví dụ: 45000" required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="prod-desc">MÃ´ táº£ mÃ³n Äƒn</Label>
+                            <Label for="prod-desc">Mô tả món ăn</Label>
                             <textarea
                                 id="prod-desc"
                                 v-model="productForm.description"
                                 rows="2"
-                                placeholder="Ghi chÃº nguyÃªn liá»‡u, ghi chÃº náº¥u..."
+                                placeholder="Ghi chú nguyên liệu, ghi chú nấu..."
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" @click="showAddProduct = false">Há»§y</Button>
+                            <Button type="button" variant="outline" @click="showAddProduct = false">Hủy</Button>
                             <Button type="submit" class="bg-indigo-600 text-white" :disabled="productForm.processing">
-                                {{ productForm.processing ? 'Äang thÃªm...' : 'ThÃªm mÃ³n Äƒn' }}
+                                {{ productForm.processing ? 'Đang thêm...' : 'Thêm món ăn' }}
                             </Button>
                         </div>
                     </form>
@@ -191,8 +191,8 @@ const formatCurrency = (val: number) => {
                 <Card class="shadow-sm">
                     <CardHeader class="pb-3 flex flex-row items-center justify-between">
                         <div>
-                            <CardTitle class="text-sm font-bold">NhÃ³m MÃ³n Ä‚n</CardTitle>
-                            <CardDescription class="text-[11px]">CÆ¡ cáº¥u thá»±c Ä‘Æ¡n</CardDescription>
+                            <CardTitle class="text-sm font-bold">Nhóm Món Ăn</CardTitle>
+                            <CardDescription class="text-[11px]">Cơ cấu thực đơn</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent class="flex flex-col gap-2">
@@ -204,16 +204,16 @@ const formatCurrency = (val: number) => {
                             >
                                 <div>
                                     <p class="font-bold text-slate-800 dark:text-slate-200">{{ cat.name }}</p>
-                                    <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{{ cat.description ?? 'KhÃ´ng cÃ³ mÃ´ táº£.' }}</p>
+                                    <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{{ cat.description ?? 'Không có mô tả.' }}</p>
                                 </div>
                                 <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold">
-                                    {{ products.filter(p => p.category?.id === cat.id).length }} mÃ³n
+                                    {{ products.filter(p => p.category?.id === cat.id).length }} món
                                 </span>
                             </div>
                         </div>
                         <div v-else class="text-center py-6 text-slate-400 text-xs">
                             <AlertCircle class="size-6 text-slate-300 mx-auto mb-1" />
-                            ChÆ°a cÃ³ nhÃ³m mÃ³n Äƒn nÃ o.
+                            Chưa có nhóm món ăn nào.
                         </div>
                     </CardContent>
                 </Card>
@@ -224,8 +224,8 @@ const formatCurrency = (val: number) => {
                 <Card class="shadow-sm h-full">
                     <CardHeader class="pb-3 border-b flex flex-row items-center justify-between">
                         <div>
-                            <CardTitle class="text-base">Danh sÃ¡ch mÃ³n Äƒn thá»±c táº¿ ({{ products.length }})</CardTitle>
-                            <CardDescription>QuÃ©t mÃ£ gá»i mÃ³n (QR Table) vÃ  hÃ³a Ä‘Æ¡n sáº½ Ä‘á»“ng bá»™ vá»›i thá»±c Ä‘Æ¡n nÃ y.</CardDescription>
+                            <CardTitle class="text-base">Danh sách món ăn thực tế ({{ products.length }})</CardTitle>
+                            <CardDescription>Quét mã gọi món (QR Table) và hóa đơn sẽ đồng bộ với thực đơn này.</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent class="p-0">
@@ -239,22 +239,22 @@ const formatCurrency = (val: number) => {
                                         <div class="flex items-center gap-2">
                                             <h4 class="font-bold text-sm text-slate-800 dark:text-slate-200">{{ p.name }}</h4>
                                             <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
-                                                {{ p.category?.name ?? 'ChÆ°a gÃ¡n' }}
+                                                {{ p.category?.name ?? 'Chưa gán' }}
                                             </span>
                                         </div>
-                                        <p class="text-xs text-slate-400 mt-1">{{ p.code }} Â· {{ p.description ?? 'KhÃ´ng cÃ³ mÃ´ táº£.' }}</p>
+                                        <p class="text-xs text-slate-400 mt-1">{{ p.code }} · {{ p.description ?? 'Không có mô tả.' }}</p>
                                     </div>
                                 </div>
                                 <div class="text-right">
                                     <p class="font-mono font-bold text-sm text-rose-600 dark:text-rose-400">{{ formatCurrency(p.price) }}</p>
-                                    <span class="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md dark:bg-emerald-950 dark:text-emerald-400 mt-1 inline-block">Äang kinh doanh</span>
+                                    <span class="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md dark:bg-emerald-950 dark:text-emerald-400 mt-1 inline-block">Đang kinh doanh</span>
                                 </div>
                             </div>
                         </div>
                         <div v-else class="flex flex-col items-center justify-center p-12 text-center text-slate-400">
                             <UtensilsCrossed class="size-12 text-slate-200 mb-3 animate-pulse" />
-                            <p class="text-sm font-bold">Thá»±c Ä‘Æ¡n trá»‘ng</p>
-                            <p class="text-xs mt-1 text-slate-500 max-w-sm">DÃ¹ng bong bÃ³ng hÆ°á»›ng dáº«n Guided Tour á»Ÿ gÃ³c Ä‘á»ƒ thÃªm nhÃ³m vÃ  mÃ³n Äƒn thá»±c táº¿ Ä‘áº§u tiÃªn cá»§a quÃ¡n báº¡n!</p>
+                            <p class="text-sm font-bold">Thực đơn trống</p>
+                            <p class="text-xs mt-1 text-slate-500 max-w-sm">Dùng bong bóng hướng dẫn Guided Tour ở góc để thêm nhóm và món ăn thực tế đầu tiên của quán bạn!</p>
                         </div>
                     </CardContent>
                 </Card>

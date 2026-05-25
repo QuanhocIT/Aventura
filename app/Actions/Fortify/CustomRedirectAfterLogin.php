@@ -11,7 +11,7 @@ class CustomRedirectAfterLogin
         if ($user->isSuperAdmin()) {
             return '/super-admin/dashboard';
         }
-        // CÃ¡c user khÃ¡c vá» dashboard thÆ°á»ng
+        // Các user khác về dashboard thường
         return '/dashboard';
     }
 }

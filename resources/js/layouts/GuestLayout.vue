@@ -15,9 +15,9 @@ function toggleDarkMode() {
 }
 
 const navLinks = [
-    { label: 'TÃ­nh nÄƒng', href: '#tinh-nang' },
-    { label: 'CÃ¡ch hoáº¡t Ä‘á»™ng', href: '#cach-hoat-dong' },
-    { label: 'Báº£ng giÃ¡', href: '#bang-gia' },
+    { label: 'Tính năng', href: '#tinh-nang' },
+    { label: 'Cách hoạt động', href: '#cach-hoat-dong' },
+    { label: 'Bảng giá', href: '#bang-gia' },
 ];
 </script>
 
@@ -56,12 +56,12 @@ const navLinks = [
 
                     <!-- Login button (desktop) -->
                     <Button as-child variant="outline" class="hidden lg:inline-flex">
-                        <Link :href="login()">ÄÄƒng nháº­p</Link>
+                        <Link :href="login()">Đăng nhập</Link>
                     </Button>
 
                     <!-- Register CTA (desktop) -->
                     <Button as-child class="hidden lg:inline-flex">
-                        <Link :href="register()">DÃ¹ng thá»­ miá»…n phÃ­</Link>
+                        <Link :href="register()">Dùng thử miễn phí</Link>
                     </Button>
 
                     <!-- Hamburger (mobile) -->
@@ -69,11 +69,11 @@ const navLinks = [
                         <SheetTrigger as-child>
                             <Button variant="ghost" size="icon" class="lg:hidden">
                                 <Menu class="size-5" />
-                                <span class="sr-only">Má»Ÿ menu</span>
+                                <span class="sr-only">Mở menu</span>
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="right" class="w-72 p-6">
-                            <SheetTitle class="sr-only">Menu Ä‘iá»u hÆ°á»›ng</SheetTitle>
+                            <SheetTitle class="sr-only">Menu điều hướng</SheetTitle>
 
                             <!-- Mobile Logo -->
                             <div class="mb-8 flex items-center gap-2">
@@ -98,10 +98,10 @@ const navLinks = [
                             <!-- Mobile CTAs -->
                             <div class="flex flex-col gap-3">
                                 <Button as-child variant="outline" class="w-full">
-                                    <Link :href="login()">ÄÄƒng nháº­p</Link>
+                                    <Link :href="login()">Đăng nhập</Link>
                                 </Button>
                                 <Button as-child class="w-full">
-                                    <Link :href="register()">DÃ¹ng thá»­ miá»…n phÃ­</Link>
+                                    <Link :href="register()">Dùng thử miễn phí</Link>
                                 </Button>
                             </div>
                         </SheetContent>
@@ -126,32 +126,32 @@ const navLinks = [
                             <span class="font-bold">Aventura</span>
                         </div>
                         <p class="text-sm text-muted-foreground">
-                            Ná»n táº£ng quáº£n lÃ½ nhÃ  hÃ ng SaaS hiá»‡n Ä‘áº¡i, giÃºp tá»‘i Æ°u váº­n hÃ nh vÃ  tÄƒng trÆ°á»Ÿng doanh thu.
+                            Nền tảng quản lý nhà hàng SaaS hiện đại, giúp tối ưu vận hành và tăng trưởng doanh thu.
                         </p>
                     </div>
 
                     <!-- Links -->
                     <div>
-                        <p class="mb-3 text-sm font-semibold">Sáº£n pháº©m</p>
+                        <p class="mb-3 text-sm font-semibold">Sản phẩm</p>
                         <ul class="space-y-2">
                             <li>
                                 <a href="#tinh-nang" class="text-sm text-muted-foreground hover:text-foreground">
-                                    TÃ­nh nÄƒng
+                                    Tính năng
                                 </a>
                             </li>
                             <li>
                                 <a href="#bang-gia" class="text-sm text-muted-foreground hover:text-foreground">
-                                    Báº£ng giÃ¡
+                                    Bảng giá
                                 </a>
                             </li>
                             <li>
                                 <Link :href="login()" class="text-sm text-muted-foreground hover:text-foreground">
-                                    ÄÄƒng nháº­p
+                                    Đăng nhập
                                 </Link>
                             </li>
                             <li>
                                 <Link :href="register()" class="text-sm text-muted-foreground hover:text-foreground">
-                                    ÄÄƒng kÃ½
+                                    Đăng ký
                                 </Link>
                             </li>
                         </ul>
@@ -159,18 +159,18 @@ const navLinks = [
 
                     <!-- Contact -->
                     <div>
-                        <p class="mb-3 text-sm font-semibold">LiÃªn há»‡</p>
+                        <p class="mb-3 text-sm font-semibold">Liên hệ</p>
                         <ul class="space-y-2">
                             <li class="text-sm text-muted-foreground">support@aventura.vn</li>
-                            <li class="text-sm text-muted-foreground">1800 000 000 (Miá»…n phÃ­)</li>
-                            <li class="text-sm text-muted-foreground">Thá»© 2 â€“ Thá»© 7, 8:00 â€“ 18:00</li>
+                            <li class="text-sm text-muted-foreground">1800 000 000 (Miễn phí)</li>
+                            <li class="text-sm text-muted-foreground">Thứ 2 – Thứ 7, 8:00 – 18:00</li>
                         </ul>
                     </div>
                 </div>
 
                 <Separator class="my-8" />
 
-                <p class="text-center text-xs text-muted-foreground">Â© 2026 Aventura. Báº£n quyá»n thuá»™c vá» Aventura.</p>
+                <p class="text-center text-xs text-muted-foreground">© 2026 Aventura. Bản quyền thuộc về Aventura.</p>
             </div>
         </footer>
     </div>

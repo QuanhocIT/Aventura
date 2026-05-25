@@ -69,7 +69,7 @@ return { label: 'Cáº£nh bÃ¡o', color: 'text-amber-500', bg: 'bg-amber-50', 
 return { label: 'ChÃº Ã½', color: 'text-orange-500', bg: 'bg-orange-50', dot: 'bg-orange-500' };
 }
 
-    return { label: 'Hoáº¡t Ä‘á»™ng tá»‘t', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
+    return { label: 'Hoáº¡t Äá»ng tá»t', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
 });
 
 function runAlertCheck() {
@@ -106,7 +106,7 @@ function submitRule() {
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">DevOps & Support Portal</h1>
-                    <p class="text-sm text-muted-foreground">GiÃ¡m sÃ¡t háº¡ táº§ng Â· Ticket há»— trá»£ Â· Broadcast realtime Â· Knowledge base</p>
+                    <p class="text-sm text-muted-foreground">GiÃ¡m sÃ¡t háº¡ táº§ng Â· Ticket há» trá»£ Â· Broadcast realtime Â· Knowledge base</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -118,7 +118,7 @@ function submitRule() {
                     <Siren class="mr-2 size-4" /> QuÃ©t cáº£nh bÃ¡o
                 </Button>
                 <Button variant="outline" size="sm" @click="router.reload({ only: ['stats', 'monitoring', 'tickets', 'alerts'] })">
-                    <RefreshCcw class="mr-2 size-4" /> LÃ m má»›i
+                    <RefreshCcw class="mr-2 size-4" /> LÃ m má»i
                 </Button>
             </div>
         </div>
@@ -128,7 +128,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-sky-50 to-sky-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-sky-600">Ticket má»Ÿ</p>
+                        <p class="text-xs font-medium text-sky-600">Ticket má»</p>
                         <p class="mt-1 text-3xl font-bold text-sky-900">{{ stats.tickets_open ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-200/60">
@@ -150,7 +150,7 @@ function submitRule() {
             <Card class="border-0 bg-gradient-to-br from-amber-50 to-amber-100/60">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-amber-600">Alert má»Ÿ</p>
+                        <p class="text-xs font-medium text-amber-600">Alert má»</p>
                         <p class="mt-1 text-3xl font-bold text-amber-900">{{ stats.alerts_open ?? 0 }}</p>
                     </div>
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-200/60">
@@ -264,7 +264,7 @@ function submitRule() {
                                 <Activity class="size-5 text-sky-400" />
                             </div>
                             <p class="mt-3 text-3xl font-bold">{{ monitoring.queue_backlog }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">Tá»•ng tá»“n Ä‘á»ng hÃ ng Ä‘á»£i</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Tá»ng tá»n Äá»ng hÃ ng Äá»£i</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -274,7 +274,7 @@ function submitRule() {
                                 <Zap class="size-5 text-violet-400" />
                             </div>
                             <p class="mt-3 text-3xl font-bold">{{ monitoring.pulse_exceptions }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">Ngoáº¡i lá»‡ ghi nháº­n bá»Ÿi Pulse</p>
+                            <p class="mt-1 text-xs text-muted-foreground">Ngoáº¡i lá» ghi nháº­n bá»i Pulse</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -303,8 +303,8 @@ function submitRule() {
                     <CardHeader class="pb-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <CardTitle class="text-base">Cáº£nh bÃ¡o gáº§n Ä‘Ã¢y</CardTitle>
-                                <CardDescription>CÃ¡c alert Ä‘Æ°á»£c kÃ­ch hoáº¡t bá»Ÿi rule engine</CardDescription>
+                                <CardTitle class="text-base">Cáº£nh bÃ¡o gáº§n ÄÃ¢y</CardTitle>
+                                <CardDescription>CÃ¡c alert ÄÆ°á»£c kÃ­ch hoáº¡t bá»i rule engine</CardDescription>
                             </div>
                             <Button variant="outline" size="sm" @click="activeTab = 'alerts'">
                                 Quáº£n lÃ½ rules <ChevronRight class="ml-1 size-4" />
@@ -337,7 +337,7 @@ function submitRule() {
                         <div v-else class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
                             <CheckCircle2 class="size-10 text-emerald-400" />
                             <p class="text-sm font-medium">KhÃ´ng cÃ³ cáº£nh bÃ¡o nÃ o</p>
-                            <p class="text-xs">Há»‡ thá»‘ng Ä‘ang hoáº¡t Ä‘á»™ng bÃ¬nh thÆ°á»ng</p>
+                            <p class="text-xs">Há» thá»ng Äang hoáº¡t Äá»ng bÃ¬nh thÆ°á»ng</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -352,9 +352,9 @@ function submitRule() {
                     <Card class="xl:col-span-2">
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <PlusCircle class="size-4 text-sky-500" /> Táº¡o Ticket Há»— Trá»£
+                                <PlusCircle class="size-4 text-sky-500" /> Táº¡o Ticket Há» Trá»£
                             </CardTitle>
-                            <CardDescription>Tiáº¿p nháº­n sá»± cá»‘, bÃ¡o cÃ¡o lá»—i tá»« nhÃ  hÃ ng</CardDescription>
+                            <CardDescription>Tiáº¿p nháº­n sá»± cá», bÃ¡o cÃ¡o lá»i tá»« nhÃ  hÃ ng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitTicket">
@@ -363,7 +363,7 @@ function submitRule() {
                                     <Select v-model="ticketForm.restaurant_id">
                                         <SelectTrigger><SelectValue placeholder="Chá»n nhÃ  hÃ ng" /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="system">Há»‡ thá»‘ng / ChÆ°a gÃ¡n</SelectItem>
+                                            <SelectItem value="system">Há» thá»ng / ChÆ°a gÃ¡n</SelectItem>
                                             <SelectItem v-for="r in restaurants" :key="r.id" :value="String(r.id)">{{ r.name }}</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -375,15 +375,15 @@ function submitRule() {
                                         <SelectContent>
                                             <SelectItem value="realtime">Realtime / MÃ n hÃ¬nh báº¿p</SelectItem>
                                             <SelectItem value="queue">Queue / Job tháº¥t báº¡i</SelectItem>
-                                            <SelectItem value="billing">Billing / HoÃ¡ Ä‘Æ¡n</SelectItem>
-                                            <SelectItem value="ui">UI / Ná»™i dung</SelectItem>
-                                            <SelectItem value="performance">Hiá»‡u nÄƒng</SelectItem>
+                                            <SelectItem value="billing">Billing / HoÃ¡ ÄÆ¡n</SelectItem>
+                                            <SelectItem value="ui">UI / Ná»i dung</SelectItem>
+                                            <SelectItem value="performance">Hiá»u nÄng</SelectItem>
                                             <SelectItem value="other">KhÃ¡c</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Ä‘á» <span class="text-red-500">*</span></Label>
+                                    <Label>TiÃªu Äá» <span class="text-red-500">*</span></Label>
                                     <Input v-model="ticketForm.title" placeholder="MÃ n hÃ¬nh báº¿p khÃ´ng nháº­n realtime" />
                                     <p v-if="ticketForm.errors.title" class="text-xs text-red-500">{{ ticketForm.errors.title }}</p>
                                 </div>
@@ -392,13 +392,13 @@ function submitRule() {
                                     <textarea
                                         v-model="ticketForm.description"
                                         rows="4"
-                                        placeholder="MÃ´ táº£ sá»± cá»‘, bÆ°á»›c tÃ¡i hiá»‡n, áº£nh hÆ°á»Ÿng..."
+                                        placeholder="MÃ´ táº£ sá»± cá», bÆ°á»c tÃ¡i hiá»n, áº£nh hÆ°á»ng..."
                                         class="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     />
                                     <p v-if="ticketForm.errors.description" class="text-xs text-red-500">{{ ticketForm.errors.description }}</p>
                                 </div>
                                 <p class="text-xs text-muted-foreground">
-                                    Há»‡ thá»‘ng sáº½ tá»± Ä‘á»™ng phÃ¢n loáº¡i má»©c Ä‘á»™: <strong>Nguy cáº¥p / Cao / Trung bÃ¬nh / Tháº¥p</strong>
+                                    Há» thá»ng sáº½ tá»± Äá»ng phÃ¢n loáº¡i má»©c Äá»: <strong>Nguy cáº¥p / Cao / Trung bÃ¬nh / Tháº¥p</strong>
                                 </p>
                                 <Button type="submit" class="w-full" :disabled="ticketForm.processing">
                                     <Send class="mr-2 size-4" />
@@ -413,7 +413,7 @@ function submitRule() {
                         <Card class="h-full">
                             <CardHeader class="pb-3">
                                 <CardTitle class="text-base">Danh sÃ¡ch Ticket ({{ tickets.length }})</CardTitle>
-                                <CardDescription>12 ticket gáº§n nháº¥t Â· tá»± Ä‘á»™ng phÃ¢n loáº¡i theo má»©c Ä‘á»™ nghiÃªm trá»ng</CardDescription>
+                                <CardDescription>12 ticket gáº§n nháº¥t Â· tá»± Äá»ng phÃ¢n loáº¡i theo má»©c Äá» nghiÃªm trá»ng</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div v-if="tickets.length" class="space-y-3">
@@ -447,7 +447,7 @@ function submitRule() {
                                                 size="sm" variant="outline"
                                                 class="h-7 text-xs text-emerald-600 hover:text-emerald-700"
                                                 @click="updateTicket(ticket.id, 'resolved')"
-                                            >âœ“ ÄÃ¡nh dáº¥u resolved</Button>
+                                            >â ÄÃ¡nh dáº¥u resolved</Button>
                                             <Button
                                                 v-if="ticket.status === 'resolved'"
                                                 size="sm" variant="outline"
@@ -460,7 +460,7 @@ function submitRule() {
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <Ticket class="size-10 text-slate-300" />
                                     <p class="text-sm font-medium">KhÃ´ng cÃ³ ticket nÃ o</p>
-                                    <p class="text-xs">ChÆ°a cÃ³ sá»± cá»‘ nÃ o Ä‘Æ°á»£c ghi nháº­n</p>
+                                    <p class="text-xs">ChÆ°a cÃ³ sá»± cá» nÃ o ÄÆ°á»£c ghi nháº­n</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -479,16 +479,16 @@ function submitRule() {
                             <CardTitle class="flex items-center gap-2 text-base">
                                 <BellRing class="size-4 text-violet-500" /> Táº¡o ThÃ´ng BÃ¡o Broadcast
                             </CardTitle>
-                            <CardDescription>Popup realtime qua Laravel Reverb Â· Gá»­i Ä‘áº¿n Thu ngÃ¢n, Chá»§ quÃ¡n, Báº¿p</CardDescription>
+                            <CardDescription>Popup realtime qua Laravel Reverb Â· Gá»­i Äáº¿n Thu ngÃ¢n, Chá»§ quÃ¡n, Báº¿p</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitAnnouncement">
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Ä‘á»</Label>
-                                    <Input v-model="announcementForm.title" placeholder="Báº£o trÃ¬ há»‡ thá»‘ng 23:00-24:00" />
+                                    <Label>TiÃªu Äá»</Label>
+                                    <Input v-model="announcementForm.title" placeholder="Báº£o trÃ¬ há» thá»ng 23:00-24:00" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Ná»™i dung</Label>
+                                    <Label>Ná»i dung</Label>
                                     <textarea
                                         v-model="announcementForm.message"
                                         rows="4"
@@ -498,7 +498,7 @@ function submitRule() {
                                 </div>
                                 <div class="grid gap-4 sm:grid-cols-2">
                                     <div class="grid gap-1.5">
-                                        <Label>Äá»‘i tÆ°á»£ng nháº­n</Label>
+                                        <Label>Äá»i tÆ°á»£ng nháº­n</Label>
                                         <Select v-model="announcementForm.audience">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
@@ -510,13 +510,13 @@ function submitRule() {
                                         </Select>
                                     </div>
                                     <div class="grid gap-1.5">
-                                        <Label>Má»©c Ä‘á»™</Label>
+                                        <Label>Má»©c Äá»</Label>
                                         <Select v-model="announcementForm.level">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="info">â„¹ Info</SelectItem>
-                                                <SelectItem value="warning">âš  Warning</SelectItem>
-                                                <SelectItem value="critical">ðŸš¨ Critical</SelectItem>
+                                                <SelectItem value="info">â¹ Info</SelectItem>
+                                                <SelectItem value="warning">â  Warning</SelectItem>
+                                                <SelectItem value="critical">ð¨ Critical</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -533,11 +533,11 @@ function submitRule() {
                         </CardContent>
                     </Card>
 
-                    <!-- Lá»‹ch sá»­ thÃ´ng bÃ¡o -->
+                    <!-- Lá»ch sá»­ thÃ´ng bÃ¡o -->
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
-                                <CardTitle class="text-base">Lá»‹ch sá»­ thÃ´ng bÃ¡o</CardTitle>
+                                <CardTitle class="text-base">Lá»ch sá»­ thÃ´ng bÃ¡o</CardTitle>
                                 <CardDescription>6 thÃ´ng bÃ¡o gáº§n nháº¥t</CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -550,13 +550,13 @@ function submitRule() {
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex items-center gap-2 flex-wrap">
-                                                    <span v-if="a.level === 'critical'" class="text-base">ðŸš¨</span>
-                                                    <span v-else-if="a.level === 'warning'" class="text-base">âš ï¸</span>
-                                                    <span v-else class="text-base">â„¹ï¸</span>
+                                                    <span v-if="a.level === 'critical'" class="text-base">ð¨</span>
+                                                    <span v-else-if="a.level === 'warning'" class="text-base">â ï¸</span>
+                                                    <span v-else class="text-base">â¹ï¸</span>
                                                     <p class="font-medium text-sm">{{ a.title }}</p>
                                                 </div>
                                                 <p class="mt-1 text-xs text-muted-foreground">
-                                                    Äá»‘i tÆ°á»£ng: <strong>{{ a.audience }}</strong>
+                                                    Äá»i tÆ°á»£ng: <strong>{{ a.audience }}</strong>
                                                     Â· {{ a.published_at ?? 'ChÆ°a phÃ¡t' }}
                                                 </p>
                                             </div>
@@ -569,7 +569,7 @@ function submitRule() {
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <MonitorSpeaker class="size-10 text-slate-300" />
                                     <p class="text-sm font-medium">ChÆ°a cÃ³ thÃ´ng bÃ¡o nÃ o</p>
-                                    <p class="text-xs">Táº¡o thÃ´ng bÃ¡o Ä‘á»ƒ broadcast Ä‘áº¿n táº¥t cáº£ mÃ n hÃ¬nh</p>
+                                    <p class="text-xs">Táº¡o thÃ´ng bÃ¡o Äá» broadcast Äáº¿n táº¥t cáº£ mÃ n hÃ¬nh</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -588,7 +588,7 @@ function submitRule() {
                             <CardTitle class="flex items-center gap-2 text-base">
                                 <Siren class="size-4 text-amber-500" /> Táº¡o Alert Rule
                             </CardTitle>
-                            <CardDescription>Há»‡ thá»‘ng tá»± gá»­i cáº£nh bÃ¡o qua Telegram/Discord khi vÆ°á»£t ngÆ°á»¡ng</CardDescription>
+                            <CardDescription>Há» thá»ng tá»± gá»­i cáº£nh bÃ¡o qua Telegram/Discord khi vÆ°á»£t ngÆ°á»¡ng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitRule">
@@ -615,8 +615,8 @@ function submitRule() {
                                         <Select v-model="ruleForm.operator">
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value=">">&#62; lá»›n hÆ¡n</SelectItem>
-                                                <SelectItem value=">=">&#62;= lá»›n hÆ¡n báº±ng</SelectItem>
+                                                <SelectItem value=">">&#62; lá»n hÆ¡n</SelectItem>
+                                                <SelectItem value=">=">&#62;= lá»n hÆ¡n báº±ng</SelectItem>
                                                 <SelectItem value="<">&#60; nhá» hÆ¡n</SelectItem>
                                                 <SelectItem value="<=">&#60;= nhá» hÆ¡n báº±ng</SelectItem>
                                                 <SelectItem value="=">=  báº±ng</SelectItem>
@@ -649,7 +649,7 @@ function submitRule() {
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <CardTitle class="text-base">Alert Rules ({{ rules.length }})</CardTitle>
-                                        <CardDescription>Rules kÃ­ch hoáº¡t gá»­i cáº£nh bÃ¡o tá»± Ä‘á»™ng</CardDescription>
+                                        <CardDescription>Rules kÃ­ch hoáº¡t gá»­i cáº£nh bÃ¡o tá»± Äá»ng</CardDescription>
                                     </div>
                                     <Button variant="outline" size="sm" @click="runAlertCheck">
                                         <Siren class="mr-2 size-4" /> QuÃ©t ngay
@@ -684,7 +684,7 @@ function submitRule() {
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <Siren class="size-10 text-slate-300" />
                                     <p class="text-sm font-medium">ChÆ°a cÃ³ rule nÃ o</p>
-                                    <p class="text-xs">Táº¡o rule Ä‘á»ƒ há»‡ thá»‘ng tá»± cáº£nh bÃ¡o khi vÆ°á»£t ngÆ°á»¡ng</p>
+                                    <p class="text-xs">Táº¡o rule Äá» há» thá»ng tá»± cáº£nh bÃ¡o khi vÆ°á»£t ngÆ°á»¡ng</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -703,7 +703,7 @@ function submitRule() {
                             <CardTitle class="flex items-center gap-2 text-base">
                                 <BookOpenText class="size-4 text-emerald-500" /> ThÃªm BÃ i Viáº¿t
                             </CardTitle>
-                            <CardDescription>TÃ i liá»‡u hÆ°á»›ng dáº«n tá»± phá»¥c vá»¥ cho nhÃ  hÃ ng</CardDescription>
+                            <CardDescription>TÃ i liá»u hÆ°á»ng dáº«n tá»± phá»¥c vá»¥ cho nhÃ  hÃ ng</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="submitArticle">
@@ -712,24 +712,24 @@ function submitRule() {
                                     <Input v-model="articleForm.category" placeholder="onboarding / billing / kitchen / realtime" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>TiÃªu Ä‘á»</Label>
-                                    <Input v-model="articleForm.title" placeholder="HÆ°á»›ng dáº«n cáº¥u hÃ¬nh mÃ n hÃ¬nh báº¿p" />
+                                    <Label>TiÃªu Äá»</Label>
+                                    <Input v-model="articleForm.title" placeholder="HÆ°á»ng dáº«n cáº¥u hÃ¬nh mÃ n hÃ¬nh báº¿p" />
                                 </div>
                                 <div class="grid gap-1.5">
                                     <Label>TÃ³m táº¯t</Label>
-                                    <Input v-model="articleForm.summary" placeholder="MÃ´ táº£ ngáº¯n (hiá»ƒn thá»‹ trong danh sÃ¡ch)" />
+                                    <Input v-model="articleForm.summary" placeholder="MÃ´ táº£ ngáº¯n (hiá»n thá» trong danh sÃ¡ch)" />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Ná»™i dung</Label>
+                                    <Label>Ná»i dung</Label>
                                     <textarea
                                         v-model="articleForm.content"
                                         rows="5"
-                                        placeholder="Ná»™i dung hÆ°á»›ng dáº«n chi tiáº¿t..."
+                                        placeholder="Ná»i dung hÆ°á»ng dáº«n chi tiáº¿t..."
                                         class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Video hÆ°á»›ng dáº«n (URL)</Label>
+                                    <Label>Video hÆ°á»ng dáº«n (URL)</Label>
                                     <Input v-model="articleForm.video_url" placeholder="https://youtube.com/..." />
                                 </div>
                                 <div class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
@@ -748,8 +748,8 @@ function submitRule() {
                     <div class="xl:col-span-3">
                         <Card class="h-full">
                             <CardHeader class="pb-3">
-                                <CardTitle class="text-base">Kho tÃ i liá»‡u ({{ articles.length }})</CardTitle>
-                                <CardDescription>Self-service knowledge base Â· NhÃ  hÃ ng tá»± tra cá»©u vÃ  giáº£i quyáº¿t sá»± cá»‘</CardDescription>
+                                <CardTitle class="text-base">Kho tÃ i liá»u ({{ articles.length }})</CardTitle>
+                                <CardDescription>Self-service knowledge base Â· NhÃ  hÃ ng tá»± tra cá»©u vÃ  giáº£i quyáº¿t sá»± cá»</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div v-if="articles.length" class="space-y-3">
@@ -766,7 +766,7 @@ function submitRule() {
                                                 <p class="truncate text-sm font-medium">{{ article.title }}</p>
                                                 <p class="text-xs text-muted-foreground">
                                                     {{ article.category }} Â· {{ article.view_count }} lÆ°á»£t xem
-                                                    <span v-if="article.video_url"> Â· ðŸŽ¬ video</span>
+                                                    <span v-if="article.video_url"> Â· ð¬ video</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -788,7 +788,7 @@ function submitRule() {
                                 <div v-else class="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                                     <BookOpenText class="size-10 text-slate-300" />
                                     <p class="text-sm font-medium">ChÆ°a cÃ³ bÃ i viáº¿t nÃ o</p>
-                                    <p class="text-xs">ThÃªm tÃ i liá»‡u hÆ°á»›ng dáº«n Ä‘á»ƒ nhÃ  hÃ ng tá»± tra cá»©u</p>
+                                    <p class="text-xs">ThÃªm tÃ i liá»u hÆ°á»ng dáº«n Äá» nhà hàng tự tra cứu</p>
                                 </div>
                             </CardContent>
                         </Card>

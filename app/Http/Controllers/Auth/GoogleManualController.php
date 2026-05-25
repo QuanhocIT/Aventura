@@ -37,7 +37,7 @@ class GoogleManualController extends Controller
 
         $accessToken = $response->json()['access_token'] ?? null;
         if (! $accessToken) {
-            return redirect('/login')->withErrors(['msg' => 'KhÙng l?y du?c access token t? Google']);
+            return redirect('/login')->withErrors(['msg' => 'Kh√¥ng l?y du?c access token t? Google']);
         }
 
         $googleUser = Http::withHeaders([

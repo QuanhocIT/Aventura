@@ -52,20 +52,20 @@ function save(planId: number) {
 }
 
 function formatLimit(v: number) {
- return v === -1 ? 'KhÃ´ng giá»›i háº¡n' : String(v);
+ return v === -1 ? 'Không giới hạn' : String(v);
 }
 function formatVnd(v: number) {
- return v === 0 ? 'Miá»…n phÃ­' : new Intl.NumberFormat('vi-VN').format(v) + ' VND/thÃ¡ng';
+ return v === 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN').format(v) + ' VND/tháng';
 }
 </script>
 
 <template>
-    <Head title="Quáº£n lÃ½ gÃ³i dá»‹ch vá»¥" />
+    <Head title="Quản lý gói dịch vụ" />
 
     <div class="flex flex-col gap-6 p-6">
         <div>
-            <h1 class="text-2xl font-bold">GÃ³i dá»‹ch vá»¥</h1>
-            <p class="text-sm text-muted-foreground">Cáº¥u hÃ¬nh giá»›i háº¡n tÃ i nguyÃªn cho tá»«ng gÃ³i</p>
+            <h1 class="text-2xl font-bold">Gói dịch vụ</h1>
+            <p class="text-sm text-muted-foreground">Cấu hình giới hạn tài nguyên cho từng gói</p>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2">
@@ -79,7 +79,7 @@ function formatVnd(v: number) {
                             <span class="text-xs font-mono text-muted-foreground">({{ plan.code }})</span>
                         </CardTitle>
                         <div class="flex items-center gap-2">
-                            <span class="text-xs text-muted-foreground">{{ plan.restaurants_count }} nhÃ  hÃ ng</span>
+                            <span class="text-xs text-muted-foreground">{{ plan.restaurants_count }} nhà hàng</span>
                             <Button v-if="editingId !== plan.id" variant="ghost" size="icon-sm" @click="startEdit(plan)">
                                 <Edit2 class="size-4" />
                             </Button>
@@ -98,28 +98,28 @@ function formatVnd(v: number) {
                     <template v-if="editingId !== plan.id">
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div class="rounded border p-2.5">
-                                <p class="text-xs text-muted-foreground">Chi nhÃ¡nh</p>
+                                <p class="text-xs text-muted-foreground">Chi nhánh</p>
                                 <p class="font-bold">{{ formatLimit(plan.max_branches) }}</p>
                             </div>
                             <div class="rounded border p-2.5">
-                                <p class="text-xs text-muted-foreground">BÃ n Äƒn</p>
+                                <p class="text-xs text-muted-foreground">Bàn ăn</p>
                                 <p class="font-bold">{{ formatLimit(plan.max_tables) }}</p>
                             </div>
                             <div class="rounded border p-2.5">
-                                <p class="text-xs text-muted-foreground">NhÃ¢n viÃªn</p>
+                                <p class="text-xs text-muted-foreground">Nhân viên</p>
                                 <p class="font-bold">{{ formatLimit(plan.max_users) }}</p>
                             </div>
                             <div class="rounded border p-2.5">
-                                <p class="text-xs text-muted-foreground">Khu vá»±c</p>
+                                <p class="text-xs text-muted-foreground">Khu vực</p>
                                 <p class="font-bold">{{ formatLimit(plan.features?.max_areas ?? 2) }}</p>
                             </div>
                             <div class="rounded border p-2.5">
-                                <p class="text-xs text-muted-foreground">LÆ°u trá»¯</p>
+                                <p class="text-xs text-muted-foreground">Lưu trữ</p>
                                 <p class="font-bold">{{ plan.features?.max_storage_mb ?? 500 }} MB</p>
                             </div>
                             <div class="rounded border p-2.5">
                                 <p class="text-xs text-muted-foreground">Rate limit</p>
-                                <p class="font-bold">{{ plan.features?.api_rate_limit ?? 60 }}/phÃºt</p>
+                                <p class="font-bold">{{ plan.features?.api_rate_limit ?? 60 }}/phút</p>
                             </div>
                         </div>
 
@@ -140,31 +140,31 @@ function formatVnd(v: number) {
                     <template v-else>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs">TÃªn gÃ³i</Label>
+                                <Label class="text-xs">Tên gói</Label>
                                 <Input v-model="form.name" size="sm" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">GiÃ¡ (VND/thÃ¡ng)</Label>
+                                <Label class="text-xs">Giá (VND/tháng)</Label>
                                 <Input v-model.number="form.price" type="number" min="0" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">Rate limit (req/phÃºt)</Label>
+                                <Label class="text-xs">Rate limit (req/phút)</Label>
                                 <Input v-model.number="form.api_rate_limit" type="number" min="10" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">Max chi nhÃ¡nh (-1 = âˆž)</Label>
+                                <Label class="text-xs">Max chi nhánh (-1 = ∞)</Label>
                                 <Input v-model.number="form.max_branches" type="number" min="-1" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">Max bÃ n (-1 = âˆž)</Label>
+                                <Label class="text-xs">Max bàn (-1 = ∞)</Label>
                                 <Input v-model.number="form.max_tables" type="number" min="-1" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">Max nhÃ¢n viÃªn (-1 = âˆž)</Label>
+                                <Label class="text-xs">Max nhân viên (-1 = ∞)</Label>
                                 <Input v-model.number="form.max_users" type="number" min="-1" />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-xs">Max khu vá»±c (-1 = âˆž)</Label>
+                                <Label class="text-xs">Max khu vực (-1 = ∞)</Label>
                                 <Input v-model.number="form.max_areas" type="number" min="-1" />
                             </div>
                             <div class="grid gap-1.5">
@@ -175,7 +175,7 @@ function formatVnd(v: number) {
                         <div class="flex flex-col gap-2 text-sm">
                             <label class="flex items-center gap-2">
                                 <input type="checkbox" v-model="form.ai_features" class="rounded" />
-                                TÃ­nh nÄƒng AI
+                                Tính năng AI
                             </label>
                             <label class="flex items-center gap-2">
                                 <input type="checkbox" v-model="form.realtime" class="rounded" />
@@ -183,14 +183,14 @@ function formatVnd(v: number) {
                             </label>
                             <label class="flex items-center gap-2">
                                 <input type="checkbox" v-model="form.advanced_analytics" class="rounded" />
-                                PhÃ¢n tÃ­ch nÃ¢ng cao
+                                Phân tích nâng cao
                             </label>
                         </div>
                         <div class="flex gap-2">
                             <Button size="sm" @click="save(plan.id)" :disabled="form.processing">
-                                {{ form.processing ? 'Äang lÆ°u...' : 'LÆ°u thay Ä‘á»•i' }}
+                                {{ form.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
                             </Button>
-                            <Button size="sm" variant="outline" @click="editingId = null">Há»§y</Button>
+                            <Button size="sm" variant="outline" @click="editingId = null">Hủy</Button>
                         </div>
                     </template>
                 </CardContent>

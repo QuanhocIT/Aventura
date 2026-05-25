@@ -58,24 +58,24 @@ const stateColor: Record<string, string> = {
 function resendInvoice(id: number) {
     router.post(`/super-admin/billing/invoices/${id}/resend`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('ÄÃ£ gá»­i láº¡i email!'),
-        onError: () => alert('Gá»­i láº¡i email tháº¥t báº¡i!'),
+        onSuccess: () => alert('Đã gửi lại email!'),
+        onError: () => alert('Gửi lại email thất bại!'),
     });
 }
 
 function regenerateInvoice(id: number) {
     router.post(`/super-admin/billing/invoices/${id}/regenerate`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('ÄÃ£ táº¡o láº¡i hÃ³a Ä‘Æ¡n!'),
-        onError: () => alert('Táº¡o láº¡i hÃ³a Ä‘Æ¡n tháº¥t báº¡i!'),
+        onSuccess: () => alert('Đã tạo lại hóa đơn!'),
+        onError: () => alert('Tạo lại hóa đơn thất bại!'),
     });
 }
 
 function retryWebhook(id: number) {
     router.post(`/super-admin/billing/webhooks/${id}/retry`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('ÄÃ£ retry webhook!'),
-        onError: () => alert('Retry webhook tháº¥t báº¡i!'),
+        onSuccess: () => alert('Đã retry webhook!'),
+        onError: () => alert('Retry webhook thất bại!'),
     });
 }
 
@@ -91,11 +91,11 @@ function exportCsv() {
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Billing Center</h1>
-                <p class="text-sm text-muted-foreground">Theo dÃµi hÃ³a Ä‘Æ¡n, webhook vÃ  Ä‘iá»u chá»‰nh billing toÃ n há»‡ thá»‘ng.</p>
+                <p class="text-sm text-muted-foreground">Theo dõi hóa đơn, webhook và điều chỉnh billing toàn hệ thống.</p>
             </div>
             <div class="flex gap-2">
                 <Button variant="outline" @click="applyFilters">
-                    <RefreshCcw class="mr-2 size-4" /> LÃ m má»›i
+                    <RefreshCcw class="mr-2 size-4" /> Làm mới
                 </Button>
                 <Button variant="outline" @click="exportCsv">
                     Export CSV
@@ -212,12 +212,12 @@ function exportCsv() {
                         <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
                             <span>{{ invoice.type }}</span>
                             <span>{{ invoice.total }} {{ invoice.currency }}</span>
-                            <span>Háº¡n {{ invoice.due_on || 'ï¿½' }}</span>
-                            <span>Gá»­i {{ invoice.sent_at || 'ChÆ°a gá»­i' }}</span>
+                            <span>Hạn {{ invoice.due_on || '�' }}</span>
+                            <span>Gửi {{ invoice.sent_at || 'Chưa gửi' }}</span>
                         </div>
                         <div class="mt-2 flex gap-2">
-                            <Button size="sm" variant="outline" @click="resendInvoice(invoice.id)">Gá»­i láº¡i email</Button>
-                            <Button size="sm" variant="outline" @click="regenerateInvoice(invoice.id)">Táº¡o láº¡i hÃ³a Ä‘Æ¡n</Button>
+                            <Button size="sm" variant="outline" @click="resendInvoice(invoice.id)">Gửi lại email</Button>
+                            <Button size="sm" variant="outline" @click="regenerateInvoice(invoice.id)">Tạo lại hóa đơn</Button>
                         </div>
                     </div>
                     <p v-if="!invoices.length" class="py-10 text-center text-sm text-muted-foreground">Khong co hoa don phu hop.</p>
@@ -234,9 +234,9 @@ function exportCsv() {
                             <span class="font-medium">{{ webhook.provider }}</span>
                             <Badge :class="stateColor[webhook.status] || 'bg-slate-100 text-slate-800'">{{ webhook.status }}</Badge>
                         </div>
-                        <p class="mt-2 text-xs text-muted-foreground">{{ webhook.transaction_code || 'ï¿½' }}</p>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.event_type || 'ï¿½' }}</p>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.processed_at || 'ChÆ°a xá»­ lÃ½' }}</p>
+                        <p class="mt-2 text-xs text-muted-foreground">{{ webhook.transaction_code || '�' }}</p>
+                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.event_type || '�' }}</p>
+                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.processed_at || 'Chưa xử lý' }}</p>
                         <div class="mt-2">
                             <Button size="sm" variant="outline" @click="retryWebhook(webhook.id)">Retry webhook</Button>
                         </div>

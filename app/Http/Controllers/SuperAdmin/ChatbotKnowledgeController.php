@@ -111,7 +111,7 @@ class ChatbotKnowledgeController extends Controller
 
         return back()->with(
             $success ? 'success' : 'error',
-            $success ? 'Cache NLP đã được tải lại.' : 'Không thể tải lại cache — Python service có thể đang offline.',
+            $success ? 'Cache NLP đã được tải lại.' : 'Không thể tải lại cache  Python service có thể đang offline.',
         );
     }
 }

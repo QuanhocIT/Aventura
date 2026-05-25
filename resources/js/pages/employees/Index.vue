@@ -30,17 +30,17 @@ const employeeForm = useForm({
     email: '',
     phone: '',
     role: 'cashier',
-    job_title: 'Thu NgÃ¢n'
+    job_title: 'Thu Ngân'
 });
 
 const handleRoleChange = (e: Event) => {
     const val = (e.target as HTMLSelectElement).value;
     if (val === 'cashier') {
-        employeeForm.job_title = 'Thu NgÃ¢n';
+        employeeForm.job_title = 'Thu Ngân';
     } else if (val === 'kitchen') {
-        employeeForm.job_title = 'NhÃ¢n ViÃªn Báº¿p';
+        employeeForm.job_title = 'Nhân Viên Bếp';
     } else if (val === 'manager') {
-        employeeForm.job_title = 'Quáº£n LÃ½ Cá»­a HÃ ng';
+        employeeForm.job_title = 'Quản Lý Cửa Hàng';
     }
 };
 
@@ -54,11 +54,11 @@ const submitEmployee = () => {
 };
 
 const roleLabels: Record<string, string> = {
-    owner: 'Chá»§ quÃ¡n',
-    manager: 'Quáº£n lÃ½',
-    cashier: 'Thu ngÃ¢n (Cashier)',
-    kitchen: 'Äáº§u báº¿p/Báº¿p (Kitchen)',
-    staff: 'NhÃ¢n viÃªn phá»¥c vá»¥'
+    owner: 'Chủ quán',
+    manager: 'Quản lý',
+    cashier: 'Thu ngân (Cashier)',
+    kitchen: 'Đầu bếp/Bếp (Kitchen)',
+    staff: 'Nhân viên phục vụ'
 };
 
 const roleColors: Record<string, string> = {
@@ -70,18 +70,18 @@ const roleColors: Record<string, string> = {
 };
 
 const weekDays = [
-    { key: 'Monday', label: 'Thá»© Hai' },
-    { key: 'Tuesday', label: 'Thá»© Ba' },
-    { key: 'Wednesday', label: 'Thá»© TÆ°' },
-    { key: 'Thursday', label: 'Thá»© NÄƒm' },
-    { key: 'Friday', label: 'Thá»© SÃ¡u' },
-    { key: 'Saturday', label: 'Thá»© Báº£y' },
-    { key: 'Sunday', label: 'Chá»§ Nháº­t' }
+    { key: 'Monday', label: 'Thứ Hai' },
+    { key: 'Tuesday', label: 'Thứ Ba' },
+    { key: 'Wednesday', label: 'Thứ Tư' },
+    { key: 'Thursday', label: 'Thứ Năm' },
+    { key: 'Friday', label: 'Thứ Sáu' },
+    { key: 'Saturday', label: 'Thứ Bảy' },
+    { key: 'Sunday', label: 'Chủ Nhật' }
 ];
 </script>
 
 <template>
-    <Head title="NhÃ¢n sá»± & Lá»‹ch biá»ƒu" />
+    <Head title="Nhân sự & Lịch biểu" />
 
     <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
         <!-- Header -->
@@ -91,9 +91,9 @@ const weekDays = [
                     <Users class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">Há»‡ Thá»‘ng Quáº£n LÃ½ NhÃ¢n Sá»± & Xáº¿p Ca</h1>
+                    <h1 class="text-2xl font-bold tracking-tight">Hệ Thống Quản Lý Nhân Sự & Xếp Ca</h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
-                        ThÃªm nhÃ¢n viÃªn má»›i, phÃ¢n quyá»n truy cáº­p há»‡ thá»‘ng vÃ  quáº£n lÃ½ lá»‹ch lÃ m viá»‡c hÃ ng tuáº§n cá»§a cá»­a hÃ ng.
+                        Thêm nhân viên mới, phân quyền truy cập hệ thống và quản lý lịch làm việc hàng tuần của cửa hàng.
                     </p>
                 </div>
             </div>
@@ -105,7 +105,7 @@ const weekDays = [
                 class="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
             >
                 <Plus class="size-4 mr-2" />
-                ThÃªm nhÃ¢n sá»± má»›i
+                Thêm nhân sự mới
             </Button>
         </div>
 
@@ -115,31 +115,31 @@ const weekDays = [
                 <CardHeader>
                     <CardTitle class="text-base flex items-center gap-1.5">
                         <UserCheck class="size-5 text-indigo-600" />
-                        Táº¡o tÃ i khoáº£n nhÃ¢n viÃªn má»›i
+                        Tạo tài khoản nhân viên mới
                     </CardTitle>
-                    <CardDescription>NhÃ¢n viÃªn cÃ³ thá»ƒ Ä‘Äƒng nháº­p báº±ng email nÃ y vá»›i máº­t kháº©u máº·c Ä‘á»‹nh: <strong>12345678</strong></CardDescription>
+                    <CardDescription>Nhân viên có thể đăng nhập bằng email này với mật khẩu mặc định: <strong>12345678</strong></CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form @submit.prevent="submitEmployee" class="space-y-4">
                         <div class="grid gap-1.5">
-                            <Label for="emp-name">Há» vÃ  tÃªn <span class="text-rose-500">*</span></Label>
-                            <Input id="emp-name" v-model="employeeForm.name" placeholder="VÃ­ dá»¥: Nguyá»…n VÄƒn Thu NgÃ¢n" required />
+                            <Label for="emp-name">Họ và tên <span class="text-rose-500">*</span></Label>
+                            <Input id="emp-name" v-model="employeeForm.name" placeholder="Ví dụ: Nguyễn Văn Thu Ngân" required />
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="emp-email">Email Ä‘Äƒng nháº­p <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-email" type="email" v-model="employeeForm.email" placeholder="VÃ­ dá»¥: thungan1@aventura.vn" required />
+                                <Label for="emp-email">Email đăng nhập <span class="text-rose-500">*</span></Label>
+                                <Input id="emp-email" type="email" v-model="employeeForm.email" placeholder="Ví dụ: thungan1@aventura.vn" required />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="emp-phone">Sá»‘ Ä‘iá»‡n thoáº¡i</Label>
-                                <Input id="emp-phone" v-model="employeeForm.phone" placeholder="Sá»‘ Ä‘iá»‡n thoáº¡i..." />
+                                <Label for="emp-phone">Số điện thoại</Label>
+                                <Input id="emp-phone" v-model="employeeForm.phone" placeholder="Số điện thoại..." />
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="emp-role">PhÃ¢n quyá»n há»‡ thá»‘ng</Label>
+                                <Label for="emp-role">Phân quyền hệ thống</Label>
                                 <select
                                     id="emp-role"
                                     v-model="employeeForm.role"
@@ -147,26 +147,26 @@ const weekDays = [
                                     required
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                 >
-                                    <option value="cashier">Thu ngÃ¢n (BÃ¡n hÃ ng)</option>
-                                    <option value="kitchen">NhÃ  báº¿p (Chuáº©n bá»‹ mÃ³n)</option>
-                                    <option value="manager">Quáº£n lÃ½ cá»­a hÃ ng</option>
+                                    <option value="cashier">Thu ngân (Bán hàng)</option>
+                                    <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
+                                    <option value="manager">Quản lý cửa hàng</option>
                                 </select>
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="emp-title">Chá»©c danh cÃ´ng viá»‡c</Label>
+                                <Label for="emp-title">Chức danh công việc</Label>
                                 <Input id="emp-title" v-model="employeeForm.job_title" required />
                             </div>
                         </div>
 
                         <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 rounded-xl flex items-start gap-2 text-[11px] text-indigo-700 dark:text-indigo-400">
                             <ShieldCheck class="size-4 shrink-0 mt-0.5" />
-                            <p><strong>PhÃ¢n quyá»n hoáº¡t Ä‘á»™ng:</strong> Thu ngÃ¢n chá»‰ cÃ³ quyá»n táº¡o vÃ  thanh toÃ¡n Ä‘Æ¡n. Báº¿p chá»‰ cÃ³ quyá»n nháº­n Ä‘Æ¡n náº¥u Äƒn. Quáº£n lÃ½ cÃ³ thÃªm quyá»n xem bÃ¡o cÃ¡o.</p>
+                            <p><strong>Phân quyền hoạt động:</strong> Thu ngân chỉ có quyền tạo và thanh toán đơn. Bếp chỉ có quyền nhận đơn nấu ăn. Quản lý có thêm quyền xem báo cáo.</p>
                         </div>
 
                         <div class="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" @click="showAddEmployee = false">Há»§y</Button>
+                            <Button type="button" variant="outline" @click="showAddEmployee = false">Hủy</Button>
                             <Button type="submit" class="bg-indigo-600 text-white" :disabled="employeeForm.processing">
-                                {{ employeeForm.processing ? 'Äang táº¡o...' : 'Táº¡o nhÃ¢n viÃªn' }}
+                                {{ employeeForm.processing ? 'Đang tạo...' : 'Tạo nhân viên' }}
                             </Button>
                         </div>
                     </form>
@@ -181,9 +181,9 @@ const weekDays = [
                     <CardHeader class="pb-3 border-b">
                         <CardTitle class="text-sm font-bold flex items-center gap-1.5">
                             <Users class="size-4 text-indigo-600" />
-                            Danh SÃ¡ch NhÃ¢n Sá»± ({{ employees.length }})
+                            Danh Sách Nhân Sự ({{ employees.length }})
                         </CardTitle>
-                        <CardDescription class="text-[11px]">TÃ i khoáº£n nhÃ¢n viÃªn Ä‘Æ°á»£c phÃ¢n quyá»n Ä‘Äƒng nháº­p</CardDescription>
+                        <CardDescription class="text-[11px]">Tài khoản nhân viên được phân quyền đăng nhập</CardDescription>
                     </CardHeader>
                     <CardContent class="p-0 divide-y divide-slate-100 dark:divide-slate-800">
                         <div v-if="employees.length">
@@ -191,7 +191,7 @@ const weekDays = [
                                 <div class="flex justify-between items-start gap-2">
                                     <div>
                                         <p class="font-bold text-xs text-slate-800 dark:text-slate-200">{{ emp.full_name }}</p>
-                                        <p class="text-[10px] text-slate-400 mt-0.5">{{ emp.employee_code }} Â· {{ emp.job_title }}</p>
+                                        <p class="text-[10px] text-slate-400 mt-0.5">{{ emp.employee_code }} · {{ emp.job_title }}</p>
                                     </div>
                                     <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider" :class="roleColors[emp.role] || 'bg-slate-100'">
                                         {{ roleLabels[emp.role] ?? emp.role }}
@@ -208,7 +208,7 @@ const weekDays = [
                             </div>
                         </div>
                         <div v-else class="text-center py-12 text-slate-400 text-xs">
-                            ChÆ°a cÃ³ nhÃ¢n viÃªn nÃ o.
+                            Chưa có nhân viên nào.
                         </div>
                     </CardContent>
                 </Card>
@@ -221,9 +221,9 @@ const weekDays = [
                     <CardHeader class="pb-3 border-b">
                         <CardTitle class="text-base flex items-center gap-1.5">
                             <Calendar class="size-5 text-indigo-600" />
-                            Báº£ng Xáº¿p Lá»‹ch LÃ m Viá»‡c HÃ ng Tuáº§n (Weekly Scheduler)
+                            Bảng Xếp Lịch Làm Việc Hàng Tuần (Weekly Scheduler)
                         </CardTitle>
-                        <CardDescription>XÃ¢y dá»±ng cÃ¡c ca lÃ m viá»‡c vÃ  xáº¿p lá»‹ch Ä‘á»ƒ nhÃ¢n viÃªn báº¥m giá» cháº¥m cÃ´ng hÃ ng ngÃ y.</CardDescription>
+                        <CardDescription>Xây dựng các ca làm việc và xếp lịch để nhân viên bấm giờ chấm công hàng ngày.</CardDescription>
                     </CardHeader>
                     <CardContent class="p-4">
                         <!-- Shifts listing brief -->
@@ -240,8 +240,8 @@ const weekDays = [
                             <table class="w-full text-xs text-left border-collapse">
                                 <thead>
                                     <tr class="bg-slate-50 dark:bg-slate-900 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                                        <th class="p-3.5 border-r w-[120px]">Thá»© trong tuáº§n</th>
-                                        <th class="p-3.5">Lá»‹ch xáº¿p ca nhÃ¢n sá»± hÃ´m nay</th>
+                                        <th class="p-3.5 border-r w-[120px]">Thứ trong tuần</th>
+                                        <th class="p-3.5">Lịch xếp ca nhân sự hôm nay</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
@@ -260,7 +260,7 @@ const weekDays = [
                                             </div>
 
                                             <div v-if="!schedules.some(sc => sc.day === day.key)" class="text-[10px] text-slate-400 italic">
-                                                KhÃ´ng cÃ³ ca xáº¿p
+                                                Không có ca xếp
                                             </div>
                                         </td>
                                     </tr>

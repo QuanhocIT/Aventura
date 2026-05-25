@@ -75,7 +75,7 @@ class BillingController extends Controller
             'invoices' => $invoiceQuery->take(25)->get()->map(fn ($invoice) => [
                 'id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
-                'restaurant' => $invoice->restaurant?->name ?? '—',
+                'restaurant' => $invoice->restaurant?->name ?? 'Â—',
                 'status' => $invoice->status,
                 'type' => $invoice->type,
                 'total' => number_format($invoice->total),
@@ -93,7 +93,7 @@ class BillingController extends Controller
             ]),
             'adjustments' => $adjustmentQuery->take(25)->get()->map(fn ($adjustment) => [
                 'id' => $adjustment->id,
-                'restaurant' => $adjustment->restaurant?->name ?? '—',
+                'restaurant' => $adjustment->restaurant?->name ?? 'Â—',
                 'type' => $adjustment->type,
                 'days' => $adjustment->days,
                 'discount_amount' => number_format($adjustment->discount_amount),
@@ -108,21 +108,21 @@ class BillingController extends Controller
     {
         $this->billing->queueInvoiceEmail($invoice);
 
-        return back()->with('success', 'Ğã dua hóa don vào queue g?i l?i email.');
+        return back()->with('success', 'ÄÄƒ dua hÃ³a don vÃ o queue g?i l?i email.');
     }
 
     public function regenerateInvoice(BillingInvoice $invoice): RedirectResponse
     {
         $this->billing->queueInvoiceRegeneration($invoice);
 
-        return back()->with('success', 'Ğã dua hóa don vào queue sinh l?i file.');
+        return back()->with('success', 'ÄÄƒ dua hÃ³a don vÃ o queue sinh l?i file.');
     }
 
     public function retryWebhook(PaymentWebhook $webhook): RedirectResponse
     {
         $result = $this->billing->retryWebhook($webhook);
 
-        return back()->with('success', $result['message'] ?? 'Ğã retry webhook.');
+        return back()->with('success', $result['message'] ?? 'ÄÄƒ retry webhook.');
     }
 
     public function exportCsv(Request $request): HttpResponse

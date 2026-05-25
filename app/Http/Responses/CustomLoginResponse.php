@@ -38,7 +38,7 @@ class CustomLoginResponse implements LoginResponseContract
             return redirect()->intended('/dashboard');
         }
 
-        // KhÃ¡ch hÃ ng / user chÆ°a Ä‘Æ°á»£c gÃ¡n role â†’ vá» trang chá»§
+        // Khách hàng / user chưa được gán role → về trang chủ
         return redirect('/');
     }
 }

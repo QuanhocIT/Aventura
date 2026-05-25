@@ -55,7 +55,7 @@ function doSearch() {
 </script>
 
 <template>
-    <Head title="Tin tức & Cập nhật — Aventura" />
+    <Head title="Tin tức & Cập nhật  Aventura" />
 
     <!-- Hero -->
     <section class="bg-gradient-to-br from-primary/10 via-primary/5 to-background px-4 py-16 text-center">
