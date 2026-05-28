@@ -96,6 +96,70 @@ function dismissPromo() {
     localStorage.setItem('aventura_promo_dismissed', '1');
 }
 
+const defaultSlides = [
+    {
+        subtitle: 'VẬN HÀNH THÔNG MINH – CHỐNG THẤT THOÁT TUYỆT ĐỐI',
+        title: 'Vận hành nhà hàng <br /><span class="text-amber-400">vượt trội</span> cùng Aventura',
+        description: 'Hệ thống quản trị SaaS tối ưu cho mọi mô hình: từ nhà hàng, quán cà phê đến chuỗi kinh doanh. Tự động hóa QR order, định lượng nguyên vật liệu kho, giám sát doanh thu tức thì và báo cáo vận hành thông minh bằng AI.',
+        badges: [
+            { icon: '✨', label: 'AI thông minh' },
+            { icon: '⚡', label: 'Đồng bộ Realtime' },
+            { icon: '🔒', label: 'Bảo mật Audit' },
+            { icon: '🎁', label: 'Dùng miễn phí' }
+        ],
+        image: '/restaurant_hero_bg_1.jpg',
+        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.93) 0%, rgba(15, 20, 30, 0.82) 50%, rgba(8, 10, 15, 0.91) 100%)'
+    },
+    {
+        subtitle: 'QR ORDER TẠI BÀN – TỐI ƯU TRẢI NGHIỆM KHÁCH HÀNG',
+        title: 'Đột phá doanh thu <br />với <span class="text-amber-400">QR Order</span> tại bàn',
+        description: 'Khách tự quét mã QR gọi món và thanh toán trực tiếp trên di động. Bếp nhận đơn tức thì, đồng bộ thời gian thực qua màn hình KDS. Giảm 50% chi phí nhân sự và loại bỏ hoàn toàn sai sót phục vụ.',
+        badges: [
+            { icon: '📱', label: 'Gọi món không chạm' },
+            { icon: '🍳', label: 'Bếp KDS Realtime' },
+            { icon: '🚀', label: 'Tăng tốc phục vụ' },
+            { icon: '📈', label: 'Tối ưu doanh số' }
+        ],
+        image: '/restaurant_hero_bg_2.jpg',
+        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(12, 28, 24, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)'
+    },
+    {
+        subtitle: 'QUẢN LÝ KHO THÔNG MINH – ĐỊNH LƯỢNG CHÍNH XÁC',
+        title: 'Kiểm soát nguyên liệu <br /><span class="text-amber-400">tự động trừ kho</span>',
+        description: 'Tự động khấu hao nguyên vật liệu trong kho ngay khi hóa đơn được thanh toán dựa trên công thức định lượng (recipe). Cảnh báo tồn kho thấp dưới định mức để chuẩn bị nguồn cung kịp thời.',
+        badges: [
+            { icon: '📦', label: 'Tự động trừ kho' },
+            { icon: '⚖️', label: 'Định lượng chuẩn' },
+            { icon: '⚠️', label: 'Cảnh báo tồn thấp' },
+            { icon: '📉', label: 'Chống thất thoát' }
+        ],
+        image: '/restaurant_hero_bg_1.jpg',
+        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(30, 18, 12, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)'
+    }
+];
+
+const activeSlides = computed(() => {
+    const dbBanners = props.banners?.hero ?? [];
+    if (dbBanners.length === 0) {
+        return defaultSlides;
+    }
+    return dbBanners.map((db, idx) => {
+        const fallback = defaultSlides[idx % defaultSlides.length];
+        const hasRealImage = db.image_url && 
+                             !db.image_url.endsWith('.svg') && 
+                             !db.image_url.includes('hero-dashboard') && 
+                             !db.image_url.includes('hero-analytics');
+        return {
+            subtitle: db.subtitle || fallback.subtitle,
+            title: db.title ? db.title : fallback.title,
+            description: fallback.description,
+            badges: fallback.badges,
+            image: hasRealImage ? db.image_url : fallback.image,
+            gradient: fallback.gradient
+        };
+    });
+});
+
 // ── Demo & Consultation Request Form ─────────────────────────────
 const demoRestaurantName = ref('');
 const demoRestaurantType = ref('restaurant');
@@ -129,22 +193,22 @@ function submitDemoRequest() {
 }
 
 function startHero() {
-    if (heroBanners.value.length <= 1) {
-return;
-}
-
-    heroTimer = setInterval(() => advanceHero('next'), 4000);
+    if (activeSlides.value.length <= 1) {
+        return;
+    }
+    heroTimer = setInterval(() => advanceHero('next'), 6000);
 }
 
 function stopHero() {
     if (heroTimer) {
- clearInterval(heroTimer); heroTimer = null; 
-}
+        clearInterval(heroTimer);
+        heroTimer = null; 
+    }
 }
 
 function advanceHero(dir: 'next' | 'prev') {
     heroDir.value = dir;
-    const len = heroBanners.value.length;
+    const len = activeSlides.value.length;
     heroIndex.value = dir === 'next'
         ? (heroIndex.value + 1) % len
         : (heroIndex.value - 1 + len) % len;
@@ -660,6 +724,22 @@ startCountUp();
     if (statsEl) {
 statsObserver.observe(statsEl);
 }
+
+    // Scroll Reveal Observer
+    revealObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('revealed');
+                    revealObserver?.unobserve(entry.target);
+                }
+            });
+        },
+        { threshold: 0.1 }
+    );
+    document.querySelectorAll('.reveal-on-scroll').forEach((el) => {
+        revealObserver?.observe(el);
+    });
 });
 
 onUnmounted(() => {
@@ -667,6 +747,7 @@ onUnmounted(() => {
     stopHero();
     heroObserver?.disconnect();
     statsObserver?.disconnect();
+    revealObserver?.disconnect();
 });
 
 const faq = [
@@ -742,7 +823,69 @@ const testimonials = [
         text: 'Multi-branch không cần 5 tab, 1 dashboard thấy hết. Tiết kiệm thời gian quản lý gấp đôi.',
         stars: 5,
     },
+    {
+        name: 'Phạm Minh Tuấn',
+        restaurant: 'The Coffee House (Quận 1)',
+        text: 'QR Order giúp khách tự gọi món nhanh chóng, nhân viên bớt áp lực giờ cao điểm. Doanh thu tăng 15%.',
+        stars: 5,
+    },
+    {
+        name: 'Hoàng Lệ Quyên',
+        restaurant: 'Bánh Mì & Trà sữa Corner',
+        text: 'Hạ tầng cloud rất ổn định, order in bill trơn tru. Báo cáo tài chính chi tiết từng ngày rất dễ hiểu.',
+        stars: 5,
+    },
 ];
+
+const activeTestimonialIdx = ref(0);
+let testimonialAutoplayTimer: any = null;
+
+const startTestimonialAutoplay = () => {
+    if (testimonialAutoplayTimer) return;
+    testimonialAutoplayTimer = setInterval(() => {
+        nextTestimonial();
+    }, 5000);
+};
+
+const stopTestimonialAutoplay = () => {
+    if (testimonialAutoplayTimer) {
+        clearInterval(testimonialAutoplayTimer);
+        testimonialAutoplayTimer = null;
+    }
+};
+
+const nextTestimonial = () => {
+    activeTestimonialIdx.value = (activeTestimonialIdx.value + 1) % testimonials.length;
+};
+
+const prevTestimonial = () => {
+    activeTestimonialIdx.value = (activeTestimonialIdx.value - 1 + testimonials.length) % testimonials.length;
+};
+
+const resetTestimonialAutoplay = () => {
+    stopTestimonialAutoplay();
+    startTestimonialAutoplay();
+};
+
+const getInitials = (name: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+};
+
+const getAvatarGradient = (idx: number) => {
+    const gradients = [
+        'bg-gradient-to-br from-amber-400 to-orange-500 text-zinc-950',
+        'bg-gradient-to-br from-indigo-400 to-purple-500 text-white',
+        'bg-gradient-to-br from-emerald-400 to-teal-500 text-white',
+        'bg-gradient-to-br from-sky-400 to-blue-500 text-white',
+        'bg-gradient-to-br from-rose-400 to-pink-500 text-white',
+    ];
+    return gradients[idx % gradients.length];
+};
 
 const showStickyCta = ref(false);
 const stickyCtaDismissed = ref(false);
@@ -753,6 +896,7 @@ function dismissStickyCta() {
 }
 
 let heroObserver: IntersectionObserver | null = null;
+let revealObserver: IntersectionObserver | null = null;
 
 const demoTabs = [
     { key: 'pos', label: 'POS' },
@@ -849,44 +993,86 @@ const demoState = computed(() => {
         <!-- ── Premium Travel-Inspired Hero Section ────────────────────────── -->
         <section
             id="hero-section"
-            class="relative overflow-hidden px-4 pt-24 pb-16 lg:px-8 lg:pt-28 lg:pb-20 bg-cover bg-center"
-            style="background-image: linear-gradient(135deg, rgba(8, 10, 15, 0.93) 0%, rgba(15, 20, 30, 0.82) 50%, rgba(8, 10, 15, 0.91) 100%), url('/restaurant_hero_bg.png');"
+            class="relative overflow-hidden px-4 pt-24 pb-16 lg:px-8 lg:pt-28 lg:pb-20"
         >
+            <!-- Ambient Backgrounds with smooth transitions -->
+            <div class="absolute inset-0 z-0 select-none pointer-events-none">
+                <Transition name="fade-bg">
+                    <div 
+                        :key="heroIndex"
+                        class="absolute inset-0 bg-cover bg-center transition-all duration-1000"
+                        :style="{
+                            backgroundImage: activeSlides[heroIndex].gradient + ', url(' + activeSlides[heroIndex].image + ')'
+                        }"
+                    />
+                </Transition>
+            </div>
+
             <div class="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center relative z-10">
                 
                 <!-- Left Column: Premium Value Proposition & Feature Badges -->
-                <div class="flex flex-col justify-center">
-                    <!-- Amber Subtitle -->
-                    <span class="text-amber-400 font-extrabold tracking-wider mb-4 text-xs sm:text-sm uppercase block">
-                        VẬN HÀNH THÔNG MINH – CHỐNG THẤT THOÁT TUYỆT ĐỐI
-                    </span>
-                    
-                    <!-- Massive Headline -->
-                    <h1 class="max-w-2xl text-4xl font-extrabold tracking-tight lg:text-6xl text-white font-sans leading-[1.12]">
-                        Vận hành nhà hàng <br />
-                        <span class="text-amber-400">vượt trội</span> cùng Aventura
-                    </h1>
-                    
-                    <!-- Description -->
-                    <p class="mt-6 max-w-xl text-base leading-relaxed text-zinc-300 lg:text-lg">
-                        Hệ thống quản trị SaaS tối ưu cho mọi mô hình: từ nhà hàng, quán cà phê đến chuỗi kinh doanh. Tự động hóa QR order, định lượng nguyên vật liệu kho, giám sát doanh thu tức thì và báo cáo vận hành thông minh bằng AI.
-                    </p>
-                    
-                    <!-- Glassmorphic Tag Badges in Travel layout style -->
-                    <div class="mt-10 flex flex-wrap gap-3.5">
-                        <div class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300">
-                            <span class="text-amber-400 text-sm">✨</span> AI thông minh
+                <div class="relative min-h-[480px] sm:min-h-[420px] lg:min-h-[450px] flex flex-col justify-center">
+                    <Transition :name="`slide-${heroDir}`">
+                        <div :key="heroIndex" class="absolute inset-0 flex flex-col justify-center w-full">
+                            <!-- Amber Subtitle -->
+                            <span class="text-amber-400 font-extrabold tracking-wider mb-4 text-xs sm:text-sm uppercase block">
+                                {{ activeSlides[heroIndex].subtitle }}
+                            </span>
+                            
+                            <!-- Massive Headline -->
+                            <h1 class="max-w-2xl text-4xl font-extrabold tracking-tight lg:text-6xl text-white font-sans leading-[1.12]" v-html="activeSlides[heroIndex].title">
+                            </h1>
+                            
+                            <!-- Description -->
+                            <p class="mt-6 max-w-xl text-base leading-relaxed text-zinc-300 lg:text-lg">
+                                {{ activeSlides[heroIndex].description }}
+                            </p>
+                            
+                            <!-- Glassmorphic Tag Badges in Travel layout style -->
+                            <div class="mt-10 flex flex-wrap gap-3.5">
+                                <div 
+                                    v-for="(badge, idx) in activeSlides[heroIndex].badges"
+                                    :key="idx"
+                                    class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300"
+                                >
+                                    <span class="text-amber-400 text-sm">{{ badge.icon }}</span> {{ badge.label }}
+                                </div>
+                            </div>
+
+                            <!-- Slideshow Navigation Controls (Arrows & Dots) -->
+                            <div class="mt-10 flex items-center gap-3.5">
+                                <!-- Prev button -->
+                                <button 
+                                    @click="navHero('prev')"
+                                    class="flex items-center justify-center size-9 rounded-xl border border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/15 transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-sm"
+                                    aria-label="Previous Slide"
+                                >
+                                    <ChevronLeft class="size-4" />
+                                </button>
+
+                                <!-- Indicators Dots -->
+                                <div class="flex gap-2.5">
+                                    <button
+                                        v-for="(slide, idx) in activeSlides"
+                                        :key="idx"
+                                        @click="goHero(idx)"
+                                        class="h-2 rounded-full transition-all duration-300 cursor-pointer"
+                                        :class="heroIndex === idx ? 'w-7 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/50'"
+                                        :aria-label="`Go to slide ${idx + 1}`"
+                                    />
+                                </div>
+
+                                <!-- Next button -->
+                                <button 
+                                    @click="navHero('next')"
+                                    class="flex items-center justify-center size-9 rounded-xl border border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/15 transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-sm"
+                                    aria-label="Next Slide"
+                                >
+                                    <ChevronRight class="size-4" />
+                                </button>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300">
-                            <span class="text-amber-400 text-sm">⚡</span> Đồng bộ Realtime
-                        </div>
-                        <div class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300">
-                            <span class="text-amber-400 text-sm">🔒</span> Bảo mật Audit
-                        </div>
-                        <div class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300">
-                            <span class="text-amber-400 text-sm">🎁</span> Dùng miễn phí
-                        </div>
-                    </div>
+                    </Transition>
                 </div>
 
                 <!-- Right Column: Interactive Live Demo widget styled in travel-glassmorphism -->
@@ -1076,7 +1262,7 @@ const demoState = computed(() => {
         </section>
 
         <!-- ── Cách hoạt động ─────────────────────────────────── -->
-        <section class="px-4 py-16 lg:px-8">
+        <section class="px-4 py-10 lg:py-12 lg:px-8">
             <div class="mx-auto max-w-7xl">
                 <div class="text-center">
                     <Badge variant="outline" class="mb-3">3 bước đơn giản</Badge>
@@ -1089,7 +1275,8 @@ const demoState = computed(() => {
                     <div
                         v-for="(step, i) in howItWorksSteps"
                         :key="step.step"
-                        class="group relative flex flex-col items-center rounded-2xl border border-border bg-card p-6 text-center transition-all hover:-translate-y-1 hover:shadow-md"
+                        class="reveal-on-scroll group relative flex flex-col items-center rounded-2xl border border-border bg-card p-6 text-center transition-all hover:-translate-y-1 hover:shadow-md"
+                        :style="{ transitionDelay: i * 150 + 'ms' }"
                     >
                         <!-- Connector arrow -->
                         <div
@@ -1111,7 +1298,7 @@ const demoState = computed(() => {
 
         <section
             id="features"
-            class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-16 lg:px-8"
+            class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-10 lg:py-12 lg:px-8"
         >
             <!-- Decorative subtle background grids or glows -->
             <div
@@ -1120,7 +1307,7 @@ const demoState = computed(() => {
 
             <div class="relative z-10 mx-auto max-w-7xl">
                 <div
-                    class="flex flex-col justify-between gap-6 md:flex-row md:items-end"
+                    class="reveal-on-scroll flex flex-col justify-between gap-6 md:flex-row md:items-end"
                 >
                     <div class="max-w-2xl">
                         <Badge
@@ -1166,7 +1353,7 @@ const demoState = computed(() => {
                 <!-- Grid Split: 12 Columns -->
                 <div class="mt-10 grid items-start gap-8 lg:grid-cols-12">
                     <!-- LEFT COLUMN: Operations & Data Flow Console (5/12 columns) -->
-                    <div class="space-y-4 lg:col-span-5">
+                    <div class="reveal-on-scroll space-y-4 lg:col-span-5">
                         <div
                             class="relative flex min-h-[480px] flex-col justify-between overflow-hidden rounded-2xl border bg-zinc-950 p-6 text-zinc-100 shadow-2xl transition-all duration-500"
                             :style="`border-color: ${colorGlowBorder}; box-shadow: 0 10px 30px -10px ${colorGlowBorder}`"
@@ -1717,7 +1904,7 @@ const demoState = computed(() => {
         </section>
 
         <!-- ── Tin tức mới nhất ──────────────────────────────────────── -->
-        <section v-if="latestNewsList.length > 0" id="news" class="px-4 py-16 lg:px-8">
+        <section v-if="latestNewsList.length > 0" id="news" class="px-4 py-10 lg:py-12 lg:px-8">
             <div class="mx-auto max-w-7xl">
                 <div class="flex items-end justify-between">
                     <div class="max-w-2xl">
@@ -1752,9 +1939,9 @@ const demoState = computed(() => {
             </div>
         </section>
 
-        <section id="pricing" class="px-4 py-16 lg:px-8">
+        <section id="pricing" class="px-4 py-10 lg:py-12 lg:px-8">
             <div class="mx-auto max-w-7xl">
-                <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-full">
+                <div class="reveal-on-scroll flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-full">
                     <div class="max-w-2xl">
                         <h2 class="text-3xl font-semibold">Gói dịch vụ linh hoạt</h2>
                         <p class="mt-3 text-muted-foreground">
@@ -1782,15 +1969,16 @@ const demoState = computed(() => {
                     class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
                 >
                     <Card
-                        v-for="plan in displayPlans"
+                        v-for="(plan, idx) in displayPlans"
                         :key="plan.code"
-                        class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md"
+                        class="reveal-on-scroll flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md"
                         :class="{
                             'border-2 border-primary shadow-sm':
                                 plan.isRecommended,
                             'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent':
                                 plan.code === 'ultra',
                         }"
+                        :style="{ transitionDelay: idx * 150 + 'ms' }"
                     >
                         <CardHeader>
                             <div class="mb-2 flex items-center justify-between">
@@ -1818,21 +2006,25 @@ const demoState = computed(() => {
                                     >VIP</Badge
                                 >
                             </div>
-                            <div class="mt-2 flex items-end gap-1">
-                                <span
-                                    class="text-3xl font-extrabold text-foreground"
-                                    :class="{
-                                        'text-primary': plan.isRecommended,
-                                        'text-violet-500':
-                                            plan.code === 'ultra',
-                                    }"
-                                >
-                                    {{ plan.price }}
-                                </span>
-                                <span
-                                    class="pb-1 text-xs text-muted-foreground"
-                                    >{{ plan.cycle }}</span
-                                >
+                            <div class="mt-2 flex items-end gap-1 min-h-[40px]">
+                                <Transition name="pricing-fade" mode="out-in">
+                                    <div :key="plan.price" class="flex items-end gap-1">
+                                        <span
+                                            class="text-3xl font-extrabold text-foreground"
+                                            :class="{
+                                                'text-primary': plan.isRecommended,
+                                                'text-violet-500':
+                                                    plan.code === 'ultra',
+                                            }"
+                                        >
+                                            {{ plan.price }}
+                                        </span>
+                                        <span
+                                            class="pb-1 text-xs text-muted-foreground"
+                                            >{{ plan.cycle }}</span
+                                        >
+                                    </div>
+                                </Transition>
                             </div>
                             <CardDescription class="mt-2 min-h-[40px] text-xs">
                                 {{ plan.note }}
@@ -1890,41 +2082,145 @@ const demoState = computed(() => {
             </div>
         </section>
 
-        <!-- ── Testimonials ──────────────────────────────────────── -->
-        <section class="border-y border-border bg-muted/30 px-4 py-16 lg:px-8">
-            <div class="mx-auto max-w-7xl">
-                <div class="mb-10 text-center">
-                    <Badge variant="outline" class="mb-3">Khách hàng nói gì</Badge>
-                    <h2 class="text-3xl font-semibold">Được tin dùng bởi chủ quán thực tế</h2>
-                </div>
-                <div class="grid gap-5 md:grid-cols-3">
-                    <div
-                        v-for="t in testimonials"
-                        :key="t.name"
-                        class="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-md"
-                    >
-                        <div class="font-serif text-5xl leading-none text-primary/20">"</div>
-                        <div class="flex gap-0.5">
-                            <Star
-                                v-for="s in t.stars"
-                                :key="s"
-                                class="size-4 fill-amber-400 text-amber-400"
-                            />
+        <!-- ── Testimonials (Premium Redesign) ──────────────────────────────────────── -->
+        <section class="relative overflow-hidden border-y border-border/80 bg-gradient-to-b from-muted/10 via-muted/30 to-muted/10 px-4 py-8 lg:py-10 lg:px-8">
+            <!-- Hiệu ứng ánh sáng nền (Glow Effect) -->
+            <div class="pointer-events-none absolute top-1/2 left-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/5 blur-[140px]"></div>
+            <div class="pointer-events-none absolute top-1/2 right-1/4 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[140px]"></div>
+
+            <div class="mx-auto max-w-7xl relative z-10">
+                <div class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+                    
+                    <!-- CỘT TRÁI: Tiêu đề & Đánh giá tổng quan -->
+                    <div class="space-y-8">
+                        <div class="space-y-4">
+                            <Badge variant="outline" class="border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
+                                Khách hàng nói gì
+                            </Badge>
+                            <h2 class="text-4xl font-extrabold tracking-tight lg:text-5xl leading-[1.1] text-zinc-950 dark:text-zinc-50">
+                                Được tin dùng bởi <br />
+                                chủ quán thực tế
+                            </h2>
+                            <p class="text-base text-muted-foreground leading-relaxed max-w-md">
+                                Xem các câu chuyện thành công từ những nhà hàng đang tối ưu vận hành và đột phá doanh thu mỗi ngày cùng Aventura.
+                            </p>
                         </div>
-                        <p class="flex-1 text-sm leading-relaxed text-muted-foreground">{{ t.text }}</p>
-                        <div class="border-t border-border pt-3">
-                            <p class="text-sm font-semibold">{{ t.name }}</p>
-                            <p class="text-xs text-muted-foreground">{{ t.restaurant }}</p>
+
+                        <!-- Thẻ đánh giá tổng hợp (Social Proof) -->
+                        <div class="flex items-center gap-5 rounded-3xl border border-white/20 dark:border-zinc-800/40 bg-white/40 dark:bg-zinc-950/40 backdrop-blur-md p-5 shadow-xl w-fit transition-all duration-300 hover:shadow-2xl">
+                            <div class="bg-amber-500/10 text-amber-500 rounded-2xl p-3 flex flex-col items-center justify-center min-w-[75px] shadow-sm">
+                                <span class="text-3xl font-extrabold tracking-tight">4.9</span>
+                                <div class="flex gap-0.5 mt-1">
+                                    <Star class="size-3 fill-amber-500 text-amber-500" v-for="i in 5" :key="i" />
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <div class="flex -space-x-3">
+                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-indigo-500 to-purple-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">TH</div>
+                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-emerald-400 to-teal-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">NH</div>
+                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-amber-400 to-orange-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">QB</div>
+                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-zinc-800 text-[9px] font-bold text-zinc-400 flex items-center justify-center shadow-sm">+200</div>
+                                </div>
+                                <p class="text-xs text-muted-foreground font-semibold flex items-center gap-1">
+                                    Hơn <span class="text-zinc-950 dark:text-zinc-200 font-extrabold">200+ chủ quán</span> tin cậy vận hành
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Điều hướng (Prev / Next Buttons) -->
+                        <div class="flex items-center gap-4 pt-2">
+                            <button 
+                                @click="prevTestimonial(); resetTestimonialAutoplay();"
+                                class="flex size-11 items-center justify-center rounded-full border border-border bg-card hover:bg-zinc-950 hover:text-white dark:hover:bg-white dark:hover:text-zinc-950 transition-all duration-300 active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
+                                aria-label="Trước"
+                            >
+                                <ChevronLeft class="size-5" />
+                            </button>
+                            
+                            <!-- Dấu chấm tròn (Indicator dots) -->
+                            <div class="flex gap-2 mx-1">
+                                <button
+                                    v-for="(t, idx) in testimonials"
+                                    :key="idx"
+                                    @click="activeTestimonialIdx = idx; resetTestimonialAutoplay();"
+                                    class="h-2.5 rounded-full transition-all duration-300 cursor-pointer"
+                                    :class="activeTestimonialIdx === idx ? 'w-8 bg-amber-500' : 'w-2.5 bg-zinc-300 dark:bg-zinc-800 hover:bg-zinc-400 dark:hover:bg-zinc-700'"
+                                />
+                            </div>
+
+                            <button 
+                                @click="nextTestimonial(); resetTestimonialAutoplay();"
+                                class="flex size-11 items-center justify-center rounded-full border border-border bg-card hover:bg-zinc-950 hover:text-white dark:hover:bg-white dark:hover:text-zinc-950 transition-all duration-300 active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
+                                aria-label="Sau"
+                            >
+                                <ChevronRight class="size-5" />
+                            </button>
                         </div>
                     </div>
+
+                    <!-- CỘT PHẢI: Thẻ bình luận tâm điểm có chuyển động -->
+                    <div class="relative min-h-[320px] sm:min-h-[260px] flex items-center">
+                        <Transition name="testimonial-fade" mode="out-in">
+                            <div 
+                                :key="activeTestimonialIdx"
+                                @mouseenter="stopTestimonialAutoplay"
+                                @mouseleave="startTestimonialAutoplay"
+                                class="group relative w-full rounded-3xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-8 sm:p-10 shadow-2xl transition-all duration-500 hover:border-amber-500/20 hover:shadow-amber-500/5"
+                            >
+                                <!-- Ký tự dấu nháy kép lớn ẩn phía sau -->
+                                <span class="absolute top-4 right-8 font-serif text-[150px] leading-none text-zinc-200/40 dark:text-zinc-800/20 select-none pointer-events-none group-hover:text-amber-500/5 transition-colors">“</span>
+
+                                <div class="relative z-10 flex flex-col h-full justify-between gap-6">
+                                    <!-- Đánh giá Star & Nhãn Verified -->
+                                    <div class="flex items-center justify-between flex-wrap gap-2 pb-2">
+                                        <div class="flex gap-1">
+                                            <Star 
+                                                v-for="s in testimonials[activeTestimonialIdx].stars" 
+                                                :key="s" 
+                                                class="size-5 fill-amber-400 text-amber-400" 
+                                            />
+                                        </div>
+                                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide shadow-sm">
+                                            <ShieldCheck class="size-3.5 text-emerald-500" />
+                                            Chủ quán đã xác thực
+                                        </span>
+                                    </div>
+
+                                    <!-- Nội dung phản hồi -->
+                                    <p class="text-xl sm:text-2xl font-bold leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-100 font-sans">
+                                        “{{ testimonials[activeTestimonialIdx].text }}”
+                                    </p>
+
+                                    <!-- Thông tin người dùng -->
+                                    <div class="flex items-center gap-4 border-t border-zinc-100 dark:border-zinc-900 pt-6">
+                                        <!-- Avatar tròn có gradient màu ngẫu nhiên/theo index -->
+                                        <div 
+                                            class="flex size-14 shrink-0 items-center justify-center rounded-full font-bold shadow-md ring-4 ring-zinc-50 dark:ring-zinc-900"
+                                            :class="getAvatarGradient(activeTestimonialIdx)"
+                                        >
+                                            {{ getInitials(testimonials[activeTestimonialIdx].name) }}
+                                        </div>
+                                        <div>
+                                            <h4 class="text-lg font-bold text-zinc-900 dark:text-zinc-50 leading-tight">{{ testimonials[activeTestimonialIdx].name }}</h4>
+                                            <p class="text-xs text-muted-foreground mt-1 font-semibold flex items-center gap-1.5">
+                                                <span class="inline-block size-2 bg-amber-500/80 rounded-full"></span>
+                                                {{ testimonials[activeTestimonialIdx].restaurant }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Transition>
+                    </div>
+                    
                 </div>
             </div>
         </section>
 
         <!-- ── FAQ Accordion ─────────────────────────────────────── -->
-        <section class="px-4 py-16 lg:px-8">
+        <section class="px-4 py-10 lg:py-12 lg:px-8">
             <div class="mx-auto max-w-7xl">
-                <div class="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end">
+                <div class="reveal-on-scroll flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end">
                     <div class="max-w-xl">
                         <Badge variant="outline" class="mb-3 border-primary/30 bg-primary/5 text-primary">FAQ</Badge>
                         <h2 class="text-3xl font-semibold">Câu hỏi thường gặp</h2>
@@ -1936,7 +2232,7 @@ const demoState = computed(() => {
                         <Link :href="register()">Bắt đầu miễn phí →</Link>
                     </Button>
                 </div>
-                <div class="mt-8 divide-y divide-border overflow-hidden rounded-xl border border-border">
+                <div class="reveal-on-scroll mt-8 divide-y divide-border overflow-hidden rounded-xl border border-border">
                     <div v-for="(item, i) in faq" :key="item.q">
                         <button
                             @click="toggleFaq(i)"
@@ -1948,16 +2244,18 @@ const demoState = computed(() => {
                                 :class="openFaqIndex === i ? 'rotate-90' : ''"
                             />
                         </button>
-                        <div v-show="openFaqIndex === i" class="border-t border-border/50 bg-muted/20 px-5 py-4">
-                            <p class="text-sm leading-relaxed text-muted-foreground">{{ item.a }}</p>
-                        </div>
+                        <Transition name="faq-collapse">
+                            <div v-show="openFaqIndex === i" class="border-t border-border/50 bg-muted/20 px-5 py-4">
+                                <p class="text-sm leading-relaxed text-muted-foreground">{{ item.a }}</p>
+                            </div>
+                        </Transition>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- ── Stats + Value Props ───────────────────────────────── -->
-        <section id="stats-section" class="border-y border-border bg-muted/30 px-4 py-16 lg:px-8">
+        <section id="stats-section" class="border-y border-border bg-muted/30 px-4 py-10 lg:py-12 lg:px-8">
             <div class="mx-auto max-w-7xl">
                 <!-- Số liệu — animated count-up -->
                 <div class="grid grid-cols-3 gap-6 text-center">
@@ -1983,7 +2281,7 @@ const demoState = computed(() => {
 
                 <!-- 3 value prop cards -->
                 <div class="mt-10 grid gap-4 md:grid-cols-3">
-                    <Card class="group border-border transition-shadow hover:shadow-md">
+                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 0ms">
                         <CardHeader>
                             <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
                                 <Building2 class="size-5" />
@@ -1994,7 +2292,7 @@ const demoState = computed(() => {
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                    <Card class="group border-border transition-shadow hover:shadow-md">
+                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 150ms">
                         <CardHeader>
                             <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
                                 <LineChart class="size-5" />
@@ -2005,7 +2303,7 @@ const demoState = computed(() => {
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                    <Card class="group border-border transition-shadow hover:shadow-md">
+                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 300ms">
                         <CardHeader>
                             <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
                                 <Rocket class="size-5" />
@@ -2020,9 +2318,9 @@ const demoState = computed(() => {
             </div>
         </section>
 
-        <section class="px-4 py-16 lg:px-8">
+        <section class="px-4 py-10 lg:py-12 lg:px-8">
             <div
-                class="mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
+                class="reveal-on-scroll mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
             >
                 <h2 class="text-3xl font-semibold">Đăng ký và thử ngay</h2>
                 <p class="max-w-2xl text-muted-foreground">
@@ -2074,6 +2372,16 @@ const demoState = computed(() => {
 </template>
 
 <style scoped>
+/* Background cross-fade transition */
+.fade-bg-enter-active,
+.fade-bg-leave-active {
+    transition: opacity 1.2s ease-in-out;
+}
+.fade-bg-enter-from,
+.fade-bg-leave-to {
+    opacity: 0;
+}
+
 /* Hero slideshow — slide-next (left → right) */
 .slide-next-enter-active,
 .slide-next-leave-active,
@@ -2121,5 +2429,60 @@ const demoState = computed(() => {
 .slide-up-leave-to {
     transform: translateY(100%);
     opacity: 0;
+}
+
+/* Testimonial Transition */
+.testimonial-fade-enter-active,
+.testimonial-fade-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.testimonial-fade-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+.testimonial-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+/* FAQ collapse accordion transition */
+.faq-collapse-enter-active,
+.faq-collapse-leave-active {
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+    max-height: 250px;
+    overflow: hidden;
+}
+.faq-collapse-enter-from,
+.faq-collapse-leave-to {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Pricing cross-fade switch */
+.pricing-fade-enter-active,
+.pricing-fade-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.pricing-fade-enter-from {
+    opacity: 0;
+    transform: translateY(4px);
+}
+.pricing-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
+/* Scroll Reveal */
+.reveal-on-scroll {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
+                transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-on-scroll.revealed {
+    opacity: 1;
+    transform: translateY(0);
 }
 </style>

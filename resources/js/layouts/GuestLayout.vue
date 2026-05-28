@@ -1,7 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { Moon, Sun, Menu } from 'lucide-vue-next';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import Footer from '@/components/Footer.vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -116,62 +117,6 @@ const navLinks = [
         </main>
 
         <!-- FOOTER -->
-        <footer class="border-t border-border bg-muted/30 py-12">
-            <div class="mx-auto max-w-7xl px-4 lg:px-8">
-                <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
-                    <!-- Brand -->
-                    <div>
-                        <div class="mb-3 flex items-center gap-2">
-                            <AppLogoIcon class="size-6 fill-current text-foreground" />
-                            <span class="font-bold">Aventura</span>
-                        </div>
-                        <p class="text-sm text-muted-foreground">
-                            Nền tảng quản lý nhà hàng SaaS hiện đại, giúp tối ưu vận hành và tăng trưởng doanh thu.
-                        </p>
-                    </div>
-
-                    <!-- Links -->
-                    <div>
-                        <p class="mb-3 text-sm font-semibold">Sản phẩm</p>
-                        <ul class="space-y-2">
-                            <li>
-                                <a href="#tinh-nang" class="text-sm text-muted-foreground hover:text-foreground">
-                                    Tính năng
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#bang-gia" class="text-sm text-muted-foreground hover:text-foreground">
-                                    Bảng giá
-                                </a>
-                            </li>
-                            <li>
-                                <Link :href="login()" class="text-sm text-muted-foreground hover:text-foreground">
-                                    Đăng nhập
-                                </Link>
-                            </li>
-                            <li>
-                                <Link :href="register()" class="text-sm text-muted-foreground hover:text-foreground">
-                                    Đăng ký
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Contact -->
-                    <div>
-                        <p class="mb-3 text-sm font-semibold">Liên hệ</p>
-                        <ul class="space-y-2">
-                            <li class="text-sm text-muted-foreground">support@aventura.vn</li>
-                            <li class="text-sm text-muted-foreground">1800 000 000 (Miễn phí)</li>
-                            <li class="text-sm text-muted-foreground">Thứ 2 – Thứ 7, 8:00 – 18:00</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <Separator class="my-8" />
-
-                <p class="text-center text-xs text-muted-foreground">© 2026 Aventura. Bản quyền thuộc về Aventura.</p>
-            </div>
-        </footer>
+        <Footer />
     </div>
 </template>
