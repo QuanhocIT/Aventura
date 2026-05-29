@@ -5,26 +5,36 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryTransaction;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductRecipe;
 use App\Models\RestaurantTable;
+use App\Models\Supplier;
 use App\Models\SupportAnnouncement;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\WorkShift;
+use App\Models\ScheduleAssignment;
+use App\Services\ApprovalService;
+use App\Services\SalaryService;
 use App\Services\SupportPortalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SupportController extends Controller
 {
-    public function __construct(protected SupportPortalService $supportPortal) {}
+    public function __construct(
+        protected SupportPortalService $supportPortal,
+        protected ApprovalService $approvalService,
+    ) {}
 
     /**
      * Hiển thị Cổng hỗ trợ cho Tenant.
@@ -229,6 +239,8 @@ class SupportController extends Controller
      */
     public function inventoryPage(Request $request): Response
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
         $user = $request->user();
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
@@ -271,10 +283,40 @@ class SupportController extends Controller
             ->orWhereNull('restaurant_id')
             ->get();
 
+        $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $recentPurchases = InventoryTransaction::where('restaurant_id', $user->restaurant_id)
+            ->where('type', 'purchase')
+            ->with(['ingredient:id,name', 'supplier:id,name'])
+            ->latest('occurred_at')
+            ->take(20)
+            ->get()
+            ->map(fn ($t) => [
+                'id'              => $t->id,
+                'ingredient_name' => $t->ingredient?->name ?? '—',
+                'quantity'        => (float) $t->quantity,
+                'unit_cost'       => (float) $t->unit_cost,
+                'total_cost'      => (float) $t->total_cost,
+                'supplier_name'   => $t->supplier?->name ?? '—',
+                'occurred_at'     => $t->occurred_at?->format('d/m/Y H:i'),
+                'notes'           => $t->notes,
+            ]);
+
+        $employees = Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'job_title']);
+
         return Inertia::render('inventory/Index', [
-            'ingredients' => $ingredients,
-            'products' => $products,
-            'units' => $units,
+            'ingredients'     => $ingredients,
+            'products'        => $products,
+            'units'           => $units,
+            'suppliers'       => $suppliers,
+            'recentPurchases' => $recentPurchases,
+            'employees'       => $employees,
         ]);
     }
 
@@ -283,6 +325,8 @@ class SupportController extends Controller
      */
     public function storeRecipe(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         $user = $request->user();
 
         $data = $request->validate([
@@ -328,19 +372,41 @@ class SupportController extends Controller
                 'role' => $e->user ? $e->user->roles()->pluck('name')->first() : 'Staff',
             ]);
 
-        // Mock shifts & schedule assignments for pure visual premium calendar scheduler
-        $shifts = [
-            ['id' => 1, 'name' => 'Ca Sáng (06:00 - 14:00)', 'start' => '06:00', 'end' => '14:00'],
-            ['id' => 2, 'name' => 'Ca Chiều (14:00 - 22:00)', 'start' => '14:00', 'end' => '22:00'],
-            ['id' => 3, 'name' => 'Ca Tối (18:00 - 23:00)', 'start' => '18:00', 'end' => '23:00'],
-        ];
+        // Query or seed shifts dynamically
+        $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)->get();
+        if ($shiftsQuery->isEmpty()) {
+            $defaultShifts = [
+                ['name' => 'Ca Sáng (06:00 - 14:00)', 'code' => 'CA_SANG', 'start_time' => '06:00', 'end_time' => '14:00'],
+                ['name' => 'Ca Chiều (14:00 - 22:00)', 'code' => 'CA_CHIEU', 'start_time' => '14:00', 'end_time' => '22:00'],
+                ['name' => 'Ca Tối (18:00 - 23:00)', 'code' => 'CA_TOI', 'start_time' => '18:00', 'end_time' => '23:00'],
+            ];
+            foreach ($defaultShifts as $ds) {
+                WorkShift::create(array_merge($ds, ['restaurant_id' => $user->restaurant_id]));
+            }
+            $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)->get();
+        }
 
-        // Tự tạo một số mock lịch xếp ca cho tuần này
-        $schedules = [
-            ['day' => 'Monday', 'employee_name' => 'Nguyễn Văn Thu Ngân', 'shift_name' => 'Ca Sáng'],
-            ['day' => 'Tuesday', 'employee_name' => 'Trần Thị Bếp', 'shift_name' => 'Ca Chiều'],
-            ['day' => 'Wednesday', 'employee_name' => 'Nguyễn Văn Thu Ngân', 'shift_name' => 'Ca Tối'],
-        ];
+        $shifts = $shiftsQuery->map(fn ($s) => [
+            'id' => $s->id,
+            'name' => $s->name,
+            'start' => substr($s->start_time, 0, 5),
+            'end' => substr($s->end_time, 0, 5),
+        ]);
+
+        // Load assignments for current week
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+        $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->with(['employee', 'shift'])
+            ->get();
+
+        $schedules = $assignmentsQuery->map(fn ($a) => [
+            'day' => Carbon::parse($a->scheduled_date)->format('l'), // 'Monday', 'Tuesday', etc.
+            'employee_name' => $a->employee?->full_name ?? 'Không rõ',
+            'shift_name' => $a->shift?->name ? explode(' (', $a->shift->name)[0] : 'Ca Mới',
+        ]);
 
         return Inertia::render('employees/Index', [
             'employees' => $employees,
@@ -357,46 +423,73 @@ class SupportController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager'],
-            'job_title' => ['required', 'string', 'max:100'],
+            'name'              => ['required', 'string', 'max:255'],
+            'email'             => ['required', 'email', 'unique:users,email'],
+            'phone'             => ['required', 'string', 'max:20'],
+            'citizen_id_number' => ['required', 'string', 'max:20'],
+            'address'           => ['required', 'string', 'max:500'],
+            'hire_date'         => ['required', 'date'],
+            'base_salary'       => ['required', 'numeric', 'min:0'],
+            'role'              => ['required', 'string', 'in:cashier,kitchen,manager'],
+            'job_title'         => ['required', 'string', 'max:100'],
         ]);
 
         // Tạo User mới cho nhân viên
         $newUser = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => bcrypt('12345678'), // Mật khẩu mặc định
-            'phone' => $data['phone'] ?? null,
-            'restaurant_id' => $user->restaurant_id,
-            'status' => 'active',
-            'email_verified_at' => now(),
+            'name'               => $data['name'],
+            'email'              => $data['email'],
+            'password'           => bcrypt('12345678'),
+            'phone'              => $data['phone'],
+            'restaurant_id'      => $user->restaurant_id,
+            'status'             => 'active',
+            'email_verified_at'  => now(),
         ]);
 
         // Gán Role qua Spatie
         $role = \Spatie\Permission\Models\Role::firstOrCreate([
-            'name' => $data['role'],
-            'guard_name' => 'web'
+            'name'       => $data['role'],
+            'guard_name' => 'web',
         ]);
         $newUser->assignRole($role);
 
         // Tạo hồ sơ nhân viên Employee
         Employee::create([
-            'restaurant_id' => $user->restaurant_id,
-            'user_id' => $newUser->id,
-            'employee_code' => 'EMP-' . Str::upper(Str::random(5)),
-            'full_name' => $data['name'],
-            'phone' => $data['phone'] ?? null,
-            'email' => $data['email'],
-            'job_title' => $data['job_title'],
-            'employment_type' => 'full_time',
-            'status' => 'active',
-            'role_id' => $role->id,
+            'restaurant_id'     => $user->restaurant_id,
+            'user_id'           => $newUser->id,
+            'employee_code'     => 'EMP-' . Str::upper(Str::random(5)),
+            'full_name'         => $data['name'],
+            'phone'             => $data['phone'],
+            'email'             => $data['email'],
+            'citizen_id_number' => $data['citizen_id_number'],
+            'address'           => $data['address'],
+            'hire_date'         => $data['hire_date'],
+            'base_salary'       => $data['base_salary'],
+            'job_title'         => $data['job_title'],
+            'employment_type'   => 'full_time',
+            'status'            => 'active',
+            'role_id'           => $role->id,
         ]);
 
         return back()->with('success', 'Đã thêm tài khoản nhân viên mới và phân quyền thành công.');
+    }
+
+    /**
+     * Kích hoạt / vô hiệu hóa tài khoản nhân viên (chỉ Owner).
+     */
+    public function toggleEmployeeStatus(Request $request, Employee $employee): RedirectResponse
+    {
+        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_if($employee->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $newStatus = $employee->status === 'active' ? 'inactive' : 'active';
+        $employee->update(['status' => $newStatus]);
+
+        if ($employee->user) {
+            $employee->user->update(['status' => $newStatus]);
+        }
+
+        $msg = $newStatus === 'active' ? 'Đã kích hoạt tài khoản nhân viên.' : 'Đã vô hiệu hóa tài khoản nhân viên.';
+        return back()->with('success', $msg);
     }
 
     /**
@@ -412,9 +505,27 @@ class SupportController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone'     => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
+            'role'      => ['sometimes', 'string', 'in:cashier,kitchen,manager'],
         ]);
 
-        $employee->update(array_filter($data, fn ($v) => $v !== null || isset($v)));
+        // Sync associated User Spatie roles and update role_id in employees
+        if ($employee->user && isset($data['role'])) {
+            $role = \Spatie\Permission\Models\Role::firstOrCreate([
+                'name' => $data['role'],
+                'guard_name' => 'web'
+            ]);
+            $employee->user->syncRoles([$role]);
+            $employee->update(['role_id' => $role->id]);
+        }
+
+        // Sync full_name to User name
+        if ($employee->user && isset($data['full_name'])) {
+            $employee->user->update(['name' => $data['full_name']]);
+        }
+
+        $employeeData = array_filter($data, fn ($v) => $v !== null || isset($v));
+        unset($employeeData['role']);
+        $employee->update($employeeData);
 
         return back()->with('success', 'Đã cập nhật thông tin nhân viên.');
     }
@@ -471,6 +582,8 @@ class SupportController extends Controller
      */
     public function storeIngredient(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         $user = $request->user();
 
         $data = $request->validate([
@@ -489,6 +602,142 @@ class SupportController extends Controller
         ]);
 
         return back()->with('success', 'Đã thêm nguyên liệu mới vào kho.');
+    }
+
+    /**
+     * Ghi nhận nhập hàng hàng ngày (stock receiving).
+     */
+    public function storePurchase(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $data = $request->validate([
+            'ingredient_id' => ['required', 'exists:ingredients,id'],
+            'quantity'      => ['required', 'numeric', 'min:0.001'],
+            'unit_cost'     => ['required', 'numeric', 'min:0'],
+            'supplier_id'   => ['nullable', 'exists:suppliers,id'],
+            'notes'         => ['nullable', 'string', 'max:500'],
+            'occurred_at'   => ['nullable', 'date'],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user->hasRole('owner')) {
+            $this->approvalService->submitRequest('inventory_purchase', $data, $user);
+            return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
+        }
+
+        $ingredient = Ingredient::findOrFail($data['ingredient_id']);
+
+        $inventory = Inventory::firstOrCreate(
+            ['restaurant_id' => $user->restaurant_id, 'ingredient_id' => $ingredient->id],
+            ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]
+        );
+
+        $newQty  = (float) $data['quantity'];
+        $newCost = (float) $data['unit_cost'];
+        $oldQty  = (float) $inventory->quantity_on_hand;
+        $oldAvg  = (float) $ingredient->average_cost;
+
+        // Weighted average cost
+        $newAvg = ($oldQty + $newQty) > 0
+            ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
+            : $newCost;
+
+        InventoryTransaction::create([
+            'restaurant_id' => $user->restaurant_id,
+            'ingredient_id' => $ingredient->id,
+            'inventory_id'  => $inventory->id,
+            'supplier_id'   => $data['supplier_id'] ?? null,
+            'performed_by'  => $user->id,
+            'type'          => 'purchase',
+            'direction'     => 'in',
+            'quantity'      => $newQty,
+            'unit_cost'     => $newCost,
+            'total_cost'    => $newQty * $newCost,
+            'notes'         => $data['notes'] ?? null,
+            'occurred_at'   => $data['occurred_at'] ?? now(),
+        ]);
+
+        $inventory->update([
+            'quantity_on_hand'     => $oldQty + $newQty,
+            'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
+            'last_cost'            => $newCost,
+        ]);
+
+        $ingredient->update(['average_cost' => round($newAvg, 2)]);
+
+        return back()->with('success', 'Đã ghi nhận nhập hàng và cập nhật giá vốn bình quân.');
+    }
+
+    /**
+     * Ghi nhận hao hụt nguyên liệu từ bếp.
+     */
+    public function storeWaste(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $data = $request->validate([
+            'ingredient_id' => ['required', 'exists:ingredients,id'],
+            'quantity'      => ['required', 'numeric', 'min:0.001'],
+            'employee_id'   => ['nullable', 'exists:employees,id'],
+            'notes'         => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user->hasRole('owner')) {
+            $this->approvalService->submitRequest('inventory_waste', $data, $user);
+            return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');
+        }
+
+        $ingredient = Ingredient::findOrFail($data['ingredient_id']);
+
+        $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+            ->where('ingredient_id', $ingredient->id)
+            ->first();
+
+        $wasteQty  = (float) $data['quantity'];
+        $wasteCost = $wasteQty * (float) $ingredient->average_cost;
+
+        $transaction = InventoryTransaction::create([
+            'restaurant_id' => $user->restaurant_id,
+            'ingredient_id' => $ingredient->id,
+            'inventory_id'  => $inventory?->id,
+            'performed_by'  => $user->id,
+            'type'          => 'waste',
+            'direction'     => 'out',
+            'quantity'      => $wasteQty,
+            'unit_cost'     => (float) $ingredient->average_cost,
+            'total_cost'    => $wasteCost,
+            'notes'         => $data['notes'] ?? null,
+            'occurred_at'   => now(),
+        ]);
+
+        if ($inventory) {
+            $inventory->update([
+                'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
+            ]);
+        }
+
+        // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
+        if (! empty($data['employee_id']) && $wasteCost > 0) {
+            $employee = \App\Models\Employee::find($data['employee_id']);
+            if ($employee) {
+                $salaryService = app(SalaryService::class);
+                $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
+                $salaryService->addAdjustment($salary, [
+                    'employee_id'    => $employee->id,
+                    'type'           => 'inventory_loss',
+                    'amount'         => $wasteCost,
+                    'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ',
+                    'reference_id'   => $transaction->id,
+                    'reference_type' => InventoryTransaction::class,
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Đã ghi nhận hao hụt nguyên liệu.');
     }
 
     /**
@@ -520,5 +769,157 @@ class SupportController extends Controller
         ]);
 
         return back()->with('success', 'Đã đặt lịch demo thành công! Đội ngũ sẽ liên hệ qua số ' . $data['phone'] . ' trước giờ hẹn.');
+    }
+
+    /**
+     * Đồng bộ hóa danh sách ca làm việc của nhà hàng.
+     */
+    public function syncShifts(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'shifts' => ['required', 'array'],
+            'shifts.*.name' => ['required', 'string', 'max:100'],
+            'shifts.*.start' => ['required', 'string'],
+            'shifts.*.end' => ['required', 'string'],
+        ]);
+
+        $existingIds = [];
+        foreach ($data['shifts'] as $index => $s) {
+            $code = 'SHIFT_' . Str::upper(Str::slug($s['name'], '_')) . '_' . ($index + 1);
+
+            $shift = null;
+            if (isset($s['id']) && is_numeric($s['id']) && $s['id'] < 1000000) {
+                $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
+                    ->where('id', $s['id'])
+                    ->first();
+            }
+
+            if ($shift) {
+                $shift->update([
+                    'name' => $s['name'],
+                    'start_time' => $s['start'],
+                    'end_time' => $s['end'],
+                ]);
+            } else {
+                $shift = WorkShift::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'name' => $s['name'],
+                    'code' => $code,
+                    'start_time' => $s['start'],
+                    'end_time' => $s['end'],
+                    'status' => 'active',
+                ]);
+            }
+            $existingIds[] = $shift->id;
+        }
+
+        // Delete shifts that are not in the payload
+        WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->whereNotIn('id', $existingIds)
+            ->delete();
+
+        return back()->with('success', 'Đã lưu cấu hình ca làm việc mới.');
+    }
+
+    /**
+     * Tạo mới hoặc cập nhật lịch xếp ca.
+     */
+    public function storeAssignment(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
+            'employee_name' => ['required', 'string'],
+            'shift_name' => ['required', 'string'],
+        ]);
+
+        // Find employee
+        $employee = Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('full_name', $data['employee_name'])
+            ->first();
+
+        if (!$employee) {
+            return back()->withErrors(['employee_name' => 'Nhân viên không tồn tại.']);
+        }
+
+        // Find shift (match name prefix)
+        $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->where('name', 'like', $data['shift_name'] . '%')
+            ->first();
+
+        if (!$shift) {
+            return back()->withErrors(['shift_name' => 'Ca làm việc không tồn tại.']);
+        }
+
+        // Calculate date of current week's day
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $days = [
+            'Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2,
+            'Thursday' => 3, 'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6,
+        ];
+        $offset = $days[$data['day']] ?? 0;
+        $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
+
+        // Save schedule
+        ScheduleAssignment::updateOrCreate([
+            'restaurant_id' => $user->restaurant_id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $scheduledDate,
+        ], [
+            'status' => 'scheduled',
+        ]);
+
+        return back()->with('success', 'Xếp ca thành công.');
+    }
+
+    /**
+     * Hủy xếp ca nhân sự.
+     */
+    public function destroyAssignment(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
+            'employee_name' => ['required', 'string'],
+            'shift_name' => ['required', 'string'],
+        ]);
+
+        // Find employee
+        $employee = Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('full_name', $data['employee_name'])
+            ->first();
+
+        if (!$employee) {
+            return back()->with('success', 'Hủy xếp ca thành công.');
+        }
+
+        // Find shift
+        $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->where('name', 'like', $data['shift_name'] . '%')
+            ->first();
+
+        if (!$shift) {
+            return back()->with('success', 'Hủy xếp ca thành công.');
+        }
+
+        // Calculate date of current week's day
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $days = [
+            'Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2,
+            'Thursday' => 3, 'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6,
+        ];
+        $offset = $days[$data['day']] ?? 0;
+        $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
+
+        // Delete assignment
+        ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
+            ->where('employee_id', $employee->id)
+            ->where('shift_id', $shift->id)
+            ->where('scheduled_date', $scheduledDate)
+            ->delete();
+
+        return back()->with('success', 'Hủy xếp ca thành công.');
     }
 }

@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { usePage, router } from '@inertiajs/vue3';
-import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Play, X, ArrowRight, CheckCircle2, ChevronRight, Award, Compass } from 'lucide-vue-next';
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
 type TourStep = {
     selector: string;
@@ -15,6 +15,7 @@ const page = usePage();
 const user = computed(() => page.props.auth?.user as any);
 const isSuperAdmin = computed(() => {
     const roles = page.props.roles ?? [];
+
     return Array.isArray(roles) ? roles.includes('super_admin') || roles.includes('admin') : false;
 });
 
@@ -104,9 +105,12 @@ const activeStep = computed<TourStep | null>(() => currentSteps.value[activeStep
 let searchInterval: any = null;
 
 const updateTargetPosition = () => {
-    if (!isTourActive.value || !activeStep.value) return;
+    if (!isTourActive.value || !activeStep.value) {
+return;
+}
 
     const el = document.querySelector(activeStep.value.selector) as HTMLElement;
+
     if (el) {
         // Tự động scroll phần tử vào tầm nhìn nếu cần
         const rect = el.getBoundingClientRect();
@@ -135,8 +139,13 @@ const updateTargetPosition = () => {
         }
 
         // Tránh tooltip văng ra ngoài viewport
-        if (left < 10) left = 10;
-        if (left + 320 > window.innerWidth) left = window.innerWidth - 340;
+        if (left < 10) {
+left = 10;
+}
+
+        if (left + 320 > window.innerWidth) {
+left = window.innerWidth - 340;
+}
 
         tooltipStyle.value = {
             top: `${top}px`,
@@ -229,6 +238,7 @@ const completeDay = () => {
 const startNextDay = () => {
     isSuccessOpen.value = false;
     const next = currentDay.value + 1;
+
     if (next <= 3) {
         router.visit(next === 2 ? '/inventory' : '/employees', {
             onSuccess: () => {
@@ -264,18 +274,26 @@ onMounted(() => {
                 sessionStorage.getItem(`aventura_tour_day${day}_dismissed`) === '1';
 
             if (!status) {
-                if (!wasDismissed(1)) startTour(1);
+                if (!wasDismissed(1)) {
+startTour(1);
+}
             } else {
                 const day1 = status.day_1;
                 const day2 = status.day_2;
                 const day3 = status.day_3;
 
                 if (!day1 || !day1.completed_at) {
-                    if (!wasDismissed(1)) startTour(1);
+                    if (!wasDismissed(1)) {
+startTour(1);
+}
                 } else if ((!day2 || !day2.completed_at) && status.current_day === 2) {
-                    if (!wasDismissed(2)) startTour(2);
+                    if (!wasDismissed(2)) {
+startTour(2);
+}
                 } else if ((!day3 || !day3.completed_at) && status.current_day === 3) {
-                    if (!wasDismissed(3)) startTour(3);
+                    if (!wasDismissed(3)) {
+startTour(3);
+}
                 }
             }
         }
@@ -290,18 +308,25 @@ onUnmounted(() => {
 
 // Xem có đang chạy đúng trang được cấu hình cho Step hay không
 const isCorrectPage = computed(() => {
-    if (!activeStep.value) return false;
+    if (!activeStep.value) {
+return false;
+}
+
     const currentUrl = page.url.toLowerCase();
     
     if (activeStep.value.page === 'dashboard') {
         return currentUrl.includes('/dashboard');
     }
+
     return currentUrl.includes('/' + activeStep.value.page);
 });
 
 // Điều hướng nhanh đến trang đúng nếu khách hàng đi lạc
 const navigateToStepPage = () => {
-    if (!activeStep.value) return;
+    if (!activeStep.value) {
+return;
+}
+
     const dest = activeStep.value.page === 'dashboard' ? '/dashboard' : '/' + activeStep.value.page;
     router.visit(dest);
 };

@@ -78,6 +78,21 @@ class Employee extends Model
         return $this->hasMany(ScheduleAssignment::class);
     }
 
+    public function salaries(): HasMany
+    {
+        return $this->hasMany(Salary::class);
+    }
+
+    public function salaryAdjustments(): HasMany
+    {
+        return $this->hasMany(SalaryAdjustment::class);
+    }
+
+    public function violationReports(): HasMany
+    {
+        return $this->hasMany(ViolationReport::class);
+    }
+
     public function media(): MorphMany
     {
         return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');

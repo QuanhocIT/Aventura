@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
 import { Head } from '@inertiajs/vue3';
 import { ImageIcon, Trash2, ToggleLeft, ToggleRight, Upload, ExternalLink } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 declare const route: (name: string, params?: unknown) => string;
 
@@ -59,7 +59,11 @@ function selectSlot(slot: 'hero' | 'promo') {
 
 function onFileChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+
+    if (!file) {
+return;
+}
+
     form.image = file;
     imagePreview.value = URL.createObjectURL(file);
 }
@@ -67,7 +71,11 @@ function onFileChange(e: Event) {
 function onDrop(e: DragEvent) {
     e.preventDefault();
     const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
+
+    if (!file) {
+return;
+}
+
     form.image = file;
     imagePreview.value = URL.createObjectURL(file);
 }
@@ -96,7 +104,10 @@ function toggleActive(banner: Banner) {
 }
 
 function deleteBanner(banner: Banner) {
-    if (!confirm(`Xóa banner "${banner.title || 'này'}"?`)) return;
+    if (!confirm(`Xóa banner "${banner.title || 'này'}"?`)) {
+return;
+}
+
     router.delete(route('superadmin.banners.destroy', banner.id), { preserveScroll: true });
 }
 

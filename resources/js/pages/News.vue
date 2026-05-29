@@ -5,9 +5,9 @@ import { ref } from 'vue';
 import NewsCard from '@/components/NewsCard.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
-defineOptions({ layout: AppTopbarLayout });
+defineOptions({ layout: AppLayout });
 
 interface NewsPost {
     id: number; title: string; slug: string; excerpt: string | null;
@@ -30,8 +30,14 @@ const props = defineProps<{
 }>();
 
 function paginationLabel(label: string): string {
-    if (label === '&laquo; Previous') return '←';
-    if (label === 'Next &raquo;') return '→';
+    if (label === '&laquo; Previous') {
+return '←';
+}
+
+    if (label === 'Next &raquo;') {
+return '→';
+}
+
     return label;
 }
 
@@ -48,21 +54,35 @@ const categoryTabs = [
 
 function filterBy(val: string) {
     const params: Record<string, string> = {};
-    if (val) params.category = val;
-    if (searchQuery.value) params.search = searchQuery.value;
+
+    if (val) {
+params.category = val;
+}
+
+    if (searchQuery.value) {
+params.search = searchQuery.value;
+}
+
     router.get('/tin-tuc', params, { preserveState: true, replace: true });
 }
 
 function doSearch() {
     const params: Record<string, string> = {};
-    if (searchQuery.value) params.search = searchQuery.value;
-    if (props.activeCategory) params.category = props.activeCategory;
+
+    if (searchQuery.value) {
+params.search = searchQuery.value;
+}
+
+    if (props.activeCategory) {
+params.category = props.activeCategory;
+}
+
     router.get('/tin-tuc', params, { preserveState: true, replace: true });
 }
 </script>
 
 <template>
-    <Head title="Tin tức & Cập nhật  Aventura" />
+    <Head title="Tin tức &amp; Cập nhật - Aventura" />
 
     <!-- Hero -->
     <section class="bg-gradient-to-br from-primary/10 via-primary/5 to-background px-4 py-16 text-center">

@@ -136,7 +136,10 @@ function submitForm() {
 }
 
 function deleteItem(item: KnowledgeItem) {
-    if (!confirm(`Xóa câu hỏi: "${item.question}"?`)) return;
+    if (!confirm(`Xóa câu hỏi: "${item.question}"?`)) {
+return;
+}
+
     router.delete(`/super-admin/chatbot/${item.id}`, { preserveScroll: true });
 }
 
@@ -146,6 +149,7 @@ function reloadCache() {
 
 function toggleRow(id: number) {
     const index = expandedRows.value.indexOf(id);
+
     if (index >= 0) {
         expandedRows.value.splice(index, 1);
     } else {

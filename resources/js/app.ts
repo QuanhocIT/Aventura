@@ -1,7 +1,9 @@
-﻿import './lib/echo';
+import './lib/echo';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { router } from '@inertiajs/vue3';
 import { toast } from 'vue-sonner';
+import { createApp, h, type DefineComponent } from 'vue';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
@@ -22,20 +24,38 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title: string) => (title ? `${title} - ${appName}` : appName),
-    layout: (name: string) => {
-        switch (true) {
-            case name === 'Welcome':
-                return GuestLayout;
-            case name === 'auth/Login':
-            case name === 'auth/Register':
-                return BareLayout;
-            case name.startsWith('auth/'):
-                return AuthLayout;
-            case name.startsWith('settings/'):
-                return [AppLayout, SettingsLayout];
-            default:
-                return AppLayout;
-        }
+    resolve: (name: string) => {
+        const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
+        return resolvePageComponent(`./pages/${name}.vue`, pages).then((module) => {
+            const page = module.default;
+            if (page.layout === undefined) {
+                switch (true) {
+                    case name === 'Welcome':
+                        page.layout = GuestLayout;
+                        break;
+                    case name === 'Khach':
+                    case name === 'auth/Login':
+                    case name === 'auth/Register':
+                        page.layout = BareLayout;
+                        break;
+                    case name.startsWith('auth/'):
+                        page.layout = AuthLayout;
+                        break;
+                    case name.startsWith('settings/'):
+                        page.layout = [AppLayout, SettingsLayout];
+                        break;
+                    default:
+                        page.layout = AppLayout;
+                        break;
+                }
+            }
+            return page;
+        });
+    },
+    setup({ el, App, props, plugin }: any) {
+        createApp({ render: () => h(App, props) })
+            .use(plugin)
+            .mount(el);
     },
     progress: {
         color: '#4B5563',
@@ -44,3 +64,4 @@ createInertiaApp({
 
 initializeTheme();
 initializeFlashToast();
+

@@ -50,7 +50,9 @@ function startEdit(plan: Plan) {
 
 function save(planId: number) {
     form.patch(`/super-admin/plans/${planId}`, {
-        onSuccess: () => { editingId.value = null; },
+        onSuccess: () => {
+ editingId.value = null; 
+},
     });
 }
 
@@ -68,18 +70,41 @@ function planFeatures(plan: Plan): string[] {
         mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`,
         `Rate limit: ${new Intl.NumberFormat('vi-VN').format(rate)}/phút`,
     ];
-    if (plan.features?.ai_features)        list.push('AI dự báo nguyên liệu & tồn kho');
-    if (plan.features?.ai_features)        list.push('Thuật toán AI phát hiện gian lận');
-    if (plan.features?.realtime)           list.push('Realtime sync & Advanced Analytics');
-    if (plan.features?.advanced_analytics) list.push('Hệ thống Audit Log bảo mật');
+
+    if (plan.features?.ai_features)        {
+list.push('AI dự báo nguyên liệu & tồn kho');
+}
+
+    if (plan.features?.ai_features)        {
+list.push('Thuật toán AI phát hiện gian lận');
+}
+
+    if (plan.features?.realtime)           {
+list.push('Realtime sync & Advanced Analytics');
+}
+
+    if (plan.features?.advanced_analytics) {
+list.push('Hệ thống Audit Log bảo mật');
+}
+
     return list;
 }
 
 function planUnsupported(plan: Plan): string[] {
     const list: string[] = [];
-    if (!plan.features?.ai_features)        list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-    if (!plan.features?.realtime)           list.push('Realtime sync & Advanced Analytics');
-    if (!plan.features?.advanced_analytics) list.push('Hệ thống Audit Log bảo mật');
+
+    if (!plan.features?.ai_features)        {
+list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
+}
+
+    if (!plan.features?.realtime)           {
+list.push('Realtime sync & Advanced Analytics');
+}
+
+    if (!plan.features?.advanced_analytics) {
+list.push('Hệ thống Audit Log bảo mật');
+}
+
     return list;
 }
 

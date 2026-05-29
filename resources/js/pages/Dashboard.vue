@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
+    Activity,
     AlertTriangle,
     BarChart3,
     Bell,
@@ -23,22 +23,41 @@ import {
     XCircle,
     Clock,
     Utensils,
+    Brain,
 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import NewsCard from '@/components/NewsCard.vue';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 
-interface NewsPost {
-    id: number;
+interface OperationFeedItem {
+    type: string;
     title: string;
-    slug: string;
-    excerpt: string | null;
-    category: string;
-    featured_image_url: string | null;
-    is_featured: boolean;
-    published_at: string;
+    description: string;
+    amount: number | null;
+    time: string;
+    timestamp: number;
+    icon: string;
+    color: string;
+    link: string;
+}
+
+interface TableData {
+    id: number;
+    name: string;
+    area: string;
+    capacity: number;
+    status: string; // 'available', 'occupied', 'reserved', 'cleaning'
+}
+
+interface LowStockIngredient {
+    id: number;
+    ingredient_name: string;
+    quantity_on_hand: number;
+    min_stock_level: number;
+    reorder_level: number;
+    unit_name: string;
 }
 
 interface Stats {
@@ -63,30 +82,42 @@ interface RecentOrder {
     created_at: string;
 }
 
-interface FeaturedPost {
-    id: number;
-    title: string;
-    slug: string;
-    excerpt: string | null;
-    category: string;
-    featured_image_url: string | null;
-    is_featured: boolean;
-    published_at: string;
-}
-
 interface Alert {
     type: 'warning' | 'danger' | 'info';
     message: string;
     href: string;
 }
 
+interface RevenueDay {
+    date: string;
+    revenue: number;
+    orders: number;
+}
+
+interface ChannelShare {
+    channel: string;
+    label: string;
+    count: number;
+    percentage: number;
+}
+
+interface TopProductStat {
+    name: string;
+    quantity: number;
+    revenue: number;
+}
+
 const props = defineProps<{
-    latestNews?: NewsPost[];
-    featuredPost?: FeaturedPost | null;
+    operationFeed?: OperationFeedItem[];
+    tablesData?: TableData[];
+    lowStockInventory?: LowStockIngredient[];
     stats?: Stats | null;
     onboardingComplete?: boolean;
     recentOrders?: RecentOrder[];
     alerts?: Alert[];
+    revenueChartData?: RevenueDay[];
+    channelChartData?: ChannelShare[];
+    topProductsChartData?: TopProductStat[];
 }>();
 
 const page = usePage();
@@ -102,8 +133,12 @@ const canManageBilling = computed(() =>
 );
 
 const currentPlanRank = computed(() => {
-    if (!plan.value?.code) return 0;
+    if (!plan.value?.code) {
+        return 0;
+    }
+
     const idx = availablePlans.value.findIndex((p: any) => p.code === plan.value.code);
+
     return idx === -1 ? 0 : idx;
 });
 
@@ -131,16 +166,58 @@ const planIcon = computed(() => {
     }
 });
 
-const latestNewsList = computed(() => props.latestNews ?? []);
+const activeTab = ref<'feed' | 'tables' | 'inventory'>('feed');
+
+const operationFeedList = computed(() => props.operationFeed ?? []);
+const tablesList = computed(() => props.tablesData ?? []);
+const lowStockList = computed(() => props.lowStockInventory ?? []);
 const recentOrdersList = computed(() => props.recentOrders ?? []);
 const alertsList = computed(() => props.alerts ?? []);
+
+function getFeedIcon(iconName: string) {
+    switch (iconName) {
+        case 'ShoppingCart': return ShoppingCart;
+        case 'Utensils':     return Utensils;
+        case 'CheckCircle2': return CheckCircle2;
+        case 'XCircle':      return XCircle;
+        case 'AlertTriangle':return AlertTriangle;
+        case 'Users':        return Users;
+        default:             return Activity;
+    }
+}
+
+function getFeedColorClasses(colorName: string) {
+    switch (colorName) {
+        case 'amber':   return 'border-amber-100 bg-amber-50 text-amber-600 dark:border-amber-950/30 dark:bg-amber-950/20 dark:text-amber-400';
+        case 'violet':  return 'border-violet-100 bg-violet-50 text-violet-600 dark:border-violet-950/30 dark:bg-violet-950/20 dark:text-violet-400';
+        case 'emerald': return 'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-950/30 dark:bg-emerald-950/20 dark:text-emerald-400';
+        case 'rose':    return 'border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-950/30 dark:bg-rose-950/20 dark:text-rose-400';
+        case 'sky':     return 'border-sky-100 bg-sky-50 text-sky-600 dark:border-sky-900/30 dark:bg-sky-950/20 dark:text-sky-400';
+        default:        return 'border-slate-100 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400';
+    }
+}
+
+const tableStatusMap = {
+    available: { label: 'Bàn trống', class: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/40' },
+    occupied:  { label: 'Có khách', class: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/40' },
+    reserved:  { label: 'Đặt trước', class: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/40' },
+    cleaning:  { label: 'Dọn dẹp', class: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40' },
+};
+
+function getTableStatusInfo(status: string) {
+    return tableStatusMap[status as keyof typeof tableStatusMap] ?? { label: status, class: 'bg-muted text-muted-foreground border-border' };
+}
 
 // Trial countdown
 const isOnTrial = computed(() => tenant.value?.status === 'trial');
 const trialDaysLeft = computed(() => {
-    if (!tenant.value?.trial_ends_at) return 0;
+    if (!tenant.value?.trial_ends_at) {
+        return 0;
+    }
+
     const end  = new Date(tenant.value.trial_ends_at);
     const now  = new Date();
+
     return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 });
 
@@ -148,6 +225,7 @@ const trialDaysLeft = computed(() => {
 // Cấu trúc thực tế: { current_day, day_1: { completed_at, ... }, day_2: {...}, day_3: {...} }
 const onboardingSteps = computed(() => {
     const status = (user.value?.onboarding_status as any) ?? {};
+
     return [
         { key: 'day_1', label: 'Thêm sản phẩm & thực đơn',     href: '/products',  done: !!status.day_1?.completed_at },
         { key: 'day_2', label: 'Cấu hình kho nguyên liệu',       href: '/inventory', done: !!status.day_2?.completed_at },
@@ -178,12 +256,18 @@ function formatLimit(v: number | null): string {
 }
 
 function formatMoney(v: number): string {
-    if (v === 0) return '—';
+    if (v === 0) {
+return '—';
+}
+
     return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
 }
 
 function formatMoneyFull(v: number): string {
-    if (v === 0) return '—';
+    if (v === 0) {
+return '—';
+}
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 
@@ -211,17 +295,26 @@ const channelMap: Record<string, string> = {
 
 // Hiệu suất hôm nay — tính toán từ stats
 const completionRate = computed(() => {
-    if (!props.stats?.orders_today) return 0;
+    if (!props.stats?.orders_today) {
+return 0;
+}
+
     return Math.round((props.stats.orders_completed / props.stats.orders_today) * 100);
 });
 
 const cancellationRate = computed(() => {
-    if (!props.stats?.orders_today) return 0;
+    if (!props.stats?.orders_today) {
+return 0;
+}
+
     return Math.round(((props.stats.orders_cancelled ?? 0) / props.stats.orders_today) * 100);
 });
 
 const pendingCount = computed(() => {
-    if (!props.stats) return 0;
+    if (!props.stats) {
+return 0;
+}
+
     return props.stats.orders_today - props.stats.orders_completed - (props.stats.orders_cancelled ?? 0);
 });
 
@@ -232,6 +325,81 @@ const alertColorMap = {
     danger:  'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300',
     info:    'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-300',
 };
+
+// Chart calculations
+const revenueChartList = computed(() => props.revenueChartData ?? []);
+const maxRevenue = computed(() => {
+    const vals = revenueChartList.value.map(d => d.revenue);
+    return Math.max(...vals, 100000); // at least 100k
+});
+
+const channelChartList = computed(() => props.channelChartData ?? []);
+const channelColors: Record<string, string> = {
+    dine_in: '#6366f1',  // indigo
+    takeaway: '#f59e0b', // amber
+    delivery: '#10b981', // emerald
+    qr: '#ec4899',       // pink
+};
+
+const doughnutPaths = computed(() => {
+    const list = channelChartList.value;
+    const total = list.reduce((sum, item) => sum + item.count, 0);
+    if (total === 0) return [];
+
+    let currentAngle = -Math.PI / 2; // start at top
+    return list.map(item => {
+        const pct = item.count / total;
+        const angle = pct * 2 * Math.PI;
+        const start = currentAngle;
+        const end = currentAngle + angle;
+        currentAngle = end;
+
+        // standard pie arc path with radius 100 centered at (100, 100)
+        const startX = 100 + 100 * Math.cos(start);
+        const startY = 100 + 100 * Math.sin(start);
+        const endX = 100 + 100 * Math.cos(end);
+        const endY = 100 + 100 * Math.sin(end);
+        const largeArc = angle > Math.PI ? 1 : 0;
+
+        const path = `M 100 100 L ${startX} ${startY} A 100 100 0 ${largeArc} 1 ${endX} ${endY} Z`;
+
+        return {
+            ...item,
+            color: channelColors[item.channel] ?? '#94a3b8',
+            path,
+        };
+    });
+});
+
+const topProductsList = computed(() => props.topProductsChartData ?? []);
+const maxProductQty = computed(() => {
+    const qtyList = topProductsList.value.map(p => p.quantity);
+    return Math.max(...qtyList, 1);
+});
+
+const activeHoverIndex = ref<number | null>(null);
+
+const maxOrders = computed(() => {
+    const list = revenueChartList.value.map(d => d.orders);
+    return Math.max(...list, 5);
+});
+
+const ordersLinePath = computed(() => {
+    const list = revenueChartList.value;
+    if (list.length === 0) return '';
+    return list.map((day, i) => {
+        const x = i * 85 + 80;
+        const y = 160 - (day.orders / maxOrders.value) * 125;
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+});
+
+const topDishName = computed(() => topProductsList.value[0]?.name ?? 'chưa có');
+const topChannelLabel = computed(() => {
+    if (doughnutPaths.value.length === 0) return 'chưa có';
+    const sorted = [...doughnutPaths.value].sort((a, b) => b.count - a.count);
+    return sorted[0]?.label ?? 'chưa có';
+});
 </script>
 
 <template>
@@ -401,85 +569,472 @@ const alertColorMap = {
             </div>
         </section>
 
+        <!-- ── Phân tích & Thống kê (Biểu đồ) ────────────────────── -->
+        <section class="px-4 pb-8 lg:px-8">
+            <div class="mx-auto max-w-7xl space-y-6">
+                <!-- Row 1: Sales Chart & Channels Doughnut -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Sales & Orders Chart (2/3) -->
+                    <Card class="lg:col-span-2 relative overflow-hidden bg-card text-card-foreground border border-border shadow-sm">
+                        <CardHeader class="pb-2 border-b border-border/50">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <CardTitle class="text-base font-bold flex items-center gap-2">
+                                        <TrendingUp class="size-4 text-violet-500" />
+                                        Doanh thu & Đơn hàng 7 ngày qua
+                                    </CardTitle>
+                                    <p class="text-xs text-muted-foreground mt-0.5">Biểu đồ kết hợp Doanh thu thuần (cột) và số lượng Đơn hàng (đường)</p>
+                                </div>
+                                <div class="flex items-center gap-4 text-xs font-semibold">
+                                    <span class="flex items-center gap-1.5 text-indigo-500">
+                                        <span class="h-3 w-3 rounded bg-indigo-500/80"></span> Doanh thu
+                                    </span>
+                                    <span class="flex items-center gap-1.5 text-emerald-500">
+                                        <span class="h-3 w-3 rounded-full border-2 border-emerald-500 bg-background"></span> Đơn hàng
+                                    </span>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        
+                        <CardContent class="pt-6">
+                            <div v-if="revenueChartList.length" class="relative">
+                                <!-- Tooltip Floating -->
+                                <div v-if="activeHoverIndex !== null" 
+                                     class="absolute z-20 bg-slate-900/95 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-700/50 backdrop-blur-md pointer-events-none transition-all duration-150"
+                                     :style="{
+                                         left: `${(activeHoverIndex / revenueChartList.length) * 85 + 12}%`,
+                                         transform: 'translateX(-50%)',
+                                         top: '-15px'
+                                     }"
+                                >
+                                    <p class="font-bold text-slate-300 border-b border-slate-700 pb-1 mb-1">Ngày {{ revenueChartList[activeHoverIndex].date }}</p>
+                                    <p class="flex justify-between gap-4">
+                                        <span class="text-slate-400">Doanh thu:</span>
+                                        <span class="font-mono font-bold text-indigo-400">{{ formatMoneyFull(revenueChartList[activeHoverIndex].revenue) }}</span>
+                                    </p>
+                                    <p class="flex justify-between gap-4 mt-0.5">
+                                        <span class="text-slate-400">Đơn hàng:</span>
+                                        <span class="font-mono font-bold text-emerald-400">{{ revenueChartList[activeHoverIndex].orders }} đơn</span>
+                                    </p>
+                                </div>
+
+                                <!-- The Chart SVG -->
+                                <svg viewBox="0 0 700 200" class="w-full h-48 overflow-visible">
+                                    <!-- Y-Axis Grid Lines -->
+                                    <line x1="50" y1="20" x2="650" y2="20" class="stroke-muted/30 stroke-1" stroke-dasharray="4" />
+                                    <line x1="50" y1="90" x2="650" y2="90" class="stroke-muted/30 stroke-1" stroke-dasharray="4" />
+                                    <line x1="50" y1="160" x2="650" y2="160" class="stroke-muted" stroke-width="1.5" />
+
+                                    <!-- Bars and Points -->
+                                    <g v-for="(day, i) in revenueChartList" :key="day.date">
+                                        <!-- Interactive background column area for hovering -->
+                                        <rect :x="i * 85 + 50" y="10" width="60" height="150" 
+                                              class="fill-transparent hover:fill-muted/20 cursor-pointer transition-colors duration-150 rounded"
+                                              @mouseenter="activeHoverIndex = i"
+                                              @mouseleave="activeHoverIndex = null"
+                                        />
+
+                                        <!-- Revenue Bar -->
+                                        <rect :x="i * 85 + 65" 
+                                              :y="160 - (day.revenue / maxRevenue) * 130" 
+                                              width="30" 
+                                              :height="Math.max((day.revenue / maxRevenue) * 130, day.revenue > 0 ? 4 : 0)" 
+                                              rx="4"
+                                              class="fill-indigo-500/80 hover:fill-indigo-600 dark:fill-indigo-500/60 dark:hover:fill-indigo-500 transition-colors pointer-events-none duration-150"
+                                        />
+                                    </g>
+
+                                    <!-- SVG Orders Line Trend Overlay -->
+                                    <path :d="ordersLinePath" fill="none" class="stroke-emerald-500" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+                                    <!-- Dots on line for each day -->
+                                    <g v-for="(day, i) in revenueChartList" :key="'dot-' + day.date">
+                                        <circle :cx="i * 85 + 80" 
+                                                :cy="160 - (day.orders / maxOrders) * 125" 
+                                                r="5" 
+                                                class="fill-background stroke-emerald-500 stroke-2 pointer-events-none" 
+                                        />
+                                        <!-- Glowing effect circle when hovered -->
+                                        <circle v-if="activeHoverIndex === i"
+                                                :cx="i * 85 + 80" 
+                                                :cy="160 - (day.orders / maxOrders) * 125" 
+                                                r="9" 
+                                                class="fill-emerald-500/30 stroke-none pointer-events-none animate-ping" 
+                                        />
+                                    </g>
+                                    
+                                    <!-- X-Axis Labels -->
+                                    <text v-for="(day, i) in revenueChartList" :key="'txt-' + day.date"
+                                          :x="i * 85 + 80" 
+                                          y="182" 
+                                          text-anchor="middle" 
+                                          class="fill-muted-foreground text-[10px] font-medium font-sans"
+                                    >
+                                        {{ day.date }}
+                                    </text>
+                                </svg>
+                            </div>
+                            <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-sm">
+                                <BarChart3 class="size-8 text-muted-foreground/30 mb-2" />
+                                Chưa có dữ liệu doanh số tuần này.
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Channels Doughnut Chart (1/3) -->
+                    <Card class="bg-card text-card-foreground border border-border shadow-sm">
+                        <CardHeader class="pb-2 border-b border-border/50">
+                            <CardTitle class="text-base font-bold flex items-center gap-2">
+                                <Utensils class="size-4 text-amber-500" />
+                                Tỷ lệ kênh bán hàng
+                            </CardTitle>
+                            <p class="text-xs text-muted-foreground mt-0.5">Cơ cấu đơn hàng theo kênh dịch vụ</p>
+                        </CardHeader>
+                        
+                        <CardContent class="pt-6 flex flex-col items-center justify-center">
+                            <div v-if="doughnutPaths.length" class="flex flex-col items-center gap-6 w-full">
+                                <!-- Doughnut SVG -->
+                                <div class="relative w-36 h-36 flex items-center justify-center">
+                                    <svg viewBox="0 0 200 200" class="w-full h-full transform -rotate-90">
+                                        <g v-for="slice in doughnutPaths" :key="slice.label">
+                                            <path :d="slice.path" :fill="slice.color" class="stroke-card stroke-2 hover:opacity-90 transition-opacity cursor-pointer" />
+                                            <title>{{ slice.label }}: {{ slice.count }} đơn ({{ slice.percentage }}%)</title>
+                                        </g>
+                                        <!-- Central hole -->
+                                        <circle cx="100" cy="100" r="62" class="fill-card" />
+                                    </svg>
+                                    <!-- Central statistics overlay -->
+                                    <div class="absolute flex flex-col items-center justify-center text-center">
+                                        <span class="text-2xl font-bold leading-none">{{ channelChartList.reduce((sum, item) => sum + item.count, 0) }}</span>
+                                        <span class="text-[10px] text-muted-foreground mt-1 font-medium">Tổng đơn</span>
+                                    </div>
+                                </div>
+
+                                <!-- Custom Legends -->
+                                <div class="grid grid-cols-2 gap-3 text-xs w-full">
+                                    <div v-for="slice in doughnutPaths" :key="slice.label" 
+                                         class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border bg-muted/20"
+                                    >
+                                        <div class="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse" :style="{ backgroundColor: slice.color }"></div>
+                                        <span class="font-medium text-foreground truncate">{{ slice.label }}</span>
+                                        <span class="ml-auto font-bold text-muted-foreground font-mono text-[10px]">{{ slice.percentage }}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-sm w-full">
+                                <ShoppingCart class="size-8 text-muted-foreground/30 mb-2" />
+                                Chưa có dữ liệu kênh bán hàng.
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Row 2: Top Products & AI Suggestion -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Top Products Leaderboard (2/3) -->
+                    <Card class="lg:col-span-2 bg-card text-card-foreground border border-border shadow-sm">
+                        <CardHeader class="pb-2 border-b border-border/50">
+                            <CardTitle class="text-base font-bold flex items-center gap-2">
+                                <Package class="size-4 text-emerald-500" />
+                                Top 5 món bán chạy nhất (30 ngày qua)
+                            </CardTitle>
+                            <p class="text-xs text-muted-foreground mt-0.5">Xếp hạng theo số lượng phần ăn phục vụ thành công</p>
+                        </CardHeader>
+                        
+                        <CardContent class="pt-6 space-y-4">
+                            <div v-if="topProductsList.length" class="space-y-4">
+                                <div v-for="(p, idx) in topProductsList" :key="p.name" class="space-y-1.5 group">
+                                    <div class="flex items-center justify-between text-xs font-semibold">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold"
+                                                  :class="{
+                                                      'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400': idx === 0,
+                                                      'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400': idx === 1,
+                                                      'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400': idx === 2,
+                                                      'bg-muted text-muted-foreground': idx > 2
+                                                  }"
+                                            >
+                                                {{ idx + 1 }}
+                                            </span>
+                                            <span class="truncate text-foreground group-hover:text-primary transition-colors">{{ p.name }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 shrink-0 font-mono text-muted-foreground">
+                                            <span class="font-bold text-foreground">{{ p.quantity }} phần</span>
+                                            <span>·</span>
+                                            <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ formatMoneyFull(p.revenue) }}</span>
+                                        </div>
+                                    </div>
+                                    <!-- Sleek Progress Bar -->
+                                    <div class="h-2 rounded-full bg-muted overflow-hidden">
+                                        <div class="h-full rounded-full transition-all duration-500 bg-gradient-to-r"
+                                             :class="{
+                                                 'from-amber-400 to-amber-500': idx === 0,
+                                                 'from-indigo-400 to-indigo-500': idx === 1,
+                                                 'from-emerald-400 to-emerald-500': idx === 2,
+                                                 'from-slate-400 to-slate-500': idx > 2
+                                             }"
+                                             :style="{ width: `${(p.quantity / maxProductQty) * 100}%` }"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-sm">
+                                <Package class="size-8 text-muted-foreground/30 mb-2" />
+                                Chưa có dữ liệu sản phẩm bán chạy.
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- AI Insights and Advisor (1/3) -->
+                    <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative">
+                        <!-- Visual subtle background element -->
+                        <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl"></div>
+                        
+                        <CardHeader class="pb-2 border-b border-border/50 bg-muted/20">
+                            <CardTitle class="text-base font-bold flex items-center gap-2">
+                                <Brain class="size-4.5 text-indigo-500 animate-pulse" />
+                                Trợ lý thông minh Aventura AI
+                            </CardTitle>
+                            <p class="text-xs text-muted-foreground mt-0.5">Khuyến nghị vận hành tự động</p>
+                        </CardHeader>
+                        
+                        <CardContent class="pt-6 space-y-4 relative z-10 text-xs">
+                            <div v-if="topProductsList.length && doughnutPaths.length" class="space-y-4">
+                                <p class="leading-relaxed text-muted-foreground">
+                                    Dựa trên hiệu suất doanh số 7 ngày qua, AI ghi nhận kết quả hoạt động xuất sắc:
+                                </p>
+                                
+                                <div class="space-y-3">
+                                    <div class="flex items-start gap-2.5">
+                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-500/10 text-indigo-500 mt-0.5">
+                                            <Utensils class="size-3" />
+                                        </div>
+                                        <p class="leading-normal">
+                                            Kênh dịch vụ <strong class="text-foreground">{{ topChannelLabel }}</strong> đóng góp lượng đơn hàng lớn nhất của quán.
+                                        </p>
+                                    </div>
+
+                                    <div class="flex items-start gap-2.5">
+                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 mt-0.5">
+                                            <Package class="size-3" />
+                                        </div>
+                                        <p class="leading-normal">
+                                            Món ăn được thực khách ưa chuộng nhất là <strong class="text-foreground">{{ topDishName }}</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div class="flex items-start gap-2.5 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3 mt-4">
+                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white mt-0.5 text-[9px] font-bold">💡</div>
+                                        <p class="leading-relaxed text-indigo-700 dark:text-indigo-300 font-medium">
+                                            Khuyến nghị: Hãy cân nhắc thiết lập combo quà tặng hoặc giảm giá kèm món <strong>{{ topDishName }}</strong> trên trang QR Menu để kích thích thực khách gọi thêm các món ăn kèm khác!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-center text-sm">
+                                <Brain class="size-8 text-muted-foreground/30 mb-2" />
+                                Đang thu thập thêm dữ liệu để đưa ra khuyến nghị AI...
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </section>
+
         <!-- ── News + Right sidebar ──────────────────────────────── -->
         <section class="px-4 pb-14 lg:px-8">
             <div class="mx-auto max-w-7xl grid gap-6 lg:grid-cols-3">
 
-                <!-- News (2/3) -->
-                <div class="lg:col-span-2">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-base font-semibold">Tin tức & cập nhật</h2>
-                        <Link href="/tin-tuc" class="flex items-center gap-1 text-xs text-primary hover:underline">
-                            Xem tất cả <ChevronRight class="size-3.5" />
-                        </Link>
+                <!-- Bảng điều khiển Vận hành (2/3) -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/60">
+                        <div>
+                            <h2 class="text-base font-bold flex items-center gap-2">
+                                <span class="relative flex h-2.5 w-2.5">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                                </span>
+                                Trung tâm Giám sát Vận hành
+                            </h2>
+                            <p class="text-xs text-muted-foreground">Theo dõi hoạt động, trạng thái bàn và cảnh báo thời gian thực</p>
+                        </div>
+                        
+                        <!-- Premium Glassmorphic Tab Switcher -->
+                        <div class="flex p-0.5 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs self-start sm:self-auto shadow-inner">
+                            <button
+                                @click="activeTab = 'feed'"
+                                :class="activeTab === 'feed' ? 'bg-background text-foreground shadow-sm font-semibold' : 'hover:text-foreground'"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <Activity class="size-3.5" />
+                                Nhật ký
+                            </button>
+                            <button
+                                @click="activeTab = 'tables'"
+                                :class="activeTab === 'tables' ? 'bg-background text-foreground shadow-sm font-semibold' : 'hover:text-foreground'"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <BarChart3 class="size-3.5" />
+                                Sơ đồ Bàn
+                            </button>
+                            <button
+                                @click="activeTab = 'inventory'"
+                                :class="activeTab === 'inventory' ? 'bg-background text-foreground shadow-sm font-semibold' : 'hover:text-foreground'"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <AlertTriangle class="size-3.5" />
+                                Tồn kho
+                                <span v-if="lowStockList.length" class="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white leading-none scale-90">
+                                    {{ lowStockList.length }}
+                                </span>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- ── Hero: Bài tin tức nổi bật ── -->
-                    <Link
-                        v-if="props.featuredPost"
-                        :href="`/tin-tuc/${props.featuredPost.slug}`"
-                        class="group mt-4 flex flex-col sm:flex-row overflow-hidden rounded-2xl border border-primary/30 bg-card shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
-                    >
-                        <!-- Ảnh nối bật -->
-                        <div class="relative sm:w-56 lg:w-64 shrink-0 aspect-video sm:aspect-auto overflow-hidden bg-muted">
-                            <img
-                                v-if="props.featuredPost.featured_image_url"
-                                :src="props.featuredPost.featured_image_url"
-                                :alt="props.featuredPost.title"
-                                class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                            />
-                            <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-                                <Star class="size-10 text-primary/30" />
-                            </div>
-                            <!-- Badge nổi bật -->
-                            <span class="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground shadow">
-                                <Star class="size-3" /> Nổi bật
-                            </span>
-                        </div>
+                    <!-- TAB Content: Live Activity Feed -->
+                    <div v-if="activeTab === 'feed'" class="space-y-3 animate-in fade-in-50 duration-200">
+                        <div v-if="operationFeedList.length > 0" class="relative pl-4 border-l border-border/80 space-y-4 py-2">
+                            <div 
+                                v-for="(item, idx) in operationFeedList" 
+                                :key="idx"
+                                class="relative flex gap-4 p-3.5 rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/20 transition-all group"
+                            >
+                                <!-- Line pointer dot -->
+                                <div class="absolute -left-[21px] top-7 w-2.5 h-2.5 rounded-full border-2 border-background"
+                                     :class="{
+                                         'bg-amber-500 ring-4 ring-amber-500/20': item.color === 'amber',
+                                         'bg-violet-500 ring-4 ring-violet-500/20': item.color === 'violet',
+                                         'bg-emerald-500 ring-4 ring-emerald-500/20': item.color === 'emerald',
+                                         'bg-rose-500 ring-4 ring-rose-500/20': item.color === 'rose',
+                                         'bg-sky-500 ring-4 ring-sky-500/20': item.color === 'sky',
+                                     }"
+                                ></div>
 
-                        <!-- Nội dung -->
-                        <div class="flex flex-1 flex-col gap-2 p-5">
-                            <!-- Category badge -->
-                            <span class="inline-flex w-fit items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                                {{ props.featuredPost.category }}
-                            </span>
+                                <!-- Icon -->
+                                <div 
+                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-transform group-hover:scale-105"
+                                    :class="getFeedColorClasses(item.color)"
+                                >
+                                    <component :is="getFeedIcon(item.icon)" class="size-4.5" />
+                                </div>
 
-                            <h3 class="text-base font-bold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                                {{ props.featuredPost.title }}
-                            </h3>
+                                <!-- Content -->
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h4 class="text-sm font-semibold text-foreground truncate">{{ item.title }}</h4>
+                                        <span class="text-[10px] text-muted-foreground shrink-0 font-medium font-mono">{{ item.time }}</span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-muted-foreground leading-relaxed">{{ item.description }}</p>
+                                </div>
 
-                            <p v-if="props.featuredPost.excerpt" class="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                {{ props.featuredPost.excerpt }}
-                            </p>
-
-                            <div class="mt-auto flex items-center justify-between pt-2">
-                                <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                    <Calendar class="size-3.5" />
-                                    {{ props.featuredPost.published_at }}
-                                </span>
-                                <span class="flex items-center gap-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Đọc ngay <ChevronRight class="size-3.5" />
-                                </span>
+                                <!-- Link button or details arrow -->
+                                <div class="flex items-center justify-center shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Link :href="item.link" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                        <ChevronRight class="size-4" />
+                                    </Link>
+                                </div>
                             </div>
                         </div>
-                    </Link>
-
-                    <!-- Grid các bài còn lại -->
-                    <div v-if="latestNewsList.length > 0" class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <NewsCard
-                            v-for="post in latestNewsList"
-                            :key="post.id"
-                            :title="post.title"
-                            :slug="post.slug"
-                            :excerpt="post.excerpt"
-                            :category="post.category"
-                            :featured_image_url="post.featured_image_url"
-                            :is_featured="post.is_featured"
-                            :published_at="post.published_at"
-                        />
+                        <div v-else class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 py-16 text-center">
+                            <Activity class="size-10 text-muted-foreground/30 mb-2.5 animate-pulse" />
+                            <p class="text-sm font-medium text-muted-foreground">Chưa ghi nhận hoạt động vận hành nào hôm nay</p>
+                        </div>
                     </div>
-                    <div v-else-if="!props.featuredPost" class="mt-4 flex items-center justify-center rounded-xl border border-border bg-muted/30 py-10 text-sm text-muted-foreground">
-                        Chưa có bài viết nào.
+
+                    <!-- TAB Content: Live Table Grid Monitor -->
+                    <div v-else-if="activeTab === 'tables'" class="space-y-4 animate-in fade-in-50 duration-200">
+                        <div v-if="tablesList.length > 0" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                            <div 
+                                v-for="table in tablesList" 
+                                :key="table.id"
+                                class="relative flex flex-col gap-2 p-3 rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/20 transition-all group cursor-pointer"
+                            >
+                                <div class="flex items-start justify-between gap-1.5">
+                                    <span class="text-[10px] text-muted-foreground truncate font-medium">{{ table.area }}</span>
+                                    <!-- Status dot/indicator -->
+                                    <span class="h-2 w-2 rounded-full shrink-0 mt-1"
+                                          :class="{
+                                              'bg-emerald-500 animate-pulse': table.status === 'available',
+                                              'bg-indigo-500': table.status === 'occupied',
+                                              'bg-violet-500': table.status === 'reserved',
+                                              'bg-amber-500': table.status === 'cleaning'
+                                          }"
+                                    ></span>
+                                </div>
+
+                                <div class="mt-0.5">
+                                    <h4 class="text-sm font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+                                        <Utensils class="size-3.5 text-muted-foreground" />
+                                        {{ table.name }}
+                                    </h4>
+                                </div>
+
+                                <div class="mt-auto flex items-center justify-between gap-2 pt-1.5 border-t border-border/40">
+                                    <span class="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <Users class="size-3" />
+                                        {{ table.capacity }} chỗ
+                                    </span>
+                                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                                          :class="getTableStatusInfo(table.status).class"
+                                    >
+                                        {{ getTableStatusInfo(table.status).label }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 py-16 text-center">
+                            <BarChart3 class="size-10 text-muted-foreground/30 mb-2.5" />
+                            <p class="text-sm font-medium text-muted-foreground">Không tìm thấy thông tin bàn ăn nào</p>
+                        </div>
+                    </div>
+
+                    <!-- TAB Content: Low Stock Alerts -->
+                    <div v-else-if="activeTab === 'inventory'" class="space-y-3 animate-in fade-in-50 duration-200">
+                        <div v-if="lowStockList.length > 0" class="grid gap-3 sm:grid-cols-2">
+                            <div 
+                                v-for="item in lowStockList" 
+                                :key="item.id"
+                                class="flex flex-col gap-2 p-3.5 rounded-2xl border border-rose-100 bg-rose-50/10 dark:border-rose-950/20 dark:bg-rose-950/5 shadow-sm hover:shadow-md transition-all"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h4 class="text-sm font-bold text-foreground truncate flex items-center gap-2">
+                                            <Package class="size-4 text-rose-500" />
+                                            {{ item.ingredient_name }}
+                                        </h4>
+                                        <p class="text-xs text-muted-foreground mt-0.5">Mức tối thiểu: {{ item.min_stock_level }} {{ item.unit_name }}</p>
+                                    </div>
+                                    <Link href="/inventory" class="shrink-0 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5">
+                                        Nhập hàng <ChevronRight class="size-3" />
+                                    </Link>
+                                </div>
+
+                                <!-- Custom Progress Bar representing Stock levels -->
+                                <div class="mt-2.5 space-y-1">
+                                    <div class="flex justify-between text-[10px] text-muted-foreground font-semibold">
+                                        <span>Tồn kho hiện tại</span>
+                                        <span class="text-rose-600 dark:text-rose-400 font-bold font-mono">{{ item.quantity_on_hand }} / {{ item.reorder_level }} {{ item.unit_name }}</span>
+                                    </div>
+                                    <div class="h-2 rounded-full bg-muted overflow-hidden">
+                                        <div class="h-full rounded-full bg-rose-500 transition-all duration-500"
+                                             :style="{ width: `${Math.min((item.quantity_on_hand / Math.max(item.reorder_level, 1)) * 100, 100)}%` }"
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-emerald-500/5 py-12 text-center">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 mb-3 animate-bounce">
+                                <CheckCircle2 class="size-6" />
+                            </div>
+                            <h4 class="text-sm font-bold text-foreground">Tất cả nguyên liệu an toàn!</h4>
+                            <p class="text-xs text-muted-foreground mt-1">Không ghi nhận nguyên liệu nào đang ở mức báo động tồn kho</p>
+                        </div>
                     </div>
                 </div>
 

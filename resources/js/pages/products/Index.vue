@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
 import {
     UtensilsCrossed, Plus, FolderPlus, Search,
     CheckCircle2, AlertCircle, Pencil, Trash2, X, ChevronDown,
     ToggleLeft, ToggleRight
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -45,9 +45,11 @@ const editForm = useForm({
 // ── Computed ───────────────────────────────────────────────────────────────────
 const filteredProducts = computed(() => {
     let list = props.products;
+
     if (selectedCategory.value !== '') {
         list = list.filter(p => p.category?.id === selectedCategory.value);
     }
+
     if (searchQuery.value.trim()) {
         const q = searchQuery.value.toLowerCase();
         list = list.filter(p =>
@@ -56,19 +58,24 @@ const filteredProducts = computed(() => {
             (p.description ?? '').toLowerCase().includes(q)
         );
     }
+
     return list;
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 const submitCategory = () => {
     categoryForm.post('/product-categories', {
-        onSuccess: () => { categoryForm.reset(); showAddCategory.value = false; }
+        onSuccess: () => {
+ categoryForm.reset(); showAddCategory.value = false; 
+}
     });
 };
 
 const submitProduct = () => {
     productForm.post('/products', {
-        onSuccess: () => { productForm.reset(); showAddProduct.value = false; }
+        onSuccess: () => {
+ productForm.reset(); showAddProduct.value = false; 
+}
     });
 };
 
@@ -81,18 +88,30 @@ const openEditModal = (p: Product) => {
 };
 
 const submitEdit = () => {
-    if (!editingProduct.value) return;
+    if (!editingProduct.value) {
+return;
+}
+
     editForm.patch(`/products/${editingProduct.value.id}`, {
-        onSuccess: () => { editingProduct.value = null; editForm.reset(); }
+        onSuccess: () => {
+ editingProduct.value = null; editForm.reset(); 
+}
     });
 };
 
-const confirmDelete = (p: Product) => { deletingProduct.value = p; };
+const confirmDelete = (p: Product) => {
+ deletingProduct.value = p; 
+};
 
 const submitDelete = () => {
-    if (!deletingProduct.value) return;
+    if (!deletingProduct.value) {
+return;
+}
+
     router.delete(`/products/${deletingProduct.value.id}`, {
-        onSuccess: () => { deletingProduct.value = null; }
+        onSuccess: () => {
+ deletingProduct.value = null; 
+}
     });
 };
 

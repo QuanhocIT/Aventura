@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
 import {
     LayoutGrid, Plus, Pencil, Trash2, X, QrCode,
     Users, MapPin, CheckCircle2, Clock, AlertCircle
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -45,11 +45,15 @@ const statusConfig: Record<string, { label: string; color: string; dot: string }
 };
 
 const submitArea = () => areaForm.post('/tables/areas', {
-    onSuccess: () => { areaForm.reset(); showAddArea.value = false; }
+    onSuccess: () => {
+ areaForm.reset(); showAddArea.value = false; 
+}
 });
 
 const submitTable = () => tableForm.post('/tables', {
-    onSuccess: () => { tableForm.reset('name'); showAddTable.value = false; }
+    onSuccess: () => {
+ tableForm.reset('name'); showAddTable.value = false; 
+}
 });
 
 const openEdit = (t: Table) => {
@@ -60,16 +64,26 @@ const openEdit = (t: Table) => {
 };
 
 const submitEdit = () => {
-    if (!editingTable.value) return;
+    if (!editingTable.value) {
+return;
+}
+
     editForm.patch(`/tables/${editingTable.value.id}`, {
-        onSuccess: () => { editingTable.value = null; }
+        onSuccess: () => {
+ editingTable.value = null; 
+}
     });
 };
 
 const submitDelete = () => {
-    if (!deletingTable.value) return;
+    if (!deletingTable.value) {
+return;
+}
+
     router.delete(`/tables/${deletingTable.value.id}`, {
-        onSuccess: () => { deletingTable.value = null; }
+        onSuccess: () => {
+ deletingTable.value = null; 
+}
     });
 };
 </script>

@@ -6,6 +6,7 @@ import {
     Bot,
     Building2,
     BadgeDollarSign,
+    ClipboardCheck,
     Image,
     Newspaper,
     Users,
@@ -26,6 +27,8 @@ import {
     UserCheck,
     CalendarDays,
     ScrollText,
+    ShieldCheck,
+    ShieldAlert,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -49,15 +52,23 @@ import type { NavItem } from '@/types';
 const page = usePage();
 
 const tenant = computed(() => page.props.tenant as any);
+const pendingApprovalCount = computed(() => (page.props.pendingApprovalCount as number) ?? 0);
 
 const isSubscriptionActive = computed(() => {
-    if (isSuperAdmin.value) return true;
-    if (!tenant.value) return true;
+    if (isSuperAdmin.value) {
+return true;
+}
+
+    if (!tenant.value) {
+return true;
+}
+
     return tenant.value.status === 'active' || tenant.value.status === 'trial';
 });
 
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 
@@ -87,7 +98,7 @@ const superAdminNav: NavItem[] = [
 ];
 
 // ─── OWNER MENU ───────────────────────────────────────────────────────────────
-const ownerNav: NavItem[] = [
+const ownerNav = computed<NavItem[]>(() => [
     { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
     { title: 'Quản lý đơn hàng', href: '/orders',                 icon: ShoppingCart },
     { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
@@ -96,25 +107,31 @@ const ownerNav: NavItem[] = [
     { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
     { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
     { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
+    { title: 'Phê duyệt',        href: '/approvals',              icon: ShieldCheck, badge: pendingApprovalCount.value },
     { title: 'Khách hàng',       href: '/customers',              icon: Users },
     { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
     { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3 },
+    { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+    { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
     { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
     { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText },
     { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
     { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
-];
+]);
 
 // ─── MANAGER MENU ─────────────────────────────────────────────────────────────
 const managerNav: NavItem[] = [
     { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
     { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
+    { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
     { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
     { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
     { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
     { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
     { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare },
     { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3 },
+    { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+    { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
     { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2 },
     { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
     { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
@@ -125,7 +142,7 @@ const cashierNav: NavItem[] = [
     { title: 'Tạo đơn hàng',    href: '/orders/create',           icon: ShoppingCart },
     { title: 'Sơ đồ bàn',       href: '/tables',                  icon: Building2 },
     { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
-    { title: 'Doanh thu ca',     href: '/reports/shift',           icon: Wallet },
+    { title: 'Doanh thu ca',     href: '/shift-closings',          icon: ClipboardCheck },
     { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays },
 ];
 
@@ -154,7 +171,9 @@ const customerNav: NavItem[] = [
 
 // ─── Chọn menu dựa trên role và hạn gói ──────────────────────────────────────────
 const mainNavItems = computed<NavItem[]>(() => {
-    if (isSuperAdmin.value) return superAdminNav;
+    if (isSuperAdmin.value) {
+return superAdminNav;
+}
     
     // Nếu gói hết hạn / bị khóa, giới hạn chỉ cho phép xem Tổng quan
     if (!isSubscriptionActive.value) {
@@ -163,12 +182,30 @@ const mainNavItems = computed<NavItem[]>(() => {
         ];
     }
     
-    if (isOwner.value)      return ownerNav;
-    if (isManager.value)    return managerNav;
-    if (isCashier.value)    return cashierNav;
-    if (isKitchen.value)    return kitchenNav;
-    if (isInventory.value)  return inventoryNav;
-    if (isCustomer.value)   return customerNav;
+    if (isOwner.value)      {
+return ownerNav.value;
+}
+
+    if (isManager.value)    {
+return managerNav;
+}
+
+    if (isCashier.value)    {
+return cashierNav;
+}
+
+    if (isKitchen.value)    {
+return kitchenNav;
+}
+
+    if (isInventory.value)  {
+return inventoryNav;
+}
+
+    if (isCustomer.value)   {
+return customerNav;
+}
+
     return [];
 });
 

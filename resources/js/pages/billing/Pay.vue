@@ -1,5 +1,4 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import { 
     Sparkles, 
@@ -13,6 +12,7 @@ import {
     CreditCard, 
     User
 } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 
 const props = defineProps<{
@@ -58,7 +58,10 @@ function formatCurrency(val: number) {
 
 // Kiểm tra trạng thái thanh toán từ API
 async function checkPaymentStatus(silent = true) {
-    if (!silent) isChecking.value = true;
+    if (!silent) {
+isChecking.value = true;
+}
+
     try {
         const response = await fetch(`/api/billing/check/${props.subscription.transaction_code}`);
         const data = await response.json();
@@ -69,18 +72,24 @@ async function checkPaymentStatus(silent = true) {
     } catch (e) {
         console.error('Lỗi khi kiểm tra trạng thái thanh toán:', e);
     } finally {
-        if (!silent) isChecking.value = false;
+        if (!silent) {
+isChecking.value = false;
+}
     }
 }
 
 // Kích hoạt giao diện thành công và chuyển trang
 function triggerSuccess() {
     isSuccess.value = true;
-    if (pollInterval) clearInterval(pollInterval);
+
+    if (pollInterval) {
+clearInterval(pollInterval);
+}
     
     // Đếm ngược chuyển hướng về Dashboard
     const timer = setInterval(() => {
         countdown.value--;
+
         if (countdown.value <= 0) {
             clearInterval(timer);
             router.visit('/dashboard');
@@ -96,7 +105,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (pollInterval) clearInterval(pollInterval);
+    if (pollInterval) {
+clearInterval(pollInterval);
+}
 });
 
 defineOptions({

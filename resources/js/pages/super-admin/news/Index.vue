@@ -109,10 +109,16 @@ function closeDialog() {
 
 function onImageChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+
+    if (!file) {
+return;
+}
+
     form.image = file;
     const reader = new FileReader();
-    reader.onload = () => { imagePreview.value = reader.result as string; };
+    reader.onload = () => {
+ imagePreview.value = reader.result as string; 
+};
     reader.readAsDataURL(file);
 }
 
@@ -128,7 +134,10 @@ function submitForm() {
 }
 
 function deletePost(post: NewsPost) {
-    if (!confirm(`Xóa bài: "${post.title}"?`)) return;
+    if (!confirm(`Xóa bài: "${post.title}"?`)) {
+return;
+}
+
     router.delete(`/super-admin/news/${post.id}`, { preserveScroll: true });
 }
 
@@ -271,7 +280,7 @@ const hasFilters = computed(() => !!search.value || !!category.value || !!status
                                     <span v-if="post.published_at" class="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                                         <Calendar class="size-3" />{{ post.published_at }}
                                     </span>
-                                    <span v-else class="text-xs text-muted-foreground"></span>
+                                    <span v-else class="text-xs text-muted-foreground">-</span>
                                 </td>
                                 <!-- Actions -->
                                 <td class="px-4 py-3 text-right">

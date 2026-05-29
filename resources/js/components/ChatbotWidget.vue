@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue';
 import { Bot, ChevronDown, Loader2, Send, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next';
+import { nextTick, onMounted, ref } from 'vue';
 
 const props = withDefaults(defineProps<{
     source?: string;
@@ -45,10 +45,12 @@ onMounted(async () => {
 function getOrCreateSessionId(): string {
     const key = 'aventura_chatbot_session';
     let id = localStorage.getItem(key);
+
     if (!id) {
         id = crypto.randomUUID();
         localStorage.setItem(key, id);
     }
+
     return id;
 }
 
@@ -66,6 +68,7 @@ async function loadSuggestions() {
 // ── Chat actions ─────────────────────────────────────────────────────────────
 function toggleOpen() {
     isOpen.value = !isOpen.value;
+
     if (isOpen.value) {
         nextTick(() => inputRef.value?.focus());
     }
@@ -78,7 +81,10 @@ function selectSuggestion(question: string) {
 
 async function sendMessage() {
     const text = inputText.value.trim();
-    if (!text || isLoading.value) return;
+
+    if (!text || isLoading.value) {
+return;
+}
 
     inputText.value = '';
     hasSentFirstMessage.value = true;
@@ -135,7 +141,10 @@ async function sendMessage() {
 }
 
 async function sendFeedback(msg: Message, helpful: boolean) {
-    if (!msg.knowledgeId || msg.feedback) return;
+    if (!msg.knowledgeId || msg.feedback) {
+return;
+}
+
     msg.feedback = helpful ? 'helpful' : 'unhelpful';
 
     try {

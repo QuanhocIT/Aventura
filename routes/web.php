@@ -8,7 +8,6 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NewsController;
 // Chatbot API  public (rate limited)
 use Illuminate\Support\Facades\Route;
-use Laravel\Fortify\Features;
 
 Route::middleware('throttle:30,1')->group(function () {
     Route::post('api/chatbot/message', [ChatbotController::class, 'message'])->name('chatbot.message');
@@ -32,6 +31,7 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/tin-tuc', [NewsController::class, 'index'])->name('news.index');
 Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show');
 
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SupportController;
 
@@ -58,10 +58,16 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::get('inventory', [SupportController::class, 'inventoryPage'])->name('inventory.index');
     Route::post('inventory/ingredients', [SupportController::class, 'storeIngredient'])->name('inventory.ingredients.store');
     Route::post('inventory/recipes', [SupportController::class, 'storeRecipe'])->name('inventory.recipes.store');
+    Route::post('inventory/purchases', [SupportController::class, 'storePurchase'])->name('inventory.purchases.store');
+    Route::post('inventory/waste', [SupportController::class, 'storeWaste'])->name('inventory.waste.store');
 
     Route::get('employees', [SupportController::class, 'employeesPage'])->name('employees.index');
     Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store');
     Route::patch('employees/{employee}', [SupportController::class, 'updateEmployee'])->name('employees.update');
+    Route::patch('employees/{employee}/toggle-status', [SupportController::class, 'toggleEmployeeStatus'])->name('employees.toggle-status');
+    Route::post('employees/shifts/sync', [SupportController::class, 'syncShifts'])->name('employees.shifts.sync');
+    Route::post('employees/schedules', [SupportController::class, 'storeAssignment'])->name('employees.schedules.store');
+    Route::post('employees/schedules/delete', [SupportController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
 
     // Tables management
     Route::get('tables', [\App\Http\Controllers\TablesController::class, 'index'])->name('tables.index');
@@ -76,9 +82,34 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
 
     // Revenue / Reports
     Route::get('reports', [\App\Http\Controllers\ReportsController::class, 'index'])->name('reports.index');
+    Route::post('reports/generate', [\App\Http\Controllers\ReportsController::class, 'generate'])->name('reports.generate');
+    Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
+
+    // Bảng lương
+    Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
+    Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');
+    Route::patch('salaries/{salary}/approve', [\App\Http\Controllers\SalaryController::class, 'approve'])->name('salaries.approve');
+    Route::patch('salaries/{salary}/paid', [\App\Http\Controllers\SalaryController::class, 'markPaid'])->name('salaries.paid');
+    Route::post('salaries/{salary}/adjustments', [\App\Http\Controllers\SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
+
+    // Shift Closings — Chốt ca & Doanh thu gộp
+    Route::get('shift-closings', [\App\Http\Controllers\ShiftClosingController::class, 'index'])->name('shift-closings.index');
+    Route::get('shift-closings/preview', [\App\Http\Controllers\ShiftClosingController::class, 'preview'])->name('shift-closings.preview');
+    Route::post('shift-closings', [\App\Http\Controllers\ShiftClosingController::class, 'store'])->name('shift-closings.store');
+    Route::patch('shift-closings/{closing}/confirm', [\App\Http\Controllers\ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
+    Route::patch('shift-closings/{closing}/dispute', [\App\Http\Controllers\ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
 
     // Support booking demo
     Route::post('support/bookings', [SupportController::class, 'storeBooking'])->name('support.bookings.store');
+
+    // Kiểm toán gian lận
+    Route::get('fraud', [\App\Http\Controllers\FraudController::class, 'index'])->name('fraud.index');
+    Route::post('fraud/violation', [\App\Http\Controllers\FraudController::class, 'createViolation'])->name('fraud.violation.store');
+
+    // Kiểm duyệt chéo (Cross-review)
+    Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+    Route::patch('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
+    Route::patch('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
 });
 
 require __DIR__.'/settings.php';

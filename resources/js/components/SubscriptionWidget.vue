@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import {
     ArrowUpRight, Building2, Check,
     Grid, Lock, Sparkles, Users2, X, Zap,
 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 
 interface AvailablePlan {
@@ -35,8 +35,12 @@ const currentPlanCode = computed(() => tenant.value?.plan?.code?.toLowerCase() ?
 
 // Plan rank = index in price-ordered list (0 = cheapest)
 const planRank = computed(() => {
-    if (!currentPlanCode.value) return 0;
+    if (!currentPlanCode.value) {
+return 0;
+}
+
     const idx = availablePlans.value.findIndex(p => p.code === currentPlanCode.value);
+
     return idx === -1 ? 0 : idx;
 });
 
@@ -45,21 +49,31 @@ const isTrial = computed(() => tenant.value?.status === 'trial');
 
 const daysRemaining = computed(() => {
     const d = tenant.value?.subscription_ends_at || tenant.value?.trial_ends_at;
-    if (!d) return null;
+
+    if (!d) {
+return null;
+}
+
     const diff = new Date(d).getTime() - new Date().setHours(0, 0, 0, 0);
     const days = Math.ceil(diff / 86400000);
+
     return days > 0 ? days : 0;
 });
 
 // Formatted expiry date
 const expiryDate = computed(() => {
     const d = tenant.value?.subscription_ends_at || tenant.value?.trial_ends_at;
-    if (!d) return null;
+
+    if (!d) {
+return null;
+}
+
     return new Date(d).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
 });
 
 const resources = computed(() => {
     const s = tenant.value?.quota_summary?.resources ?? {};
+
     return [
         { key: 'branches',  label: 'Chi nhánh',  icon: Building2, used: s.branches?.used  ?? 0, limit: s.branches?.limit,  unlimited: s.branches?.unlimited  ?? false, pct: s.branches?.percentage  ?? 0 },
         { key: 'tables',    label: 'Bàn tối đa', icon: Grid,      used: s.tables?.used    ?? 0, limit: s.tables?.limit,    unlimited: s.tables?.unlimited    ?? false, pct: s.tables?.percentage    ?? 0 },
@@ -68,8 +82,14 @@ const resources = computed(() => {
 });
 
 function getProgressColor(pct: number) {
-    if (pct >= 90) return 'bg-rose-500';
-    if (pct >= 70) return 'bg-amber-500';
+    if (pct >= 90) {
+return 'bg-rose-500';
+}
+
+    if (pct >= 70) {
+return 'bg-amber-500';
+}
+
     return 'bg-emerald-500';
 }
 
@@ -87,6 +107,7 @@ const selectedPlan = computed(() => {
     if (selectedPlanCode.value) {
         return upgradablePlans.value.find(p => p.code === selectedPlanCode.value) ?? upgradablePlans.value[0] ?? null;
     }
+
     return upgradablePlans.value[0] ?? null;
 });
 
@@ -94,7 +115,10 @@ const selectedPlan = computed(() => {
 const nextPlan = computed(() => upgradablePlans.value[0] ?? null);
 
 function formatPrice(price: number) {
-    if (price === 0) return 'Miễn phí';
+    if (price === 0) {
+return 'Miễn phí';
+}
+
     return price.toLocaleString('vi-VN') + 'đ/tháng';
 }
 
@@ -110,17 +134,37 @@ function getPlanFeatures(plan: AvailablePlan): string[] {
         mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`,
         `Rate limit: ${rate.toLocaleString('vi-VN')}/phút`,
     ];
-    if (plan.features?.ai_features) list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-    if (plan.features?.realtime) list.push('Realtime sync & Advanced Analytics');
-    if (plan.features?.advanced_analytics) list.push('Hệ thống Audit Log bảo mật');
+
+    if (plan.features?.ai_features) {
+list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
+}
+
+    if (plan.features?.realtime) {
+list.push('Realtime sync & Advanced Analytics');
+}
+
+    if (plan.features?.advanced_analytics) {
+list.push('Hệ thống Audit Log bảo mật');
+}
+
     return list;
 }
 
 function getPlanUnsupported(plan: AvailablePlan): string[] {
     const list: string[] = [];
-    if (!plan.features?.ai_features) list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-    if (!plan.features?.realtime) list.push('Realtime sync & Advanced Analytics');
-    if (!plan.features?.advanced_analytics) list.push('Hệ thống Audit Log bảo mật');
+
+    if (!plan.features?.ai_features) {
+list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
+}
+
+    if (!plan.features?.realtime) {
+list.push('Realtime sync & Advanced Analytics');
+}
+
+    if (!plan.features?.advanced_analytics) {
+list.push('Hệ thống Audit Log bảo mật');
+}
+
     return list;
 }
 

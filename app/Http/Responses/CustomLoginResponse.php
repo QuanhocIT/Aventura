@@ -21,11 +21,6 @@ class CustomLoginResponse implements LoginResponseContract
 
         $user->forceFill(['last_login_at' => now()])->save();
 
-        // Super admin luôn đi thẳng tới admin dashboard, bỏ qua plan selection
-        if ($user->isSuperAdmin()) {
-            return redirect('/super-admin/dashboard');
-        }
-
         // Nếu user chọn một gói khác gói hiện tại từ trang login → chuyển tới billing
         $desiredCode = Str::lower((string) $request->input('plan_code', ''));
         if ($desiredCode && $desiredCode !== 'free') {

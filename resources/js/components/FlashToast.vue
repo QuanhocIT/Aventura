@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
 import { CheckCircle2, XCircle, X, Info } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 
 interface Toast {
     id: number;
@@ -21,14 +21,22 @@ function addToast(type: Toast['type'], message: string) {
 
 function removeToast(id: number) {
     const idx = toasts.value.findIndex(t => t.id === id);
-    if (idx !== -1) toasts.value.splice(idx, 1);
+
+    if (idx !== -1) {
+toasts.value.splice(idx, 1);
+}
 }
 
 watch(
     () => (page.props as any).flash,
     (flash) => {
-        if (flash?.success) addToast('success', flash.success);
-        if (flash?.error)   addToast('error',   flash.error);
+        if (flash?.success) {
+addToast('success', flash.success);
+}
+
+        if (flash?.error)   {
+addToast('error',   flash.error);
+}
     },
     { deep: true }
 );

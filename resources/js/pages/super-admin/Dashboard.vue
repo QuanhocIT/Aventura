@@ -156,6 +156,7 @@ const healthBarColor: Record<string, string> = {
 
 const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
+
     return [
         { label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/40', border: 'border-violet-500/30', icon: '👑' },
         { label: 'Đang dùng Trial', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/40', border: 'border-sky-500/30', icon: '🔵' },
@@ -172,6 +173,7 @@ const overallHealthStyle = computed(() => {
         red: { ring: 'stroke-rose-500', text: 'text-rose-400', bg: 'from-rose-600/10 to-rose-900/20' },
         gray: { ring: 'stroke-slate-500', text: 'text-slate-400', bg: 'from-slate-600/10 to-slate-900/20' },
     };
+
     return map[color] ?? map.gray;
 });
 
@@ -179,6 +181,7 @@ const maxForecastMrr = computed(() => Math.max(...(props.aiInsights?.mrr_forecas
 
 const hasAiData = computed(() => {
     const ai = props.aiInsights;
+
     return ai && ai.overall_health != null && (ai.churn_risks?.length > 0 || ai.health_scores?.length > 0 || Object.keys(ai.segments ?? {}).length > 0);
 });
 

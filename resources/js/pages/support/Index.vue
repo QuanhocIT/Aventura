@@ -1,17 +1,17 @@
-﻿<script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+<script setup lang="ts">
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import {
     Headset, HelpCircle, Calendar, MessageSquare, BookOpen, Compass, Search,
     Plus, Send, CheckCircle2, User, Clock, ChevronRight, Play, RefreshCw, AlertCircle
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -31,7 +31,10 @@ const showCreateTicket = ref(false);
 const ticketStatusFilter = ref<string>('all');
 
 const filteredTickets = computed(() => {
-    if (ticketStatusFilter.value === 'all') return props.tickets;
+    if (ticketStatusFilter.value === 'all') {
+return props.tickets;
+}
+
     return props.tickets.filter(t => t.status === ticketStatusFilter.value);
 });
 
@@ -83,8 +86,12 @@ const statusColors: Record<string, string> = {
 
 // Lọc các bài viết tài liệu
 const filteredArticles = computed(() => {
-    if (!searchQuery.value) return props.articles;
+    if (!searchQuery.value) {
+return props.articles;
+}
+
     const query = searchQuery.value.toLowerCase();
+
     return props.articles.filter(
         art => art.title.toLowerCase().includes(query) || art.summary?.toLowerCase().includes(query)
     );
@@ -106,12 +113,16 @@ const submitTicket = () => {
 };
 
 const submitReply = (ticketId: number) => {
-    if (!replyForm.message.trim()) return;
+    if (!replyForm.message.trim()) {
+return;
+}
+
     replyForm.post(`/support/tickets/${ticketId}/replies`, {
         onSuccess: () => {
             replyForm.reset();
             // Cập nhật ticket đang chọn
             const updated = props.tickets.find(t => t.id === ticketId);
+
             if (updated) {
                 selectedTicket.value = updated;
             }
@@ -128,7 +139,10 @@ const availableSlots = [
 ];
 
 const submitBooking = () => {
-    if (!bookingForm.date || !bookingForm.time_slot) return;
+    if (!bookingForm.date || !bookingForm.time_slot) {
+return;
+}
+
     selectedDemoDate.value = bookingForm.date;
     selectedTimeSlot.value = bookingForm.time_slot;
     bookingForm.post('/support/bookings', {
@@ -166,25 +180,55 @@ const triggerTour = (day: number) => {
 
 function formatRelativeTime(dateStr: string): string {
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
+
+    if (isNaN(date.getTime())) {
+return dateStr;
+}
+
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (diff < 60)  return 'Vừa xong';
-    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-    if (diff < 2592000) return `${Math.floor(diff / 86400)} ngày trước`;
+
+    if (diff < 60)  {
+return 'Vừa xong';
+}
+
+    if (diff < 3600) {
+return `${Math.floor(diff / 60)} phút trước`;
+}
+
+    if (diff < 86400) {
+return `${Math.floor(diff / 3600)} giờ trước`;
+}
+
+    if (diff < 2592000) {
+return `${Math.floor(diff / 86400)} ngày trước`;
+}
+
     return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // Tính toán phần trăm tiến độ onboarding
 const onboardingProgress = computed(() => {
-    const userObj = router.page.props.auth.user as any;
+    const page = usePage();
+    const userObj = page.props.auth?.user as any;
     const status = userObj?.onboarding_status;
-    if (!status) return 0;
+
+    if (!status) {
+return 0;
+}
     
     let completedDays = 0;
-    if (status.day_1?.completed_at) completedDays++;
-    if (status.day_2?.completed_at) completedDays++;
-    if (status.day_3?.completed_at) completedDays++;
+
+    if (status.day_1?.completed_at) {
+completedDays++;
+}
+
+    if (status.day_2?.completed_at) {
+completedDays++;
+}
+
+    if (status.day_3?.completed_at) {
+completedDays++;
+}
     
     return Math.round((completedDays / 3) * 100);
 });

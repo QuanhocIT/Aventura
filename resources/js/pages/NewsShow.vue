@@ -3,9 +3,9 @@ import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-vue-next';
 import { ref, onMounted, onUnmounted } from 'vue';
 import NewsCard from '@/components/NewsCard.vue';
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
-defineOptions({ layout: AppTopbarLayout });
+defineOptions({ layout: AppLayout });
 
 interface NewsPost {
     id: number; title: string; slug: string; excerpt: string | null;
@@ -61,7 +61,7 @@ function renderMarkdown(text: string): string {
 </script>
 
 <template>
-    <Head :title="`${post.title}  Aventura`">
+    <Head :title="`${post.title} - Aventura`">
         <meta property="og:title" :content="post.title" />
         <meta property="og:description" :content="post.excerpt ?? post.title" />
         <meta v-if="post.featured_image_url" property="og:image" :content="post.featured_image_url" />
