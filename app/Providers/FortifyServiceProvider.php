@@ -30,6 +30,31 @@ class FortifyServiceProvider extends ServiceProvider
 
         $this->app->singleton(\Laravel\Fortify\Contracts\LoginResponse::class, \App\Http\Responses\CustomLoginResponse::class);
         $this->app->singleton(\Laravel\Fortify\Contracts\RegisterResponse::class, \App\Http\Responses\CustomRegisterResponse::class);
+
+        Fortify::authenticateUsing(function (Request $request) {
+            $user = \App\Models\User::where('email', $request->email)->first();
+
+            if ($user && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                if ($user->status !== 'active') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'email' => ['Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.'],
+                    ]);
+                }
+
+                if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                    $employee = $user->employee;
+                    if (!$employee || !$employee->isWithinScheduledShift()) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'email' => ['Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.'],
+                        ]);
+                    }
+                }
+
+                return $user;
+            }
+
+            return null;
+        });
     }
 
     private function configureActions(): void

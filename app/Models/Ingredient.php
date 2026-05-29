@@ -25,9 +25,19 @@ class Ingredient extends Model
         return $this->belongsTo(Unit::class);
     }
 
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
     public function inventories(): HasMany
     {
         return $this->hasMany(Inventory::class);
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(InventoryTransaction::class);
     }
 
     protected static function newFactory(): Factory

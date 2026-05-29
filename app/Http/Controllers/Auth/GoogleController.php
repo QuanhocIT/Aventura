@@ -38,7 +38,18 @@ class GoogleController extends Controller
                 ->first();
 
             if ($user) {
-                // Tài khoản đã tồn tại  cập nhật google_id nếu chưa có
+                if ($user->status !== 'active') {
+                    return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.']);
+                }
+
+                if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                    $employee = $user->employee;
+                    if (!$employee || !$employee->isWithinScheduledShift()) {
+                        return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);
+                    }
+                }
+
+                // Tài khoản đã tồn tại — cập nhật google_id nếu chưa có
                 $user->google_id     = $googleUser->getId();
                 $user->last_login_at = now();
 

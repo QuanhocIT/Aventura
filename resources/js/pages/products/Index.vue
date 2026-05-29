@@ -204,10 +204,15 @@ const toggleAvailability = (p: Product) => {
                             <Input id="prod-price" type="number" v-model="productForm.price" placeholder="Ví dụ: 45000" required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="prod-desc">Mô tả món ăn</Label>
-                            <textarea id="prod-desc" v-model="productForm.description" rows="2"
-                                placeholder="Ghi chú nguyên liệu, ghi chú nấu..."
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
+                            <div class="flex items-center justify-between">
+                                <Label for="prod-desc" class="font-semibold text-slate-700 dark:text-slate-300">
+                                    Đặc điểm & Hương vị món ăn <span class="text-rose-500 font-bold">*</span>
+                                </Label>
+                                <span class="text-[10px] text-rose-500 font-medium bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded-md">Bắt buộc</span>
+                            </div>
+                            <textarea id="prod-desc" v-model="productForm.description" rows="3" required
+                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
+                                class="w-full rounded-xl border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:border-rose-500 transition-all duration-150" />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="showAddProduct = false">Hủy</Button>
@@ -252,9 +257,15 @@ const toggleAvailability = (p: Product) => {
                             <Input type="number" v-model="editForm.price" required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label>Mô tả</Label>
-                            <textarea v-model="editForm.description" rows="2"
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
+                            <div class="flex items-center justify-between">
+                                <Label class="font-semibold text-slate-700 dark:text-slate-300">
+                                    Đặc điểm & Hương vị món ăn <span class="text-rose-500 font-bold">*</span>
+                                </Label>
+                                <span class="text-[10px] text-rose-500 font-medium bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded-md">Bắt buộc</span>
+                            </div>
+                            <textarea v-model="editForm.description" rows="3" required
+                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
+                                class="w-full rounded-xl border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:border-rose-500 transition-all duration-150" />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="editingProduct = null">Hủy</Button>
