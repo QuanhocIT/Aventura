@@ -12,6 +12,22 @@ class InventoryTransaction extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        $lockCheck = function (self $model) {
+            $date = $model->occurred_at instanceof \Carbon\Carbon
+                ? $model->occurred_at->toDateString()
+                : \Carbon\Carbon::parse($model->occurred_at)->toDateString();
+
+            if (Salary::isPeriodLocked($model->restaurant_id, null, $date)) {
+                throw new \Exception("Giao dịch kho đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+            }
+        };
+
+        static::updating($lockCheck);
+        static::deleting($lockCheck);
+    }
+
     protected function casts(): array
     {
         return [

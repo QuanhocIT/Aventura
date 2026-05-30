@@ -311,6 +311,75 @@ class SupportController extends Controller
             ->orderBy('full_name')
             ->get(['id', 'full_name', 'job_title']);
 
+        // Fetch recent waste transactions (approved)
+        $recentWasteTransactions = InventoryTransaction::where('restaurant_id', $user->restaurant_id)
+            ->where('type', 'waste')
+            ->with(['ingredient:id,name,unit_id', 'ingredient.unit', 'performedBy:id,name'])
+            ->latest('occurred_at')
+            ->take(15)
+            ->get();
+
+        // Fetch pending or rejected waste approvals
+        $recentWasteApprovals = \App\Models\ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+            ->where('operation_type', 'inventory_waste')
+            ->with(['requester:id,name'])
+            ->latest('created_at')
+            ->take(15)
+            ->get();
+
+        $recentWastes = collect();
+
+        foreach ($recentWasteTransactions as $t) {
+            $salaryAdjustment = \App\Models\SalaryAdjustment::where('reference_id', $t->id)
+                ->where('reference_type', InventoryTransaction::class)
+                ->with('employee:id,full_name')
+                ->first();
+
+            $recentWastes->push([
+                'id'              => $t->id,
+                'is_approval'     => false,
+                'ingredient_name' => $t->ingredient?->name ?? '—',
+                'quantity'        => (float) $t->quantity,
+                'unit_symbol'     => $t->ingredient?->unit?->symbol ?? '—',
+                'cost'            => (float) $t->total_cost,
+                'notes'           => $t->notes,
+                'performed_by'    => $t->performedBy?->name ?? 'Hệ thống',
+                'employee_name'   => $salaryAdjustment?->employee?->full_name ?? 'Không khấu trừ',
+                'timestamp'       => $t->occurred_at->timestamp,
+                'occurred_at'     => $t->occurred_at->format('d/m/Y H:i'),
+                'status'          => 'approved',
+                'rejection_reason'=> null,
+            ]);
+        }
+
+        foreach ($recentWasteApprovals as $r) {
+            if ($r->status === 'approved') {
+                continue;
+            }
+
+            $opData = $r->operation_data;
+            $ing = Ingredient::find($opData['ingredient_id'] ?? null);
+            $emp = !empty($opData['employee_id']) ? Employee::find($opData['employee_id']) : null;
+
+            $recentWastes->push([
+                'id'              => $r->id,
+                'is_approval'     => true,
+                'ingredient_name' => $ing?->name ?? '—',
+                'quantity'        => (float) ($opData['quantity'] ?? 0),
+                'unit_symbol'     => $ing?->unit?->symbol ?? '—',
+                'cost'            => (float) (($opData['quantity'] ?? 0) * ($ing?->average_cost ?? 0)),
+                'notes'           => $opData['notes'] ?? null,
+                'performed_by'    => $r->requester?->name ?? '—',
+                'employee_name'   => $emp?->full_name ?? 'Không khấu trừ',
+                'timestamp'       => $r->created_at->timestamp,
+                'occurred_at'     => $r->created_at->format('d/m/Y H:i'),
+                'status'          => $r->status,
+                'rejection_reason'=> $r->rejection_reason,
+            ]);
+        }
+
+        $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
+
         return Inertia::render('inventory/Index', [
             'ingredients'     => $ingredients,
             'products'        => $products,
@@ -318,6 +387,7 @@ class SupportController extends Controller
             'suppliers'       => $suppliers,
             'recentPurchases' => $recentPurchases,
             'employees'       => $employees,
+            'recentWastes'    => $recentWastes,
         ]);
     }
 
@@ -449,7 +519,7 @@ class SupportController extends Controller
 
         $data = $request->validate([
             'name'              => ['required', 'string', 'max:255'],
-            'email'             => ['required', 'email', 'unique:users,email'],
+            'email'             => ['required', 'email', \Illuminate\Validation\Rule::unique('users')->where('restaurant_id', $user->restaurant_id)],
             'phone'             => ['required', 'string', 'max:20'],
             'citizen_id_number' => ['required', 'string', 'max:20'],
             'address'           => ['required', 'string', 'max:500'],
@@ -474,7 +544,7 @@ class SupportController extends Controller
             $backUrl = '/storage/' . $path;
         }
 
-        // Tạo User mới cho nhân viên
+        // Tạo User mới cho nhân viên ở trạng thái Chờ xác nhận
         $tempPassword = Str::random(10);
         $newUser = User::create([
             'name'               => $data['name'],
@@ -482,8 +552,8 @@ class SupportController extends Controller
             'password'           => bcrypt($tempPassword),
             'phone'              => $data['phone'],
             'restaurant_id'      => $user->restaurant_id,
-            'status'             => 'active',
-            'email_verified_at'  => now(),
+            'status'             => 'inactive',
+            'email_verified_at'  => null,
         ]);
 
         // Gán Role qua Spatie
@@ -493,8 +563,8 @@ class SupportController extends Controller
         ]);
         $newUser->assignRole($role);
 
-        // Tạo hồ sơ nhân viên Employee
-        Employee::create([
+        // Tạo hồ sơ nhân viên Employee ở trạng thái Chờ xác nhận
+        $newEmployee = Employee::create([
             'restaurant_id'        => $user->restaurant_id,
             'user_id'              => $newUser->id,
             'employee_code'        => 'EMP-' . Str::upper(Str::random(5)),
@@ -510,13 +580,120 @@ class SupportController extends Controller
             'base_salary'          => $data['base_salary'],
             'job_title'            => $data['job_title'],
             'employment_type'      => 'full_time',
-            'status'               => 'active',
+            'status'               => 'inactive',
             'role_id'              => $role->id,
         ]);
 
+        // Tạo signed URL hạn dùng 3 ngày để xác nhận lời mời nhận việc
+        $verificationUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'employees.verify',
+            now()->addDays(3),
+            ['user' => $newUser->id]
+        );
+
+        // Gửi email mời nhận việc & xác thực
+        try {
+            \Illuminate\Support\Facades\Mail::to($data['email'])->send(
+                new \App\Mail\EmployeeInvitationMail(
+                    $data['name'],
+                    $user->restaurant->name ?? 'Aventura Restaurant',
+                    $data['job_title'],
+                    $verificationUrl
+                )
+            );
+        } catch (\Exception $e) {
+            // Log error or silently fallback, but don't crash
+            logger()->error('Failed to send employee invitation email: ' . $e->getMessage());
+        }
+
         return back()
-            ->with('success', "Đã thêm nhân viên {$data['name']} thành công.")
-            ->with('temp_password', "Mật khẩu tạm thời: {$tempPassword} — Yêu cầu nhân viên đổi ngay sau khi đăng nhập lần đầu.");
+            ->with('success', "Đã gửi email xác thực lời mời nhận việc đến hộp thư {$data['email']}. Nhân viên cần bấm xác nhận qua Gmail để kích hoạt tài khoản đăng nhập.")
+            ->with('temp_password', "Mật khẩu tạm thời: {$tempPassword} — Mật khẩu này sẽ có hiệu lực ngay khi nhân viên hoàn tất xác nhận.");
+    }
+
+    /**
+     * Xác thực và kích hoạt tài khoản nhân viên từ link Gmail.
+     */
+    public function verifyEmployee(Request $request, User $user): RedirectResponse
+    {
+        if ($user->status === 'active') {
+            return redirect()->route('login')->with('success', 'Tài khoản của bạn đã được kích hoạt trước đó. Vui lòng đăng nhập.');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
+            $user->update([
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ]);
+
+            $employee = $user->employee;
+            if ($employee) {
+                $employee->update([
+                    'status' => 'active',
+                ]);
+            }
+        });
+
+        return redirect()->route('login')->with('success', 'Xác thực tài khoản và kích hoạt vai trò nhân viên thành công! Hãy đăng nhập để trải nghiệm hệ thống.');
+    }
+
+    /**
+     * Hiển thị trang chọn nhà hàng cho tài khoản đa chi nhánh/nhà hàng.
+     */
+    public function chooseRestaurantPage(Request $request): Response|\Illuminate\Http\RedirectResponse
+    {
+        $user = $request->user();
+        
+        $activeUsers = User::where('email', $user->email)
+            ->where('status', 'active')
+            ->with(['restaurant', 'roles'])
+            ->get();
+
+        if ($activeUsers->count() <= 1) {
+            return redirect()->intended('/dashboard');
+        }
+
+        $restaurants = $activeUsers->map(function ($activeUser) {
+            return [
+                'id' => $activeUser->restaurant->id,
+                'name' => $activeUser->restaurant->name,
+                'logo_url' => $activeUser->restaurant->logo_url ?? null,
+                'role' => $activeUser->roles->pluck('name')->first() ?? 'Nhân viên',
+                'job_title' => $activeUser->employee?->job_title ?? 'Nhân viên',
+                'user_id' => $activeUser->id,
+            ];
+        });
+
+        return Inertia::render('auth/ChooseRestaurant', [
+            'restaurants' => $restaurants,
+        ]);
+    }
+
+    /**
+     * Thực hiện chuyển đổi session sang nhà hàng được chọn.
+     */
+    public function chooseRestaurant(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'integer'],
+        ]);
+
+        $currentUser = $request->user();
+        $targetUser = User::where('id', $data['user_id'])
+            ->where('email', $currentUser->email)
+            ->where('status', 'active')
+            ->firstOrFail();
+
+        \Illuminate\Support\Facades\Auth::login($targetUser);
+        $request->session()->regenerate();
+
+        // Cập nhật lại session multi_tenant_users để duy trì trạng thái
+        $activeUsers = User::where('email', $targetUser->email)
+            ->where('status', 'active')
+            ->get();
+        session(['multi_tenant_users' => $activeUsers->pluck('id', 'restaurant_id')->toArray()]);
+
+        return redirect()->intended('/dashboard');
     }
 
     /**

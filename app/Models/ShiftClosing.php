@@ -13,6 +13,28 @@ class ShiftClosing extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        $lockCheck = function (self $model) {
+            $employee = Employee::withoutGlobalScopes()
+                ->where('restaurant_id', $model->restaurant_id)
+                ->where('user_id', $model->cashier_user_id)
+                ->first();
+
+            $employeeId = $employee ? $employee->id : null;
+            $date = $model->closing_date instanceof \Carbon\Carbon
+                ? $model->closing_date->toDateString()
+                : \Carbon\Carbon::parse($model->closing_date)->toDateString();
+
+            if (Salary::isPeriodLocked($model->restaurant_id, $employeeId, $date)) {
+                throw new \Exception("Dữ liệu chấm công chốt ca đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+            }
+        };
+
+        static::updating($lockCheck);
+        static::deleting($lockCheck);
+    }
+
     protected function casts(): array
     {
         return [

@@ -12,7 +12,7 @@ class AuditLogController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole(['owner', 'manager']), 403);
+        abort_unless($user->hasRole('owner'), 403);
 
         $restaurantId = $user->restaurant_id;
 

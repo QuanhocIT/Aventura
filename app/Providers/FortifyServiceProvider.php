@@ -32,15 +32,27 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->singleton(\Laravel\Fortify\Contracts\RegisterResponse::class, \App\Http\Responses\CustomRegisterResponse::class);
 
         Fortify::authenticateUsing(function (Request $request) {
-            $user = \App\Models\User::where('email', $request->email)->first();
+            $users = \App\Models\User::where('email', $request->email)->get();
 
-            if ($user && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
-                if ($user->status !== 'active') {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'email' => ['Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.'],
-                    ]);
-                }
+            $matchedUsers = $users->filter(function ($u) use ($request) {
+                return \Illuminate\Support\Facades\Hash::check($request->password, $u->password);
+            });
 
+            if ($matchedUsers->isEmpty()) {
+                return null;
+            }
+
+            $activeUsers = $matchedUsers->filter(fn($u) => $u->status === 'active');
+
+            if ($activeUsers->isEmpty()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'email' => ['Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.'],
+                ]);
+            }
+
+            // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
+            if ($activeUsers->count() === 1) {
+                $user = $activeUsers->first();
                 if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
                     $employee = $user->employee;
                     if (!$employee || !$employee->isWithinScheduledShift()) {
@@ -49,11 +61,15 @@ class FortifyServiceProvider extends ServiceProvider
                         ]);
                     }
                 }
-
                 return $user;
             }
 
-            return null;
+            // Nếu có nhiều hơn 1 tài khoản hoạt động dưới email này:
+            // Lưu thông tin vào session để CustomLoginResponse chuyển hướng qua trang chọn nhà hàng
+            $user = $activeUsers->first();
+            session(['multi_tenant_users' => $activeUsers->pluck('id', 'restaurant_id')->toArray()]);
+
+            return $user;
         });
     }
 

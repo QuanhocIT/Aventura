@@ -40,4 +40,24 @@ class Salary extends Model
     {
         return $this->hasMany(SalaryAdjustment::class);
     }
+
+    /**
+     * Kiểm tra xem một ngày cụ thể của nhân viên hoặc nhà hàng có bị khóa bảng lương hay chưa.
+     */
+    public static function isPeriodLocked(int $restaurantId, ?int $employeeId, string $date): bool
+    {
+        $targetDate = \Carbon\Carbon::parse($date)->toDateString();
+
+        $query = self::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['approved', 'paid'])
+            ->where('pay_period_start', '<=', $targetDate)
+            ->where('pay_period_end', '>=', $targetDate);
+
+        if ($employeeId !== null) {
+            $query->where('employee_id', $employeeId);
+        }
+
+        return $query->exists();
+    }
 }

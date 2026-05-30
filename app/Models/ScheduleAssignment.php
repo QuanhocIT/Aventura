@@ -17,6 +17,22 @@ class ScheduleAssignment extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        $lockCheck = function (self $model) {
+            $date = $model->scheduled_date instanceof \Carbon\Carbon
+                ? $model->scheduled_date->toDateString()
+                : \Carbon\Carbon::parse($model->scheduled_date)->toDateString();
+
+            if (Salary::isPeriodLocked($model->restaurant_id, $model->employee_id, $date)) {
+                throw new \Exception("Dữ liệu lịch trực đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+            }
+        };
+
+        static::updating($lockCheck);
+        static::deleting($lockCheck);
+    }
+
     protected function casts(): array
     {
         return [

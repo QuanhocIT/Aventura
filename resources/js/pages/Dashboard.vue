@@ -167,7 +167,7 @@ const quota = computed(() => tenant.value?.quota_summary ?? null);
 const availablePlans = computed(() => (page.props as any).available_plans ?? []);
 const roles = computed(() => (page.props as any).roles ?? []);
 const canManageBilling = computed(() =>
-    tenant.value != null && (roles.value.includes('owner') || roles.value.includes('manager') || roles.value.includes('admin') || roles.value.includes('super_admin'))
+    tenant.value != null && (roles.value.includes('owner') || roles.value.includes('admin') || roles.value.includes('super_admin'))
 );
 
 const currentPlanRank = computed(() => {

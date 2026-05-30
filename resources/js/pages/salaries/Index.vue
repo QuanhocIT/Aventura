@@ -3,7 +3,8 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Wallet, Users, TrendingDown, TrendingUp, Check, ChevronDown,
     ChevronUp, Plus, BadgeDollarSign, AlertCircle, Clock, X, Sparkles,
-    Search, Download,
+    Search, Download, Building2, UserCog, ShieldAlert, AlertTriangle,
+    ChevronLeft, ChevronRight,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
@@ -19,13 +20,21 @@ defineOptions({ layout: AppLayout });
 
 type AdjType = 'bonus' | 'penalty' | 'cash_shortage' | 'inventory_loss' | 'violation';
 
-type Adjustment = { id: number; type: AdjType; amount: number; reason: string };
+type Adjustment = { 
+    id: number; 
+    type: AdjType; 
+    amount: number; 
+    reason: string;
+    status: 'applied' | 'disputed' | 'waived';
+    dispute_reason: string | null;
+};
 
 type SalaryRow = {
     id: number;
     employee_name: string;
     job_title: string;
     employment_type: string;
+    branch_id: number | null;
     base_salary: number;
     bonus_amount: number;
     deduction_amount: number;
@@ -37,10 +46,13 @@ type SalaryRow = {
 
 type Totals = { total_payroll: number; total_deductions: number; total_bonuses: number; headcount: number };
 
+type Branch = { id: number; name: string };
+
 const props = defineProps<{
     salaries:   SalaryRow[];
     totals:     Totals;
     period:     string;
+    branches:   Branch[];
     canApprove: boolean;
 }>();
 
@@ -61,28 +73,59 @@ const adjTypeLabel: Record<AdjType, string> = {
 };
 
 const adjTypeColor: Record<AdjType, string> = {
-    bonus:          'text-emerald-600 dark:text-emerald-400',
-    penalty:        'text-rose-600 dark:text-rose-400',
-    cash_shortage:  'text-rose-600 dark:text-rose-400',
-    inventory_loss: 'text-amber-600 dark:text-amber-400',
-    violation:      'text-rose-600 dark:text-rose-400',
+    bonus:          'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100',
+    penalty:        'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100',
+    cash_shortage:  'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100',
+    inventory_loss: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-100',
+    violation:      'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100',
 };
 
-// ── Search & filter ───────────────────────────────────────────────────────────
+const adjStatusConfig = {
+    applied:  { label: 'Đã áp dụng', cls: 'text-slate-500 bg-slate-50 border border-slate-100' },
+    disputed: { label: 'Đang khiếu nại', cls: 'text-amber-700 bg-amber-50 border border-amber-200 animate-pulse' },
+    waived:   { label: 'Đã miễn giảm', cls: 'text-emerald-600 bg-emerald-50 border border-emerald-200' },
+};
 
-const activePeriod  = ref(props.period);
-const searchQuery   = ref('');
-const statusFilter  = ref<'all' | 'draft' | 'approved' | 'paid'>('all');
+// ── Search, Advanced Filters & Pagination ────────────────────────────────────
+
+const activePeriod         = ref(props.period);
+const searchQuery          = ref('');
+const statusFilter         = ref<'all' | 'draft' | 'approved' | 'paid'>('all');
+const branchFilter         = ref<string>('all');
+const employmentTypeFilter = ref<string>('all');
+
+// Phân trang
+const currentPage  = ref(1);
+const itemsPerPage = ref(10);
 
 const filteredSalaries = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
+    
+    // Reset trang về 1 khi lọc
+    currentPage.value = 1;
+
     return props.salaries.filter(s => {
         const matchStatus = statusFilter.value === 'all' || s.status === statusFilter.value;
-        if (!matchStatus) return false;
+        const matchBranch = branchFilter.value === 'all' || s.branch_id === Number(branchFilter.value);
+        const matchEmpType = employmentTypeFilter.value === 'all' || s.employment_type === employmentTypeFilter.value;
+        
+        if (!matchStatus || !matchBranch || !matchEmpType) return false;
         if (!q) return true;
+        
         return s.employee_name.toLowerCase().includes(q) || s.job_title.toLowerCase().includes(q);
     });
 });
+
+const totalPages = computed(() => Math.ceil(filteredSalaries.value.length / itemsPerPage.value) || 1);
+
+const paginatedSalaries = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage.value;
+    const end = start + itemsPerPage.value;
+    return filteredSalaries.value.slice(start, end);
+});
+
+function prevPage() { if (currentPage.value > 1) currentPage.value--; }
+function nextPage() { if (currentPage.value < totalPages.value) currentPage.value++; }
 
 function exportCSV() {
     const rows = [
@@ -93,7 +136,7 @@ function exportCSV() {
             statusConfig[s.status].label,
         ]),
     ];
-    const bom = '﻿';
+    const bom = '\uFEFF';
     const csv = bom + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -137,6 +180,63 @@ function markPaid(salary: SalaryRow) {
     });
 }
 
+// ── Selection & Bulk Actions ──────────────────────────────────────────────────
+
+const selectedIds = ref<number[]>([]);
+
+const isAllSelected = computed(() => {
+    const pageIds = paginatedSalaries.value.filter(s => s.status !== 'paid').map(s => s.id);
+    if (pageIds.length === 0) return false;
+    return pageIds.every(id => selectedIds.value.includes(id));
+});
+
+function toggleSelectAll() {
+    const pageIds = paginatedSalaries.value.filter(s => s.status !== 'paid').map(s => s.id);
+    if (isAllSelected.value) {
+        selectedIds.value = selectedIds.value.filter(id => !pageIds.includes(id));
+    } else {
+        const toAdd = pageIds.filter(id => !selectedIds.value.includes(id));
+        selectedIds.value.push(...toAdd);
+    }
+}
+
+function toggleSelect(id: number) {
+    const idx = selectedIds.value.indexOf(id);
+    if (idx > -1) {
+        selectedIds.value.splice(idx, 1);
+    } else {
+        selectedIds.value.push(id);
+    }
+}
+
+const showBulkDialog = ref(false);
+const bulkForm = useForm({
+    salary_ids: [] as number[],
+    type: 'bonus',
+    amount: '',
+    reason: '',
+});
+
+function openBulkDialog() {
+    if (selectedIds.value.length === 0) return;
+    bulkForm.reset();
+    showBulkDialog.value = true;
+}
+
+function submitBulkAdj() {
+    bulkForm.salary_ids = selectedIds.value;
+    bulkForm.post('/salaries/adjustments/bulk', {
+        onSuccess: () => {
+            const pageProps = usePage().props as any;
+            const msg = pageProps.flash?.success ?? 'Đã áp dụng điều chỉnh lương hàng loạt thành công.';
+            toast.success(msg);
+            selectedIds.value = [];
+            showBulkDialog.value = false;
+        },
+        onError: () => toast.error('Có lỗi xảy ra khi thực hiện cấn trừ hàng loạt.'),
+    });
+}
+
 // ── Expanded row ──────────────────────────────────────────────────────────────
 
 const expandedId = ref<number | null>(null);
@@ -152,13 +252,11 @@ function openAdjDialog(salary: SalaryRow) {
     adjForm.reset();
 }
 
-const page = usePage();
-
 function submitAdj() {
     if (!adjTarget.value) return;
     adjForm.post(`/salaries/${adjTarget.value.id}/adjustments`, {
         onSuccess: () => {
-            const msg = (page.props.flash as any)?.success ?? 'Đã thêm điều chỉnh lương thành công.';
+            const msg = (usePage().props.flash as any)?.success ?? 'Đã thêm điều chỉnh lương thành công.';
             toast.success(msg);
             adjTarget.value = null;
         },
@@ -185,11 +283,11 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">Hệ Thống Quản Lý Bảng Lương</h1>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">Quản lý tiền lương, phụ cấp, thưởng và các khoản phạt khấu trừ nhân sự hàng tháng.</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Quản lý lương cơ bản động theo chấm công, phụ cấp, thưởng và các khiếu nại cấn trừ.</p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Month picker -->
                 <div class="flex items-center gap-1.5">
                     <Label for="sal-period" class="text-xs shrink-0 font-semibold text-slate-600">Chọn tháng:</Label>
@@ -207,10 +305,20 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                     v-if="canApprove"
                     @click="generateDrafts"
                     :disabled="generating"
-                    class="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5"
+                    class="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-sm"
                 >
                     <Plus class="size-4" :class="generating ? 'animate-spin' : ''" />
                     {{ generating ? 'Đang tạo...' : 'Tạo bảng lương' }}
+                </Button>
+
+                <!-- Bulk Adjustment button -->
+                <Button
+                    v-if="canApprove && selectedIds.length > 0"
+                    @click="openBulkDialog"
+                    class="h-9 text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center gap-1.5 shadow-sm animate-bounce"
+                >
+                    <Plus class="size-4" />
+                    Thưởng/Phạt hàng loạt ({{ selectedIds.length }})
                 </Button>
 
                 <!-- Export CSV -->
@@ -228,7 +336,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
         <!-- KPI cards -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <!-- Headcount -->
-            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform">
+            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
                     <CardDescription class="text-xs font-bold uppercase tracking-wider text-slate-400">Nhân viên</CardDescription>
                     <Users class="size-4 text-slate-400" />
@@ -240,7 +348,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
             </Card>
 
             <!-- Net Salary -->
-            <Card class="shadow-xs border-indigo-100 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-transform">
+            <Card class="shadow-xs border-indigo-100 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-transform duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
                     <CardDescription class="text-xs font-bold uppercase tracking-wider text-indigo-500">Tổng lương Net</CardDescription>
                     <BadgeDollarSign class="size-4 text-indigo-600 dark:text-indigo-400" />
@@ -252,19 +360,19 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
             </Card>
 
             <!-- Deductions -->
-            <Card class="shadow-xs border-rose-100 dark:border-rose-950/20 hover:translate-y-[-2px] transition-transform">
+            <Card class="shadow-xs border-rose-100 dark:border-rose-950/20 hover:translate-y-[-2px] transition-transform duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
                     <CardDescription class="text-xs font-bold uppercase tracking-wider text-rose-500">Tổng khấu trừ</CardDescription>
                     <TrendingDown class="size-4 text-rose-600 dark:text-rose-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
                     <p class="text-2xl font-black text-rose-600 dark:text-rose-400">{{ compact(totals.total_deductions) }}</p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">thiếu quỹ + mất hàng + phạt</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">thiếu quỹ + hao hụt kho + phạt</p>
                 </CardContent>
             </Card>
 
             <!-- Bonuses -->
-            <Card class="shadow-xs border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-transform">
+            <Card class="shadow-xs border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-transform duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
                     <CardDescription class="text-xs font-bold uppercase tracking-wider text-emerald-500">Tổng thưởng</CardDescription>
                     <TrendingUp class="size-4 text-emerald-600 dark:text-emerald-400" />
@@ -278,48 +386,76 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
 
         <!-- Table Card -->
         <Card class="shadow-sm overflow-hidden">
-            <CardHeader class="pb-3 border-b flex flex-row items-center justify-between print:hidden">
+            <CardHeader class="pb-3 border-b flex flex-row items-center justify-between print:hidden bg-slate-50/50 dark:bg-slate-900/50">
                 <div>
                     <CardTitle class="text-base flex items-center gap-1.5">
                         <Wallet class="size-5 text-indigo-600" />
                         Danh Sách Bảng Lương Chi Tiết
                     </CardTitle>
-                    <CardDescription>Danh sách tổng hợp lương và các khoản thưởng phạt thực tế của toàn bộ nhân viên.</CardDescription>
+                    <CardDescription>Danh sách lương cơ bản động dựa trên chấm công ca, cùng các khoản khiếu nại cấn trừ.</CardDescription>
                 </div>
             </CardHeader>
 
             <CardContent class="p-0">
-                <!-- Search + filter row -->
-                <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                    <div class="relative flex-1 max-w-xs">
-                        <Search class="absolute left-2.5 top-2 size-3.5 text-slate-400" />
+                <!-- Advanced Search & Filter Row -->
+                <div class="p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] items-center">
+                    <!-- Search input -->
+                    <div class="relative w-full">
+                        <Search class="absolute left-2.5 top-2.5 size-3.5 text-slate-400" />
                         <input
                             v-model="searchQuery"
                             type="text"
-                            placeholder="Tìm theo tên nhân viên..."
-                            class="w-full pl-7 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                            placeholder="Tìm theo tên nhân viên, chức vụ..."
+                            class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 font-semibold"
                         />
                     </div>
-                    <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 rounded-xl p-0.5 border border-slate-200/50 dark:border-slate-800">
+
+                    <!-- Branch filter -->
+                    <div class="flex items-center gap-1.5">
+                        <Building2 class="size-3.5 text-slate-400" />
+                        <select
+                            v-model="branchFilter"
+                            class="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 font-semibold text-slate-600"
+                        >
+                            <option value="all">Tất cả chi nhánh</option>
+                            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Employment type filter -->
+                    <div class="flex items-center gap-1.5">
+                        <UserCog class="size-3.5 text-slate-400" />
+                        <select
+                            v-model="employmentTypeFilter"
+                            class="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 font-semibold text-slate-600"
+                        >
+                            <option value="all">Tất cả hợp đồng</option>
+                            <option value="full_time">Full-time</option>
+                            <option value="part_time">Part-time</option>
+                            <option value="seasonal">Thời vụ</option>
+                        </select>
+                    </div>
+
+                    <!-- Status Filter tab -->
+                    <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 rounded-xl p-0.5 border border-slate-200/50 dark:border-slate-800 justify-self-end">
                         <button
                             v-for="f in [
                                 { key: 'all', label: 'Tất cả' },
                                 { key: 'draft', label: 'Nháp' },
-                                { key: 'approved', label: 'Đã duyệt' },
+                                { key: 'approved', label: 'Duyệt' },
                                 { key: 'paid', label: 'Đã trả' },
                             ]"
                             :key="f.key"
                             type="button"
                             @click="statusFilter = f.key as any"
                             :class="[
-                                'px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap',
+                                'px-2.5 py-1 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap',
                                 statusFilter === f.key
                                     ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm'
                                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                             ]"
                         >{{ f.label }}</button>
                     </div>
-                    <span class="text-[10px] text-slate-400 shrink-0">{{ filteredSalaries.length }} / {{ salaries.length }}</span>
                 </div>
 
                 <div v-if="salaries.length === 0" class="flex flex-col items-center gap-3 py-20 text-center text-muted-foreground">
@@ -327,12 +463,21 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                         <Wallet class="size-7" />
                     </div>
                     <p class="font-bold text-slate-800 dark:text-slate-200">Chưa có dữ liệu bảng lương tháng này</p>
-                    <p class="text-xs text-slate-500 max-w-sm mx-auto">Vui lòng nhấn nút "Tạo bảng lương" ở trên để hệ thống tự động sinh dữ liệu nháp cho tất cả nhân sự đang hoạt động.</p>
+                    <p class="text-xs text-slate-500 max-w-sm mx-auto">Vui lòng nhấn nút "Tạo bảng lương" ở trên để hệ thống tự động sinh dữ liệu nháp dựa trên công ca thực tế.</p>
                 </div>
 
                 <template v-else>
                     <!-- Table header -->
-                    <div class="hidden grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid">
+                    <div class="hidden grid-cols-[auto_auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid">
+                        <div class="flex items-center justify-center">
+                            <input 
+                                v-if="canApprove"
+                                type="checkbox" 
+                                :checked="isAllSelected" 
+                                @change="toggleSelectAll"
+                                class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 size-3.5 cursor-pointer"
+                            />
+                        </div>
                         <div></div>
                         <div>Nhân viên</div>
                         <div class="text-right">Lương cơ bản</div>
@@ -342,18 +487,36 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                         <div class="text-right">Trạng thái</div>
                     </div>
 
-                    <div v-for="s in filteredSalaries" :key="s.id" class="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <div v-for="s in paginatedSalaries" :key="s.id" class="border-b border-slate-100 dark:border-slate-800 last:border-0" :class="{'bg-rose-50/10 dark:bg-rose-950/5': selectedIds.includes(s.id)}">
                         <!-- Main row -->
-                        <div class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-muted/30 lg:grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] lg:gap-4 lg:px-5"
+                        <div class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-muted/30 lg:grid-cols-[auto_auto_1fr_1fr_1fr_1fr_1fr_auto] lg:gap-4 lg:px-5"
                             @click="toggleExpand(s.id)">
+
+                            <!-- Checkbox chọn nhiều (Bulk Action) -->
+                            <div class="hidden lg:flex items-center justify-center" @click.stop>
+                                <input 
+                                    v-if="canApprove && s.status !== 'paid'"
+                                    type="checkbox" 
+                                    :checked="selectedIds.includes(s.id)" 
+                                    @change="toggleSelect(s.id)"
+                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 size-3.5 cursor-pointer"
+                                />
+                            </div>
 
                             <component :is="expandedId === s.id ? ChevronUp : ChevronDown"
                                 class="size-4 shrink-0 text-slate-400" />
 
                             <!-- Nhân viên -->
                             <div class="min-w-0">
-                                <p class="truncate font-semibold text-sm">{{ s.employee_name }}</p>
-                                <p class="text-[10px] text-slate-400 mt-0.5">{{ s.job_title || s.employment_type || '—' }}</p>
+                                <div class="flex items-center gap-2">
+                                    <p class="truncate font-semibold text-sm">{{ s.employee_name }}</p>
+                                    <!-- Cảnh báo khi có khiếu nại (Disputed) -->
+                                    <span v-if="s.adjustments.some(a => a.status === 'disputed')" class="flex h-4 items-center gap-1 rounded bg-amber-100 dark:bg-amber-900/40 px-1.5 text-[9px] font-black text-amber-700 dark:text-amber-400 border border-amber-200">
+                                        <AlertTriangle class="size-2.5 text-amber-600 shrink-0" />
+                                        CÓ KHIẾU NẠI
+                                    </span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-0.5 font-medium">{{ s.job_title }} | {{ s.employment_type === 'full_time' ? 'Full-time' : s.employment_type === 'part_time' ? 'Part-time' : 'Thời vụ' }}</p>
                             </div>
 
                             <!-- Lương cơ bản -->
@@ -405,7 +568,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                                         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chi tiết cơ cấu lương thực nhận</p>
                                         <div class="space-y-2 text-xs font-semibold">
                                             <div class="flex justify-between text-slate-600 dark:text-slate-300">
-                                                <span class="font-medium">Lương cơ bản cố định</span>
+                                                <span class="font-medium">Lương gốc (Tính theo chấm công)</span>
                                                 <span class="font-mono">{{ vnd(s.base_salary) }}</span>
                                             </div>
                                             <div v-if="s.bonus_amount > 0" class="flex justify-between text-emerald-600">
@@ -428,20 +591,33 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
 
                                     <!-- Adjustments list -->
                                     <div class="space-y-3 bg-white dark:bg-slate-950 p-4 border rounded-xl shadow-2xs">
-                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Danh sách các khoản điều chỉnh lương ({{ s.adjustments.length }})</p>
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Danh sách điều chỉnh lương & Trạng thái khiếu nại ({{ s.adjustments.length }})</p>
                                         <div v-if="s.adjustments.length === 0" class="text-xs text-slate-400 italic py-2">Không có khoản ghi nhận điều chỉnh nào phát sinh trong tháng.</div>
                                         <div v-else class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
                                             <div v-for="a in s.adjustments" :key="a.id"
-                                                class="flex items-start justify-between gap-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 px-3 py-2 text-xs">
-                                                <div class="min-w-0">
-                                                    <span class="font-bold text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800" :class="adjTypeColor[a.type as AdjType]">
-                                                        {{ adjTypeLabel[a.type as AdjType] }}
+                                                class="flex flex-col gap-2 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 px-3 py-2 text-xs">
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <div class="min-w-0">
+                                                        <span class="font-bold text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded" :class="adjTypeColor[a.type as AdjType]">
+                                                            {{ adjTypeLabel[a.type as AdjType] }}
+                                                        </span>
+                                                        <p class="text-slate-600 dark:text-slate-300 mt-1 font-semibold truncate" :title="a.reason">{{ a.reason }}</p>
+                                                    </div>
+                                                    <span class="shrink-0 font-bold font-mono" :class="a.type === 'bonus' ? 'text-emerald-600' : 'text-rose-600'">
+                                                        {{ a.type === 'bonus' ? '+' : '-' }}{{ vnd(a.amount) }}
                                                     </span>
-                                                    <p class="text-slate-500 mt-1 truncate" :title="a.reason">{{ a.reason }}</p>
                                                 </div>
-                                                <span class="shrink-0 font-bold font-mono" :class="adjTypeColor[a.type as AdjType]">
-                                                    {{ a.type === 'bonus' ? '+' : '-' }}{{ vnd(a.amount) }}
-                                                </span>
+
+                                                <!-- Hiển thị Trạng thái Khiếu nại -->
+                                                <div class="flex items-center justify-between border-t border-slate-200/50 dark:border-slate-800 pt-1.5 mt-0.5">
+                                                    <span class="inline-flex rounded px-1.5 py-0.5 text-[9px] font-bold" :class="adjStatusConfig[a.status].cls">
+                                                        {{ adjStatusConfig[a.status].label }}
+                                                    </span>
+                                                    
+                                                    <span v-if="a.status === 'disputed'" class="text-[9px] text-amber-600 font-semibold italic truncate max-w-[200px]" :title="a.dispute_reason">
+                                                        Lý do: {{ a.dispute_reason }}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -475,6 +651,39 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                             </div>
                         </Transition>
                     </div>
+
+                    <!-- Client-side Pagination Footer -->
+                    <div class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-semibold">
+                            Hiển thị dòng {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredSalaries.length) }} trong tổng số {{ filteredSalaries.length }} nhân viên
+                        </span>
+                        
+                        <div class="flex items-center gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                @click="prevPage" 
+                                :disabled="currentPage === 1"
+                                class="h-8 px-2 flex items-center gap-1 text-xs"
+                            >
+                                <ChevronLeft class="size-4" /> Trước
+                            </Button>
+                            
+                            <span class="text-xs font-bold px-3 py-1 bg-white dark:bg-slate-800 rounded-lg border">
+                                Trang {{ currentPage }} / {{ totalPages }}
+                            </span>
+                            
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                @click="nextPage" 
+                                :disabled="currentPage === totalPages"
+                                class="h-8 px-2 flex items-center gap-1 text-xs"
+                            >
+                                Sau <ChevronRight class="size-4" />
+                            </Button>
+                        </div>
+                    </div>
                 </template>
             </CardContent>
         </Card>
@@ -506,11 +715,11 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                         <select 
                             id="adj-type"
                             v-model="adjForm.type"
-                            class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 font-semibold text-slate-700"
                         >
-                            <option value="bonus">Thưởng chuyên cần / Bonus</option>
+                            <option value="bonus">Thưởng chuyên cần / Phụ cấp</option>
                             <option value="penalty">Phạt hành chính / Kỷ luật</option>
-                            <option value="violation">Khấu trừ hao hụt kho / Vi phạm</option>
+                            <option value="violation">Khấu trừ vi phạm / Hao hụt</option>
                         </select>
                     </div>
                     
@@ -524,7 +733,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                             min="0.01" 
                             step="1000" 
                             placeholder="Nhập số tiền..."
-                            class="h-9 text-xs"
+                            class="h-9 text-xs font-bold"
                             :class="{'border-rose-400': adjForm.errors.amount}" 
                         />
                         <p v-if="adjForm.errors.amount" class="text-[10px] text-rose-500 font-semibold">{{ adjForm.errors.amount }}</p>
@@ -539,7 +748,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                             rows="3" 
                             maxlength="500" 
                             placeholder="Mô tả lý do thưởng phạt cụ thể để ghi nhận pháp lý..."
-                            class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 font-semibold text-slate-700"
                             :class="{'border-rose-400': adjForm.errors.reason}" 
                         />
                         <p v-if="adjForm.errors.reason" class="text-[10px] text-rose-500 font-semibold">{{ adjForm.errors.reason }}</p>
@@ -562,6 +771,89 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                             class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
                         >
                             {{ adjForm.processing ? 'Đang lưu...' : 'Xác nhận điều chỉnh' }}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    </Transition>
+
+    <!-- ══ Bulk Adjustment Dialog ═════════════════════════════════════════════ -->
+    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+        <div v-if="showBulkDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            @click.self="showBulkDialog = false">
+            <Card class="w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
+                            <Sparkles class="size-5" />
+                            Điều Chỉnh Lương Hàng Loạt
+                        </CardTitle>
+                        <CardDescription>Áp dụng thưởng/phạt đồng loạt cho <strong>{{ selectedIds.length }} nhân sự</strong> đang được chọn.</CardDescription>
+                    </div>
+                    <button @click="showBulkDialog = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                
+                <CardContent class="pt-4 space-y-4">
+                    <!-- Type Selection -->
+                    <div class="grid gap-1.5">
+                        <Label for="bulk-type" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Loại điều chỉnh hàng loạt</Label>
+                        <select 
+                            id="bulk-type"
+                            v-model="bulkForm.type"
+                            class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 font-semibold text-slate-700"
+                        >
+                            <option value="bonus">Thưởng chuyên cần / Thưởng nóng đồng loạt</option>
+                            <option value="penalty">Phạt lỗi tập thể / Kỷ luật</option>
+                            <option value="violation">Khấu trừ vi phạm nội bộ</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Amount Input -->
+                    <div class="grid gap-1.5">
+                        <Label for="bulk-amount" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Số tiền mỗi nhân sự (VNĐ) <span class="text-rose-500">*</span></Label>
+                        <Input 
+                            id="bulk-amount"
+                            v-model="bulkForm.amount" 
+                            type="number" 
+                            min="0.01" 
+                            step="1000" 
+                            placeholder="Nhập số tiền áp dụng cho từng người..."
+                            class="h-9 text-xs font-bold text-rose-600"
+                            :class="{'border-rose-400': bulkForm.errors.amount}" 
+                        />
+                        <p v-if="bulkForm.errors.amount" class="text-[10px] text-rose-500 font-semibold">{{ bulkForm.errors.amount }}</p>
+                    </div>
+                    
+                    <!-- Reason Area -->
+                    <div class="grid gap-1.5">
+                        <Label for="bulk-reason" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lý do điều chỉnh hàng loạt <span class="text-rose-500">*</span></Label>
+                        <textarea 
+                            id="bulk-reason"
+                            v-model="bulkForm.reason" 
+                            rows="3" 
+                            maxlength="500" 
+                            placeholder="Mô tả lý do điều chỉnh hàng loạt (ví dụ: Thưởng nóng dự án, Phạt đi trễ tập thể...)"
+                            class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 font-semibold text-slate-700"
+                            :class="{'border-rose-400': bulkForm.errors.reason}" 
+                        />
+                        <p v-if="bulkForm.errors.reason" class="text-[10px] text-rose-500 font-semibold">{{ bulkForm.errors.reason }}</p>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex justify-end gap-2 pt-2 border-t">
+                        <Button type="button" variant="outline" size="sm" @click="showBulkDialog = false">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            @click="submitBulkAdj" 
+                            :disabled="bulkForm.processing"
+                            class="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                        >
+                            {{ bulkForm.processing ? 'Đang thực hiện...' : 'Xác nhận áp dụng hàng loạt' }}
                         </Button>
                     </div>
                 </CardContent>

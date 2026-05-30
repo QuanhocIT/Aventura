@@ -36,6 +36,7 @@ createInertiaApp({
                     case name === 'Khach':
                     case name === 'auth/Login':
                     case name === 'auth/Register':
+                    case name === 'auth/ChooseRestaurant':
                         page.layout = BareLayout;
                         break;
                     case name.startsWith('auth/'):

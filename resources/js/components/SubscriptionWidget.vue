@@ -25,7 +25,7 @@ const availablePlans = computed(() => (page.props.available_plans as AvailablePl
 const roles = computed(() => (page.props as any).roles ?? []);
 const canManageBilling = computed(() =>
     tenant.value != null &&
-    (roles.value.includes('owner') || roles.value.includes('manager') ||
+    (roles.value.includes('owner') ||
      roles.value.includes('admin') || roles.value.includes('super_admin'))
 );
 

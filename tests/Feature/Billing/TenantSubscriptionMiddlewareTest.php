@@ -26,6 +26,9 @@ class TenantSubscriptionMiddlewareTest extends TestCase
     {
         $plan = SubscriptionPlan::factory()->create();
         $owner = User::factory()->create();
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $owner->assignRole($role);
+        
         $restaurant = Restaurant::factory()->create([
             'plan_id' => $plan->id,
             'owner_user_id' => $owner->id,
@@ -48,6 +51,9 @@ class TenantSubscriptionMiddlewareTest extends TestCase
     {
         $plan = SubscriptionPlan::factory()->create();
         $owner = User::factory()->create();
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $owner->assignRole($role);
+
         $restaurant = Restaurant::factory()->create([
             'plan_id' => $plan->id,
             'owner_user_id' => $owner->id,

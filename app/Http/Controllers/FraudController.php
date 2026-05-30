@@ -22,7 +22,7 @@ class FraudController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasRole('owner'), 403);
 
         $user         = $request->user();
         $restaurantId = $user->restaurant_id;
@@ -63,7 +63,7 @@ class FraudController extends Controller
 
     public function createViolation(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasRole('owner'), 403);
 
         $data = $request->validate([
             'employee_id'     => ['required', 'integer', 'exists:employees,id'],

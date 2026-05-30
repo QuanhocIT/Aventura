@@ -22,8 +22,8 @@ class CheckoutController extends Controller
             return redirect('/dashboard')->with('error', 'Tài khoản này chưa liên kết với nhà hàng nào. Vui lòng đăng nhập bằng tài khoản chủ nhà hàng.');
         }
 
-        // Only owner / manager can initiate billing
-        if (! $user->hasAnyRole(['owner', 'manager', 'admin', 'super_admin'])) {
+        // Only owner can initiate billing
+        if (! $user->hasAnyRole(['owner', 'admin', 'super_admin'])) {
             return redirect('/dashboard')->with('error', 'Bạn không có quyền thực hiện thanh toán. Vui lòng liên hệ chủ nhà hàng.');
         }
 
