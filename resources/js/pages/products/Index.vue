@@ -2,10 +2,10 @@
 import { Head, useForm, router } from '@inertiajs/vue3';
 import {
     UtensilsCrossed, Plus, FolderPlus, Search,
-    CheckCircle2, AlertCircle, Pencil, Trash2, X, ChevronDown,
-    ToggleLeft, ToggleRight
+    CheckCircle2, AlertCircle, Pencil, Trash2, X, ChevronDown, ChevronUp,
+    ToggleLeft, ToggleRight, Brain, Sparkles, TrendingDown, AlertTriangle,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,26 @@ const props = defineProps<{
     categories: Category[];
     products:   Product[];
 }>();
+
+// ── AI Menu Insights ──────────────────────────────────────────────────────────
+type MenuInsight = { type: string; severity: string; product: string; product_id: number; message: string; suggestion: string; value: number; unit: string };
+const showInsights   = ref(false);
+const insightsLoaded = ref(false);
+const insightsLoading = ref(false);
+const insights       = ref<MenuInsight[]>([]);
+
+async function loadInsights() {
+    if (insightsLoaded.value) { showInsights.value = !showInsights.value; return; }
+    insightsLoading.value = true;
+    showInsights.value    = true;
+    try {
+        const res = await fetch('/api/products/menu-insights');
+        const data = await res.json();
+        insights.value = data.insights ?? [];
+        insightsLoaded.value = true;
+    } catch { insights.value = []; }
+    finally { insightsLoading.value = false; }
+}
 
 // ── UI state ──────────────────────────────────────────────────────────────────
 const showAddCategory   = ref(false);
@@ -138,13 +158,68 @@ const toggleAvailability = (p: Product) => {
                     <p class="text-sm text-slate-500 dark:text-slate-400">Quản lý cấu trúc thực đơn, nhóm món, giá bán sản phẩm thực tế của quán.</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- AI Insights button -->
+                <Button @click="loadInsights" variant="outline"
+                    class="h-10 text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 font-semibold flex items-center gap-1.5">
+                    <Brain class="size-4" />
+                    AI Phân tích Menu
+                    <component :is="showInsights ? ChevronUp : ChevronDown" class="size-3.5" />
+                </Button>
                 <Button id="btn-add-category" @click="showAddCategory = true" variant="outline" class="h-10 text-xs border-slate-200">
                     <FolderPlus class="size-4 mr-2 text-indigo-600" />Thêm nhóm món
                 </Button>
                 <Button id="btn-add-product" @click="showAddProduct = true" class="h-10 text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold">
                     <Plus class="size-4 mr-2" />Thêm món ăn
                 </Button>
+            </div>
+        </div>
+
+        <!-- AI Menu Insights Accordion -->
+        <div v-if="showInsights" class="rounded-2xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50/50 dark:bg-indigo-950/10 overflow-hidden">
+            <div class="px-4 py-3 border-b border-indigo-100 dark:border-indigo-800/30 flex items-center gap-2">
+                <Sparkles class="size-4 text-indigo-500" />
+                <span class="text-sm font-bold text-indigo-700 dark:text-indigo-300">AI Phân tích Menu — 30 ngày gần nhất</span>
+            </div>
+            <!-- Loading -->
+            <div v-if="insightsLoading" class="flex items-center justify-center py-8 gap-2 text-indigo-500">
+                <Brain class="size-5 animate-pulse" />
+                <span class="text-sm">Đang phân tích dữ liệu...</span>
+            </div>
+            <!-- No insights -->
+            <div v-else-if="!insights.length" class="flex flex-col items-center py-8 text-center text-slate-400">
+                <CheckCircle2 class="size-8 text-emerald-400 mb-2" />
+                <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu đang hoạt động tốt!</p>
+                <p class="text-xs mt-1">Không phát hiện vấn đề cần cải thiện trong 30 ngày qua.</p>
+            </div>
+            <!-- Insights list -->
+            <div v-else class="divide-y divide-indigo-100 dark:divide-indigo-800/30">
+                <div v-for="(insight, i) in insights" :key="i"
+                    :class="[
+                        'flex items-start gap-3 px-4 py-3 text-xs',
+                        insight.severity === 'critical' ? 'bg-rose-50/80 dark:bg-rose-950/10' :
+                        insight.severity === 'warning'  ? 'bg-amber-50/80 dark:bg-amber-950/10' : ''
+                    ]"
+                >
+                    <span class="text-base shrink-0 mt-0.5">
+                        {{ insight.severity === 'critical' ? '🔴' : insight.severity === 'warning' ? '🟡' : '🔵' }}
+                    </span>
+                    <div class="flex-1">
+                        <p class="font-semibold text-slate-800 dark:text-slate-200" v-html="insight.message" />
+                        <p class="text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                            <AlertTriangle class="size-3 text-amber-500 shrink-0" />
+                            {{ insight.suggestion }}
+                        </p>
+                    </div>
+                    <span :class="[
+                        'shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                        insight.severity === 'critical' ? 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400' :
+                        insight.severity === 'warning'  ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400' :
+                                                          'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400'
+                    ]">
+                        {{ insight.value }}{{ insight.unit }}
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -204,10 +279,15 @@ const toggleAvailability = (p: Product) => {
                             <Input id="prod-price" type="number" v-model="productForm.price" placeholder="Ví dụ: 45000" required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="prod-desc">Mô tả món ăn</Label>
-                            <textarea id="prod-desc" v-model="productForm.description" rows="2"
-                                placeholder="Ghi chú nguyên liệu, ghi chú nấu..."
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
+                            <div class="flex items-center justify-between">
+                                <Label for="prod-desc" class="font-semibold text-slate-700 dark:text-slate-300">
+                                    Đặc điểm & Hương vị món ăn <span class="text-rose-500 font-bold">*</span>
+                                </Label>
+                                <span class="text-[10px] text-rose-500 font-medium bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded-md">Bắt buộc</span>
+                            </div>
+                            <textarea id="prod-desc" v-model="productForm.description" rows="3" required
+                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
+                                class="w-full rounded-xl border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:border-rose-500 transition-all duration-150" />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="showAddProduct = false">Hủy</Button>
@@ -252,9 +332,15 @@ const toggleAvailability = (p: Product) => {
                             <Input type="number" v-model="editForm.price" required />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label>Mô tả</Label>
-                            <textarea v-model="editForm.description" rows="2"
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
+                            <div class="flex items-center justify-between">
+                                <Label class="font-semibold text-slate-700 dark:text-slate-300">
+                                    Đặc điểm & Hương vị món ăn <span class="text-rose-500 font-bold">*</span>
+                                </Label>
+                                <span class="text-[10px] text-rose-500 font-medium bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded-md">Bắt buộc</span>
+                            </div>
+                            <textarea v-model="editForm.description" rows="3" required
+                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
+                                class="w-full rounded-xl border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:border-rose-500 transition-all duration-150" />
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="editingProduct = null">Hủy</Button>

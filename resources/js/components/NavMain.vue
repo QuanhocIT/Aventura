@@ -29,7 +29,11 @@ const { isCurrentUrl } = useCurrentUrl();
                 >
                     <Link :id="'sidebar-link-' + item.href.replace('/', '')" :href="item.href">
                         <component :is="item.icon" />
-                        <span>{{ item.title }}</span>
+                        <span class="flex-1">{{ item.title }}</span>
+                        <span
+                            v-if="item.badge && item.badge > 0"
+                            class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white"
+                        >{{ item.badge > 99 ? '99+' : item.badge }}</span>
                     </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import {
@@ -6,6 +6,7 @@ import {
     Bot,
     Building2,
     BadgeDollarSign,
+    ClipboardCheck,
     Image,
     Newspaper,
     Users,
@@ -26,6 +27,8 @@ import {
     UserCheck,
     CalendarDays,
     ScrollText,
+    ShieldCheck,
+    ShieldAlert,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -49,6 +52,7 @@ import type { NavItem } from '@/types';
 const page = usePage();
 
 const tenant = computed(() => page.props.tenant as any);
+const pendingApprovalCount = computed(() => (page.props.pendingApprovalCount as number) ?? 0);
 
 const isSubscriptionActive = computed(() => {
     if (isSuperAdmin.value) {
@@ -79,6 +83,18 @@ const isKitchen     = computed(() => hasRole('kitchen'));
 const isInventory   = computed(() => hasRole('inventory_staff'));
 const isCustomer    = computed(() => hasRole('customer'));
 
+// Lấy danh sách permissions từ Inertia shared state
+const permissions = computed(() => {
+    const authUser = page.props.auth?.user as any;
+    return authUser?.permissions ?? [];
+});
+
+// Kiểm tra quyền Spatie
+const can = (permission: string) => {
+    if (isSuperAdmin.value) return true;
+    return permissions.value.includes(permission);
+};
+
 // ─── SUPER ADMIN MENU ────────────────────────────────────────────────────────
 const superAdminNav: NavItem[] = [
     { title: 'Dashboard',      href: superAdminDashboard().url, icon: LayoutGrid },
@@ -94,45 +110,72 @@ const superAdminNav: NavItem[] = [
 ];
 
 // ─── OWNER MENU ───────────────────────────────────────────────────────────────
-const ownerNav: NavItem[] = [
-    { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
-    { title: 'Quản lý đơn hàng', href: '/orders',                 icon: ShoppingCart },
-    { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
-    { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
-    { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck },
-    { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
-    { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
-    { title: 'Khách hàng',       href: '/customers',              icon: Users },
-    { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
-    { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3 },
-    { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
-    { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText },
-    { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
-];
+const ownerNav = computed<NavItem[]>(() => {
+    const nav = [
+        { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
+        { title: 'Quản lý đơn hàng', href: '/orders',                 icon: ShoppingCart },
+        { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
+        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
+        { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck },
+        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
+        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
+        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
+        { title: 'Phê duyệt',        href: '/approvals',              icon: ShieldCheck, badge: pendingApprovalCount.value },
+        { title: 'Khách hàng',       href: '/customers',              icon: Users },
+        { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
+        { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
+        { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report' },
+        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'manage_violations' },
+        { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
+        { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText, permission: 'view_audit_log' },
+        { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
+        { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
+    ];
+
+    return nav.filter(item => {
+        if (item.permission) {
+            return can(item.permission);
+        }
+        return true;
+    });
+});
 
 // ─── MANAGER MENU ─────────────────────────────────────────────────────────────
-const managerNav: NavItem[] = [
-    { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
-    { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
-    { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
-    { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
-    { title: 'Bảng lương',       href: '/salaries',               icon: Wallet },
-    { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
-    { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare },
-    { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3 },
-    { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2 },
-    { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
-];
+const managerNav = computed<NavItem[]>(() => {
+    const nav = [
+        { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
+        { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
+        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
+        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
+        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
+        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
+        { title: 'Khách hàng',       href: '/customers',              icon: Users },
+        { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
+        { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
+        { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report' },
+        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'manage_violations' },
+        { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
+        { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
+    ];
+
+    return nav.filter(item => {
+        if (item.permission) {
+            return can(item.permission);
+        }
+        return true;
+    });
+});
 
 // ─── CASHIER MENU ─────────────────────────────────────────────────────────────
 const cashierNav: NavItem[] = [
     { title: 'Tạo đơn hàng',    href: '/orders/create',           icon: ShoppingCart },
     { title: 'Sơ đồ bàn',       href: '/tables',                  icon: Building2 },
     { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
-    { title: 'Doanh thu ca',     href: '/reports/shift',           icon: Wallet },
+    { title: 'Doanh thu ca',     href: '/shift-closings',          icon: ClipboardCheck },
     { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays },
 ];
 
@@ -173,7 +216,7 @@ return superAdminNav;
     }
     
     if (isOwner.value)      {
-return ownerNav;
+return ownerNav.value;
 }
 
     if (isManager.value)    {

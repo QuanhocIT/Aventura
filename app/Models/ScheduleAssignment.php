@@ -36,6 +36,48 @@ class ScheduleAssignment extends Model
         return $this->belongsTo(WorkShift::class, 'shift_id');
     }
 
+    public static function findEmployeeOnShiftAt($timestamp, $restaurantId)
+    {
+        $dateTime = \Carbon\Carbon::parse($timestamp);
+        $targetDate = $dateTime->toDateString();
+        $prevDate = $dateTime->copy()->subDay()->toDateString();
+        $nextDate = $dateTime->copy()->addDay()->toDateString();
+
+        $assignments = self::where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->with(['employee', 'shift'])
+            ->get();
+
+        foreach ($assignments as $assignment) {
+            $shift = $assignment->shift;
+            if (!$shift || $shift->status !== 'active') {
+                continue;
+            }
+
+            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                ? $assignment->scheduled_date->toDateString()
+                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+
+            if (!in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
+                continue;
+            }
+
+            $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
+            
+            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+            } else {
+                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+            }
+
+            if ($dateTime->between($start, $end)) {
+                return $assignment->employee;
+            }
+        }
+
+        return null;
+    }
+
     protected static function newFactory(): Factory
     {
         return ScheduleAssignmentFactory::new();
