@@ -40,6 +40,14 @@ class Ingredient extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    protected function casts(): array
+    {
+        return [
+            'allowed_waste_ratio' => 'decimal:2',
+            'average_cost'        => 'decimal:2',
+        ];
+    }
+
     protected static function newFactory(): Factory
     {
         return IngredientFactory::new();

@@ -135,6 +135,11 @@ const ownerNav = computed<NavItem[]>(() => {
     ];
 
     return nav.filter(item => {
+        if (isManager.value) {
+            if (item.href === '/fraud' || item.href === '/audit-logs') {
+                return false;
+            }
+        }
         if (item.permission) {
             return can(item.permission);
         }
@@ -215,12 +220,8 @@ return superAdminNav;
         ];
     }
     
-    if (isOwner.value)      {
+    if (isOwner.value || isManager.value)      {
 return ownerNav.value;
-}
-
-    if (isManager.value)    {
-return managerNav;
 }
 
     if (isCashier.value)    {

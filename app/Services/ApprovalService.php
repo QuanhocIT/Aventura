@@ -170,15 +170,22 @@ class ApprovalService
         if (! empty($data['employee_id']) && $wasteCost > 0) {
             $employee = Employee::withoutGlobalScopes()->find($data['employee_id']);
             if ($employee) {
-                $salary = $this->salaryService->getOrCreateDraft($restaurantId, $employee, now()->toDateString());
-                $this->salaryService->addAdjustment($salary, [
-                    'employee_id'    => $employee->id,
-                    'type'           => 'inventory_loss',
-                    'amount'         => $wasteCost,
-                    'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ',
-                    'reference_id'   => $transaction->id,
-                    'reference_type' => InventoryTransaction::class,
-                ]);
+                $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
+                $penaltyAmount = $wasteCost * (1 - $allowedRatio / 100);
+                $penaltyAmount = max(0.0, $penaltyAmount);
+
+                if ($penaltyAmount > 0) {
+                    $salary = $this->salaryService->getOrCreateDraft($restaurantId, $employee, now()->toDateString());
+                    $this->salaryService->addAdjustment($salary, [
+                        'employee_id'    => $employee->id,
+                        'type'           => 'inventory_loss',
+                        'amount'         => $penaltyAmount,
+                        'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ' . " (Đã khấu trừ " . $allowedRatio . "% định mức cho phép)",
+                        'reference_id'   => $transaction->id,
+                        'reference_type' => InventoryTransaction::class,
+                        'status'         => 'applied',
+                    ]);
+                }
             }
         }
     }
@@ -192,6 +199,7 @@ class ApprovalService
             'type'        => $data['type'],
             'amount'      => $data['amount'],
             'reason'      => $data['reason'],
+            'status'      => 'applied',
         ]);
     }
 }

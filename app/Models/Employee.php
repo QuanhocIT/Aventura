@@ -50,6 +50,7 @@ class Employee extends Model
         return [
             'date_of_birth' => 'date',
             'hire_date' => 'date',
+            'pay_rate' => 'decimal:2',
         ];
     }
 

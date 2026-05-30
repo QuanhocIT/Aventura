@@ -24,6 +24,10 @@ class SepayCheckoutTest extends TestCase
         $free = SubscriptionPlan::where('code', 'free')->firstOrFail();
         $pro = SubscriptionPlan::where('code', 'pro')->firstOrFail();
         $owner = User::factory()->create();
+        
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $owner->assignRole($role);
+
         $restaurant = Restaurant::factory()->create([
             'plan_id' => $free->id,
             'owner_user_id' => $owner->id,
@@ -48,6 +52,24 @@ class SepayCheckoutTest extends TestCase
             ->has('bank_details')
             ->where('payment_url', app(SepayCheckoutService::class)->paymentUrl($restaurant, $subscription))
         );
+    }
+
+    public function test_manager_cannot_initiate_checkout(): void
+    {
+        $free = SubscriptionPlan::where('code', 'free')->firstOrFail();
+        $manager = User::factory()->create();
+        $restaurant = Restaurant::factory()->create([
+            'plan_id' => $free->id,
+        ]);
+        $manager->update(['restaurant_id' => $restaurant->id]);
+        
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager->assignRole($role);
+
+        $response = $this->actingAs($manager)->get(route('billing.checkout', ['plan' => 'pro']));
+
+        $response->assertRedirect('/dashboard');
+        $response->assertSessionHas('error', 'Bạn không có quyền thực hiện thanh toán. Vui lòng liên hệ chủ nhà hàng.');
     }
 
     public function test_webhook_can_activate_sepay_checkout_from_transfer_content(): void

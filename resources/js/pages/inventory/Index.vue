@@ -29,6 +29,20 @@ type Purchase   = {
     total_cost: number; supplier_name: string; occurred_at: string | null; notes: string | null;
 };
 type Employee   = { id: number; full_name: string; job_title: string | null };
+type WasteRecord = {
+    id: number;
+    is_approval: boolean;
+    ingredient_name: string;
+    quantity: number;
+    unit_symbol: string;
+    cost: number;
+    notes: string | null;
+    performed_by: string;
+    employee_name: string;
+    occurred_at: string;
+    status: 'pending' | 'approved' | 'rejected';
+    rejection_reason: string | null;
+};
 
 const props = defineProps<{
     ingredients:     Ingredient[];
@@ -37,6 +51,7 @@ const props = defineProps<{
     suppliers:       Supplier[];
     recentPurchases: Purchase[];
     employees:       Employee[];
+    recentWastes:    WasteRecord[];
 }>();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -245,7 +260,7 @@ const submitWaste = () => {
             <button @click="activeTab = 'waste'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'waste' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
-                <Trash2 class="size-3.5" />Hao hụt
+                <Trash2 class="size-3.5" />Hao hụt ngoài ý muốn
             </button>
         </div>
 
@@ -573,10 +588,10 @@ const submitWaste = () => {
                 <Card class="lg:col-span-2 shadow-sm">
                     <CardHeader class="border-b border-border pb-3">
                         <CardTitle class="text-sm font-bold flex items-center gap-2">
-                            <Trash2 class="size-4 text-rose-500" />Ghi nhận hao hụt
+                            <Trash2 class="size-4 text-rose-500" />Ghi nhận đổ vỡ & hỏng hóc
                         </CardTitle>
-                        <CardDescription class="text-[11px]">
-                            Khi có nhân viên chịu trách nhiệm, hệ thống sẽ tự tạo khoản khấu trừ lương.
+                        <CardDescription class="text-[11px] leading-relaxed">
+                            Khai báo các sự cố mất mát thực tế ngoài ý muốn (sữa đổ, rau héo, cháy khét). Nguyên liệu bán hàng đã được hệ thống tự động trừ theo món.
                         </CardDescription>
                     </CardHeader>
                     <CardContent class="pt-5">
@@ -599,8 +614,7 @@ const submitWaste = () => {
                                 <Input v-model="wasteForm.quantity" type="number" step="0.001" min="0.001"
                                     placeholder="0" required />
                             </div>
-
-                            <!-- Chi phí ước tính -->
+                                <!-- Chi phí ước tính -->
                             <div v-if="estimatedWasteCost > 0"
                                 class="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-2.5 flex items-center justify-between text-sm">
                                 <span class="text-muted-foreground">Chi phí thiệt hại ước tính</span>
@@ -637,22 +651,91 @@ const submitWaste = () => {
                     </CardContent>
                 </Card>
 
-                <!-- Info panel -->
+                <!-- Info panel & history -->
                 <div class="lg:col-span-3 space-y-4">
-                    <Card class="shadow-sm border-rose-200 dark:border-rose-900">
-                        <CardContent class="pt-5 space-y-3 text-sm text-muted-foreground">
+                    <!-- Lịch sử hao hụt & trạng thái -->
+                    <Card class="shadow-sm">
+                        <CardHeader class="border-b border-border pb-3">
+                            <CardTitle class="text-sm font-bold flex items-center justify-between">
+                                <span>Lịch sử hao hụt & Trạng thái duyệt</span>
+                                <span class="text-xs font-normal text-muted-foreground">Tối đa 15 giao dịch gần đây</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="p-0">
+                            <div v-if="recentWastes.length === 0"
+                                class="flex flex-col items-center gap-2 py-16 text-muted-foreground text-sm">
+                                <Info class="size-8 opacity-30 text-muted-foreground" />
+                                <p>Chưa có dữ liệu hao hụt nào</p>
+                            </div>
+                            <div v-else class="divide-y divide-border max-h-[380px] overflow-y-auto">
+                                <div v-for="w in recentWastes" :key="w.id + '-' + w.is_approval" class="p-4 hover:bg-muted/10 transition-colors text-xs space-y-2">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                                                    {{ w.ingredient_name }}
+                                                </span>
+                                                <span class="font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                    -{{ w.quantity }} {{ w.unit_symbol }}
+                                                </span>
+                                            </div>
+                                            <p class="text-[10px] text-muted-foreground mt-1">
+                                                <span>Thời gian: {{ w.occurred_at }}</span>
+                                                <span class="mx-1.5">·</span>
+                                                <span>Người yêu cầu: {{ w.performed_by }}</span>
+                                            </p>
+                                            <p class="text-[10px] text-muted-foreground">
+                                                <span>Khấu trừ lương: <strong>{{ w.employee_name }}</strong></span>
+                                                <span v-if="w.notes" class="italic"> · Ghi chú: "{{ w.notes }}"</span>
+                                            </p>
+                                            <p v-if="w.rejection_reason && w.status === 'rejected'" class="text-[10px] text-rose-600 font-semibold mt-1">
+                                                Lý do từ chối: "{{ w.rejection_reason }}"
+                                            </p>
+                                        </div>
+                                        <div class="text-right shrink-0 flex flex-col items-end gap-1.5">
+                                            <span class="font-bold text-slate-800 dark:text-slate-200">
+                                                Thành tiền: <span class="text-rose-600 dark:text-rose-400 font-mono">{{ vnd(w.cost) }}</span>
+                                            </span>
+                                            <!-- Trạng thái badge -->
+                                            <span v-if="w.status === 'pending'" class="text-[9px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-200 dark:border-amber-900">
+                                                Chờ duyệt
+                                            </span>
+                                            <span v-else-if="w.status === 'approved'" class="text-[9px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-200 dark:border-emerald-900">
+                                                Đã duyệt
+                                            </span>
+                                            <span v-else-if="w.status === 'rejected'" class="text-[9px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 px-2 py-0.5 rounded-full font-bold border border-rose-200 dark:border-rose-900">
+                                                Bị từ chối
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+ 
+                    <!-- Guideline card -->
+                    <Card class="shadow-sm border-indigo-200 dark:border-indigo-900 bg-indigo-50/10">
+                        <CardContent class="pt-4 space-y-3.5 text-xs text-muted-foreground">
+                            <div class="flex items-start gap-2.5">
+                                <Sparkles class="size-3.5 shrink-0 mt-0.5 text-indigo-500 animate-pulse" />
+                                <div>
+                                    <p class="font-semibold text-indigo-700 dark:text-indigo-400 mb-0.5">🔮 Tự động trừ kho khi bán hàng</p>
+                                    <p class="text-[11px] leading-relaxed">Bạn <strong>KHÔNG CẦN</strong> nhập thủ công nguyên liệu đã bán tại đây. Khi mỗi đơn hàng hoàn thành, hệ thống sẽ tự động nhân số lượng bán với định lượng công thức từng món để <strong>tự động trừ sạch</strong> lượng sữa, cà phê... tiêu thụ trong kho.</p>
+                                </div>
+                            </div>
+                            <div class="h-px bg-border/60" />
                             <div class="flex items-start gap-3">
                                 <Info class="size-4 shrink-0 mt-0.5 text-rose-500" />
                                 <div>
                                     <p class="font-semibold text-foreground mb-1">Cơ chế khấu trừ lương</p>
-                                    <p class="text-xs">Khi chọn nhân viên chịu trách nhiệm, hệ thống sẽ tự động tạo một khoản <strong>khấu trừ lương</strong> (inventory_loss) trong tháng hiện tại với số tiền bằng: <strong>số lượng × giá vốn bình quân</strong> của nguyên liệu.</p>
+                                    <p class="text-xs">Khi chọn nhân viên chịu trách nhiệm cho các sự cố đổ vỡ, hệ thống sẽ tự động tạo một khoản <strong>khấu trừ lương</strong> (inventory_loss) trong tháng hiện tại bằng: <strong>số lượng × giá vốn bình quân</strong> của nguyên liệu.</p>
                                 </div>
                             </div>
                             <div class="flex items-start gap-3">
                                 <Info class="size-4 shrink-0 mt-0.5 text-amber-500" />
                                 <div>
                                     <p class="font-semibold text-foreground mb-1">Ảnh hưởng đến COGS</p>
-                                    <p class="text-xs">Hao hụt sẽ không ảnh hưởng trực tiếp đến COGS trong báo cáo (COGS chỉ tính từ đơn hàng đã hoàn thành). Tuy nhiên số lượng tồn kho sẽ được giảm để phản ánh thực tế.</p>
+                                    <p class="text-xs">Hao hụt sự cố sẽ không ảnh hưởng trực tiếp đến giá vốn hàng bán (COGS) trong báo cáo. Tuy nhiên, số lượng tồn kho vật lý sẽ được giảm để phản ánh chính xác thực tế tại cửa hàng.</p>
                                 </div>
                             </div>
                         </CardContent>

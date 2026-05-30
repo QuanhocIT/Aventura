@@ -20,6 +20,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
     Route::get('billing/pay/{code}', [CheckoutController::class, 'payPage'])->name('billing.pay');
     Route::get('api/billing/check/{code}', [CheckoutController::class, 'checkStatus']);
+
+    // Multi-tenant restaurant selector
+    Route::get('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
+    Route::post('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
 });
 
 Route::middleware('guest')->group(function () {
@@ -131,6 +135,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     // Bảng lương
     Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
     Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');
+    Route::post('salaries/adjustments/bulk', [\App\Http\Controllers\SalaryController::class, 'storeBulkAdjustment'])->name('salaries.adjustments.bulk');
+    Route::patch('salaries/adjustments/{adjustment}/dispute', [\App\Http\Controllers\SalaryController::class, 'disputeAdjustment'])->name('salaries.adjustments.dispute');
     Route::patch('salaries/{salary}/approve', [\App\Http\Controllers\SalaryController::class, 'approve'])->name('salaries.approve');
     Route::patch('salaries/{salary}/paid', [\App\Http\Controllers\SalaryController::class, 'markPaid'])->name('salaries.paid');
     Route::post('salaries/{salary}/adjustments', [\App\Http\Controllers\SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
@@ -167,6 +173,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR)
 Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
 Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+
+// Xác thực lời mời nhận việc của nhân viên mới
+Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])
+    ->name('employees.verify')
+    ->middleware('signed');
 
 require __DIR__.'/settings.php';
 

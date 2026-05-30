@@ -21,6 +21,10 @@ class CustomLoginResponse implements LoginResponseContract
 
         $user->forceFill(['last_login_at' => now()])->save();
 
+        if (session()->has('multi_tenant_users') && count(session('multi_tenant_users')) > 1) {
+            return redirect()->route('choose-restaurant');
+        }
+
         // Nếu user chọn một gói khác gói hiện tại từ trang login → chuyển tới billing
         $desiredCode = Str::lower((string) $request->input('plan_code', ''));
         if ($desiredCode && $desiredCode !== 'free') {
