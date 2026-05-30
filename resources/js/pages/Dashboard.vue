@@ -16,6 +16,7 @@ import {
     ShieldCheck,
     Star,
     TrendingUp,
+    TrendingDown,
     Users,
     Zap,
     ShoppingCart,
@@ -24,6 +25,13 @@ import {
     Clock,
     Utensils,
     Brain,
+    ArrowUp,
+    ArrowDown,
+    Sparkles,
+    Trophy,
+    Target,
+    Percent,
+    CalendarDays,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +77,32 @@ interface Stats {
     orders_completed: number;
     orders_cancelled: number;
     revenue_today: number;
+    revenue_trend: number | null;
+    order_trend: number | null;
+    profit_margin_today: number;
+    completion_rate: number;
+}
+
+interface ForecastData {
+    amount: number;
+    confidence: string;
+    confidence_label: string;
+    samples: number;
+    day_label: string;
+    trend_factor: number;
+}
+
+interface ShiftRevenueRow {
+    shift_name: string;
+    days: { date: string; revenue: number }[];
+}
+
+interface OwnerSummary {
+    top_products_today: { name: string; qty: number; revenue: number }[];
+    active_shifts: { name: string; shift: string; status: string }[];
+    pending_over_20min: number;
+    revenue_this_week: number;
+    revenue_last_week: number;
 }
 
 interface RecentOrder {
@@ -118,6 +152,10 @@ const props = defineProps<{
     revenueChartData?: RevenueDay[];
     channelChartData?: ChannelShare[];
     topProductsChartData?: TopProductStat[];
+    forecastData?: ForecastData | null;
+    healthScore?: number | null;
+    shiftRevenue?: ShiftRevenueRow[];
+    ownerSummary?: OwnerSummary | null;
 }>();
 
 const page = usePage();
@@ -166,7 +204,38 @@ const planIcon = computed(() => {
     }
 });
 
-const activeTab = ref<'feed' | 'tables' | 'inventory'>('feed');
+const activeTab = ref<'feed' | 'tables' | 'inventory' | 'owner'>('feed');
+
+// ── Health Score helpers ─────────────────────────────────────────────────────
+const healthScoreColor = computed(() => {
+    const s = props.healthScore ?? 0;
+    if (s >= 70) return { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20', label: 'Tốt' };
+    if (s >= 40) return { bar: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-950/20',   label: 'Trung bình' };
+    return           { bar: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400',     bg: 'bg-rose-50 dark:bg-rose-950/20',     label: 'Cần cải thiện' };
+});
+
+// ── Shift heatmap helpers ────────────────────────────────────────────────────
+const shiftHeatmapMax = computed(() => {
+    let max = 0;
+    (props.shiftRevenue ?? []).forEach(row => row.days.forEach(d => { if (d.revenue > max) max = d.revenue; }));
+    return Math.max(max, 1);
+});
+
+function shiftHeatColor(revenue: number): string {
+    const pct = revenue / shiftHeatmapMax.value;
+    if (pct === 0) return 'bg-slate-100 dark:bg-slate-800';
+    if (pct < 0.25) return 'bg-indigo-100 dark:bg-indigo-950/30';
+    if (pct < 0.5)  return 'bg-indigo-300 dark:bg-indigo-800/50';
+    if (pct < 0.75) return 'bg-indigo-500 dark:bg-indigo-600';
+    return 'bg-indigo-700 dark:bg-indigo-500';
+}
+
+// ── Forecast bar color ───────────────────────────────────────────────────────
+function barFillClass(isForecast: boolean) {
+    return isForecast
+        ? 'fill-indigo-300/50 dark:fill-indigo-400/30'
+        : 'fill-indigo-500/80 dark:fill-indigo-500/60';
+}
 
 const operationFeedList = computed(() => props.operationFeed ?? []);
 const tablesList = computed(() => props.tablesData ?? []);
@@ -485,31 +554,53 @@ const topChannelLabel = computed(() => {
                     </div>
                 </div>
 
-                <!-- Today's KPI row -->
-                <div v-if="props.stats" class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <!-- Today's KPI row (8 cards: 6 existing + 2 new) -->
+                <div v-if="props.stats" class="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                    <!-- Đơn hàng -->
                     <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
                         <ShoppingCart class="size-4 text-violet-500 shrink-0" />
-                        <div>
+                        <div class="min-w-0">
                             <p class="text-lg font-bold leading-none">{{ props.stats.orders_today }}</p>
                             <p class="text-[10px] text-muted-foreground mt-0.5">Đơn hôm nay</p>
                         </div>
                     </div>
+                    <!-- Doanh thu + xu hướng -->
                     <div class="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20 px-3 py-2.5 flex items-center gap-2">
                         <Banknote class="size-4 text-emerald-600 shrink-0" />
-                        <div>
-                            <p class="text-lg font-bold leading-none text-emerald-700 dark:text-emerald-400">
-                                {{ formatMoney(props.stats.revenue_today) }}
-                            </p>
-                            <p class="text-[10px] text-emerald-600/70 dark:text-emerald-500 mt-0.5">Doanh thu hôm nay</p>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1">
+                                <p class="text-lg font-bold leading-none text-emerald-700 dark:text-emerald-400 truncate">
+                                    {{ formatMoney(props.stats.revenue_today) }}
+                                </p>
+                                <span v-if="props.stats.revenue_trend !== null"
+                                    :class="props.stats.revenue_trend >= 0 ? 'text-emerald-600' : 'text-rose-500'"
+                                    class="text-[9px] font-bold shrink-0 flex items-center gap-0.5"
+                                >
+                                    <component :is="props.stats.revenue_trend >= 0 ? ArrowUp : ArrowDown" class="size-2.5" />
+                                    {{ Math.abs(props.stats.revenue_trend) }}%
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-emerald-600/70 dark:text-emerald-500 mt-0.5">Doanh thu</p>
                         </div>
                     </div>
+                    <!-- Đơn hoàn thành + xu hướng -->
                     <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
                         <CheckCircle2 class="size-4 text-sky-500 shrink-0" />
-                        <div>
-                            <p class="text-lg font-bold leading-none">{{ props.stats.orders_completed }}</p>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">Đơn hoàn thành</p>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1">
+                                <p class="text-lg font-bold leading-none">{{ props.stats.orders_completed }}</p>
+                                <span v-if="props.stats.order_trend !== null"
+                                    :class="props.stats.order_trend >= 0 ? 'text-emerald-600' : 'text-rose-500'"
+                                    class="text-[9px] font-bold shrink-0 flex items-center gap-0.5"
+                                >
+                                    <component :is="props.stats.order_trend >= 0 ? ArrowUp : ArrowDown" class="size-2.5" />
+                                    {{ Math.abs(props.stats.order_trend) }}%
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-muted-foreground mt-0.5">Hoàn thành</p>
                         </div>
                     </div>
+                    <!-- Sản phẩm -->
                     <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
                         <Package class="size-4 text-amber-500 shrink-0" />
                         <div>
@@ -517,6 +608,7 @@ const topChannelLabel = computed(() => {
                             <p class="text-[10px] text-muted-foreground mt-0.5">Sản phẩm</p>
                         </div>
                     </div>
+                    <!-- Nhân viên -->
                     <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
                         <Users class="size-4 text-indigo-500 shrink-0" />
                         <div>
@@ -524,11 +616,72 @@ const topChannelLabel = computed(() => {
                             <p class="text-[10px] text-muted-foreground mt-0.5">Nhân viên</p>
                         </div>
                     </div>
+                    <!-- Chi nhánh / Bàn -->
                     <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
                         <Building2 class="size-4 text-rose-500 shrink-0" />
                         <div>
-                            <p class="text-lg font-bold leading-none">{{ props.stats.branches_count }} / {{ props.stats.tables_count }}</p>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">Chi nhánh / Bàn</p>
+                            <p class="text-lg font-bold leading-none">{{ props.stats.branches_count }}/{{ props.stats.tables_count }}</p>
+                            <p class="text-[10px] text-muted-foreground mt-0.5">CN / Bàn</p>
+                        </div>
+                    </div>
+                    <!-- MỚI: Biên lợi nhuận hôm nay -->
+                    <div class="rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-900/40 dark:bg-violet-950/20 px-3 py-2.5 flex items-center gap-2">
+                        <Percent class="size-4 text-violet-600 shrink-0" />
+                        <div>
+                            <p class="text-lg font-bold leading-none text-violet-700 dark:text-violet-400">
+                                {{ props.stats.profit_margin_today }}%
+                            </p>
+                            <p class="text-[10px] text-violet-600/70 mt-0.5">Biên LN</p>
+                        </div>
+                    </div>
+                    <!-- MỚI: Tỉ lệ hoàn thành -->
+                    <div :class="[
+                        'rounded-xl border px-3 py-2.5 flex items-center gap-2',
+                        props.stats.completion_rate >= 80
+                            ? 'border-teal-200 bg-teal-50 dark:border-teal-900/40 dark:bg-teal-950/20'
+                            : props.stats.completion_rate >= 50
+                                ? 'border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20'
+                                : 'border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-950/20'
+                    ]">
+                        <Target class="size-4 shrink-0"
+                            :class="props.stats.completion_rate >= 80 ? 'text-teal-600' : props.stats.completion_rate >= 50 ? 'text-amber-600' : 'text-rose-600'" />
+                        <div>
+                            <p class="text-lg font-bold leading-none"
+                               :class="props.stats.completion_rate >= 80 ? 'text-teal-700 dark:text-teal-400' : props.stats.completion_rate >= 50 ? 'text-amber-700 dark:text-amber-400' : 'text-rose-700 dark:text-rose-400'">
+                                {{ props.stats.completion_rate }}%
+                            </p>
+                            <p class="text-[10px] mt-0.5"
+                               :class="props.stats.completion_rate >= 80 ? 'text-teal-600/70' : props.stats.completion_rate >= 50 ? 'text-amber-600/70' : 'text-rose-600/70'">
+                                Tỉ lệ HT
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Health Score (hiển thị sau KPI row) -->
+                <div v-if="props.healthScore !== null && props.healthScore !== undefined"
+                    :class="['mt-3 rounded-xl border px-4 py-3 flex items-center gap-4', healthScoreColor.bg]">
+                    <div class="shrink-0">
+                        <div :class="['text-3xl font-black', healthScoreColor.text]">{{ props.healthScore }}</div>
+                        <div class="text-[10px] text-muted-foreground">/ 100</div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-bold">Sức khoẻ kinh doanh hôm nay</span>
+                            <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-full', healthScoreColor.text, healthScoreColor.bg]">
+                                {{ healthScoreColor.label }}
+                            </span>
+                        </div>
+                        <div class="h-2 bg-white/50 dark:bg-black/20 rounded-full overflow-hidden">
+                            <div :class="['h-full rounded-full transition-all duration-700', healthScoreColor.bar]"
+                                 :style="`width: ${props.healthScore}%`" />
+                        </div>
+                        <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
+                            <span>✓ Tỉ lệ HT: {{ props.stats?.completion_rate ?? 0 }}%</span>
+                            <span>✓ Biên LN: {{ props.stats?.profit_margin_today ?? 0 }}%</span>
+                            <span v-if="props.stats?.revenue_trend !== null">
+                                {{ (props.stats?.revenue_trend ?? 0) >= 0 ? '↑' : '↓' }} Doanh thu {{ props.stats?.revenue_trend }}% so hôm qua
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -582,9 +735,14 @@ const topChannelLabel = computed(() => {
                                 <div>
                                     <CardTitle class="text-base font-bold flex items-center gap-2">
                                         <TrendingUp class="size-4 text-violet-500" />
-                                        Doanh thu & Đơn hàng 7 ngày qua
+                                        Doanh thu 7 ngày qua + 7 ngày dự báo
                                     </CardTitle>
-                                    <p class="text-xs text-muted-foreground mt-0.5">Biểu đồ kết hợp Doanh thu thuần (cột) và số lượng Đơn hàng (đường)</p>
+                                    <p class="text-xs text-muted-foreground mt-0.5">
+                                        Cột đặc = thực tế · Cột mờ = <span class="text-indigo-400 font-medium">AI dự báo</span>
+                                        <span v-if="forecastData?.confidence_label" class="ml-1 inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-semibold">
+                                            <Sparkles class="size-2.5" /> Độ tin cậy: {{ forecastData.confidence_label }}
+                                        </span>
+                                    </p>
                                 </div>
                                 <div class="flex items-center gap-4 text-xs font-semibold">
                                     <span class="flex items-center gap-1.5 text-indigo-500">
@@ -635,13 +793,16 @@ const topChannelLabel = computed(() => {
                                               @mouseleave="activeHoverIndex = null"
                                         />
 
-                                        <!-- Revenue Bar -->
-                                        <rect :x="i * 85 + 65" 
-                                              :y="160 - (day.revenue / maxRevenue) * 130" 
-                                              width="30" 
-                                              :height="Math.max((day.revenue / maxRevenue) * 130, day.revenue > 0 ? 4 : 0)" 
+                                        <!-- Revenue Bar (forecast = mờ hơn, có stroke-dasharray) -->
+                                        <rect :x="i * 85 + 65"
+                                              :y="160 - (day.revenue / maxRevenue) * 130"
+                                              width="30"
+                                              :height="Math.max((day.revenue / maxRevenue) * 130, day.revenue > 0 ? 4 : 0)"
                                               rx="4"
-                                              class="fill-indigo-500/80 hover:fill-indigo-600 dark:fill-indigo-500/60 dark:hover:fill-indigo-500 transition-colors pointer-events-none duration-150"
+                                              :class="(day as any).is_forecast
+                                                  ? 'fill-indigo-300/50 dark:fill-indigo-400/30 stroke-indigo-400 stroke-1'
+                                                  : 'fill-indigo-500/80 hover:fill-indigo-600 dark:fill-indigo-500/60 dark:hover:fill-indigo-500 transition-colors pointer-events-none duration-150'"
+                                              :stroke-dasharray="(day as any).is_forecast ? '4 2' : 'none'"
                                         />
                                     </g>
 
@@ -789,59 +950,97 @@ const topChannelLabel = computed(() => {
                         </CardContent>
                     </Card>
 
-                    <!-- AI Insights and Advisor (1/3) -->
-                    <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative">
-                        <!-- Visual subtle background element -->
-                        <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl"></div>
-                        
-                        <CardHeader class="pb-2 border-b border-border/50 bg-muted/20">
-                            <CardTitle class="text-base font-bold flex items-center gap-2">
-                                <Brain class="size-4.5 text-indigo-500 animate-pulse" />
-                                Trợ lý thông minh Aventura AI
-                            </CardTitle>
-                            <p class="text-xs text-muted-foreground mt-0.5">Khuyến nghị vận hành tự động</p>
-                        </CardHeader>
-                        
-                        <CardContent class="pt-6 space-y-4 relative z-10 text-xs">
-                            <div v-if="topProductsList.length && doughnutPaths.length" class="space-y-4">
-                                <p class="leading-relaxed text-muted-foreground">
-                                    Dựa trên hiệu suất doanh số 7 ngày qua, AI ghi nhận kết quả hoạt động xuất sắc:
-                                </p>
-                                
-                                <div class="space-y-3">
-                                    <div class="flex items-start gap-2.5">
+                    <!-- AI Insights + Forecast (1/3) -->
+                    <div class="space-y-4">
+                        <!-- Dự báo doanh thu ngày mai -->
+                        <Card v-if="forecastData" class="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20 border border-indigo-200 dark:border-indigo-800/40 shadow-sm overflow-hidden">
+                            <CardHeader class="pb-2 border-b border-indigo-100 dark:border-indigo-800/30">
+                                <CardTitle class="text-sm font-bold flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
+                                    <Sparkles class="size-4 text-indigo-500 animate-pulse" />
+                                    Dự báo doanh thu ngày mai
+                                </CardTitle>
+                                <p class="text-[10px] text-indigo-500/80 dark:text-indigo-400/70">{{ forecastData.day_label }}</p>
+                            </CardHeader>
+                            <CardContent class="pt-4 text-xs">
+                                <div class="flex items-end gap-3 mb-3">
+                                    <div>
+                                        <p class="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+                                            {{ formatMoney(forecastData.amount) }}
+                                        </p>
+                                        <p class="text-[10px] text-indigo-500/70 mt-0.5">
+                                            Dựa trên {{ forecastData.samples }} tuần lịch sử
+                                        </p>
+                                    </div>
+                                    <span :class="[
+                                        'mb-1 px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                                        forecastData.confidence === 'high'
+                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                            : forecastData.confidence === 'medium'
+                                                ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400'
+                                                : 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400'
+                                    ]">
+                                        Tin cậy: {{ forecastData.confidence_label }}
+                                    </span>
+                                </div>
+                                <!-- So sánh với hôm nay -->
+                                <div v-if="props.stats?.revenue_today && forecastData.amount > 0" class="mt-1">
+                                    <div class="flex items-center justify-between text-[10px] text-indigo-500/80 mb-1">
+                                        <span>Hôm nay</span>
+                                        <span>Dự báo ngày mai</span>
+                                    </div>
+                                    <div class="h-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-full overflow-hidden">
+                                        <div class="h-full bg-indigo-500 rounded-full transition-all"
+                                             :style="`width: ${Math.min(100, props.stats.revenue_today / forecastData.amount * 100)}%`" />
+                                    </div>
+                                    <p class="text-[10px] text-indigo-500/70 mt-1">
+                                        Hôm nay đạt {{ Math.min(100, Math.round(props.stats.revenue_today / forecastData.amount * 100)) }}% mục tiêu dự báo
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <!-- AI Insights Card -->
+                        <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative">
+                            <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl"></div>
+                            <CardHeader class="pb-2 border-b border-border/50 bg-muted/20">
+                                <CardTitle class="text-base font-bold flex items-center gap-2">
+                                    <Brain class="size-4.5 text-indigo-500 animate-pulse" />
+                                    Trợ lý AI Aventura
+                                </CardTitle>
+                                <p class="text-xs text-muted-foreground mt-0.5">Phân tích & Khuyến nghị tự động</p>
+                            </CardHeader>
+                            <CardContent class="pt-4 space-y-3 relative z-10 text-xs">
+                                <div v-if="topProductsList.length && doughnutPaths.length" class="space-y-3">
+                                    <div class="flex items-start gap-2">
                                         <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-500/10 text-indigo-500 mt-0.5">
                                             <Utensils class="size-3" />
                                         </div>
-                                        <p class="leading-normal">
-                                            Kênh dịch vụ <strong class="text-foreground">{{ topChannelLabel }}</strong> đóng góp lượng đơn hàng lớn nhất của quán.
+                                        <p class="leading-normal text-muted-foreground">
+                                            Kênh <strong class="text-foreground">{{ topChannelLabel }}</strong> chiếm tỉ trọng đơn hàng lớn nhất.
                                         </p>
                                     </div>
-
-                                    <div class="flex items-start gap-2.5">
+                                    <div class="flex items-start gap-2">
                                         <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 mt-0.5">
-                                            <Package class="size-3" />
+                                            <Trophy class="size-3" />
                                         </div>
-                                        <p class="leading-normal">
-                                            Món ăn được thực khách ưa chuộng nhất là <strong class="text-foreground">{{ topDishName }}</strong>.
+                                        <p class="leading-normal text-muted-foreground">
+                                            Món bán chạy nhất: <strong class="text-foreground">{{ topDishName }}</strong>.
                                         </p>
                                     </div>
-
-                                    <div class="flex items-start gap-2.5 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3 mt-4">
-                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white mt-0.5 text-[9px] font-bold">💡</div>
+                                    <div class="flex items-start gap-2 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3">
+                                        <span class="text-sm">💡</span>
                                         <p class="leading-relaxed text-indigo-700 dark:text-indigo-300 font-medium">
-                                            Khuyến nghị: Hãy cân nhắc thiết lập combo quà tặng hoặc giảm giá kèm món <strong>{{ topDishName }}</strong> trên trang QR Menu để kích thích thực khách gọi thêm các món ăn kèm khác!
+                                            Gợi ý: Thiết lập combo kèm <strong>{{ topDishName }}</strong> trên QR Menu để tăng giá trị trung bình đơn hàng.
                                         </p>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-center text-sm">
-                                <Brain class="size-8 text-muted-foreground/30 mb-2" />
-                                Đang thu thập thêm dữ liệu để đưa ra khuyến nghị AI...
-                            </div>
-                        </CardContent>
-                    </Card>
+                                <div v-else class="flex flex-col items-center py-10 text-muted-foreground text-center">
+                                    <Brain class="size-8 text-muted-foreground/30 mb-2" />
+                                    <p class="text-xs">Đang thu thập dữ liệu...</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
             </div>
         </section>
@@ -864,8 +1063,8 @@ const topChannelLabel = computed(() => {
                             <p class="text-xs text-muted-foreground">Theo dõi hoạt động, trạng thái bàn và cảnh báo thời gian thực</p>
                         </div>
                         
-                        <!-- Premium Glassmorphic Tab Switcher -->
-                        <div class="flex p-0.5 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs self-start sm:self-auto shadow-inner">
+                        <!-- Tab Switcher -->
+                        <div class="flex flex-wrap p-0.5 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs self-start sm:self-auto shadow-inner">
                             <button
                                 @click="activeTab = 'feed'"
                                 :class="activeTab === 'feed' ? 'bg-background text-foreground shadow-sm font-semibold' : 'hover:text-foreground'"
@@ -892,6 +1091,14 @@ const topChannelLabel = computed(() => {
                                 <span v-if="lowStockList.length" class="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white leading-none scale-90">
                                     {{ lowStockList.length }}
                                 </span>
+                            </button>
+                            <button
+                                @click="activeTab = 'owner'"
+                                :class="activeTab === 'owner' ? 'bg-background text-foreground shadow-sm font-semibold' : 'hover:text-foreground'"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <Crown class="size-3.5 text-amber-500" />
+                                Chủ quán
                             </button>
                         </div>
                     </div>
@@ -1036,6 +1243,158 @@ const topChannelLabel = computed(() => {
                             <p class="text-xs text-muted-foreground mt-1">Không ghi nhận nguyên liệu nào đang ở mức báo động tồn kho</p>
                         </div>
                     </div>
+
+                    <!-- TAB Content: Tổng quan Chủ quán -->
+                    <div v-if="activeTab === 'owner'" class="space-y-4 animate-in fade-in-50 duration-200">
+                        <div v-if="ownerSummary" class="space-y-4">
+                            <!-- Doanh thu tuần này vs tuần trước -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20 dark:border-indigo-800/40 p-3">
+                                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Tuần này</p>
+                                    <p class="text-xl font-black text-indigo-700 dark:text-indigo-300 mt-1">
+                                        {{ formatMoney(ownerSummary.revenue_this_week) }}
+                                    </p>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tuần trước</p>
+                                    <p class="text-xl font-black text-slate-600 dark:text-slate-400 mt-1">
+                                        {{ formatMoney(ownerSummary.revenue_last_week) }}
+                                    </p>
+                                    <p v-if="ownerSummary.revenue_last_week > 0" class="text-[10px] mt-0.5"
+                                        :class="ownerSummary.revenue_this_week >= ownerSummary.revenue_last_week ? 'text-emerald-600' : 'text-rose-500'">
+                                        {{ ownerSummary.revenue_this_week >= ownerSummary.revenue_last_week ? '↑' : '↓' }}
+                                        {{ Math.abs(Math.round((ownerSummary.revenue_this_week - ownerSummary.revenue_last_week) / ownerSummary.revenue_last_week * 100)) }}%
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Cảnh báo đơn chờ lâu -->
+                            <div v-if="ownerSummary.pending_over_20min > 0"
+                                class="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs">
+                                <AlertTriangle class="size-4 text-amber-500 shrink-0" />
+                                <span class="text-amber-700 dark:text-amber-400 font-semibold">
+                                    {{ ownerSummary.pending_over_20min }} đơn chờ quá 20 phút chưa xử lý
+                                </span>
+                                <Link href="/orders?status=pending" class="ml-auto text-amber-600 hover:underline shrink-0">Xem →</Link>
+                            </div>
+
+                            <!-- Top 3 sản phẩm hôm nay -->
+                            <div>
+                                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">🏆 Top sản phẩm hôm nay</p>
+                                <div v-if="ownerSummary.top_products_today.length" class="space-y-2">
+                                    <div v-for="(p, i) in ownerSummary.top_products_today" :key="p.name"
+                                        class="flex items-center gap-2 text-xs">
+                                        <span class="text-sm w-5 shrink-0">{{ ['🥇', '🥈', '🥉'][i] ?? '▪️' }}</span>
+                                        <span class="flex-1 truncate font-medium">{{ p.name }}</span>
+                                        <span class="text-muted-foreground font-mono">{{ p.qty }} đơn</span>
+                                    </div>
+                                </div>
+                                <p v-else class="text-xs text-muted-foreground italic">Chưa có đơn hàng hoàn thành hôm nay</p>
+                            </div>
+
+                            <!-- Nhân viên đang làm việc -->
+                            <div>
+                                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">👥 Nhân sự hôm nay</p>
+                                <div v-if="ownerSummary.active_shifts.length" class="space-y-1.5">
+                                    <div v-for="s in ownerSummary.active_shifts" :key="s.name + s.shift"
+                                        class="flex items-center gap-2 text-xs">
+                                        <span :class="['h-1.5 w-1.5 rounded-full shrink-0', s.status === 'checked_in' ? 'bg-emerald-500' : 'bg-amber-400']" />
+                                        <span class="flex-1 truncate">{{ s.name }}</span>
+                                        <span class="text-muted-foreground text-[10px]">{{ s.shift }}</span>
+                                    </div>
+                                </div>
+                                <p v-else class="text-xs text-muted-foreground italic">Chưa có nhân viên check-in hôm nay</p>
+                            </div>
+                        </div>
+                        <div v-else class="flex flex-col items-center py-12 text-muted-foreground text-center">
+                            <Crown class="size-8 text-amber-400/30 mb-2" />
+                            <p class="text-xs">Dữ liệu đang được tải...</p>
+                        </div>
+                    </div>
+
+                    <!-- Biểu đồ phân tích doanh thu theo ca (Heatmap) -->
+                    <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative">
+                        <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                        <CardHeader class="pb-2 border-b border-border/50 bg-muted/10">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <CardTitle class="text-base font-bold flex items-center gap-2">
+                                        <Clock class="size-4.5 text-indigo-500 animate-pulse" />
+                                        Bản đồ nhiệt doanh thu & Tối ưu ca làm việc
+                                    </CardTitle>
+                                    <CardDescription class="text-xs text-muted-foreground mt-0.5">
+                                        Phân tích mật độ doanh số trong 7 ngày gần đây theo từng ca làm việc để tối ưu hóa nhân lực
+                                    </CardDescription>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] text-muted-foreground font-medium bg-muted/40 px-2 py-1 rounded-lg border border-border/50 shrink-0">
+                                    <span>Thấp</span>
+                                    <div class="flex gap-0.5">
+                                        <span class="w-2.5 h-2.5 rounded bg-slate-100 dark:bg-slate-800 border border-border/40"></span>
+                                        <span class="w-2.5 h-2.5 rounded bg-indigo-100 dark:bg-indigo-950/30"></span>
+                                        <span class="w-2.5 h-2.5 rounded bg-indigo-300 dark:bg-indigo-800/50"></span>
+                                        <span class="w-2.5 h-2.5 rounded bg-indigo-500 dark:bg-indigo-600"></span>
+                                        <span class="w-2.5 h-2.5 rounded bg-indigo-700 dark:bg-indigo-500"></span>
+                                    </div>
+                                    <span>Cao</span>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent class="pt-6 relative z-10 space-y-4">
+                            <div v-if="props.shiftRevenue && props.shiftRevenue.length > 0" class="space-y-4">
+                                <div class="space-y-3">
+                                    <div 
+                                        v-for="row in props.shiftRevenue" 
+                                        :key="row.shift_name"
+                                        class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-2xl border border-border/50 bg-muted/10 hover:bg-muted/20 transition-all"
+                                    >
+                                        <div class="sm:w-44 shrink-0">
+                                            <h4 class="text-sm font-bold text-foreground flex items-center gap-1.5">
+                                                <CalendarDays class="size-4 text-muted-foreground" />
+                                                {{ row.shift_name }}
+                                            </h4>
+                                            <p class="text-[10px] text-muted-foreground mt-0.5">Doanh số trung bình ca: {{ formatMoneyFull(Math.round(row.days.reduce((sum, d) => sum + d.revenue, 0) / Math.max(row.days.length, 1))) }}</p>
+                                        </div>
+                                        <div class="flex-1 flex items-center justify-between gap-1">
+                                            <div 
+                                                v-for="day in row.days" 
+                                                :key="day.date"
+                                                class="flex-1 group relative flex flex-col items-center justify-center aspect-[5/4] rounded-lg border border-border/20 transition-transform hover:scale-105 shadow-sm cursor-help overflow-hidden"
+                                                :class="shiftHeatColor(day.revenue)"
+                                            >
+                                                <!-- Date Label overlay inside each block -->
+                                                <span class="text-[9px] font-extrabold"
+                                                      :class="day.revenue / shiftHeatmapMax >= 0.5 ? 'text-white' : 'text-muted-foreground'"
+                                                >
+                                                    {{ day.date }}
+                                                </span>
+                                                
+                                                <!-- Sleek floating tooltip for each block -->
+                                                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-30 bg-slate-900 text-white text-[10px] px-2 py-1.5 rounded-lg shadow-xl border border-slate-700/50 whitespace-nowrap leading-tight">
+                                                    <span class="font-bold text-slate-300 block mb-0.5">Ngày {{ day.date }}</span>
+                                                    <span class="font-mono text-indigo-400 font-bold">{{ formatMoneyFull(day.revenue) }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- AI Recommendation for Shifts -->
+                                <div class="flex items-start gap-2.5 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-2xl p-4">
+                                    <span class="text-base shrink-0 mt-0.5">💡</span>
+                                    <div class="space-y-1">
+                                        <h5 class="text-xs font-bold text-indigo-800 dark:text-indigo-300">Khuyến nghị điều phối ca của AI</h5>
+                                        <p class="text-xs text-indigo-700 dark:text-indigo-400 leading-relaxed font-medium">
+                                            Dựa trên mật độ doanh thu thực tế, ca tối và ca chiều cuối tuần (Thứ 6 đến Chủ nhật) đang mang lại doanh thu cao nhất. Hãy đảm bảo bố trí tối thiểu <strong>2 nhân viên phục vụ và 1 thu ngân chuyên trách</strong> vào các ca này để giảm tải vận hành và rút ngắn thời gian chuẩn bị món.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else class="flex flex-col items-center justify-center py-10 text-muted-foreground text-center">
+                                <Clock class="size-8 text-muted-foreground/30 mb-2" />
+                                <p class="text-xs">Không có dữ liệu ca làm việc hoạt động.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <!-- Right sidebar (1/3) -->

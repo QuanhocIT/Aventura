@@ -78,6 +78,71 @@ class Employee extends Model
         return $this->hasMany(ScheduleAssignment::class);
     }
 
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    public function isWithinScheduledShift(): bool
+    {
+        $now = now();
+        $today = $now->toDateString();
+        $yesterday = $now->copy()->subDay()->toDateString();
+        $tomorrow = $now->copy()->addDay()->toDateString();
+
+        $assignments = $this->schedules()
+            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->with('shift')
+            ->get();
+
+        foreach ($assignments as $assignment) {
+            $shift = $assignment->shift;
+            if (!$shift || $shift->status !== 'active') {
+                continue;
+            }
+
+            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                ? $assignment->scheduled_date->toDateString()
+                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+
+            if (!in_array($dateStr, [$yesterday, $today, $tomorrow])) {
+                continue;
+            }
+
+            $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
+            
+            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+            } else {
+                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+            }
+
+            $allowedStart = $start->copy()->subMinutes(30);
+            $allowedEnd = $end->copy()->addMinutes(30);
+
+            if ($now->between($allowedStart, $allowedEnd)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function salaries(): HasMany
+    {
+        return $this->hasMany(Salary::class);
+    }
+
+    public function salaryAdjustments(): HasMany
+    {
+        return $this->hasMany(SalaryAdjustment::class);
+    }
+
+    public function violationReports(): HasMany
+    {
+        return $this->hasMany(ViolationReport::class);
+    }
+
     public function media(): MorphMany
     {
         return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');

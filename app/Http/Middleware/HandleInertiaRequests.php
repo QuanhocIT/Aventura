@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -94,11 +95,17 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $user,
+                'user' => $user ? array_merge($user->toArray(), [
+                    'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+                    'roles' => $roles->toArray(),
+                ]) : null,
             ],
             'roles'           => $roles,
             'tenant'          => $tenant,
             'available_plans' => $availablePlans,
+            'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
+                ? ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
+                : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success'      => $request->session()->get('success'),

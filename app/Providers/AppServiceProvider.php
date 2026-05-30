@@ -15,7 +15,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Support\Tenant\TenantContext::class, function () {
+            return new \App\Support\Tenant\TenantContext();
+        });
     }
 
     /**
@@ -30,6 +32,8 @@ class AppServiceProvider extends ServiceProvider
             database_path('migrations/analytics'),
             database_path('migrations/system'),
         ]);
+
+        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
 
         $this->configureDefaults();
     }
