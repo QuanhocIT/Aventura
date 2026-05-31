@@ -165,6 +165,26 @@ const weekDays = [
     { key: 'Sunday', label: 'Chủ Nhật' },
 ];
 
+const weekDaysWithDates = computed(() => {
+    const current = new Date();
+    const day = current.getDay();
+    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(current.setDate(diff));
+    
+    return weekDays.map((wd, index) => {
+        const nextDay = new Date(monday);
+        nextDay.setDate(monday.getDate() + index);
+        const dd = String(nextDay.getDate()).padStart(2, '0');
+        const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+        return {
+            ...wd,
+            dateLabel: `${dd}/${mm}`,
+            fullLabel: `${wd.label} (${dd}/${mm})`
+        };
+    });
+});
+
+
 const openOverrideModal = (assignment: Assignment, action: 'check_in' | 'check_out' | 'absent') => {
     activeOverrideAssignment.value = assignment;
     overrideAction.value = action;
@@ -587,8 +607,13 @@ const printRoster = () => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                <tr v-for="day in weekDays" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                                    <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">{{ day.label }}</td>
+                                <tr v-for="day in weekDaysWithDates" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                    <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">
+                                        <div class="flex flex-col gap-0.5">
+                                            <span>{{ day.label }}</span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
+                                        </div>
+                                    </td>
                                     <td class="p-3.5 flex flex-wrap gap-2 items-center">
                                         <div
                                             v-for="(s, idx) in weeklyAssignments?.filter(sc => sc.day === day.key)"

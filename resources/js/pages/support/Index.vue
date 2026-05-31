@@ -232,6 +232,12 @@ completedDays++;
     
     return Math.round((completedDays / 3) * 100);
 });
+
+const isOwner = computed(() => {
+    const page = usePage();
+    const roles = page.props.roles ?? [];
+    return Array.isArray(roles) ? roles.includes('owner') : false;
+});
 </script>
 
 <template>
@@ -257,7 +263,7 @@ completedDays++;
             <!-- Left Panel: Guided Tours controls & Announcement -->
             <div class="flex flex-col gap-6 lg:col-span-1">
                 <!-- Guided Tours Panel -->
-                <Card class="border-indigo-100/50 bg-gradient-to-br from-indigo-50/40 to-white dark:from-slate-900/50 dark:to-slate-900 shadow-sm overflow-hidden">
+                <Card v-if="isOwner" class="border-indigo-100/50 bg-gradient-to-br from-indigo-50/40 to-white dark:from-slate-900/50 dark:to-slate-900 shadow-sm overflow-hidden">
                     <CardHeader class="pb-3">
                         <CardTitle class="text-md flex items-center gap-2">
                             <Compass class="size-5 text-indigo-600 dark:text-indigo-400 animate-spin-slow" />

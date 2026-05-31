@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { usePage, router } from '@inertiajs/vue3';
 import { Play, X, ArrowRight, CheckCircle2, ChevronRight, Award, Compass } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
@@ -17,6 +17,12 @@ const isSuperAdmin = computed(() => {
     const roles = page.props.roles ?? [];
 
     return Array.isArray(roles) ? roles.includes('super_admin') || roles.includes('admin') : false;
+});
+
+const isOwner = computed(() => {
+    const roles = page.props.roles ?? [];
+
+    return Array.isArray(roles) ? roles.includes('owner') : false;
 });
 
 // Tiến độ Onboarding lưu trong User Model
@@ -267,7 +273,7 @@ onMounted(() => {
     // Kích hoạt tour tự động nếu user đăng nhập lần đầu và chưa hoàn thành Day 1
     // Dùng sessionStorage để tránh auto-start lại mỗi lần reload trang
     setTimeout(() => {
-        if (user.value && !isSuperAdmin.value) {
+        if (user.value && isOwner.value) {
             const status = onboardingStatus.value;
 
             const wasDismissed = (day: number) =>

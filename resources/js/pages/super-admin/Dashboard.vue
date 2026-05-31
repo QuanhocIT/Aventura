@@ -424,7 +424,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                     <FileText class="size-3.5" /> Audit Log
                 </Link>
             </div>
-        </div>
+        </div> 
 
         <!-- Main Chart + Health Grid -->
         <div class="grid gap-4 xl:grid-cols-[1.6fr_1fr]">

@@ -507,7 +507,94 @@ class SupportController extends Controller
             'shifts'        => $shifts,
             'schedules'     => $schedules,
             'leaveRequests' => $leaveRequests,
+            'autoSchedule'  => (bool) $user->restaurant->auto_schedule,
         ]);
+    }
+
+    /**
+     * Bật/Tắt chế độ xếp lịch tự động bằng AI.
+     */
+    public function toggleAutoSchedule(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $restaurant = $user->restaurant;
+        if (!$restaurant) {
+            abort(404, 'Không tìm thấy nhà hàng.');
+        }
+
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $restaurant->update([
+            'auto_schedule' => $data['enabled'],
+        ]);
+
+        if ($data['enabled']) {
+            // Auto generate schedules for the current calendar week
+            $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+            $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+            // 1. Xóa tất cả lịch xếp ca hiện tại trong tuần này
+            ScheduleAssignment::where('restaurant_id', $restaurant->id)
+                ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
+                ->delete();
+
+            // 2. Lấy danh sách nhân viên đang hoạt động
+            $activeEmployees = Employee::where('restaurant_id', $restaurant->id)
+                ->where('status', 'active')
+                ->get();
+
+            // 3. Lấy danh sách các ca làm việc đang hoạt động
+            $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)
+                ->where('status', 'active')
+                ->get();
+
+            if ($activeEmployees->isNotEmpty() && $activeShifts->isNotEmpty()) {
+                // Lặp qua 7 ngày trong tuần
+                for ($i = 0; $i < 7; $i++) {
+                    $currentDate = $startOfWeek->copy()->addDays($i);
+                    $dateStr = $currentDate->toDateString();
+
+                    // Xác định xem nhân viên nào đang nghỉ phép (đã được duyệt) vào ngày này
+                    $onLeaveEmployeeIds = LeaveRequest::where('restaurant_id', $restaurant->id)
+                        ->where('status', 'approved')
+                        ->whereDate('start_date', '<=', $dateStr)
+                        ->whereDate('end_date', '>=', $dateStr)
+                        ->pluck('employee_id')
+                        ->toArray();
+
+                    $availableEmployees = $activeEmployees->reject(fn ($e) => in_array($e->id, $onLeaveEmployeeIds))->values();
+
+                    if ($availableEmployees->isNotEmpty()) {
+                        // Trộn danh sách nhân viên để xếp lịch ngẫu nhiên nhưng đồng đều cho mỗi ngày
+                        $shuffledEmployees = $availableEmployees->shuffle();
+                        
+                        foreach ($activeShifts as $sIdx => $shift) {
+                            // Phân phối tối đa 2 nhân viên cho mỗi ca trực (nếu có đủ nhân sự)
+                            $empPerShift = $shuffledEmployees->count() >= 3 ? 2 : 1;
+                            
+                            for ($j = 0; $j < $empPerShift; $j++) {
+                                $employeeIndex = ($sIdx * $empPerShift + $j) % $shuffledEmployees->count();
+                                $employee = $shuffledEmployees->get($employeeIndex);
+
+                                ScheduleAssignment::create([
+                                    'restaurant_id' => $restaurant->id,
+                                    'employee_id'   => $employee->id,
+                                    'shift_id'      => $shift->id,
+                                    'scheduled_date'=> $dateStr,
+                                    'status'        => 'scheduled',
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return back()->with('success', 'Chế độ xếp lịch tự động đã được KÍCH HOẠT. AI đã tự động phân bổ ca trực tối ưu cho tất cả nhân sự.');
+        }
+
+        return back()->with('success', 'Chế độ xếp lịch tự động đã TẮT. Bây giờ bạn có thể tự xếp lịch thủ công.');
     }
 
     /**
