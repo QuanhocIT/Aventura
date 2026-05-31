@@ -431,9 +431,11 @@ class DashboardController extends Controller
         }
 
         $onboardingStatus   = $user?->onboarding_status ?? [];
-        $onboardingComplete = !empty($onboardingStatus['day_1']['completed_at'])
+        $onboardingComplete = !$user?->hasRole('owner') || (
+            !empty($onboardingStatus['day_1']['completed_at'])
             && !empty($onboardingStatus['day_2']['completed_at'])
-            && !empty($onboardingStatus['day_3']['completed_at']);
+            && !empty($onboardingStatus['day_3']['completed_at'])
+        );
 
         return Inertia::render('Dashboard', [
             'operationFeed'        => $operationFeed,

@@ -83,6 +83,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::post('employees/shifts/sync', [SupportController::class, 'syncShifts'])->name('employees.shifts.sync');
     Route::post('employees/schedules', [SupportController::class, 'storeAssignment'])->name('employees.schedules.store');
     Route::post('employees/schedules/delete', [SupportController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
+    Route::post('employees/schedules/toggle-auto', [SupportController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
     Route::post('employees/leaves', [SupportController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
     Route::patch('employees/leaves/{leave}/approve', [SupportController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
     Route::patch('employees/leaves/{leave}/reject', [SupportController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');

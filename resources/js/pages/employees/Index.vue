@@ -23,6 +23,7 @@ const props = defineProps<{
     shifts: Shift[];
     schedules: Assignment[];
     leaveRequests?: any[];
+    autoSchedule?: boolean;
 }>();
 
 const showAddEmployee  = ref(false);
@@ -175,6 +176,26 @@ const weekDays = [
     { key: 'Sunday', label: 'Chủ Nhật' }
 ];
 
+const weekDaysWithDates = computed(() => {
+    const current = new Date();
+    const day = current.getDay();
+    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(current.setDate(diff));
+    
+    return weekDays.map((wd, index) => {
+        const nextDay = new Date(monday);
+        nextDay.setDate(monday.getDate() + index);
+        const dd = String(nextDay.getDate()).padStart(2, '0');
+        const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+        return {
+            ...wd,
+            dateLabel: `${dd}/${mm}`,
+            fullLabel: `${wd.label} (${dd}/${mm})`
+        };
+    });
+});
+
+
 // ── LOCAL DYNAMIC SHIFT & SCHEDULE STATE (DATABASE DRIVEN) ──
 const shiftsState = ref<Shift[]>(props.shifts ? [...props.shifts] : []);
 const schedulesState = ref<Assignment[]>(props.schedules ? [...props.schedules] : []);
@@ -187,6 +208,28 @@ watch(() => props.shifts, (newShifts) => {
 watch(() => props.schedules, (newSchedules) => {
     schedulesState.value = newSchedules ? [...newSchedules] : [];
 }, { deep: true });
+
+const isAutoSchedule = ref(!!props.autoSchedule);
+watch(() => props.autoSchedule, (newVal) => {
+    isAutoSchedule.value = !!newVal;
+});
+
+const handleToggleAutoSchedule = () => {
+    if (!isAutoSchedule.value) {
+        if (!confirm('Kích hoạt Chế độ xếp lịch tự động? AI sẽ tự động phân phối các ca trực tối ưu cho tất cả nhân sự đang hoạt động trong tuần này. Các lịch ca trực hiện tại của tuần này sẽ bị thay thế.')) {
+            return;
+        }
+    }
+    
+    const targetState = !isAutoSchedule.value;
+    router.post('/employees/schedules/toggle-auto', {
+        enabled: targetState
+    }, {
+        onSuccess: () => {
+            isAutoSchedule.value = targetState;
+        }
+    });
+};
 
 // Modals State
 const showShiftConfigModal = ref(false);
@@ -277,8 +320,8 @@ function submitRejectLeave() {
 
 const currentAssignDay = ref('');
 const currentAssignDayLabel = computed(() => {
-    const day = weekDays.find(d => d.key === currentAssignDay.value);
-    return day ? day.label : '';
+    const day = weekDaysWithDates.value.find(d => d.key === currentAssignDay.value);
+    return day ? day.fullLabel : '';
 });
 
 // Dynamic Available Employees list (fallback to defaults if DB roster is empty)
@@ -728,7 +771,7 @@ const toggleExpandEmployee = (id: number) => {
             <!-- Day 3 Tour Target: scheduler-card -->
             <div class="lg:col-span-2">
                 <Card id="scheduler-card" class="shadow-sm border-indigo-100 bg-gradient-to-br from-indigo-50/20 to-white dark:from-slate-900/50 dark:to-slate-900">
-                    <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <CardHeader class="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
                             <CardTitle class="text-base flex items-center gap-1.5">
                                 <Calendar class="size-5 text-indigo-600" />
@@ -736,15 +779,37 @@ const toggleExpandEmployee = (id: number) => {
                             </CardTitle>
                             <CardDescription>Xây dựng các ca làm việc và xếp lịch để nhân viên bấm giờ chấm công hàng ngày.</CardDescription>
                         </div>
-                        <Button 
-                            @click="showShiftConfigModal = true"
-                            variant="outline" 
-                            size="sm"
-                            class="h-8 text-xs shrink-0 flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:border-indigo-300"
-                        >
-                            <Settings class="size-3.5" />
-                            Thiết lập Ca
-                        </Button>
+                        <div class="flex flex-wrap items-center gap-4 self-end sm:self-center">
+                            <!-- Toggle switch for Auto Schedule -->
+                            <div 
+                                @click="handleToggleAutoSchedule"
+                                class="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border rounded-xl px-3 py-1.5 shadow-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                            >
+                                <span class="text-xs font-bold shrink-0" :class="isAutoSchedule ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'">
+                                    {{ isAutoSchedule ? '⚡ Tự động (AI)' : '🔧 Thủ công' }}
+                                </span>
+                                <div
+                                    class="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out"
+                                    :class="isAutoSchedule ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'"
+                                >
+                                    <span
+                                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
+                                        :class="isAutoSchedule ? 'translate-x-4' : 'translate-x-0'"
+                                    />
+                                </div>
+                            </div>
+
+                            <Button 
+                                @click="showShiftConfigModal = true"
+                                :disabled="isAutoSchedule"
+                                variant="outline" 
+                                size="sm"
+                                class="h-8 text-xs shrink-0 flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:border-indigo-300 disabled:opacity-50"
+                            >
+                                <Settings class="size-3.5" />
+                                Thiết lập Ca
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent class="p-4">
                         <!-- Shifts listing brief -->
@@ -766,8 +831,13 @@ const toggleExpandEmployee = (id: number) => {
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                    <tr v-for="day in weekDays" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                                        <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">{{ day.label }}</td>
+                                    <tr v-for="day in weekDaysWithDates" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">
+                                            <div class="flex flex-col gap-0.5">
+                                                <span>{{ day.label }}</span>
+                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
+                                            </div>
+                                        </td>
                                         <td class="p-3.5 flex flex-wrap gap-2 items-center">
                                             <!-- Load assigned schedules -->
                                             <div
@@ -780,6 +850,7 @@ const toggleExpandEmployee = (id: number) => {
                                                 <span class="text-[9px] text-slate-400 font-mono">({{ s.shift_name }})</span>
                                                 <!-- Delete button -->
                                                 <button 
+                                                    v-if="!isAutoSchedule"
                                                     @click="removeAssignment(day.key, s.employee_name, s.shift_name)"
                                                     class="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-950/40 text-rose-500 opacity-0 group-hover/assign:opacity-100 transition-opacity ml-1"
                                                     title="Hủy xếp ca"
@@ -790,6 +861,7 @@ const toggleExpandEmployee = (id: number) => {
  
                                             <!-- Add dynamic assign button -->
                                             <button 
+                                                v-if="!isAutoSchedule"
                                                 @click="openAssignModal(day.key)"
                                                 class="h-7 w-7 flex items-center justify-center rounded-lg border border-dashed border-indigo-200 hover:border-indigo-400 text-indigo-500 hover:bg-indigo-50 dark:border-indigo-900 dark:hover:bg-indigo-950/30 transition-colors"
                                                 title="Xếp ca cho nhân sự"
