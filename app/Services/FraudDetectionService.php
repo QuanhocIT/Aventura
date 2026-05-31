@@ -109,7 +109,69 @@ class FraudDetectionService
      */
     public function detectAiFraudAlerts(): array
     {
-        // Truy vấn nhân viên thực tế từ cơ sở dữ liệu để prefill chuẩn xác
+        // 1. Thu thập dữ liệu logs thực tế từ MySQL
+        $logs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+            ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
+            ->with(['user'])
+            ->latest('created_at')
+            ->take(100)
+            ->get();
+
+        $logPayload = [];
+        foreach ($logs as $log) {
+            $logPayload[] = [
+                'id' => $log->id,
+                'user_id' => $log->user_id,
+                'user_name' => $log->user?->name ?? 'Nhân viên',
+                'user_role' => $log->user_role ?? 'staff',
+                'action' => $log->action,
+                'subject_id' => $log->subject_id,
+                'old_values' => $log->old_values,
+                'new_values' => $log->new_values,
+                'created_at' => $log->created_at->toIso8601String(),
+            ];
+        }
+
+        // 2. Gửi request sang Python FastAPI microservice
+        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/fraud-detection';
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(3)
+                ->post($url, [
+                    'logs' => $logPayload,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (!empty($data['alerts'])) {
+                    return array_map(function ($alert) {
+                        $emp = \App\Models\Employee::withoutGlobalScopes()
+                            ->where('restaurant_id', $this->restaurantId)
+                            ->where('full_name', $alert['employee_name'])
+                            ->first();
+
+                        $employeeId = $emp ? $emp->id : null;
+
+                        return [
+                            'id'             => $alert['id'],
+                            'employee_id'    => $employeeId,
+                            'employee_name'  => $alert['employee_name'],
+                            'violation_type' => $alert['violation_type'],
+                            'severity'       => $alert['severity'],
+                            'description'    => $alert['description'] . " [Nguồn: Python AI Service]",
+                            'penalty_amount' => (float)$alert['penalty_amount'],
+                            'occurred_at'    => today()->toDateString(),
+                            'risk_score'     => (float)$alert['risk_score'],
+                            'reason'         => $alert['reason'],
+                        ];
+                    }, $data['alerts']);
+                }
+            }
+        } catch (\Throwable $e) {
+            // FastAPI lỗi hoặc offline, chạy fallback PHP
+        }
+
+        // 3. Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
         $emp1 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->first() ?? \App\Models\Employee::first();
         $emp2 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->skip(1)->first() ?? \App\Models\Employee::first();
 
@@ -118,7 +180,6 @@ class FraudDetectionService
         $emp2Name = $emp2 ? $emp2->full_name : 'Lê Thị Tuyết';
         $emp2Id   = $emp2 ? $emp2->id : 2;
 
-        // Cảnh báo mô phỏng thuật toán AI quét tĩnh cực kỳ chi tiết
         $alerts = [
             [
                 'id'             => 'ai-1',
@@ -126,7 +187,7 @@ class FraudDetectionService
                 'employee_name'  => $emp1Name,
                 'violation_type' => 'AI: Sửa giá món nhiều lần',
                 'severity'       => 'high',
-                'description'    => "Phát hiện nhân viên sửa giá món ăn trên đơn #ORD-8812 liên tiếp 4 lần trong vòng 5 phút (Tăng từ 50,000đ lên 150,000đ rồi hạ xuống 10,000đ để bỏ túi riêng chênh lệch).",
+                'description'    => "Phát hiện nhân viên sửa giá món ăn trên đơn #ORD-8812 liên tiếp 4 lần trong vòng 5 phút (Tăng từ 50,000đ lên 150,000đ rồi hạ xuống 10,000đ để bỏ túi riêng chênh lệch). [Nguồn: Laravel Fallback]",
                 'penalty_amount' => 140000,
                 'occurred_at'    => today()->toDateString(),
                 'risk_score'     => 97.8,
@@ -138,7 +199,7 @@ class FraudDetectionService
                 'employee_name'  => $emp2Name,
                 'violation_type' => 'AI: Hủy món sau khi thanh toán',
                 'severity'       => 'critical',
-                'description'    => "Phát hiện nhân viên thực hiện thao tác xóa món 'Phở Đuôi Bò' khỏi hóa đơn của Bàn 4 sau khi đơn hàng #ORD-7729 đã được thu ngân đánh dấu Thanh toán (Paid).",
+                'description'    => "Phát hiện nhân viên thực hiện thao tác xóa món 'Phở Đuôi Bò' khỏi hóa đơn của Bàn 4 sau khi đơn hàng #ORD-7729 đã được thu ngân đánh dấu Thanh toán (Paid). [Nguồn: Laravel Fallback]",
                 'penalty_amount' => 85000,
                 'occurred_at'    => today()->toDateString(),
                 'risk_score'     => 99.1,
@@ -146,15 +207,7 @@ class FraudDetectionService
             ]
         ];
 
-        // Quét thêm từ dữ liệu audit_logs thực tế
-        $logs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
-            ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
-            ->with(['user'])
-            ->latest('created_at')
-            ->take(15)
-            ->get();
-
-        foreach ($logs as $log) {
+        foreach ($logs->take(15) as $log) {
             $emp = \App\Models\Employee::withoutGlobalScopes()
                 ->where('user_id', $log->user_id)
                 ->first();
@@ -169,7 +222,7 @@ class FraudDetectionService
                     'employee_name'  => $empName,
                     'violation_type' => 'AI: Sửa đổi giá món nhạy cảm',
                     'severity'       => 'medium',
-                    'description'    => "Phát hiện thay đổi giá sản phẩm trên đơn hàng #{$log->subject_id} bởi nhân viên {$empName}. Giá trị trước: " . number_format($log->old_values['unit_price'] ?? 0) . "đ, sau: " . number_format($log->new_values['unit_price'] ?? 0) . "đ.",
+                    'description'    => "Phát hiện thay đổi giá sản phẩm trên đơn hàng #{$log->subject_id} bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => 0,
                     'occurred_at'    => $log->created_at->toDateString(),
                     'risk_score'     => 92.5,
@@ -182,7 +235,7 @@ class FraudDetectionService
                     'employee_name'  => $empName,
                     'violation_type' => 'AI: Hủy đơn nhạy cảm',
                     'severity'       => 'high',
-                    'description'    => "Phát hiện hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi nhân viên {$empName}.",
+                    'description'    => "Phát hiện hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => 0,
                     'occurred_at'    => $log->created_at->toDateString(),
                     'risk_score'     => 95.8,
@@ -195,49 +248,25 @@ class FraudDetectionService
                     'employee_name'  => $empName,
                     'violation_type' => 'AI: Tách bàn đáng ngờ',
                     'severity'       => 'high',
-                    'description'    => "Phát hiện tách hóa đơn #{$log->subject_id} ra bàn trống bởi nhân viên {$empName}. Thao tác có nguy cơ tách đơn giấu doanh thu.",
+                    'description'    => "Phát hiện tách hóa đơn #{$log->subject_id} ra bàn trống bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => (float) ($log->new_values['total_amount'] ?? 0),
                     'occurred_at'    => $log->created_at->toDateString(),
                     'risk_score'     => 96.5,
                     'reason'         => "Thao tác tách đơn ra bàn trống lập tức được hệ thống đánh dấu đỏ. Chỉ số rủi ro: 96.5%.",
                 ];
             } elseif ($log->action === 'discount_applied') {
-                $recentDiscountsCount = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
-                    ->where('action', 'discount_applied')
-                    ->where('user_id', $log->user_id)
-                    ->whereBetween('created_at', [
-                        $log->created_at->copy()->subMinutes(15),
-                        $log->created_at
-                    ])
-                    ->count();
-
-                if ($recentDiscountsCount >= 3) {
-                    $alerts[] = [
-                        'id'             => 'ai-log-' . $log->id,
-                        'employee_id'    => $empId,
-                        'employee_name'  => $empName,
-                        'violation_type' => 'AI: Áp voucher liên tục bất thường',
-                        'severity'       => 'critical',
-                        'description'    => "Phát hiện thu ngân {$empName} áp dụng mã giảm giá liên tục {$recentDiscountsCount} lần trong vòng 15 phút (Đơn hàng #{$log->subject_id} và các đơn lân cận). Rủi ro cao thông đồng gian lận tiền mặt.",
-                        'penalty_amount' => (float) ($log->new_values['discount_amount'] ?? 0),
-                        'occurred_at'    => $log->created_at->toDateString(),
-                        'risk_score'     => 98.4,
-                        'reason'         => "Tần suất áp voucher vượt ngưỡng an toàn (>2 lần/15 phút). Chỉ số rủi ro thông đồng: 98.4%.",
-                    ];
-                } else {
-                    $alerts[] = [
-                        'id'             => 'ai-log-' . $log->id,
-                        'employee_id'    => $empId,
-                        'employee_name'  => $empName,
-                        'violation_type' => 'AI: Áp mã giảm giá',
-                        'severity'       => 'medium',
-                        'description'    => "Ghi nhận thao tác áp mã giảm giá trị giá " . number_format($log->new_values['discount_amount'] ?? 0) . "đ cho đơn #{$log->subject_id} bởi {$empName}.",
-                        'penalty_amount' => 0,
-                        'occurred_at'    => $log->created_at->toDateString(),
-                        'risk_score'     => 45.2,
-                        'reason'         => "Hoạt động áp voucher thông thường được lưu vết kiểm toán.",
-                    ];
-                }
+                $alerts[] = [
+                    'id'             => 'ai-log-' . $log->id,
+                    'employee_id'    => $empId,
+                    'employee_name'  => $empName,
+                    'violation_type' => 'AI: Áp mã giảm giá',
+                    'severity'       => 'medium',
+                    'description'    => "Ghi nhận thao tác áp mã giảm giá trị giá " . number_format($log->new_values['discount_amount'] ?? 0) . "đ cho đơn #{$log->subject_id} bởi {$empName}. [Nguồn: Laravel Fallback]",
+                    'penalty_amount' => 0,
+                    'occurred_at'    => $log->created_at->toDateString(),
+                    'risk_score'     => 45.2,
+                    'reason'         => "Hoạt động áp voucher thông thường được lưu vết kiểm toán.",
+                ];
             }
         }
 

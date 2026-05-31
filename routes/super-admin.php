@@ -14,7 +14,7 @@ use App\Http\Controllers\SuperAdmin\NewsPostController;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
-    ->middleware(['auth', 'verified', 'permission.cache.clear', 'role:super_admin|admin'])
+    ->middleware(['auth', 'verified', 'permission.cache.clear', 'role:super_admin', 'role.superadmin.2fa'])
     ->group(function () {
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
@@ -69,4 +69,7 @@ Route::prefix('super-admin')
         Route::patch('news/{post}/publish', [NewsPostController::class, 'togglePublish'])->name('news.publish');
         Route::patch('news/{post}/featured', [NewsPostController::class, 'toggleFeatured'])->name('news.featured');
         Route::get('news/{post}/content', [NewsPostController::class, 'getContent'])->name('news.content');
+
+        // Impersonation
+        Route::post('impersonate/{user}', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'start'])->name('impersonate.start');
     });

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     KeyRound, Search, ShieldCheck, ShieldOff, ShieldX,
@@ -109,6 +109,14 @@ return;
  processingDisable2FA.value = null; 
 },
     });
+}
+
+// Impersonate User
+function impersonateUser(account: any) {
+    if (!confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới danh nghĩa "${account.name}" không?`)) {
+        return;
+    }
+    router.post(`/super-admin/impersonate/${account.id}`, {});
 }
 
 // Toggle status
@@ -320,6 +328,18 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                             <!-- Thao tác -->
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-end gap-1">
+                                    <!-- Sắm vai -->
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        class="gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold"
+                                        title="Đăng nhập sắm vai"
+                                        @click="impersonateUser(a)"
+                                    >
+                                        <UserCheck class="size-3.5" />
+                                        Sắm vai
+                                    </Button>
+
                                     <!-- Reset mật khẩu -->
                                     <Button
                                         variant="ghost"

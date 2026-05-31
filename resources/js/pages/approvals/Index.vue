@@ -8,6 +8,9 @@ import {
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 
 defineOptions({ layout: AppLayout });
 
@@ -72,18 +75,18 @@ function pendingHours(dateStr: string): number {
 }
 
 function slaClass(dateStr: string, status: ApprovalStatus): string {
-    if (status !== 'pending') return 'text-gray-400';
+    if (status !== 'pending') return 'text-slate-400 dark:text-slate-500 font-semibold';
     const h = pendingHours(dateStr);
-    if (h >= 48) return 'text-rose-600 font-bold';
-    if (h >= 24) return 'text-amber-600 font-semibold';
-    return 'text-slate-500';
+    if (h >= 48) return 'text-rose-600 dark:text-rose-450 font-bold';
+    if (h >= 24) return 'text-amber-600 dark:text-amber-400 font-semibold';
+    return 'text-slate-500 dark:text-slate-400 font-semibold';
 }
 
 function slaIcon(dateStr: string, status: ApprovalStatus) {
     if (status !== 'pending') return null;
     const h = pendingHours(dateStr);
-    if (h >= 48) return { icon: Zap, cls: 'text-rose-500' };
-    if (h >= 24) return { icon: Timer, cls: 'text-amber-500' };
+    if (h >= 48) return { icon: Zap, cls: 'text-rose-500 dark:text-rose-400 size-3 shrink-0' };
+    if (h >= 24) return { icon: Timer, cls: 'text-amber-500 dark:text-amber-400 size-3 shrink-0' };
     return null;
 }
 
@@ -96,20 +99,20 @@ const urgentPending = computed(() =>
 // ── Status & operation config ─────────────────────────────────────────────────
 
 const statusConfig: Record<ApprovalStatus, { label: string; badgeClass: string; dotClass: string }> = {
-    pending:  { label: 'Chờ duyệt',  badgeClass: 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',   dotClass: 'bg-amber-500 animate-pulse' },
-    approved: { label: 'Đã duyệt',   badgeClass: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400', dotClass: 'bg-emerald-500' },
-    rejected: { label: 'Từ chối',    badgeClass: 'bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400', dotClass: 'bg-rose-500' },
+    pending:  { label: 'Chờ duyệt',  badgeClass: 'bg-amber-50 text-amber-700 border border-amber-250/50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30',   dotClass: 'bg-amber-500 animate-pulse' },
+    approved: { label: 'Đã duyệt',   badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-250/50 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30', dotClass: 'bg-emerald-500' },
+    rejected: { label: 'Từ chối',    badgeClass: 'bg-rose-50 text-rose-700 border border-rose-250/50 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30', dotClass: 'bg-rose-500' },
 };
 
 const operationConfig: Record<string, { icon: any; color: string; bg: string }> = {
-    inventory_purchase: { icon: Package,  color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-100 dark:bg-blue-950/40' },
-    inventory_waste:    { icon: Trash2,   color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-950/40' },
-    salary_adjustment:  { icon: Coins,    color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-950/40' },
-    employee_create:    { icon: UserPlus, color: 'text-teal-600 dark:text-teal-400',    bg: 'bg-teal-100 dark:bg-teal-950/40' },
+    inventory_purchase: { icon: Package,  color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/20' },
+    inventory_waste:    { icon: Trash2,   color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/20' },
+    salary_adjustment:  { icon: Coins,    color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40 border border-violet-100 dark:border-violet-900/20' },
+    employee_create:    { icon: UserPlus, color: 'text-teal-600 dark:text-teal-400',    bg: 'bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/20' },
 };
 
 function opConfig(type: string) {
-    return operationConfig[type] ?? { icon: ClipboardList, color: 'text-gray-500', bg: 'bg-gray-100' };
+    return operationConfig[type] ?? { icon: ClipboardList, color: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800' };
 }
 
 // ── Operation data labels ─────────────────────────────────────────────────────
@@ -204,17 +207,17 @@ function submitReject() {
 <template>
     <Head title="Phê duyệt" />
 
-    <div class="space-y-6 p-4 md:p-6 max-w-5xl mx-auto">
+    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
 
         <!-- Header -->
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 shadow-sm">
-                    <ShieldCheck class="h-6 w-6" />
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/30">
+                    <ShieldCheck class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Kiểm duyệt chéo</h1>
-                    <p class="text-sm text-gray-500 mt-0.5">Phê duyệt các thao tác tài chính từ nhân viên trước khi có hiệu lực</p>
+                    <h1 class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Kiểm duyệt chéo</h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Phê duyệt các thao tác tài chính từ nhân viên trước khi có hiệu lực.</p>
                 </div>
             </div>
         </div>
@@ -222,9 +225,11 @@ function submitReject() {
         <!-- Urgency Alert -->
         <div
             v-if="urgentPending.length > 0"
-            class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 animate-pulse"
+            class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 animate-pulse"
         >
-            <Bell class="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <div class="p-1 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                <Bell class="h-5 w-5" />
+            </div>
             <div>
                 <p class="text-sm font-bold text-amber-800 dark:text-amber-300">
                     {{ urgentPending.length }} yêu cầu đang chờ quá 24 giờ!
@@ -235,251 +240,396 @@ function submitReject() {
             </div>
         </div>
 
-        <!-- Stats -->
+        <!-- Stats Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-4">
-                <div class="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                    <Clock class="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.pending }}</p>
-                    <p class="text-xs text-gray-500">Chờ phê duyệt</p>
-                </div>
-            </div>
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-4">
-                <div class="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                    <CheckCircle2 class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.approved_today }}</p>
-                    <p class="text-xs text-gray-500">Đã duyệt hôm nay</p>
-                </div>
-            </div>
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-4">
-                <div class="p-3 rounded-lg bg-rose-100 dark:bg-rose-900/30">
-                    <X class="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.rejected_today }}</p>
-                    <p class="text-xs text-gray-500">Đã từ chối hôm nay</p>
-                </div>
-            </div>
+            <!-- Stats: Pending -->
+            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform duration-200 border-amber-100 dark:border-amber-950/20">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-amber-500">Chờ phê duyệt</CardDescription>
+                    <Clock class="size-4 text-amber-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p class="text-2xl font-black text-amber-600 dark:text-amber-400">{{ stats.pending }}</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">yêu cầu cần xử lý</p>
+                </CardContent>
+            </Card>
+
+            <!-- Stats: Approved -->
+            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform duration-200 border-emerald-100 dark:border-emerald-950/20">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-emerald-500">Đã duyệt hôm nay</CardDescription>
+                    <CheckCircle2 class="size-4 text-emerald-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ stats.approved_today }}</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">yêu cầu được thông qua</p>
+                </CardContent>
+            </Card>
+
+            <!-- Stats: Rejected -->
+            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform duration-200 border-rose-100 dark:border-rose-950/20">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-rose-500">Đã từ chối hôm nay</CardDescription>
+                    <X class="size-4 text-rose-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p class="text-2xl font-black text-rose-600 dark:text-rose-400">{{ stats.rejected_today }}</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">yêu cầu bị từ chối</p>
+                </CardContent>
+            </Card>
         </div>
 
-        <!-- Filter tabs -->
-        <div class="flex gap-2 flex-wrap">
-            <button
-                v-for="f in [
-                    { value: 'pending',  label: 'Chờ duyệt',  count: stats.pending },
-                    { value: 'approved', label: 'Đã duyệt',   count: stats.approved_today },
-                    { value: 'rejected', label: 'Từ chối',    count: null },
-                    { value: 'all',      label: 'Tất cả',     count: approvals.length },
-                ]"
-                :key="f.value"
-                @click="applyFilter(f.value)"
-                :class="[
-                    'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
-                    statusFilter === f.value
-                        ? 'bg-violet-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
-                ]"
-            >
-                {{ f.label }}
-                <span
-                    v-if="f.count !== null"
-                    :class="[
-                        'inline-flex items-center justify-center rounded-full text-xs font-bold w-5 h-5',
-                        statusFilter === f.value ? 'bg-white/20 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                    ]"
-                >{{ f.count }}</span>
-            </button>
-        </div>
-
-        <!-- List -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-
-            <!-- Empty state -->
-            <div v-if="approvals.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-                <div class="p-4 rounded-2xl bg-gray-100 dark:bg-gray-700">
-                    <ClipboardList class="h-10 w-10 opacity-40" />
+        <!-- Table Card -->
+        <Card class="shadow-sm overflow-hidden">
+            <CardHeader class="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+                <div>
+                    <CardTitle class="text-base flex items-center gap-1.5 font-bold">
+                        <ShieldCheck class="size-5 text-indigo-655 text-indigo-600 dark:text-indigo-400" />
+                        Danh Sách Yêu Cầu Kiểm Duyệt
+                    </CardTitle>
+                    <CardDescription>Các giao dịch và điều chỉnh phát sinh cần quản trị viên xem xét và duyệt.</CardDescription>
                 </div>
-                <div class="text-center">
-                    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">Không có yêu cầu nào</p>
-                    <p class="text-xs text-gray-400 mt-1">Tất cả yêu cầu đã được xử lý</p>
+
+                <!-- Filter tabs (Segmented button control) -->
+                <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 rounded-xl p-0.5 border border-slate-200/50 dark:border-slate-800 self-start sm:self-center shrink-0">
+                    <button
+                        v-for="f in [
+                            { value: 'pending',  label: 'Chờ duyệt',  count: stats.pending },
+                            { value: 'approved', label: 'Đã duyệt',   count: stats.approved_today },
+                            { value: 'rejected', label: 'Từ chối',    count: null },
+                            { value: 'all',      label: 'Tất cả',     count: approvals.length },
+                        ]"
+                        :key="f.value"
+                        type="button"
+                        @click="applyFilter(f.value)"
+                        :class="[
+                            'inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap',
+                            statusFilter === f.value
+                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm border border-slate-200/10 dark:border-slate-700/20'
+                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                        ]"
+                    >
+                        {{ f.label }}
+                        <span
+                            v-if="f.count !== null"
+                            :class="[
+                                'inline-flex items-center justify-center rounded-full text-[9px] font-black w-4.5 h-4.5',
+                                statusFilter === f.value 
+                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300' 
+                                    : 'bg-slate-200/60 dark:bg-slate-800 text-slate-650 dark:text-slate-400'
+                            ]"
+                        >{{ f.count }}</span>
+                    </button>
                 </div>
-            </div>
+            </CardHeader>
 
-            <template v-else>
-                <div
-                    v-for="approval in approvals"
-                    :key="approval.id"
-                    class="border-b border-gray-100 dark:border-gray-700 last:border-0"
-                >
-                    <!-- Row -->
-                    <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            <CardContent class="p-0">
+                <!-- Empty state -->
+                <div v-if="approvals.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60">
+                        <ClipboardList class="h-10 w-10 opacity-30 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Không có yêu cầu nào</p>
+                        <p class="text-xs text-slate-400 mt-1">Tất cả yêu cầu trong bộ lọc này đã được xử lý</p>
+                    </div>
+                </div>
 
-                        <!-- Operation icon -->
-                        <div :class="['p-2 rounded-lg shrink-0', opConfig(approval.operation_type).bg]">
-                            <component :is="opConfig(approval.operation_type).icon" :class="['h-4 w-4', opConfig(approval.operation_type).color]" />
-                        </div>
+                <template v-else>
+                    <!-- Table header Desktop -->
+                    <div class="hidden grid-cols-[auto_1.5fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid">
+                        <div class="w-6"></div> <!-- Arrow spacing -->
+                        <div>Yêu cầu / Thao tác</div>
+                        <div>Người tạo</div>
+                        <div>Thời gian nhận / SLA</div>
+                        <div class="text-center">Trạng thái</div>
+                        <div class="text-right">Hành động</div>
+                    </div>
 
-                        <!-- Info — clickable to expand -->
-                        <div class="flex-1 min-w-0 cursor-pointer" @click="toggleExpand(approval.id)">
-                            <p class="font-medium text-gray-900 dark:text-white text-sm truncate">{{ approval.operation_label }}</p>
-                            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span class="text-xs text-gray-500">{{ approval.requester_name }}</span>
-                                <span class="text-gray-300 dark:text-gray-600">·</span>
-                                <!-- SLA indicator -->
-                                <span class="flex items-center gap-0.5 text-xs" :class="slaClass(approval.created_at, approval.status)">
-                                    <component v-if="slaIcon(approval.created_at, approval.status)" :is="slaIcon(approval.created_at, approval.status)!.icon" class="h-3 w-3" :class="slaIcon(approval.created_at, approval.status)!.cls" />
+                    <!-- Row Item -->
+                    <div
+                        v-for="approval in approvals"
+                        :key="approval.id"
+                        class="border-b border-slate-100 dark:border-slate-800 last:border-0"
+                    >
+                        <!-- Main Row -->
+                        <div 
+                            class="grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 dark:hover:bg-slate-900/30 lg:grid-cols-[auto_1.5fr_1fr_1fr_1fr_auto] lg:gap-4 lg:px-5"
+                            @click="toggleExpand(approval.id)"
+                        >
+                            <!-- Expand Arrow -->
+                            <div class="hidden lg:flex items-center justify-center w-6">
+                                <component 
+                                    :is="expandedId === approval.id ? ChevronUp : ChevronDown"
+                                    class="size-4 shrink-0 text-slate-400 transition-transform duration-200" 
+                                />
+                            </div>
+
+                            <!-- Mobile layout (left) + Desktop col 1 (Yêu cầu) -->
+                            <div class="min-w-0 flex items-center gap-3">
+                                <!-- Operation icon -->
+                                <div :class="['p-2 rounded-xl shrink-0 border dark:border-slate-800', opConfig(approval.operation_type).bg]">
+                                    <component 
+                                        :is="opConfig(approval.operation_type).icon" 
+                                        :class="['h-4.5 w-4.5', opConfig(approval.operation_type).color]" 
+                                    />
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-slate-950 dark:text-slate-50 text-sm truncate leading-snug">
+                                        {{ approval.operation_label }}
+                                    </p>
+                                    <!-- Mobile details -->
+                                    <div class="flex items-center gap-2 mt-1 lg:hidden text-[10px] text-slate-400 font-medium">
+                                        <span>{{ approval.requester_name }}</span>
+                                        <span>·</span>
+                                        <span :class="slaClass(approval.created_at, approval.status)">
+                                            {{ timeAgo(approval.created_at) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Desktop Col 2: Requester -->
+                            <div class="hidden lg:block">
+                                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                    {{ approval.requester_name }}
+                                </span>
+                            </div>
+
+                            <!-- Desktop Col 3: SLA / Time -->
+                            <div class="hidden lg:flex items-center gap-1.5">
+                                <component 
+                                    v-if="slaIcon(approval.created_at, approval.status)" 
+                                    :is="slaIcon(approval.created_at, approval.status)!.icon" 
+                                    :class="slaIcon(approval.created_at, approval.status)!.cls" 
+                                />
+                                <span class="text-xs font-semibold" :class="slaClass(approval.created_at, approval.status)">
                                     {{ timeAgo(approval.created_at) }}
                                 </span>
                             </div>
-                        </div>
 
-                        <!-- Status badge -->
-                        <span :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0', statusConfig[approval.status].badgeClass]">
-                            <span :class="['h-1.5 w-1.5 rounded-full', statusConfig[approval.status].dotClass]" />
-                            {{ statusConfig[approval.status].label }}
-                        </span>
+                            <!-- Desktop Col 4: Status -->
+                            <div class="flex justify-end lg:justify-center items-center">
+                                <span :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0', statusConfig[approval.status].badgeClass]">
+                                    <span :class="['h-1.5 w-1.5 rounded-full', statusConfig[approval.status].dotClass]" />
+                                    {{ statusConfig[approval.status].label }}
+                                </span>
+                            </div>
 
-                        <!-- Inline quick actions for pending -->
-                        <div v-if="approval.status === 'pending'" class="flex items-center gap-1.5 shrink-0">
-                            <button
-                                @click.stop="approveRequest(approval)"
-                                :disabled="processingId === approval.id"
-                                class="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs rounded-lg font-medium transition-colors"
-                                title="Phê duyệt ngay"
-                            >
-                                <ShieldCheck class="h-3.5 w-3.5" />
-                                <span class="hidden sm:inline">Duyệt</span>
-                            </button>
-                            <button
-                                @click.stop="openReject(approval)"
-                                class="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs rounded-lg font-medium transition-colors"
-                                title="Từ chối"
-                            >
-                                <ShieldX class="h-3.5 w-3.5" />
-                                <span class="hidden sm:inline">Từ chối</span>
-                            </button>
-                        </div>
-
-                        <!-- Expand toggle -->
-                        <button class="text-gray-400 shrink-0" @click="toggleExpand(approval.id)">
-                            <ChevronDown v-if="expandedId !== approval.id" class="h-4 w-4" />
-                            <ChevronUp  v-else                             class="h-4 w-4" />
-                        </button>
-                    </div>
-
-                    <!-- Expanded detail -->
-                    <div v-if="expandedId === approval.id" class="px-4 pb-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700">
-
-                        <!-- Operation data as structured table -->
-                        <div class="mt-3">
-                            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Chi tiết thao tác</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                <div
-                                    v-for="entry in visibleDataEntries(approval.operation_data)"
-                                    :key="entry.key"
-                                    :class="[
-                                        'flex items-center justify-between px-3 py-2 rounded-lg border text-xs',
-                                        entry.highlight
-                                            ? 'bg-violet-50 dark:bg-violet-950/30 border-violet-100 dark:border-violet-900'
-                                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-600'
-                                    ]"
-                                >
-                                    <span class="text-gray-500 dark:text-gray-400">{{ entry.label }}</span>
-                                    <span :class="['font-semibold', entry.highlight ? 'text-violet-700 dark:text-violet-300' : 'text-gray-800 dark:text-gray-200']">
-                                        {{ entry.display }}
-                                    </span>
+                            <!-- Desktop Col 5: Actions / Chevron toggle -->
+                            <div class="flex items-center justify-end gap-2" @click.stop>
+                                <!-- Inline quick actions for pending -->
+                                <div v-if="approval.status === 'pending'" class="flex items-center gap-1.5">
+                                    <Button
+                                        @click="approveRequest(approval)"
+                                        :disabled="processingId === approval.id"
+                                        size="sm"
+                                        class="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1 shadow-sm shrink-0"
+                                        title="Phê duyệt ngay"
+                                    >
+                                        <ShieldCheck class="h-3.5 w-3.5" />
+                                        <span class="hidden sm:inline">Duyệt</span>
+                                    </Button>
+                                    <Button
+                                        @click="openReject(approval)"
+                                        size="sm"
+                                        variant="outline"
+                                        class="h-8 text-xs text-rose-600 dark:text-rose-455 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 font-semibold flex items-center gap-1 shadow-sm shrink-0"
+                                        title="Từ chối"
+                                    >
+                                        <ShieldX class="h-3.5 w-3.5" />
+                                        <span class="hidden sm:inline">Từ chối</span>
+                                    </Button>
                                 </div>
+
+                                <!-- Chevron toggle on Mobile -->
+                                <button 
+                                    class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 lg:hidden"
+                                    @click="toggleExpand(approval.id)"
+                                >
+                                    <component 
+                                        :is="expandedId === approval.id ? ChevronUp : ChevronDown"
+                                        class="size-4 shrink-0 transition-transform duration-200" 
+                                    />
+                                </button>
                             </div>
                         </div>
 
-                        <!-- Reviewer info -->
-                        <div v-if="approval.reviewer_name" class="mt-3 flex items-start gap-2 text-xs">
-                            <template v-if="approval.status === 'approved'">
-                                <CheckCircle2 class="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-                                <span class="text-gray-600 dark:text-gray-300">
-                                    Duyệt bởi <strong>{{ approval.reviewer_name }}</strong> · {{ approval.reviewed_at }}
-                                </span>
-                            </template>
-                            <template v-else-if="approval.status === 'rejected'">
-                                <AlertTriangle class="h-4 w-4 text-rose-500 mt-0.5 shrink-0" />
-                                <div>
-                                    <span class="text-gray-600 dark:text-gray-300">
-                                        Từ chối bởi <strong>{{ approval.reviewer_name }}</strong> · {{ approval.reviewed_at }}
-                                    </span>
-                                    <p v-if="approval.rejection_reason" class="mt-1 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 px-2 py-1 rounded-lg border border-rose-100 dark:border-rose-900">
-                                        Lý do: {{ approval.rejection_reason }}
-                                    </p>
+                        <!-- Expanded detail with Vue Transition -->
+                        <Transition
+                            enter-active-class="transition-all duration-200 ease-out"
+                            enter-from-class="opacity-0 max-h-0"
+                            enter-to-class="opacity-100 max-h-[600px]"
+                            leave-active-class="transition-all duration-150 ease-in"
+                            leave-from-class="opacity-100 max-h-[600px]"
+                            leave-to-class="opacity-0 max-h-0"
+                        >
+                            <div 
+                                v-if="expandedId === approval.id" 
+                                class="overflow-hidden border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 px-5 py-5"
+                            >
+                                <div class="grid gap-6 sm:grid-cols-2">
+                                    <!-- Left component: Operation data as structured cards/tables -->
+                                    <div class="space-y-3 bg-white dark:bg-slate-950 p-4 border dark:border-slate-800 rounded-xl shadow-2xs">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chi tiết dữ liệu thao tác</p>
+                                        <div class="grid grid-cols-1 gap-2">
+                                            <div
+                                                v-for="entry in visibleDataEntries(approval.operation_data)"
+                                                :key="entry.key"
+                                                :class="[
+                                                    'flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-semibold transition-colors',
+                                                    entry.highlight
+                                                        ? 'bg-violet-50/50 dark:bg-violet-950/20 border-violet-100 dark:border-violet-900/30'
+                                                        : 'bg-slate-50/40 dark:bg-slate-900/20 border-slate-100 dark:border-slate-800'
+                                                ]"
+                                            >
+                                                <span class="text-slate-500 dark:text-slate-400 font-medium">{{ entry.label }}</span>
+                                                <span :class="['font-bold font-mono', entry.highlight ? 'text-violet-750 dark:text-violet-400' : 'text-slate-800 dark:text-slate-200']">
+                                                    {{ entry.display }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Right component: Reviewer logs / Rejection details -->
+                                    <div class="space-y-3 bg-white dark:bg-slate-950 p-4 border dark:border-slate-800 rounded-xl shadow-2xs">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Trạng thái phê duyệt & Lịch sử</p>
+                                        
+                                        <div v-if="approval.status === 'pending'" class="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-start gap-2 py-2">
+                                            <Clock class="size-4 text-amber-500 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p class="font-bold text-slate-700 dark:text-slate-300">Yêu cầu đang chờ phê duyệt</p>
+                                                <p class="text-[11px] text-slate-400 mt-1">Được tạo bởi nhân sự <strong>{{ approval.requester_name }}</strong>. Vui lòng kiểm tra kỹ chi tiết trước khi xác nhận.</p>
+                                            </div>
+                                        </div>
+
+                                        <div v-else-if="approval.reviewer_name" class="space-y-2 text-xs">
+                                            <div v-if="approval.status === 'approved'" class="flex items-start gap-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/20 p-3 rounded-lg">
+                                                <CheckCircle2 class="h-4.5 w-4.5 text-emerald-505 text-emerald-500 shrink-0 mt-0.5" />
+                                                <div>
+                                                    <span class="text-slate-700 dark:text-slate-300 font-bold">Yêu cầu đã được phê duyệt</span>
+                                                    <p class="text-[11px] text-slate-505 dark:text-slate-400 mt-1 font-medium">
+                                                        Người duyệt: <strong class="text-slate-700 dark:text-slate-200">{{ approval.reviewer_name }}</strong> · {{ approval.reviewed_at }}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div v-else-if="approval.status === 'rejected'" class="space-y-3 bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100/50 dark:border-rose-900/20 p-3 rounded-lg">
+                                                <div class="flex items-start gap-2.5">
+                                                    <AlertTriangle class="h-4.5 w-4.5 text-rose-500 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <span class="text-slate-700 dark:text-slate-300 font-bold">Yêu cầu bị từ chối</span>
+                                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                                                            Người duyệt: <strong class="text-slate-700 dark:text-slate-200">{{ approval.reviewer_name }}</strong> · {{ approval.reviewed_at }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div v-if="approval.rejection_reason" class="text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-rose-100 dark:border-rose-950">
+                                                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-500/80 mb-0.5">Lý do từ chối:</p>
+                                                    <p class="font-semibold text-xs leading-relaxed">{{ approval.rejection_reason }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </template>
-                        </div>
+                            </div>
+                        </Transition>
                     </div>
-                </div>
-            </template>
-        </div>
+                </template>
+            </CardContent>
+        </Card>
     </div>
 
     <!-- Reject Modal -->
     <Teleport to="body">
-        <div v-if="rejectTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeReject">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Từ chối yêu cầu</h3>
-                        <p class="text-sm text-gray-500 mt-0.5">
-                            <span :class="['inline-flex items-center gap-1 mr-1', opConfig(rejectTarget.operation_type).color]">
-                                <component :is="opConfig(rejectTarget.operation_type).icon" class="h-3.5 w-3.5" />
-                                {{ rejectTarget.operation_label }}
-                            </span>
-                            từ {{ rejectTarget.requester_name }}
-                        </p>
-                    </div>
-                    <button @click="closeReject" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                        <X class="h-5 w-5" />
-                    </button>
-                </div>
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div 
+                v-if="rejectTarget" 
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4" 
+                @click.self="closeReject"
+            >
+                <Card class="w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 shadow-2xl border dark:border-slate-800">
+                    <CardHeader class="pb-3 border-b flex flex-row items-start justify-between gap-4">
+                        <div>
+                            <CardTitle class="text-base flex items-center gap-1.5 text-rose-600 font-bold">
+                                <ShieldX class="size-5" />
+                                Từ Chối Yêu Cầu Phê Duyệt
+                            </CardTitle>
+                            <CardDescription class="mt-1">
+                                <span :class="['inline-flex items-center gap-1 mr-1 text-[11px] font-bold uppercase tracking-wide', opConfig(rejectTarget.operation_type).color]">
+                                    <component :is="opConfig(rejectTarget.operation_type).icon" class="h-3.5 w-3.5" />
+                                    {{ rejectTarget.operation_label }}
+                                </span>
+                                từ <strong>{{ rejectTarget.requester_name }}</strong>.
+                            </CardDescription>
+                        </div>
+                        <button 
+                            @click="closeReject" 
+                            class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-650"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
+                    </CardHeader>
 
-                <div class="space-y-3">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Lý do từ chối <span class="text-rose-500">*</span>
-                    </label>
-                    <textarea
-                        v-model="rejectForm.rejection_reason"
-                        rows="3"
-                        placeholder="Nhập lý do từ chối cụ thể để nhân viên hiểu và khắc phục..."
-                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none resize-none"
-                        :class="{ 'border-rose-400': rejectForm.errors.rejection_reason }"
-                    />
-                    <p v-if="rejectForm.errors.rejection_reason" class="text-xs text-rose-500">{{ rejectForm.errors.rejection_reason }}</p>
-                </div>
+                    <CardContent class="pt-4 space-y-4">
+                        <div class="grid gap-1.5">
+                            <Label for="reject-reason" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                Lý do từ chối cụ thể <span class="text-rose-500">*</span>
+                            </Label>
+                            <textarea
+                                id="reject-reason"
+                                v-model="rejectForm.rejection_reason"
+                                rows="3"
+                                placeholder="Nhập lý do từ chối cụ thể để nhân viên hiểu và sửa đổi..."
+                                class="w-full resize-none rounded-md border border-slate-200 dark:border-slate-700 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 font-semibold text-slate-700 dark:text-slate-300"
+                                :class="{ 'border-rose-400 focus-visible:ring-rose-400': rejectForm.errors.rejection_reason }"
+                            />
+                            <p v-if="rejectForm.errors.rejection_reason" class="text-[10px] text-rose-500 font-bold">{{ rejectForm.errors.rejection_reason }}</p>
+                        </div>
 
-                <!-- Quick reason chips -->
-                <div class="flex flex-wrap gap-1.5 mt-2">
-                    <button
-                        v-for="reason in ['Thiếu chứng từ', 'Số lượng không hợp lý', 'Sai đơn giá', 'Không đúng thời điểm']"
-                        :key="reason"
-                        type="button"
-                        @click="rejectForm.rejection_reason = reason"
-                        class="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 transition-colors border border-gray-200 dark:border-gray-600"
-                    >{{ reason }}</button>
-                </div>
+                        <!-- Quick reason chips -->
+                        <div class="space-y-1.5">
+                            <Label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chọn nhanh lý do mẫu:</Label>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button
+                                    v-for="reason in ['Thiếu chứng từ', 'Số lượng không hợp lý', 'Sai đơn giá', 'Không đúng thời điểm']"
+                                    :key="reason"
+                                    type="button"
+                                    @click="rejectForm.rejection_reason = reason"
+                                    class="px-2.5 py-1 text-xs rounded-full bg-slate-50 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-900 dark:hover:bg-rose-950/20 dark:hover:text-rose-400 text-slate-650 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800 font-semibold transition-colors"
+                                >
+                                    {{ reason }}
+                                </button>
+                            </div>
+                        </div>
 
-                <div class="flex gap-2 mt-5">
-                    <button
-                        @click="submitReject"
-                        :disabled="rejectForm.processing"
-                        class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
-                    >
-                        {{ rejectForm.processing ? 'Đang xử lý...' : 'Xác nhận từ chối' }}
-                    </button>
-                    <button @click="closeReject" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                        Hủy
-                    </button>
-                </div>
+                        <div class="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <Button
+                                @click="submitReject"
+                                :disabled="rejectForm.processing"
+                                class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                {{ rejectForm.processing ? 'Đang xử lý...' : 'Xác nhận từ chối' }}
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                @click="closeReject" 
+                                class="h-9 px-4 text-xs font-semibold"
+                            >
+                                Hủy
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
-        </div>
+        </Transition>
     </Teleport>
 </template>
+

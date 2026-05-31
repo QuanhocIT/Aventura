@@ -75,7 +75,7 @@ const roles = computed(() => {
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 
-const isSuperAdmin  = computed(() => hasRole('admin', 'super_admin'));
+const isSuperAdmin  = computed(() => hasRole('super_admin'));
 const isOwner       = computed(() => hasRole('owner'));
 const isManager     = computed(() => hasRole('manager'));
 const isCashier     = computed(() => hasRole('cashier'));

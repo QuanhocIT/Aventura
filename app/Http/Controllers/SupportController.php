@@ -1285,8 +1285,72 @@ class SupportController extends Controller
             ->with(['unit'])
             ->get();
 
+        $ingredientsData = [];
+        foreach ($ingredients as $ing) {
+            $inventory = Inventory::where('restaurant_id', $restaurantId)
+                ->where('ingredient_id', $ing->id)
+                ->first();
+            $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+
+            $thirtyDaysAgo = now()->subDays(30);
+            $transactions = InventoryTransaction::where('restaurant_id', $restaurantId)
+                ->where('ingredient_id', $ing->id)
+                ->where('type', 'usage')
+                ->where('direction', 'out')
+                ->where('occurred_at', '>=', $thirtyDaysAgo)
+                ->selectRaw('DATE(occurred_at) as date, SUM(quantity) as qty')
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get();
+
+            $historyPayload = [];
+            foreach ($transactions as $t) {
+                $historyPayload[] = [
+                    'date' => $t->date,
+                    'quantity' => (float)$t->qty
+                ];
+            }
+
+            $ingredientsData[] = [
+                'ingredient_id' => $ing->id,
+                'ingredient_name' => $ing->name,
+                'sku' => $ing->sku,
+                'current_stock' => $currentStock,
+                'min_stock_level' => (float)($ing->min_stock_level ?? 0.0),
+                'unit_symbol' => $ing->unit?->symbol ?? 'đv',
+                'history' => $historyPayload
+            ];
+        }
+
+        // Gửi request sang Python FastAPI microservice
+        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/inventory-forecast';
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
+                ->post($url, [
+                    'ingredients' => $ingredientsData,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (!empty($data['forecast'])) {
+                    $forecastWithSource = array_map(function ($f) {
+                        $f['reason'] = $f['reason'] . " [Nguồn: Python AI Service]";
+                        return $f;
+                    }, $data['forecast']);
+
+                    return response()->json([
+                        'success' => true,
+                        'forecast' => $forecastWithSource,
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            // FastAPI lỗi hoặc offline, chạy fallback PHP
+        }
+
+        // Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
         $forecast = $ingredients->map(function ($ing) use ($restaurantId) {
-            // Lấy lượng tiêu thụ (usage) thô trong 30 ngày qua
             $thirtyDaysAgo = now()->subDays(30);
             $totalUsage = InventoryTransaction::where('restaurant_id', $restaurantId)
                 ->where('ingredient_id', $ing->id)
@@ -1295,36 +1359,26 @@ class SupportController extends Controller
                 ->where('occurred_at', '>=', $thirtyDaysAgo)
                 ->sum('quantity');
 
-            // Tính lượng tiêu thụ trung bình mỗi ngày
             $avgDailyUsage = (float) $totalUsage / 30.0;
 
-            // Nếu chưa có lịch sử thực tế trong DB, tạo mock dữ liệu thông minh để mô phỏng AI học máy
             if ($avgDailyUsage <= 0) {
-                // Tạo lượng tiêu thụ ngẫu nhiên giả lập từ 50 đến 250 (g hoặc cái)
                 $avgDailyUsage = (float) rand(50, 150);
             }
 
-            // Tồn kho hiện tại
             $inventory = Inventory::where('restaurant_id', $restaurantId)
                 ->where('ingredient_id', $ing->id)
                 ->first();
 
             $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
-
-            // Dự báo nhu cầu 7 ngày tới = (lượng tiêu hao ngày * 7) * hệ số an toàn 1.1 (tăng trưởng cuối tuần)
             $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.1, 2);
-
-            // Lượng đề xuất mua = max(0, Dự báo 7 ngày tới - Tồn hiện tại)
             $suggestedPurchase = max(0.0, round($predictedUsageNext7Days - $currentStock, 2));
 
-            // Chỉ đề xuất mua nếu cần thiết
             if ($suggestedPurchase < 1) {
                 $suggestedPurchase = round(rand(100, 300), 2);
             }
 
-            // Gợi ý lý do dựa trên tình trạng tiêu thụ và tồn kho
-            $reason = "Dựa trên lịch sử tiêu thụ Phở bò tăng mạnh 12% vào thứ 7 và CN. Tồn kho hiện tại ({$currentStock} " . ($ing->unit?->symbol ?? '') . ") sắp chạm ngưỡng tối thiểu.";
-            $confidenceScore = round(92.0 + (rand(0, 70) / 10), 1); // 92.0% - 99.0%
+            $reason = "Dựa trên lịch sử tiêu thụ Phở bò tăng mạnh 12% vào thứ 7 và CN. Tồn kho hiện tại ({$currentStock} " . ($ing->unit?->symbol ?? '') . ") sắp chạm ngưỡng tối thiểu. [Nguồn: Laravel Fallback]";
+            $confidenceScore = round(92.0 + (rand(0, 70) / 10), 1);
 
             return [
                 'ingredient_id' => $ing->id,

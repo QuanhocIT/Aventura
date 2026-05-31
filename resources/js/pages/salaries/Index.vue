@@ -614,7 +614,7 @@ const compact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compa
                                                         {{ adjStatusConfig[a.status].label }}
                                                     </span>
                                                     
-                                                    <span v-if="a.status === 'disputed'" class="text-[9px] text-amber-600 font-semibold italic truncate max-w-[200px]" :title="a.dispute_reason">
+                                                    <span v-if="a.status === 'disputed'" class="text-[9px] text-amber-600 font-semibold italic truncate max-w-[200px]" :title="a.dispute_reason ?? undefined">
                                                         Lý do: {{ a.dispute_reason }}
                                                     </span>
                                                 </div>

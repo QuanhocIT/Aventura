@@ -40,7 +40,10 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $staffRole = Role::firstOrCreate(['name' => 'inventory_staff', 'guard_name' => 'web']);
 
         // Set up owner
-        $this->owner = User::factory()->create();
+        $this->owner = User::factory()->create([
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
         $this->owner->assignRole($ownerRole);
 
         // Set up restaurant and branch
@@ -58,9 +61,39 @@ class InventoryPurchaseWorkflowTest extends TestCase
         // Set up inventory staff
         $this->staff = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'email_verified_at' => now(),
         ]);
         $this->staff->assignRole($staffRole);
+
+        // Assign Employee and WorkShift so staff can bypass SetTenantContext
+        $employee = \App\Models\Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $this->staff->id,
+            'role_id' => $staffRole->id,
+            'status' => 'active',
+        ]);
+
+        $shift = \App\Models\WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Test',
+            'code' => 'CA_TEST',
+            'start_time' => '00:00:00',
+            'end_time' => '23:59:59',
+            'is_overnight' => false,
+            'status' => 'active',
+        ]);
+
+        \App\Models\ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
 
         // Set up Unit
         $this->unit = Unit::create([

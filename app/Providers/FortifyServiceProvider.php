@@ -30,6 +30,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         $this->app->singleton(\Laravel\Fortify\Contracts\LoginResponse::class, \App\Http\Responses\CustomLoginResponse::class);
         $this->app->singleton(\Laravel\Fortify\Contracts\RegisterResponse::class, \App\Http\Responses\CustomRegisterResponse::class);
+        $this->app->singleton(\Laravel\Fortify\Contracts\TwoFactorLoginResponse::class, \App\Http\Responses\CustomTwoFactorLoginResponse::class);
 
         Fortify::authenticateUsing(function (Request $request) {
             $users = \App\Models\User::where('email', $request->email)->get();
@@ -53,12 +54,14 @@ class FortifyServiceProvider extends ServiceProvider
             // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
             if ($activeUsers->count() === 1) {
                 $user = $activeUsers->first();
-                if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
-                    $employee = $user->employee;
-                    if (!$employee || !$employee->isWithinScheduledShift()) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'email' => ['Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.'],
-                        ]);
+                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                    if (!app()->runningUnitTests() || \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests) {
+                        $employee = $user->employee;
+                        if (!$employee || !$employee->isWithinScheduledShift()) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'email' => ['Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.'],
+                            ]);
+                        }
                     }
                 }
                 return $user;

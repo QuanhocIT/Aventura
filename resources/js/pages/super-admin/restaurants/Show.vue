@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -58,10 +58,14 @@ const overrideForm = useForm({
     discount_amount: 0,
     reason: '',
     coupon_code: '',
+    password: '',
 });
 function submitOverride() {
     overrideForm.post(`/super-admin/restaurants/${props.restaurant.id}/billing-overrides`, {
         preserveScroll: true,
+        onSuccess: () => {
+            overrideForm.password = '';
+        },
     });
 }
 
@@ -264,6 +268,12 @@ function typeLabel(type: string) {
                                 <div class="grid gap-1.5">
                                     <Label>Ly do</Label>
                                     <Input v-model="overrideForm.reason" placeholder="Ho tro doi tac chien luoc / Free trial / Su co doi soat" />
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label class="text-rose-600 dark:text-rose-400 font-semibold">Xác nhận mật khẩu của bạn</Label>
+                                    <Input v-model="overrideForm.password" type="password" placeholder="Nhập mật khẩu Super Admin để xác nhận" required />
+                                    <span v-if="overrideForm.errors.password" class="text-xs text-rose-600 font-medium">{{ overrideForm.errors.password }}</span>
                                 </div>
 
                                 <Button type="submit" :disabled="overrideForm.processing" class="justify-center">
