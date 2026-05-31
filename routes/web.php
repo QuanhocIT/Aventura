@@ -24,6 +24,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Multi-tenant restaurant selector
     Route::get('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
     Route::post('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
+
+    // Impersonation Stop
+    Route::post('impersonate/stop', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'stop'])->name('impersonate.stop');
 });
 
 Route::middleware('guest')->group(function () {

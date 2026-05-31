@@ -107,6 +107,7 @@ class HandleInertiaRequests extends Middleware
                 ? ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
                 : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
             'flash' => [
                 'success'      => $request->session()->get('success'),
                 'error'        => $request->session()->get('error'),

@@ -226,6 +226,23 @@ class PromotionAndComboTest extends TestCase
      */
     public function test_fraud_detection_captures_anomalies(): void
     {
+        Http::fake([
+            '*/api/analytics/fraud-detection' => Http::response([
+                'alerts' => [
+                    [
+                        'id' => 'ai-fraud-discount-1',
+                        'employee_name' => $this->cashierEmp->full_name,
+                        'violation_type' => 'AI: Áp voucher liên tục bất thường',
+                        'severity' => 'critical',
+                        'description' => 'Áp dụng mã giảm giá liên tục',
+                        'penalty_amount' => 40000.0,
+                        'risk_score' => 98.4,
+                        'reason' => 'Tần suất áp dụng voucher vượt quá ngưỡng an toàn.'
+                    ]
+                ]
+            ], 200)
+        ]);
+
         // Đảm bảo TenantContext thiết lập đúng
         app(TenantContext::class)->setRestaurantId($this->restaurant->id);
 

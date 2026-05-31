@@ -27,6 +27,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = true;
 
         $this->owner = User::factory()->create(['status' => 'active']);
         $this->restaurant = Restaurant::factory()->create([
@@ -43,6 +44,12 @@ class EmployeeShiftAndLeaveTest extends TestCase
         $this->cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
         
         $this->owner->assignRole($this->ownerRole);
+    }
+
+    protected function tearDown(): void
+    {
+        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = false;
+        parent::tearDown();
     }
 
     public function test_cashier_blocked_outside_scheduled_shift(): void

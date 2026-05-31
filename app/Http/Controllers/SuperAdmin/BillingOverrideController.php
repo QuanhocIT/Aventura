@@ -16,6 +16,7 @@ class BillingOverrideController extends Controller
     public function store(Request $request, Restaurant $restaurant): RedirectResponse
     {
         $validated = $request->validate([
+            'password' => ['required', 'string'],
             'type' => ['required', Rule::in(['trial', 'extend', 'discount'])],
             'days' => 'nullable|integer|min:0|max:365',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -23,7 +24,14 @@ class BillingOverrideController extends Controller
             'coupon_code' => 'nullable|string|max:100',
         ]);
 
+        // Xác nhận mật khẩu hiện tại của Super Admin
+        if (! \Illuminate\Support\Facades\Hash::check($validated['password'], $request->user()->password)) {
+            return back()->withErrors(['password' => 'Mật khẩu xác nhận không chính xác.']);
+        }
+
         $this->billingService->applyManualOverride($restaurant, $validated, $request->user());
+
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
 
         return back()->with('success', 'Đã áp dụng điều chỉnh billing thủ công cho doanh nghiệp.');
     }

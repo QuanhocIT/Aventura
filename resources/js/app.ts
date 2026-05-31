@@ -28,6 +28,19 @@ createInertiaApp({
         const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
         return resolvePageComponent(`./pages/${name}.vue`, pages).then((module) => {
             const page = module.default;
+            // Fix project-wide layout metadata object bug (converts plain layout props objects into real Inertia layouts)
+            if (page.layout && typeof page.layout === 'object' && !Array.isArray(page.layout) && !page.layout.render && !page.layout.setup && !page.layout.__file) {
+                const layoutProps = page.layout;
+                if (name.startsWith('auth/')) {
+                    page.layout = [AuthLayout, layoutProps];
+                } else if (name.startsWith('settings/')) {
+                    page.layout = [AppLayout, SettingsLayout];
+                    if (layoutProps.breadcrumbs) {
+                        page.layoutProps = { breadcrumbs: layoutProps.breadcrumbs };
+                    }
+                }
+            }
+
             if (page.layout === undefined) {
                 switch (true) {
                     case name === 'Welcome':
@@ -37,6 +50,8 @@ createInertiaApp({
                     case name === 'auth/Login':
                     case name === 'auth/Register':
                     case name === 'auth/ChooseRestaurant':
+                    case name === 'auth/TwoFactorChallenge':
+                    case name === 'auth/ConfirmPassword':
                         page.layout = BareLayout;
                         break;
                     case name.startsWith('auth/'):

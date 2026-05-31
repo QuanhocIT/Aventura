@@ -5,8 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 class ChatbotSession extends Model
 {
+    use BelongsToRestaurant;
     protected $guarded = [];
 
     protected function casts(): array

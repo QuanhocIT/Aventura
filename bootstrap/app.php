@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.ratelimit'     => \App\Http\Middleware\TenantRateLimit::class,
             'tenant.quota'         => \App\Http\Middleware\TenantQuotaMiddleware::class,
             'role'                 => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'role.superadmin.2fa'  => \App\Http\Middleware\RequireSuperAdminTwoFactor::class,
             'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
         ]);

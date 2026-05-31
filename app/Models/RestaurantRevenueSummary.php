@@ -6,8 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 class RestaurantRevenueSummary extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
 
     protected $guarded = [];

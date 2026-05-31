@@ -18,3 +18,7 @@ Artisan::command('billing:send-reminders', function (BillingService $billing) {
 app(Schedule::class)->command('billing:send-reminders')->dailyAt('08:00');
 app(Schedule::class)->command('billing:sync-statuses')->hourly();
 app(Schedule::class)->command('reports:generate-daily')->dailyAt('23:59');
+
+app(Schedule::class)->call(function () {
+    app(\App\Services\SupportPortalService::class)->evaluateAlerts();
+})->everyMinute();

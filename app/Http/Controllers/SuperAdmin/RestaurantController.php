@@ -221,6 +221,8 @@ class RestaurantController extends Controller
 
         $this->seedDemoData($restaurant);
 
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+
         return redirect()->route('superadmin.restaurants.show', $restaurant)
             ->with('success', "Đă t?o nhà hàng \"{$restaurant->name}\" thành công.");
     }
@@ -239,6 +241,8 @@ class RestaurantController extends Controller
             'suspended' => 't?m ngung',
             'expired'   => 'h?t h?n',
         ];
+
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
 
         return back()->with('success', "Đă {$labels[$request->status]} nhà hàng \"{$restaurant->name}\".");
     }
@@ -261,6 +265,8 @@ class RestaurantController extends Controller
             'renewal_at'    => now()->addMonth(),
             'price'         => $plan->price,
         ]);
+
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
 
         return back()->with('success', "Đă chuy?n sang gói {$plan->name}.");
     }

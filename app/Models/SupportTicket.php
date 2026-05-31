@@ -7,8 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 class SupportTicket extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
 
     protected $guarded = [];

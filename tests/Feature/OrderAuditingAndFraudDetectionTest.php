@@ -220,7 +220,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'total_amount' => 60000,
             'status' => 'completed',
             'payment_status' => 'paid',
-            'completed_at' => now(),
+            'completed_at' => today()->setHour(9)->toDateTimeString(),
             'is_split' => true,
             'is_override_split_penalty' => false,
         ]);
@@ -233,7 +233,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'payment_method' => 'cash',
             'status' => 'paid',
             'amount' => 60000,
-            'paid_at' => now()
+            'paid_at' => today()->setHour(9)->toDateTimeString()
         ]);
 
         // 2. Preview shift closing - cash penalty should be applied

@@ -19,7 +19,12 @@ class PaymentWebhookController extends Controller
         $secret = (string) config('billing.webhook_secret');
         $rawBody = $request->getContent();
 
-        if ($secret !== '' && ! hash_equals(hash_hmac('sha256', $rawBody, $secret), $signature)) {
+        if (empty($secret)) {
+            if (app()->environment('production')) {
+                \Illuminate\Support\Facades\Log::critical('Billing Webhook Secret is not configured in production!');
+                return response()->json(['message' => 'Configuration error'], 500);
+            }
+        } elseif (! hash_equals(hash_hmac('sha256', $rawBody, $secret), $signature)) {
             return response()->json(['message' => 'Invalid signature'], 401);
         }
 

@@ -15,7 +15,7 @@ class AccountController extends Controller
 {
     public function index(Request $request): Response
     {
-        $superAdminRoles = config('auth.super_admin_roles', ['admin', 'super_admin']);
+        $superAdminRoles = config('auth.super_admin_roles', ['super_admin']);
 
         $query = User::with(['roles', 'restaurant'])
             ->whereHas('roles', fn ($q) => $q->whereNotIn('name', $superAdminRoles));
