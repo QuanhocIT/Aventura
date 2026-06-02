@@ -14,7 +14,21 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type Employee = { id: number; employee_code: string; full_name: string; email: string | null; phone: string | null; job_title: string | null; status: string; role: string };
+type Employee = {
+    id: number;
+    employee_code: string;
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+    job_title: string | null;
+    status: string;
+    role: string;
+    date_of_birth?: string | null;
+    citizen_id_number?: string | null;
+    address?: string | null;
+    citizen_id_front_url?: string | null;
+    citizen_id_back_url?: string | null;
+};
 type Shift = { id: number; name: string; start: string; end: string };
 type Assignment = { day: string; employee_name: string; shift_name: string };
 
@@ -36,7 +50,7 @@ const filteredEmployees = computed(() => {
     return props.employees.filter(e =>
         e.full_name.toLowerCase().includes(q) ||
         e.employee_code.toLowerCase().includes(q) ||
-        e.job_title.toLowerCase().includes(q) ||
+        (e.job_title ?? '').toLowerCase().includes(q) ||
         (e.phone ?? '').toLowerCase().includes(q)
     );
 });
@@ -88,7 +102,7 @@ const submitEditEmployee = () => {
         return;
     }
 
-    editForm.transform((data) => ({
+    editForm.transform((data: any) => ({
         ...data,
         _method: 'PATCH',
     })).post(`/employees/${editingEmployee.value.id}`, {
@@ -505,7 +519,7 @@ const toggleExpandEmployee = (id: number) => {
                                             <Plus class="size-4 text-indigo-600 mb-0.5" />
                                             <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_front ? employeeForm.citizen_id_front.name : 'Tải lên mặt trước CCCD' }}</p>
                                         </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_front = e.target.files[0]" required />
+                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" required />
                                     </label>
                                 </div>
                             </div>
@@ -517,7 +531,7 @@ const toggleExpandEmployee = (id: number) => {
                                             <Plus class="size-4 text-indigo-600 mb-0.5" />
                                             <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_back ? employeeForm.citizen_id_back.name : 'Tải lên mặt sau CCCD' }}</p>
                                         </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_back = e.target.files[0]" required />
+                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" required />
                                     </label>
                                 </div>
                             </div>
@@ -617,7 +631,7 @@ const toggleExpandEmployee = (id: number) => {
                                             <Plus class="size-4 text-indigo-600 mb-0.5" />
                                             <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_front ? editForm.citizen_id_front.name : 'Chọn ảnh mới' }}</p>
                                         </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_front = e.target.files[0]" />
+                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" />
                                     </label>
                                 </div>
                             </div>
@@ -629,7 +643,7 @@ const toggleExpandEmployee = (id: number) => {
                                             <Plus class="size-4 text-indigo-600 mb-0.5" />
                                             <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_back ? editForm.citizen_id_back.name : 'Chọn ảnh mới' }}</p>
                                         </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_back = e.target.files[0]" />
+                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" />
                                     </label>
                                 </div>
                             </div>
