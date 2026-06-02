@@ -18,6 +18,26 @@ class DashboardController extends Controller
         $user       = auth()->user();
         $restaurant = $user?->restaurant;
 
+        if ($user && $user->hasRole('cashier')) {
+            $tablesData = [];
+            if ($restaurant) {
+                $tablesData = \App\Models\RestaurantTable::with('area')
+                    ->where('restaurant_id', $restaurant->id)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($t) => [
+                        'id' => $t->id,
+                        'name' => $t->name,
+                        'area' => $t->area?->name ?? 'Khu vực chung',
+                        'capacity' => $t->capacity,
+                        'status' => $t->status,
+                    ])->all();
+            }
+            return Inertia::render('cashier/Dashboard', [
+                'tablesData' => $tablesData,
+            ]);
+        }
+
         $stats        = null;
         $recentOrders = [];
         $alerts       = [];

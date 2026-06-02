@@ -114,6 +114,8 @@ const handleRoleChange = (e: Event) => {
         employeeForm.job_title = 'Nhân Viên Bếp';
     } else if (val === 'manager') {
         employeeForm.job_title = 'Quản Lý Cửa Hàng';
+    } else if (val === 'waiter') {
+        employeeForm.job_title = 'Nhân Viên Order';
     }
 };
 
@@ -131,6 +133,7 @@ const roleLabels: Record<string, string> = {
     manager: 'Quản lý',
     cashier: 'Thu ngân (Cashier)',
     kitchen: 'Đầu bếp/Bếp (Kitchen)',
+    waiter: 'Nhân viên order',
     staff: 'Nhân viên phục vụ'
 };
 
@@ -139,6 +142,7 @@ const roleColors: Record<string, string> = {
     manager: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
     cashier: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
     kitchen: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+    waiter: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400',
     staff: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
 };
 
@@ -482,6 +486,7 @@ const toggleExpandEmployee = (id: number) => {
                                     <option value="cashier">Thu ngân (Bán hàng)</option>
                                     <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
                                     <option value="manager">Quản lý cửa hàng</option>
+                                    <option value="waiter">Nhân viên order (Phục vụ)</option>
                                 </select>
                             </div>
                             <div class="grid gap-1.5">
@@ -589,6 +594,7 @@ const toggleExpandEmployee = (id: number) => {
                                     <option value="cashier">Thu ngân (Bán hàng)</option>
                                     <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
                                     <option value="manager">Quản lý cửa hàng</option>
+                                    <option value="waiter">Nhân viên order (Phục vụ)</option>
                                 </select>
                             </div>
                             <div class="grid gap-1.5">
