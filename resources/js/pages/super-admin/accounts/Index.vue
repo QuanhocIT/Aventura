@@ -145,6 +145,7 @@ return;
 const roleLabel: Record<string, string> = {
     owner: 'Chủ sở hữu', manager: 'Quản lý', cashier: 'Thu ngân',
     kitchen: 'Bếp', inventory_staff: 'Kho', staff: 'Nhân viên',
+    waiter: 'Nhân viên order',
 };
 const roleColor: Record<string, string> = {
     owner:           'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
@@ -152,6 +153,7 @@ const roleColor: Record<string, string> = {
     cashier:         'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
     kitchen:         'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
     inventory_staff: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+    waiter:          'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
 };
 
 const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa).length);
@@ -227,6 +229,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                     <option value="cashier">Thu ngân</option>
                     <option value="kitchen">Bếp</option>
                     <option value="inventory_staff">Kho</option>
+                    <option value="waiter">Nhân viên order</option>
                 </select>
                 <select
                     v-model="statusFilter"
