@@ -202,7 +202,7 @@ const closeOverrideModal = () => {
 // --- ACTIONS ---
 const handleCheckIn = () => {
     router.post('/schedules/check-in', {}, {
-        onSuccess: (page) => {
+        onSuccess: (page: any) => {
             // Start duration timer immediately if active assignment checked-in successfully
             const freshAssign = page.props.todayActiveAssignment as any;
             if (freshAssign && freshAssign.status === 'checked_in' && freshAssign.check_in_at) {
@@ -279,7 +279,7 @@ const filteredAssignments = computed(() => {
 });
 
 // Color Maps
-const statusLabels = {
+const statusLabels: Record<string, string> = {
     scheduled: 'Chưa vào ca',
     checked_in: 'Đang làm việc',
     completed: 'Đã hoàn thành ca',
@@ -287,7 +287,7 @@ const statusLabels = {
     leave_approved: 'Nghỉ phép',
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
     scheduled: 'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30',
     checked_in: 'bg-emerald-50 text-emerald-600 border border-emerald-200 animate-pulse dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
     completed: 'bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30',

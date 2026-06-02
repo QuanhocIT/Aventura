@@ -200,7 +200,7 @@ async function loadPreview() {
 
 function submitForm(isSubmit: boolean) {
     isSubmitting.value = isSubmit;
-    form.transform(data => ({ ...data, submit: isSubmit ? 1 : 0 }))
+    form.transform((data: any) => ({ ...data, submit: isSubmit ? 1 : 0 }))
         .post('/shift-closings', {
         onSuccess: () => {
             showDialog.value = false;
@@ -210,7 +210,7 @@ function submitForm(isSubmit: boolean) {
             isSubmitting.value = false;
             toast.success(isSubmit ? 'Đã nộp phiếu chốt ca thành công!' : 'Đã lưu bản nháp.');
         },
-        onError: (errors) => {
+        onError: (errors: any) => {
             isSubmitting.value = false;
             const msg = Object.values(errors)[0];
             if (msg) toast.error(String(msg));
