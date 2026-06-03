@@ -24,6 +24,12 @@ class ProductCategory extends Model
         return $this->hasMany(Product::class, 'category_id');
     }
 
+    protected static function booted(): void
+    {
+        static::saved(fn ($category) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$category->restaurant_id}_categories"));
+        static::deleted(fn ($category) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$category->restaurant_id}_categories"));
+    }
+
     protected static function newFactory(): Factory
     {
         return ProductCategoryFactory::new();

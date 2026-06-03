@@ -35,6 +35,12 @@ class Area extends Model
         return $this->hasMany(RestaurantTable::class);
     }
 
+    protected static function booted(): void
+    {
+        static::saved(fn ($area) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas"));
+        static::deleted(fn ($area) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas"));
+    }
+
     protected static function newFactory(): Factory
     {
         return AreaFactory::new();

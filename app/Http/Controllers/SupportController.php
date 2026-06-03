@@ -157,24 +157,29 @@ class SupportController extends Controller
     public function productsPage(Request $request): Response
     {
         $user = $request->user();
+        $restaurantId = $user->restaurant_id;
 
-        $categories = ProductCategory::where('restaurant_id', $user->restaurant_id)
-            ->orderBy('display_order')
-            ->get();
+        $categories = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_categories", 3600, function () use ($restaurantId) {
+            return ProductCategory::where('restaurant_id', $restaurantId)
+                ->orderBy('display_order')
+                ->get();
+        });
 
-        $products = Product::where('restaurant_id', $user->restaurant_id)
-            ->with('category')
-            ->latest()
-            ->get()
-            ->map(fn ($p) => [
-                'id'           => $p->id,
-                'code'         => $p->code,
-                'name'         => $p->name,
-                'price'        => $p->price,
-                'description'  => $p->description,
-                'is_available' => (bool) $p->is_available,
-                'category'     => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
-            ]);
+        $products = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_products", 3600, function () use ($restaurantId) {
+            return Product::where('restaurant_id', $restaurantId)
+                ->with('category')
+                ->latest()
+                ->get()
+                ->map(fn ($p) => [
+                    'id'           => $p->id,
+                    'code'         => $p->code,
+                    'name'         => $p->name,
+                    'price'        => $p->price,
+                    'description'  => $p->description,
+                    'is_available' => (bool) $p->is_available,
+                    'category'     => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
+                ])->toArray();
+        });
 
         return Inertia::render('products/Index', [
             'categories' => $categories,
@@ -800,7 +805,7 @@ class SupportController extends Controller
      */
     public function toggleEmployeeStatus(Request $request, Employee $employee): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('manage_employees'), 403);
         abort_if($employee->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $newStatus = $employee->status === 'active' ? 'inactive' : 'active';
@@ -1322,7 +1327,7 @@ class SupportController extends Controller
         unset($data['invoice_file']);
 
         // Yêu cầu phê duyệt chéo: Nhân viên kho / quản lý không được cộng thẳng, phải gửi Owner duyệt
-        if (! $user->hasRole('owner')) {
+        if (! $user->can('approve_requests')) {
             $this->approvalService->submitRequest('inventory_purchase', $data, $user);
             return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
         }
@@ -1516,7 +1521,7 @@ class SupportController extends Controller
 
         $user = $request->user();
 
-        if (! $user->hasRole('owner')) {
+        if (! $user->can('approve_requests')) {
             $this->approvalService->submitRequest('inventory_waste', $data, $user);
             return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');
         }

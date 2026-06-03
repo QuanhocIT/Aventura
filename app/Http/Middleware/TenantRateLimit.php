@@ -52,9 +52,16 @@ class TenantRateLimit
 
         $response = $next($request);
 
-        return $response->withHeaders([
-            'X-RateLimit-Limit'     => $maxAttempts,
-            'X-RateLimit-Remaining' => max(0, $maxAttempts - $this->limiter->attempts($key)),
-        ]);
+        if (method_exists($response, 'withHeaders')) {
+            return $response->withHeaders([
+                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Remaining' => max(0, $maxAttempts - $this->limiter->attempts($key)),
+            ]);
+        }
+
+        $response->headers->set('X-RateLimit-Limit', $maxAttempts);
+        $response->headers->set('X-RateLimit-Remaining', max(0, $maxAttempts - $this->limiter->attempts($key)));
+
+        return $response;
     }
 }

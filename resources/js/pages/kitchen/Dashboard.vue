@@ -160,25 +160,14 @@ const handleRefresh = () => {
     });
 };
 
-// Setup Listeners (Tải tự động dự phòng 5s + Đồng bộ Realtime WebSockets)
-let fallbackInterval: ReturnType<typeof setInterval> | null = null;
-
+// Setup Listeners (Đồng bộ Realtime WebSockets qua Laravel Echo)
 onMounted(() => {
     // 1. Đồng bộ thời gian hiển thị
     timerInterval = setInterval(() => {
         nowTime.value = new Date();
     }, 10000);
 
-    // 2. Dự phòng tự động cập nhật sau mỗi 5s (Short-polling fallback)
-    fallbackInterval = setInterval(() => {
-        router.reload({
-            only: ['pendingItems', 'completedItems'],
-            preserveState: true,
-            preserveScroll: true
-        });
-    }, 5000);
-
-    // 3. Lắng nghe qua WebSockets (Laravel Echo) nhận sự kiện real-time tức thời
+    // 2. Lắng nghe qua WebSockets (Laravel Echo) nhận sự kiện real-time tức thời
     const pageProps = usePage().props as any;
     const restaurantId = pageProps.auth?.user?.restaurant_id;
     if (Echo && restaurantId) {
@@ -196,7 +185,6 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (timerInterval) clearInterval(timerInterval);
-    if (fallbackInterval) clearInterval(fallbackInterval);
     
     // Ngắt kênh Echo
     const pageProps = usePage().props as any;

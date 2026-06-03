@@ -11,6 +11,7 @@ import BareLayout from '@/layouts/BareLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
+import { createPinia } from 'pinia';
 
 router.on('success', (event: { detail: { page: { props: Record<string, any> } } }) => {
     const announcement = (event.detail.page.props as Record<string, any>)?.flash?.success;
@@ -69,8 +70,10 @@ createInertiaApp({
         });
     },
     setup({ el, App, props, plugin }: any) {
+        const pinia = createPinia();
         createApp({ render: () => h(App, props) })
             .use(plugin)
+            .use(pinia)
             .mount(el);
     },
     progress: {

@@ -35,6 +35,12 @@ class RestaurantTable extends Model
         return $this->hasMany(Order::class, 'table_id');
     }
 
+    protected static function booted(): void
+    {
+        static::saved(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
+        static::deleted(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
+    }
+
     protected static function newFactory(): Factory
     {
         return RestaurantTableFactory::new();

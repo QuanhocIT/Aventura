@@ -1147,7 +1147,7 @@ Ví dụ:
 Ảnh món ăn nên lưu trên cloud storage thay vì lưu trong source code.
 • Hệ thống cần có rate limiting:
 o tránh spam request
-o giảm nguy cơ DDOS nhẹ
+o giảm nguy cơ DDOS nhẹ                    
 Ví dụ:
 Giới hạn số lần gọi API đăng nhập trong 1 phút.
 Laravel hỗ trợ:

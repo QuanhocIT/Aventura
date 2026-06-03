@@ -127,7 +127,7 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report' },
         { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
         { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
-        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'manage_violations' },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
         { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
         { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText, permission: 'view_audit_log' },
         { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
@@ -162,7 +162,7 @@ const managerNav = computed<NavItem[]>(() => {
         { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report' },
         { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
         { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
-        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'manage_violations' },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
         { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
         { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
     ];

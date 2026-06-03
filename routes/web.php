@@ -47,7 +47,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\ViolationReportController;
 
-Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function () {
+Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'])->group(function () {
     Route::get('dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
 
     // Onboarding API

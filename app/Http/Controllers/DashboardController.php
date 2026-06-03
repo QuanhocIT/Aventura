@@ -18,11 +18,11 @@ class DashboardController extends Controller
         $user       = auth()->user();
         $restaurant = $user?->restaurant;
 
-        if ($user && $user->hasRole('kitchen')) {
+        if ($user && $user->can('manage_kitchen') && !$user->can('view_report')) {
             return redirect()->route('kitchen.index');
         }
 
-        if ($user && $user->hasRole('cashier')) {
+        if ($user && $user->can('create_orders') && !$user->can('view_report')) {
             $tablesData = [];
             $products = [];
             $categories = [];
@@ -306,126 +306,7 @@ class DashboardController extends Controller
             // ── Dự báo doanh thu ngày mai ────────────────────────────────────
             $forecastData = $this->forecast->forecastTomorrow($rid);
 
-            // ── Biểu đồ 7 ngày + 7 ngày dự báo ─────────────────────────────
-            $sevenDaysAgo = now()->subDays(6)->startOfDay();
-            $dailyStats = Order::where('restaurant_id', $rid)
-                ->where('status', 'completed')
-                ->where('created_at', '>=', $sevenDaysAgo)
-                ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
-                ->groupBy('date')
-                ->get()
-                ->keyBy('date');
-
-            for ($i = 6; $i >= 0; $i--) {
-                $targetDate = now()->subDays($i);
-                $dateStr    = $targetDate->format('Y-m-d');
-                $label      = $targetDate->format('d/m');
-                $dayStat    = $dailyStats->get($dateStr);
-                $revenueChartData[] = [
-                    'date'        => $label,
-                    'revenue'     => $dayStat ? (float) $dayStat->revenue : 0,
-                    'orders'      => $dayStat ? (int) $dayStat->count : 0,
-                    'is_forecast' => false,
-                ];
-            }
-
-            // Nối 7 ngày dự báo vào chart data
-            $forecast7 = $this->forecast->forecast7Days($rid);
-            foreach ($forecast7 as $f) {
-                $revenueChartData[] = $f;
-            }
-
-            // ── Biểu đồ kênh bán hàng ───────────────────────────────────────
-            $channelStats = Order::where('restaurant_id', $rid)
-                ->where('created_at', '>=', $sevenDaysAgo)
-                ->selectRaw("channel, COUNT(*) as count")
-                ->groupBy('channel')
-                ->get();
-
-            $channelNames = [
-                'dine_in'  => 'Tại bàn',
-                'takeaway' => 'Mang về',
-                'delivery' => 'Giao hàng',
-                'qr'       => 'Mã QR',
-            ];
-
-            $totalChannelsCount = $channelStats->sum('count');
-            foreach ($channelStats as $cs) {
-                $channelChartData[] = [
-                    'channel'    => $cs->channel,
-                    'label'      => $channelNames[$cs->channel] ?? $cs->channel,
-                    'count'      => (int) $cs->count,
-                    'percentage' => $totalChannelsCount > 0
-                        ? round(($cs->count / $totalChannelsCount) * 100, 1) : 0,
-                ];
-            }
-
-            // ── Top 5 sản phẩm ───────────────────────────────────────────────
-            $topProductsChartData = \App\Models\OrderItem::query()
-                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
-                ->join('products', 'order_items.product_id', '=', 'products.id')
-                ->where('orders.restaurant_id', $rid)
-                ->where('orders.status', 'completed')
-                ->where('orders.created_at', '>=', now()->subDays(30))
-                ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.quantity * order_items.unit_price) as total_revenue')
-                ->groupBy('products.id', 'products.name')
-                ->orderByDesc('total_qty')
-                ->take(5)
-                ->get()
-                ->map(fn ($item) => [
-                    'name'     => $item->name,
-                    'quantity' => (int)   $item->total_qty,
-                    'revenue'  => (float) $item->total_revenue,
-                ])
-                ->all();
-
-            // ── Top sản phẩm hôm nay (cho owner tab) ────────────────────────
-            $topTodayProducts = \App\Models\OrderItem::query()
-                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
-                ->join('products', 'order_items.product_id', '=', 'products.id')
-                ->where('orders.restaurant_id', $rid)
-                ->where('orders.status', 'completed')
-                ->whereDate('orders.created_at', today())
-                ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
-                ->groupBy('products.id', 'products.name')
-                ->orderByDesc('total_qty')
-                ->take(3)
-                ->get()
-                ->map(fn ($r) => [
-                    'name'    => $r->name,
-                    'qty'     => (int)   $r->total_qty,
-                    'revenue' => (float) $r->total_revenue,
-                ])
-                ->all();
-
-            // ── Doanh thu theo ca (7 ngày, heatmap) ─────────────────────────
-            $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
-                ->where('status', 'active')
-                ->orderBy('start_time')
-                ->get();
-
-            $shiftRevenue = [];
-            foreach ($shifts as $shift) {
-                $row = ['shift_name' => $shift->name, 'days' => []];
-                for ($d = 6; $d >= 0; $d--) {
-                    $day   = now()->subDays($d);
-                    $start = $day->copy()->setTimeFromTimeString($shift->start_time);
-                    $end   = $shift->is_overnight
-                        ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
-                        : $day->copy()->setTimeFromTimeString($shift->end_time);
-
-                    $rev = Order::where('restaurant_id', $rid)
-                        ->where('status', 'completed')
-                        ->whereBetween('completed_at', [$start, $end])
-                        ->sum('total_amount');
-
-                    $row['days'][] = [
-                        'date'    => $day->format('d/m'),
-                        'revenue' => (float) $rev,
-                    ];
-                }
-                $shiftRevenue[] = $row;
-            }
+            // Các dữ liệu biểu đồ và thống kê nặng đã được bóc tách và tải chậm (Inertia Defer)
 
             // ── AI Cảnh báo mới ──────────────────────────────────────────────
             // Alert 1: Pending > 30 phút
@@ -505,37 +386,7 @@ class DashboardController extends Controller
                 ];
             }
 
-            // ── Owner Summary (tab tổng quan) ────────────────────────────────
-            $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
-                ->where('restaurant_id', $rid)
-                ->whereDate('scheduled_date', today())
-                ->whereIn('status', ['checked_in', 'scheduled'])
-                ->get()
-                ->map(fn ($a) => [
-                    'name'   => $a->employee?->full_name ?? '—',
-                    'shift'  => $a->shift?->name ?? '—',
-                    'status' => $a->status,
-                ])
-                ->all();
 
-            $pendingOrders = Order::where('restaurant_id', $rid)
-                ->where('status', 'pending')
-                ->where('created_at', '<', now()->subMinutes(20))
-                ->count();
-
-            $ownerSummary = [
-                'top_products_today' => $topTodayProducts,
-                'active_shifts'      => $activeShifts,
-                'pending_over_20min' => $pendingOrders,
-                'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
-                    ->where('summary_type', 'daily')
-                    ->whereBetween('summary_date', [today()->startOfWeek(), today()])
-                    ->sum('net_revenue'),
-                'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
-                    ->where('summary_type', 'daily')
-                    ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
-                    ->sum('net_revenue'),
-            ];
 
             // ── Activity Feed ────────────────────────────────────────────────
             $feedItems = [];
@@ -665,7 +516,7 @@ class DashboardController extends Controller
         }
 
         $onboardingStatus   = $user?->onboarding_status ?? [];
-        $onboardingComplete = !$user?->hasRole('owner') || (
+        $onboardingComplete = !$user?->can('approve_requests') || (
             !empty($onboardingStatus['day_1']['completed_at'])
             && !empty($onboardingStatus['day_2']['completed_at'])
             && !empty($onboardingStatus['day_3']['completed_at'])
@@ -679,14 +530,228 @@ class DashboardController extends Controller
             'onboardingComplete'   => $onboardingComplete,
             'recentOrders'         => $recentOrders,
             'alerts'               => $alerts,
-            'revenueChartData'     => $revenueChartData,
-            'channelChartData'     => $channelChartData,
-            'topProductsChartData' => $topProductsChartData,
-            // Mới
-            'forecastData'         => $forecastData,
-            'healthScore'          => $healthScore,
-            'shiftRevenue'         => $shiftRevenue,
-            'ownerSummary'         => $ownerSummary,
+            'revenueChartData'     => $restaurant ? Inertia::defer(fn () => $this->getRevenueChartData($restaurant->id)) : [],
+            'channelChartData'     => $restaurant ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id)) : [],
+            'topProductsChartData' => $restaurant ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id)) : [],
+            'forecastData'         => $restaurant ? Inertia::defer(fn () => $this->getForecastData($restaurant->id)) : null,
+            'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id)) : null,
+            'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id)) : [],
+            'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id)) : null,
         ]);
+    }
+
+    private function getRevenueChartData(int $rid): array
+    {
+        $sevenDaysAgo = now()->subDays(6)->startOfDay();
+        $dailyStats = Order::where('restaurant_id', $rid)
+            ->where('status', 'completed')
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
+            ->groupBy('date')
+            ->get()
+            ->keyBy('date');
+
+        $revenueChartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $targetDate = now()->subDays($i);
+            $dateStr    = $targetDate->format('Y-m-d');
+            $label      = $targetDate->format('d/m');
+            $dayStat    = $dailyStats->get($dateStr);
+            $revenueChartData[] = [
+                'date'        => $label,
+                'revenue'     => $dayStat ? (float) $dayStat->revenue : 0,
+                'orders'      => $dayStat ? (int) $dayStat->count : 0,
+                'is_forecast' => false,
+            ];
+        }
+
+        $forecast7 = $this->forecast->forecast7Days($rid);
+        foreach ($forecast7 as $f) {
+            $revenueChartData[] = $f;
+        }
+
+        return $revenueChartData;
+    }
+
+    private function getChannelChartData(int $rid): array
+    {
+        $sevenDaysAgo = now()->subDays(6)->startOfDay();
+        $channelStats = Order::where('restaurant_id', $rid)
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->selectRaw("channel, COUNT(*) as count")
+            ->groupBy('channel')
+            ->get();
+
+        $channelNames = [
+            'dine_in'  => 'Tại bàn',
+            'takeaway' => 'Mang về',
+            'delivery' => 'Giao hàng',
+            'qr'       => 'Mã QR',
+        ];
+
+        $channelChartData = [];
+        $totalChannelsCount = $channelStats->sum('count');
+        foreach ($channelStats as $cs) {
+            $channelChartData[] = [
+                'channel'    => $cs->channel,
+                'label'      => $channelNames[$cs->channel] ?? $cs->channel,
+                'count'      => (int) $cs->count,
+                'percentage' => $totalChannelsCount > 0
+                    ? round(($cs->count / $totalChannelsCount) * 100, 1) : 0,
+            ];
+        }
+
+        return $channelChartData;
+    }
+
+    private function getTopProductsChartData(int $rid): array
+    {
+        return \App\Models\OrderItem::query()
+            ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->where('orders.restaurant_id', $rid)
+            ->where('orders.status', 'completed')
+            ->where('orders.created_at', '>=', now()->subDays(30))
+            ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.quantity * order_items.unit_price) as total_revenue')
+            ->groupBy('products.id', 'products.name')
+            ->orderByDesc('total_qty')
+            ->take(5)
+            ->get()
+            ->map(fn ($item) => [
+                'name'     => $item->name,
+                'quantity' => (int)   $item->total_qty,
+                'revenue'  => (float) $item->total_revenue,
+            ])
+            ->all();
+    }
+
+    private function getForecastData(int $rid): ?array
+    {
+        return $this->forecast->forecastTomorrow($rid);
+    }
+
+    private function getHealthScore(int $rid): int
+    {
+        $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->whereDate('summary_date', today())->first();
+        $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->whereDate('summary_date', today()->subDay())->first();
+
+        $ordersToday    = Order::where('restaurant_id', $rid)->whereDate('created_at', today());
+        $totalToday     = (clone $ordersToday)->count();
+        $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
+        $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
+
+        $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);
+        $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
+        $revTrend = $revenueYesterday > 0
+            ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
+            : null;
+
+        $grossProfit = (float) ($todaySummary?->gross_profit ?? 0);
+        $profitMargin = $revenueToday > 0
+            ? round($grossProfit / $revenueToday * 100, 1)
+            : 0.0;
+
+        $completionRate = $totalToday > 0
+            ? round($completedToday / $totalToday * 100, 1)
+            : 0.0;
+
+        $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
+        $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
+
+        return (int) round(
+            min(100, max(0,
+                ($completionRate       * 0.35) +
+                (max(0, 100 - $cancellationRate * 4) * 0.20) +
+                ($revenueGrowthScore   * 0.30) +
+                (min(100, $profitMargin * 1.5) * 0.15)
+            ))
+        );
+    }
+
+    private function getShiftRevenue(int $rid): array
+    {
+        $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
+            ->where('status', 'active')
+            ->orderBy('start_time')
+            ->get();
+
+        $shiftRevenue = [];
+        foreach ($shifts as $shift) {
+            $row = ['shift_name' => $shift->name, 'days' => []];
+            for ($d = 6; $d >= 0; $d--) {
+                $day   = now()->subDays($d);
+                $start = $day->copy()->setTimeFromTimeString($shift->start_time);
+                $end   = $shift->is_overnight
+                    ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
+                    : $day->copy()->setTimeFromTimeString($shift->end_time);
+
+                $rev = Order::where('restaurant_id', $rid)
+                    ->where('status', 'completed')
+                    ->whereBetween('completed_at', [$start, $end])
+                    ->sum('total_amount');
+
+                $row['days'][] = [
+                    'date'    => $day->format('d/m'),
+                    'revenue' => (float) $rev,
+                ];
+            }
+            $shiftRevenue[] = $row;
+        }
+
+        return $shiftRevenue;
+    }
+
+    private function getOwnerSummary(int $rid): array
+    {
+        $topTodayProducts = \App\Models\OrderItem::query()
+            ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->where('orders.restaurant_id', $rid)
+            ->where('orders.status', 'completed')
+            ->whereDate('orders.created_at', today())
+            ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
+            ->groupBy('products.id', 'products.name')
+            ->orderByDesc('total_qty')
+            ->take(3)
+            ->get()
+            ->map(fn ($r) => [
+                'name'    => $r->name,
+                'qty'     => (int)   $r->total_qty,
+                'revenue' => (float) $r->total_revenue,
+            ])
+            ->all();
+
+        $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
+            ->where('restaurant_id', $rid)
+            ->whereDate('scheduled_date', today())
+            ->whereIn('status', ['checked_in', 'scheduled'])
+            ->get()
+            ->map(fn ($a) => [
+                'name'   => $a->employee?->full_name ?? '—',
+                'shift'  => $a->shift?->name ?? '—',
+                'status' => $a->status,
+            ])
+            ->all();
+
+        $pendingOrders = Order::where('restaurant_id', $rid)
+            ->where('status', 'pending')
+            ->where('created_at', '<', now()->subMinutes(20))
+            ->count();
+
+        return [
+            'top_products_today' => $topTodayProducts,
+            'active_shifts'      => $activeShifts,
+            'pending_over_20min' => $pendingOrders,
+            'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('summary_type', 'daily')
+                ->whereBetween('summary_date', [today()->startOfWeek(), today()])
+                ->sum('net_revenue'),
+            'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('summary_type', 'daily')
+                ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
+                ->sum('net_revenue'),
+        ];
     }
 }

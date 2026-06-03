@@ -22,7 +22,7 @@ class SalaryController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_salary'), 403);
 
         $user         = $request->user();
         $restaurantId = $user->restaurant_id;
@@ -85,7 +85,7 @@ class SalaryController extends Controller
 
     public function generate(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_salary'), 403);
 
         $period = $request->input('period', today()->format('Y-m'));
         $result = $this->salaryService->generateMonthlyDrafts($request->user()->restaurant_id, $period);
@@ -97,7 +97,7 @@ class SalaryController extends Controller
 
     public function approve(Request $request, Salary $salary): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_salary'), 403);
         abort_if($salary->status === 'paid', 422);
 
         $salary->update([
@@ -110,7 +110,7 @@ class SalaryController extends Controller
 
     public function markPaid(Request $request, Salary $salary): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner']), 403);
+        abort_unless($request->user()->can('manage_salary') && $request->user()->can('approve_requests'), 403);
         abort_unless($salary->status === 'approved', 422);
 
         $salary->update([
@@ -123,7 +123,7 @@ class SalaryController extends Controller
 
     public function storeAdjustment(Request $request, Salary $salary): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_salary'), 403);
         abort_if($salary->status === 'paid', 422);
 
         $data = $request->validate([
@@ -132,7 +132,7 @@ class SalaryController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        if (! $request->user()->hasRole('owner')) {
+        if (! $request->user()->can('approve_requests')) {
             $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
                 'salary_id' => $salary->id,
             ]), $request->user());
@@ -152,7 +152,7 @@ class SalaryController extends Controller
      */
     public function storeBulkAdjustment(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_salary'), 403);
 
         $data = $request->validate([
             'salary_ids'   => ['required', 'array'],
@@ -171,7 +171,7 @@ class SalaryController extends Controller
         foreach ($salaries as $salary) {
             if ($salary->status === 'paid') continue;
 
-            if (!$request->user()->hasRole('owner')) {
+            if (!$request->user()->can('approve_requests')) {
                 $this->approvalService->submitRequest('salary_adjustment', [
                     'salary_id' => $salary->id,
                     'type'      => $data['type'],
@@ -190,7 +190,7 @@ class SalaryController extends Controller
             $count++;
         }
 
-        $msg = $request->user()->hasRole('owner')
+        $msg = $request->user()->can('approve_requests')
             ? "Đã áp dụng điều chỉnh lương hàng loạt cho {$count} nhân sự thành công."
             : "Đã gửi đề xuất điều chỉnh lương hàng loạt cho {$count} nhân sự lên Chủ nhà hàng phê duyệt.";
 
