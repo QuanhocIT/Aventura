@@ -133,6 +133,8 @@ class OrdersController extends Controller
              ]);
          });
  
+         event(new \App\Events\Kitchen\KitchenUpdated($restaurantId));
+
          if ($request->user()->hasRole('cashier') || url()->previous() === route('dashboard')) {
             return redirect()->back()->with('success', 'Đã gửi đơn hàng mới xuống nhà bếp thành công!');
         }
@@ -294,6 +296,8 @@ class OrdersController extends Controller
                 \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
             }
         });
+
+        event(new \App\Events\Kitchen\KitchenUpdated($order->restaurant_id));
 
         return back()->with('success', 'Đã cập nhật trạng thái đơn hàng.');
     }
@@ -543,6 +547,8 @@ class OrdersController extends Controller
         if ($changed || $oldValues['subtotal'] !== $newValues['subtotal']) {
             \App\Models\AuditLog::log('order_updated', 'updated', $order, $oldValues, $newValues);
         }
+
+        event(new \App\Events\Kitchen\KitchenUpdated($order->restaurant_id));
 
         return back()->with('success', 'Đã cập nhật thông tin đơn hàng và ghi nhận nhật ký kiểm toán.');
     }
