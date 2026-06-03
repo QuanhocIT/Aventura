@@ -13,10 +13,14 @@ class DashboardController extends Controller
 {
     public function __construct(private ForecastService $forecast) {}
 
-    public function index(): Response
+    public function index(): mixed
     {
         $user       = auth()->user();
         $restaurant = $user?->restaurant;
+
+        if ($user && $user->hasRole('kitchen')) {
+            return redirect()->route('kitchen.index');
+        }
 
         if ($user && $user->hasRole('cashier')) {
             $tablesData = [];

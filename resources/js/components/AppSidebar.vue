@@ -186,8 +186,11 @@ const cashierNav: NavItem[] = [
 
 // ─── KITCHEN MENU ─────────────────────────────────────────────────────────────
 const kitchenNav: NavItem[] = [
-    { title: 'Màn hình bếp',    href: '/kitchen',                  icon: ChefHat },
+    { title: 'Trang chủ',       href: '/dashboard',               icon: LayoutGrid },
     { title: 'Lịch làm việc',   href: '/schedules',                icon: CalendarDays },
+    { title: 'Doanh thu ca',     href: '/shift-closings',          icon: ClipboardCheck },
+    { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
+    { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
 ];
 
 // ─── INVENTORY STAFF MENU ─────────────────────────────────────────────────────
