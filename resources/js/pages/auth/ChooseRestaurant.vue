@@ -21,7 +21,7 @@ const selectedUserId = ref<number | null>(null);
 
 const selectRestaurant = (userId: number) => {
     selectedUserId.value = userId;
-    router.post(route('choose-restaurant.select'), { user_id: userId }, {
+    router.post('/choose-restaurant', { user_id: userId }, {
         onFinish: () => {
             selectedUserId.value = null;
         }

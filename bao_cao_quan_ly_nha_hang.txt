@@ -779,14 +779,14 @@ v-if="user.permissions.includes('manage_feedback')"
 để tự động render Menu "Phản hồi & Khủng hoảng". Cách này giúp Frontend hoạt động mượt mà, render chính xác menu chức năng theo đúng những gì Backend cấp phép mà không cần tải lại trang . Sau này, nếu Chủ quán muốn tạo thêm một vai trò "Phó Quản lý" và chỉ cấp cho họ 3 quyền nhất định, Frontend vẫn tự động thích ứng mà bạn không cần sửa lại mã nguồn. 
 
 15.4: Phát triển nhân viên quán ( order, thu ngân, bếp )
-15.4.1: Phát triển nhân viên order 
+15.4.1: Phát triển nhân viên thu ngân
 ?  Tài khoản hoạt động khi nào: dựa vào bảng “Lịch làm mà chủ quán/quản lý” xếp, ví dụ: ca làm của tài khoản này là 16 giờ 00 đến 23 giờ 00 thứ 3 ngày... thì trong khoảng thời gian đó sẽ được mở, ngoài ra khung thời gian đó sẽ bị vô hiệu. => Mục đích: tránh vào đơn ko có thực khi ngoài giờ làm, ảnh hưởng tới người trực ca và doanh thu thực
 ? Tài khoản này có thể thực hiện thanh toán không? Hệ thống kiểm soát hành động dựa trên quyền hạn chi tiết. Tài khoản thông thường phụ trách gọi món (Order) mặc định sẽ không được cấp quyền thực hiện thủ tục thanh toán. Chức năng thanh toán và kết ca chỉ hiển thị và khả dụng đối với các tài khoản được kích hoạt tính năng payment_order (quyền thanh toán hóa đơn).
 - Tạo đơn: Có 20 bàn trong 1 khu vực đánh số từ nhỏ tới lớn theo bảng chữ cái, ví dụ A1, A2, A3,....B1,B2,B3,....( có thể nhiều hơn tùy thuộc vào tùy chỉnh của quản lý/chủ ), nhân viên order cần chọn bàn nào đang trống để vào đơn, khi ấn vào bàn trống thì sẽ hiện lên danh mục món ăn/uống để chọn món, khi chọn sẽ hiển thị số bên cạnh mặc định là 1, mỗi khi chọn món thì biểu tượng giỏ hàng sẽ nảy số lượng tổng món, sau khi chọn thì ấn nút xác nhận và sẽ chuyển tới màn hình xác nhận, nơi đó sẽ có tất cả các món đã chọn mà và số lượng, tổng tiền, giá tiền từng món có thể xóa món hoặc điều chỉnh số lượng hoặc quay lại danh mục để thêm, đồ uống khi ở đây, khi này nút xác nhận sẽ chuyển thành thông báo, khi đã “thông báo” thì không thể xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm và tiếp tục gửi thông báo.
 - Xem lịch làm việc, đăng ký lịch làm
 - Chức năng khiếu nại ( luôn được hiển thị là ẩn danh đối với người xem )
 -Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc hệ thống sẽ tự động chuyển trạng thái nhân sự sang terminated (đã nghỉ việc) , vô hiệu hóa tài khoản liên kết và kích hoạt chế độ xóa mềm (SoftDeletes) để ẩn khỏi danh sách vận hành nhưng giữ nguyên lịch sử giao dịch kế toán.)
- Cụm Vận hành Tiền sảnh & Chăm sóc Khách hàng (Dành cho Phục vụ / Order)
+ Cụm Vận hành Tiền sảnh & Chăm sóc Khách hàng (Dành cho nhân viên thu ngân)
 Đây là tuyến đầu tiếp xúc với khách, cần tốc độ thao tác nhanh, độ chính xác cao và khả năng quản lý luồng đơn đa kênh.
 •	Tạo đơn & Quản lý sơ đồ bàn:
 o	Hệ thống hiển thị 20 bàn trong 1 khu vực, được đánh số từ nhỏ tới lớn theo bảng chữ cái (ví dụ: A1, A2... B1, B2...). 

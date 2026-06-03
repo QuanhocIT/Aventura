@@ -20,21 +20,205 @@ class DashboardController extends Controller
 
         if ($user && $user->hasRole('cashier')) {
             $tablesData = [];
+            $products = [];
+            $categories = [];
+            $shiftInfo = ['active_shift' => null, 'shift_revenue' => 0];
+            $qrOrders = [];
+            $completedHistory = [];
+            $weeklySchedules = [];
+            $activeShifts = [];
+
             if ($restaurant) {
+                // Ensure default 20 tables exist (A1-A10, B1-B10)
+                $areaA = \App\Models\Area::firstOrCreate(
+                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-A'],
+                    ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
+                );
+                $areaB = \App\Models\Area::firstOrCreate(
+                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-B'],
+                    ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
+                );
+
+                $tableCount = \App\Models\RestaurantTable::where('restaurant_id', $restaurant->id)->count();
+                if ($tableCount < 20) {
+                    for ($i = 1; $i <= 10; $i++) {
+                        \App\Models\RestaurantTable::firstOrCreate(
+                            ['restaurant_id' => $restaurant->id, 'name' => "A{$i}"],
+                            ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
+                        );
+                        \App\Models\RestaurantTable::firstOrCreate(
+                            ['restaurant_id' => $restaurant->id, 'name' => "B{$i}"],
+                            ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
+                        );
+                    }
+                }
+
+                // Query tables along with their active unpaid orders
                 $tablesData = \App\Models\RestaurantTable::with('area')
                     ->where('restaurant_id', $restaurant->id)
                     ->orderBy('name')
                     ->get()
-                    ->map(fn ($t) => [
-                        'id' => $t->id,
-                        'name' => $t->name,
-                        'area' => $t->area?->name ?? 'Khu vực chung',
-                        'capacity' => $t->capacity,
-                        'status' => $t->status,
+                    ->map(function ($t) use ($restaurant) {
+                        $activeOrder = Order::where('table_id', $t->id)
+                            ->whereNotIn('status', ['completed', 'cancelled'])
+                            ->where('payment_status', 'unpaid')
+                            ->with(['items.product'])
+                            ->first();
+
+                        $status = $t->status;
+                        if (!$activeOrder && $status === 'occupied') {
+                            $status = 'available';
+                            $t->update(['status' => 'available']);
+                        }
+
+                        return [
+                            'id' => $t->id,
+                            'name' => $t->name,
+                            'area' => $t->area?->name ?? 'Khu vực chung',
+                            'capacity' => $t->capacity,
+                            'status' => $status,
+                            'active_order' => $activeOrder ? [
+                                'id' => $activeOrder->id,
+                                'order_number' => $activeOrder->order_number,
+                                'status' => $activeOrder->status,
+                                'subtotal' => (float) $activeOrder->subtotal,
+                                'discount_amount' => (float) $activeOrder->discount_amount,
+                                'total_amount' => (float) $activeOrder->total_amount,
+                                'note' => $activeOrder->note,
+                                'is_split' => (bool) $activeOrder->is_split,
+                                'is_red_flagged' => (bool) $activeOrder->is_red_flagged,
+                                'items' => $activeOrder->items->map(fn ($item) => [
+                                    'id' => $item->id,
+                                    'product_id' => $item->product_id,
+                                    'product_name' => $item->product?->name,
+                                    'price' => (float) $item->unit_price,
+                                    'quantity' => (float) $item->quantity,
+                                    'notes' => $item->notes,
+                                    'status' => $item->status,
+                                ]),
+                            ] : null,
+                        ];
+                    })->all();
+
+                // Load active products
+                $products = \App\Models\Product::where('restaurant_id', $restaurant->id)
+                    ->where('is_active', true)
+                    ->where('is_available', true)
+                    ->get()
+                    ->map(fn ($p) => [
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'price' => (float) $p->price,
+                        'category_id' => $p->category_id,
+                    ])->all();
+
+                // Load active categories
+                $categories = \App\Models\ProductCategory::where('restaurant_id', $restaurant->id)
+                    ->where('status', 'active')
+                    ->orderBy('display_order')
+                    ->get()
+                    ->map(fn ($c) => [
+                        'id' => $c->id,
+                        'name' => $c->name,
+                    ])->all();
+
+                // Shift revenue tracking for this cashier
+                $employee = $user->employee;
+                if ($employee) {
+                    $assignment = \App\Models\ScheduleAssignment::where('employee_id', $employee->id)
+                        ->where('status', 'checked_in')
+                        ->whereDate('scheduled_date', today())
+                        ->with('shift')
+                        ->first();
+
+                    if ($assignment) {
+                        $shiftInfo['active_shift'] = [
+                            'id' => $assignment->id,
+                            'shift_name' => $assignment->shift?->name ?? 'Ca làm việc',
+                            'check_in_at' => $assignment->check_in_at ? $assignment->check_in_at->format('H:i d/m/Y') : null,
+                        ];
+
+                        $shiftInfo['shift_revenue'] = (float) \App\Models\Payment::where('processed_by', $user->id)
+                            ->where('status', 'paid')
+                            ->where('paid_at', '>=', $assignment->check_in_at)
+                            ->sum('amount');
+                    }
+
+                    // Load weekly schedules
+                    $startOfWeek = now()->startOfWeek(\Carbon\Carbon::MONDAY)->toDateString();
+                    $endOfWeek = now()->endOfWeek(\Carbon\Carbon::SUNDAY)->toDateString();
+                    $weeklySchedules = \App\Models\ScheduleAssignment::where('employee_id', $employee->id)
+                        ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                        ->with('shift')
+                        ->orderBy('scheduled_date')
+                        ->get()
+                        ->map(fn ($wa) => [
+                            'id' => $wa->id,
+                            'date' => \Carbon\Carbon::parse($wa->scheduled_date)->format('d/m/Y'),
+                            'day' => \Carbon\Carbon::parse($wa->scheduled_date)->format('l'),
+                            'shift_name' => $wa->shift?->name ?? '—',
+                            'shift_time' => $wa->shift ? substr($wa->shift->start_time, 0, 5) . ' - ' . substr($wa->shift->end_time, 0, 5) : '—',
+                            'status' => $wa->status,
+                        ])->all();
+                }
+
+                // Query pending QR orders
+                $qrOrders = Order::where('restaurant_id', $restaurant->id)
+                    ->where('channel', 'qr')
+                    ->where('status', 'pending')
+                    ->with(['table', 'items.product'])
+                    ->get()
+                    ->map(fn ($o) => [
+                        'id' => $o->id,
+                        'order_number' => $o->order_number,
+                        'table_name' => $o->table?->name ?? 'Không xác định',
+                        'total_amount' => (float) $o->total_amount,
+                        'created_at' => $o->created_at->format('H:i'),
+                        'items' => $o->items->map(fn ($item) => [
+                            'product_name' => $item->product?->name,
+                            'quantity' => (float) $item->quantity,
+                        ]),
+                    ])->all();
+
+                // Load cashier completed history
+                $completedHistory = Order::where('restaurant_id', $restaurant->id)
+                    ->where('cashier_user_id', $user->id)
+                    ->where('status', 'completed')
+                    ->with(['table'])
+                    ->latest()
+                    ->take(10)
+                    ->get()
+                    ->map(fn ($o) => [
+                        'id' => $o->id,
+                        'order_number' => $o->order_number,
+                        'table_name' => $o->table?->name ?? 'Mang về',
+                        'total_amount' => (float) $o->total_amount,
+                        'completed_at' => $o->completed_at ? $o->completed_at->format('H:i d/m') : null,
+                    ])->all();
+
+                // Active shifts list for registration
+                $activeShifts = \App\Models\WorkShift::where('restaurant_id', $restaurant->id)
+                    ->where('status', 'active')
+                    ->get()
+                    ->map(fn ($s) => [
+                        'id' => $s->id,
+                        'name' => $s->name,
                     ])->all();
             }
+
             return Inertia::render('cashier/Dashboard', [
                 'tablesData' => $tablesData,
+                'products' => $products,
+                'categories' => $categories,
+                'shiftInfo' => $shiftInfo,
+                'qrOrders' => $qrOrders,
+                'completedHistory' => $completedHistory,
+                'weeklySchedules' => $weeklySchedules,
+                'activeShifts' => $activeShifts,
+                'employee' => $employee ? [
+                    'id' => $employee->id,
+                    'full_name' => $employee->full_name,
+                ] : null,
             ]);
         }
 
@@ -304,6 +488,19 @@ class DashboardController extends Controller
                 ];
             }
 
+            // Alert 6 (Fraud): Đơn bị tách chưa đối soát
+            $splitAlertsCount = Order::where('restaurant_id', $rid)
+                ->where('is_split', true)
+                ->where('is_red_flagged', true)
+                ->count();
+            if ($splitAlertsCount > 0) {
+                $alerts[] = [
+                    'type'    => 'danger',
+                    'message' => "⚠️ Phát hiện {$splitAlertsCount} đơn hàng bị tách chưa được đối soát (Có nguy cơ gian lận!)",
+                    'href'    => '/orders',
+                ];
+            }
+
             // ── Owner Summary (tab tổng quan) ────────────────────────────────
             $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
                 ->where('restaurant_id', $rid)
@@ -410,11 +607,24 @@ class DashboardController extends Controller
             // ── Table grid ───────────────────────────────────────────────────
             $tablesData = \App\Models\RestaurantTable::with('area')
                 ->where('restaurant_id', $rid)->orderBy('name')->get()
-                ->map(fn ($t) => [
-                    'id' => $t->id, 'name' => $t->name,
-                    'area' => $t->area?->name ?? 'Khu vực chung',
-                    'capacity' => $t->capacity, 'status' => $t->status,
-                ])->all();
+                ->map(function ($t) {
+                    $status = $t->status;
+                    if ($status === 'occupied') {
+                        $hasActiveOrder = Order::where('table_id', $t->id)
+                            ->whereNotIn('status', ['completed', 'cancelled'])
+                            ->where('payment_status', 'unpaid')
+                            ->exists();
+                        if (!$hasActiveOrder) {
+                            $status = 'available';
+                            $t->update(['status' => 'available']);
+                        }
+                    }
+                    return [
+                        'id' => $t->id, 'name' => $t->name,
+                        'area' => $t->area?->name ?? 'Khu vực chung',
+                        'capacity' => $t->capacity, 'status' => $status,
+                    ];
+                })->all();
 
             // ── Low stock ────────────────────────────────────────────────────
             $lowStockInventory = \App\Models\Inventory::query()

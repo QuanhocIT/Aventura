@@ -14,6 +14,8 @@ class TablesController extends Controller
 {
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
@@ -52,6 +54,8 @@ class TablesController extends Controller
 
     public function storeArea(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         $user = $request->user();
 
         $data = $request->validate([
@@ -71,6 +75,8 @@ class TablesController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         $user = $request->user();
 
         $data = $request->validate([
@@ -93,6 +99,8 @@ class TablesController extends Controller
 
     public function update(Request $request, RestaurantTable $table): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $data = $request->validate([
@@ -108,6 +116,8 @@ class TablesController extends Controller
 
     public function destroy(Request $request, RestaurantTable $table): RedirectResponse
     {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $table->delete();
