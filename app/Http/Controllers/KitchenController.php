@@ -35,6 +35,7 @@ class KitchenController extends Controller
                 'quantity' => (float) $item->quantity,
                 'notes' => $item->notes,
                 'sent_to_kitchen_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->format('H:i') : $item->created_at->format('H:i'),
+                'sent_to_kitchen_at_raw' => ($item->sent_to_kitchen_at ?? $item->created_at)->toIso8601String(),
                 'creator_name' => $item->order->creator?->name ?? 'Hệ thống',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
                 'table_id' => $item->order->table_id,
@@ -77,6 +78,8 @@ class KitchenController extends Controller
             'status' => 'preparing', // transition status
         ]);
 
+        event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
+
         return back()->with('success', 'Đã hoàn thành chuẩn bị món!');
     }
 
@@ -90,6 +93,8 @@ class KitchenController extends Controller
             'served_at' => now(),
             'status' => 'served', // final status
         ]);
+
+        event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
 
         return back()->with('success', 'Món ăn đã được phục vụ lấy đi!');
     }
