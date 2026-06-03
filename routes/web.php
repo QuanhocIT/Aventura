@@ -120,6 +120,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::patch('tables/{table}', [\App\Http\Controllers\TablesController::class, 'update'])->name('tables.update');
     Route::delete('tables/{table}', [\App\Http\Controllers\TablesController::class, 'destroy'])->name('tables.destroy');
 
+    // Kitchen management
+    Route::get('kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])->name('kitchen.index');
+    Route::post('kitchen/items/{item}/prepare', [\App\Http\Controllers\KitchenController::class, 'prepare'])->name('kitchen.prepare');
+    Route::post('kitchen/items/{item}/serve', [\App\Http\Controllers\KitchenController::class, 'serve'])->name('kitchen.serve');
+
     // Orders management
     Route::get('orders/create', [\App\Http\Controllers\OrdersController::class, 'create'])->name('orders.create');
     Route::post('orders', [\App\Http\Controllers\OrdersController::class, 'store'])->name('orders.store');

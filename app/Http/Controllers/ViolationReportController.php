@@ -23,7 +23,7 @@ class ViolationReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner') || $user->hasRole('manager') || $user->hasRole('cashier'), 403);
+        abort_unless($user->hasRole('owner') || $user->hasRole('manager') || $user->hasRole('cashier') || $user->hasRole('kitchen'), 403);
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác

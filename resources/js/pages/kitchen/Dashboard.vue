@@ -1,0 +1,318 @@
+<script setup lang="ts">
+import { Head, router } from '@inertiajs/vue3';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { 
+    ChefHat, 
+    Clock, 
+    User, 
+    Check, 
+    Bell, 
+    RefreshCw, 
+    Inbox, 
+    CheckCircle,
+    Clipboard,
+    MessageSquare,
+    UtensilsCrossed
+} from 'lucide-vue-next';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
+interface PendingItem {
+    id: number;
+    product_name: string;
+    quantity: number;
+    notes: string | null;
+    sent_to_kitchen_at: string;
+    creator_name: string;
+    table_name: string;
+    table_id: number | null;
+}
+
+interface CompletedItem {
+    id: number;
+    product_name: string;
+    quantity: number;
+    notes: string | null;
+    prepared_at: string;
+    table_name: string;
+}
+
+const props = defineProps<{
+    pendingItems: PendingItem[];
+    completedItems: CompletedItem[];
+}>();
+
+// Phân nhóm các món đang chờ theo Bàn
+const groupedPending = computed(() => {
+    const groups: Record<string, PendingItem[]> = {};
+    props.pendingItems.forEach(item => {
+        const key = item.table_name || 'Mang về';
+        if (!groups[key]) {
+            groups[key] = [];
+        }
+        groups[key].push(item);
+    });
+    return groups;
+});
+
+// Trạng thái load khi cập nhật
+const isUpdating = ref<Record<number, boolean>>({});
+const isManualRefreshing = ref(false);
+
+// Hoàn thành chế biến món ăn ở bếp
+const handlePrepare = (itemId: number) => {
+    if (isUpdating.value[itemId]) return;
+    isUpdating.value[itemId] = true;
+    router.post(`/kitchen/items/${itemId}/prepare`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            isUpdating.value[itemId] = false;
+        }
+    });
+};
+
+// Đã phục vụ / bê đi
+const handleServe = (itemId: number) => {
+    if (isUpdating.value[itemId]) return;
+    isUpdating.value[itemId] = true;
+    router.post(`/kitchen/items/${itemId}/serve`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            isUpdating.value[itemId] = false;
+        }
+    });
+};
+
+// Làm mới thủ công
+const handleRefresh = () => {
+    if (isManualRefreshing.value) return;
+    isManualRefreshing.value = true;
+    router.reload({
+        only: ['pendingItems', 'completedItems'],
+        onFinish: () => {
+            isManualRefreshing.value = false;
+        }
+    });
+};
+
+// Tự động làm mới mỗi 5 giây (realtime)
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+    refreshInterval = setInterval(() => {
+        router.reload({
+            only: ['pendingItems', 'completedItems'],
+            preserveState: true,
+            preserveScroll: true
+        });
+    }, 5000);
+});
+
+onUnmounted(() => {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+});
+</script>
+
+<template>
+    <Head title="Màn hình Bếp - Aventura" />
+
+    <div class="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50 dark:bg-slate-900/30">
+        <!-- ── HEADER ── -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-5">
+            <div class="flex items-center gap-3.5">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20">
+                    <ChefHat class="size-6 animate-pulse" />
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Màn hình Điều phối Bếp</h1>
+                    <p class="text-xs text-muted-foreground mt-0.5 font-medium flex items-center gap-1.5">
+                        <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        Hệ thống điều phối đơn hàng thời gian thực (Cập nhật tự động 5s)
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    class="rounded-xl font-bold text-xs gap-1.5 h-10 px-4 bg-background shadow-sm transition-all"
+                    :disabled="isManualRefreshing"
+                    @click="handleRefresh"
+                >
+                    <RefreshCw class="size-3.5" :class="{ 'animate-spin': isManualRefreshing }" />
+                    Làm mới (F5)
+                </Button>
+            </div>
+        </div>
+
+        <!-- ── DANH SÁCH 2 CỘT CHÍNH ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            
+            <!-- ── CỘT TRÁI: NHẬN ĐƠN (PENDING) ── -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-4 rounded-2xl shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <UtensilsCrossed class="size-5 text-indigo-500" />
+                        <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">1. Đơn Chờ Chế Biến</h2>
+                    </div>
+                    <Badge variant="secondary" class="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold px-3 py-1 text-xs rounded-full">
+                        {{ props.pendingItems.length }} món chờ làm
+                    </Badge>
+                </div>
+
+                <div v-if="props.pendingItems.length === 0" class="flex flex-col items-center justify-center py-24 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-white/40 dark:bg-slate-900/10 text-center">
+                    <Inbox class="size-10 text-muted-foreground/30 mb-3" />
+                    <p class="text-sm font-bold text-slate-700 dark:text-slate-300">Tuyệt vời! Bếp đã dọn sạch đơn hàng</p>
+                    <p class="text-xs text-muted-foreground mt-1">Các món ăn mới sẽ hiển thị tại đây khi có khách đặt</p>
+                </div>
+
+                <div v-else class="space-y-4">
+                    <Card 
+                        v-for="(items, tableName) in groupedPending" 
+                        :key="tableName" 
+                        class="overflow-hidden border border-slate-200/80 dark:border-slate-800/60 shadow-sm bg-card hover:shadow-md transition-all rounded-2xl"
+                    >
+                        <CardHeader class="py-3.5 px-4 bg-slate-100/50 dark:bg-slate-800/20 border-b border-slate-200/80 dark:border-slate-800/60">
+                            <div class="flex items-center justify-between">
+                                <CardTitle class="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                                    Bàn: {{ tableName }}
+                                </CardTitle>
+                                <Badge class="bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-[10px] font-bold">
+                                    {{ items.length }} món
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        
+                        <CardContent class="p-0 divide-y divide-slate-100 dark:divide-slate-800/60">
+                            <div 
+                                v-for="item in items" 
+                                :key="item.id" 
+                                class="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2.5">
+                                        <Badge class="bg-indigo-500 text-white font-black text-xs px-2.5 py-0.5 rounded-lg">
+                                            x{{ Math.round(item.quantity) }}
+                                        </Badge>
+                                        <h3 class="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">
+                                            {{ item.product_name }}
+                                        </h3>
+                                    </div>
+                                    
+                                    <!-- Meta thông tin thêm (thời gian vào, tên tài khoản vào) -->
+                                    <div class="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground font-semibold">
+                                        <span class="flex items-center gap-1">
+                                            <Clock class="size-3 text-indigo-500" />
+                                            Nhận: {{ item.sent_to_kitchen_at }}
+                                        </span>
+                                        <span>•</span>
+                                        <span class="flex items-center gap-1">
+                                            <User class="size-3 text-violet-500" />
+                                            Gọi bởi: {{ item.creator_name }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Ghi chú món ăn nếu có -->
+                                    <div v-if="item.notes" class="mt-2.5 inline-flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1 text-[10px] text-amber-700 dark:border-amber-950/30 dark:bg-amber-950/10 dark:text-amber-400 font-medium">
+                                        <MessageSquare class="size-3 text-amber-500 shrink-0 mt-0.5" />
+                                        <span>Ghi chú: {{ item.notes }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Nút hoàn thành chuẩn bị -->
+                                <Button 
+                                    class="h-10 w-10 shrink-0 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
+                                    :disabled="isUpdating[item.id]"
+                                    @click="handlePrepare(item.id)"
+                                    title="Hoàn thành món"
+                                >
+                                    <Check class="size-5" />
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            <!-- ── CỘT PHẢI: ĐƠN ĐÃ XONG CHỜ PHỤC VỤ (COMPLETED) ── -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-4 rounded-2xl shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <CheckCircle class="size-5 text-emerald-500" />
+                        <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">2. Chờ Phục Vụ / Lấy Đi</h2>
+                    </div>
+                    <Badge variant="secondary" class="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 font-extrabold px-3 py-1 text-xs rounded-full">
+                        {{ props.completedItems.length }} món sẵn sàng
+                    </Badge>
+                </div>
+
+                <div v-if="props.completedItems.length === 0" class="flex flex-col items-center justify-center py-24 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-white/40 dark:bg-slate-900/10 text-center">
+                    <Bell class="size-10 text-muted-foreground/30 mb-3" />
+                    <p class="text-sm font-bold text-slate-700 dark:text-slate-300">Không có món chờ bưng</p>
+                    <p class="text-xs text-muted-foreground mt-1">Các món ăn chế biến xong sẽ chuyển sang bên này để phục vụ đi giao</p>
+                </div>
+
+                <div v-else class="space-y-3">
+                    <div 
+                        v-for="item in props.completedItems" 
+                        :key="item.id" 
+                        class="flex items-center justify-between gap-4 p-4 rounded-2xl border border-emerald-100 bg-white/80 dark:border-emerald-950/20 dark:bg-slate-950/20 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-900/30 transition-all group"
+                    >
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <Badge class="bg-emerald-500 text-white font-black text-xs px-2 py-0.5 rounded">
+                                    x{{ Math.round(item.quantity) }}
+                                </Badge>
+                                <h3 class="font-extrabold text-slate-900 dark:text-slate-100 text-sm truncate">
+                                    {{ item.product_name }}
+                                </h3>
+                            </div>
+                            
+                            <div class="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground font-bold">
+                                <span class="text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded">
+                                    Bàn: {{ item.table_name }}
+                                </span>
+                                <span>•</span>
+                                <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                    <Clock class="size-3" />
+                                    Xong lúc: {{ item.prepared_at }}
+                                </span>
+                            </div>
+
+                            <!-- Hiển thị lại ghi chú nếu có để phục vụ chú ý -->
+                            <div v-if="item.notes" class="mt-2 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] text-amber-700 dark:bg-amber-950/10 dark:text-amber-400 font-semibold">
+                                <MessageSquare class="size-2.5 text-amber-500" />
+                                {{ item.notes }}
+                            </div>
+                        </div>
+
+                        <!-- Nút hoàn thành phục vụ -->
+                        <Button 
+                            class="h-10 w-10 shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm transition-all"
+                            :disabled="isUpdating[item.id]"
+                            @click="handleServe(item.id)"
+                            title="Xác nhận phục vụ đã lấy đi"
+                        >
+                            <Check class="size-5" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</template>
+
+<style scoped>
+/* Thêm các hiệu ứng micro-interactions mượt mà */
+.bg-card {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.bg-card:hover {
+    transform: translateY(-2px);
+}
+</style>

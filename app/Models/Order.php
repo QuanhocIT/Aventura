@@ -39,6 +39,11 @@ class Order extends Model
         return $this->belongsTo(RestaurantTable::class, 'table_id');
     }
 
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
