@@ -21,6 +21,18 @@ withDefaults(defineProps<Props>(), {
 
 const page = usePage();
 const isImpersonating = computed(() => !!page.props.is_impersonating);
+
+const user = computed(() => (page.props.auth?.user as any) ?? null);
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+const hasRole = (...roleNames: string[]) =>
+    roles.value.some((r: string) => roleNames.includes(r));
+const isSuperAdmin  = computed(() => hasRole('super_admin') || hasRole('admin'));
+const isOwner       = computed(() => hasRole('owner'));
+
+const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.value);
 </script>
 
 <template>
@@ -47,6 +59,6 @@ const isImpersonating = computed(() => !!page.props.is_impersonating);
         <Toaster />
         <FlashToast />
         <OnboardingTour />
-        <ChatbotWidget source="support" />
+        <ChatbotWidget v-if="showChatbot" source="support" />
     </AppShell>
 </template>

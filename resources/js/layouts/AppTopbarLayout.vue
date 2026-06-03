@@ -23,7 +23,17 @@ import type { User } from '@/types';
 
 const page = usePage();
 const user = computed(() => (page.props.auth?.user as User | null) ?? null);
-const roles = computed(() => ((page.props as any).roles as string[]) ?? []);
+const roles = computed(() => {
+    const raw = (page.props as any).roles ?? [];
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+const hasRole = (...roleNames: string[]) =>
+    roles.value.some((r: string) => roleNames.includes(r));
+const isSuperAdmin  = computed(() => hasRole('super_admin') || hasRole('admin'));
+const isOwner       = computed(() => hasRole('owner'));
+
+const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.value);
+
 const isStaff = computed(() => roles.value.length > 0);
 const tenant = computed(() => (page.props as any).tenant ?? null);
 const isMobileOpen = ref(false);
@@ -332,7 +342,7 @@ const handleLogout = () => {
 
     <Footer />
 
-    <ChatbotWidget source="widget" />
+    <ChatbotWidget v-if="showChatbot" source="widget" />
     <FlashToast />
 </template>
 

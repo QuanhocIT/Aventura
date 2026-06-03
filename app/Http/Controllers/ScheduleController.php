@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
+use App\Models\ScheduleRegistration;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -141,6 +142,22 @@ class ScheduleController extends Controller
                 }
             }
 
+            $registrations = ScheduleRegistration::where('restaurant_id', $restaurantId)
+                ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                ->with(['employee:id,full_name,employee_code,job_title', 'shift:id,name'])
+                ->get()
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'employee_id' => $r->employee_id,
+                    'employee_name' => $r->employee?->full_name ?? 'Không rõ',
+                    'employee_code' => $r->employee?->employee_code ?? '—',
+                    'job_title' => $r->employee?->job_title ?? '—',
+                    'shift_id' => $r->shift_id,
+                    'shift_name' => $r->shift?->name ?? '—',
+                    'scheduled_date' => $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString(),
+                    'day' => Carbon::parse($r->scheduled_date)->format('l'),
+                ]);
+
             return Inertia::render('schedules/Index', [
                 'isAdmin'          => true,
                 'selectedDate'     => $selectedDate,
@@ -150,6 +167,7 @@ class ScheduleController extends Controller
                 'shifts'           => $shifts,
                 'employees'        => $employees,
                 'staffingTips'     => $staffingTips,
+                'registrations'    => $registrations,
             ]);
         }
 
@@ -248,10 +266,30 @@ class ScheduleController extends Controller
             }
         }
 
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'start' => substr($s->start_time, 0, 5),
+                'end' => substr($s->end_time, 0, 5),
+            ]);
+
+        $myRegistrations = ScheduleRegistration::where('employee_id', $employee->id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->get()
+            ->map(fn ($r) => [
+                'shift_id' => $r->shift_id,
+                'date' => $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString(),
+            ]);
+
         return Inertia::render('schedules/Index', [
             'isAdmin' => false,
             'myWeeklySchedules' => $myWeeklySchedules,
             'todayActiveAssignment' => $todayActiveAssignment,
+            'shifts' => $shifts,
+            'myRegistrations' => $myRegistrations,
         ]);
     }
 
@@ -423,5 +461,46 @@ class ScheduleController extends Controller
         ];
 
         return $days[$day] ?? $day;
+    }
+
+    /**
+     * Nhân viên đăng ký ca làm việc rảnh trong tuần.
+     */
+    public function register(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $employee = $user->employee;
+        if (!$employee) {
+            return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
+        }
+
+        $data = $request->validate([
+            'registrations' => ['nullable', 'array'],
+            'registrations.*.shift_id' => ['required', 'exists:work_shifts,id'],
+            'registrations.*.date' => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($employee, $data, $startOfWeek, $endOfWeek) {
+            // Xóa toàn bộ đăng ký trong tuần này của nhân viên trước khi lưu mới
+            ScheduleRegistration::where('employee_id', $employee->id)
+                ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                ->delete();
+
+            if (!empty($data['registrations'])) {
+                foreach ($data['registrations'] as $reg) {
+                    ScheduleRegistration::create([
+                        'restaurant_id' => $employee->restaurant_id,
+                        'employee_id' => $employee->id,
+                        'shift_id' => $reg['shift_id'],
+                        'scheduled_date' => $reg['date'],
+                    ]);
+                }
+            }
+        });
+
+        return back()->with('success', 'Đã lưu đăng ký ca làm việc khả dụng thành công!');
     }
 }

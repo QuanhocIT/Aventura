@@ -18,17 +18,22 @@ use Illuminate\Support\Facades\DB;
 class ViolationReportController extends Controller
 {
     /**
-     * Hiển thị danh sách vé tố cáo sai phạm nội bộ (Chỉ Owner & Manager).
+     * Hiển thị danh sách vé tố cáo sai phạm nội bộ.
      */
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->hasRole('owner') || $user->hasRole('manager') || $user->hasRole('cashier'), 403);
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác
-        $reportsModels = ViolationReport::where('restaurant_id', $restaurantId)
-            ->with(['employee', 'reportedBy'])
+        $query = ViolationReport::where('restaurant_id', $restaurantId);
+
+        if (!$user->hasRole('owner') && !$user->hasRole('manager')) {
+            $query->where('reported_by', $user->id);
+        }
+
+        $reportsModels = $query->with(['employee', 'reportedBy'])
             ->latest()
             ->get();
 

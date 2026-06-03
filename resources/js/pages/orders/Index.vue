@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import {
     ShoppingCart, CheckCircle2, Clock, XCircle, ChefHat,
     Banknote, Filter, CalendarDays, RefreshCw, AlertCircle
@@ -38,7 +38,19 @@ const props = defineProps<{
     orders: Order[];
     summary: Summary;
     filters: { status: string; date: string };
+    autoPayEnabled: boolean;
 }>();
+
+const page = usePage();
+const roles = computed(() => {
+    const raw = (page.props as any).roles ?? [];
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+const isOwner = computed(() => roles.value.includes('owner'));
+
+const toggleAutoPay = () => {
+    router.post('/settings/toggle-auto-pay', {}, { preserveScroll: true });
+};
 
 const dateInput  = ref(props.filters.date);
 const activeStatus = ref(props.filters.status);
@@ -105,8 +117,25 @@ const nextStatus: Record<string, string | null> = {
                     <p class="text-sm text-slate-500 dark:text-slate-400">Theo dõi, xác nhận và cập nhật trạng thái đơn hàng theo thời gian thực.</p>
                 </div>
             </div>
-            <!-- Date picker -->
-            <div class="flex items-center gap-2">
+            <!-- Date picker and settings -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <Button
+                    v-if="isOwner"
+                    variant="outline"
+                    size="sm"
+                    @click="toggleAutoPay"
+                    class="h-10 px-4 flex items-center gap-2 border transition-all rounded-xl cursor-pointer"
+                    :class="props.autoPayEnabled
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'"
+                >
+                    <span class="relative flex h-2 w-2">
+                        <span :class="['animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', props.autoPayEnabled ? 'bg-emerald-400' : 'bg-slate-400']"></span>
+                        <span :class="['relative inline-flex rounded-full h-2 w-2', props.autoPayEnabled ? 'bg-emerald-500' : 'bg-slate-500']"></span>
+                    </span>
+                    <span>Tự động thanh toán ca cuối: <strong class="uppercase">{{ props.autoPayEnabled ? 'Bật' : 'Tắt' }}</strong></span>
+                </Button>
+
                 <div class="relative">
                     <CalendarDays class="absolute left-3 top-2.5 size-4 text-muted-foreground pointer-events-none" />
                     <input

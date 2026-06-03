@@ -114,39 +114,57 @@ class ShiftClosingController extends Controller
 
         [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
 
+        $unpaidTableOrders = collect();
+        $isLastShift = $this->checkIsLastShift($restaurantId, $shift->id);
+        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId);
+
+        if ($isLastShift && $autoPayEnabled) {
+            $unpaidTableOrders = Order::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->whereNotNull('table_id')
+                ->where('payment_status', 'unpaid')
+                ->whereIn('status', ['pending', 'confirmed', 'preparing'])
+                ->get(['id', 'total_amount', 'discount_amount', 'is_split', 'is_override_split_penalty', 'is_red_flagged', 'order_number', 'created_at']);
+        }
+
         $completedOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDt, $endDt])
             ->get(['id', 'total_amount', 'discount_amount']);
 
-        $orderIds = $completedOrders->pluck('id');
+        $allCompletedOrders = $completedOrders->concat($unpaidTableOrders);
+        $orderIds = $allCompletedOrders->pluck('id');
 
-        $grossRevenue  = $completedOrders->sum('total_amount');
-        $discountTotal = $completedOrders->sum('discount_amount');
+        $grossRevenue  = $allCompletedOrders->sum('total_amount');
+        $discountTotal = $allCompletedOrders->sum('discount_amount');
         $netRevenue    = $grossRevenue - $discountTotal;
 
         $payments = Payment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'paid')
             ->whereBetween('paid_at', [$startDt, $endDt])
-            ->whereIn('order_id', $orderIds->all())
+            ->whereIn('order_id', $completedOrders->pluck('id')->all())
             ->get(['payment_method', 'amount']);
 
         $expectedCash      = (float) $payments->where('payment_method', 'cash')->sum('amount');
+        $expectedCash      += (float) $unpaidTableOrders->sum('total_amount');
+
         $bankTransferAmount = (float) $payments->where('payment_method', 'bank_transfer')->sum('amount');
         $cardAmount         = (float) $payments->where('payment_method', 'card')->sum('amount');
         $ewalletAmount      = (float) $payments->where('payment_method', 'ewallet')->sum('amount');
         $mixedAmount        = (float) $payments->where('payment_method', 'mixed')->sum('amount');
         $transferAmount     = $bankTransferAmount + $cardAmount + $ewalletAmount + $mixedAmount;
 
-        // Tính phạt đơn tách chưa đối soát
+        // Tính phạt đơn tách chưa đối soát (bao gồm đơn đã hoàn thành và đơn chưa thanh toán)
         $splitPenaltyTotal = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$startDt, $endDt])
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->where(fn($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
+                  ->orWhere(fn($q2) => $q2->where('payment_status', 'unpaid')->whereBetween('created_at', [$startDt, $endDt]));
+            })
             ->sum('total_amount');
 
         $expectedCashAfterPenalty = max(0.0, $expectedCash - $splitPenaltyTotal);
@@ -155,7 +173,10 @@ class ShiftClosingController extends Controller
         $splitOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
-            ->whereBetween('completed_at', [$startDt, $endDt])
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->where(fn($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
+                  ->orWhere(fn($q2) => $q2->where('payment_status', 'unpaid')->whereBetween('created_at', [$startDt, $endDt]));
+            })
             ->get(['id', 'order_number', 'total_amount', 'is_override_split_penalty', 'is_red_flagged'])
             ->map(fn ($o) => [
                 'id' => $o->id,
@@ -170,6 +191,11 @@ class ShiftClosingController extends Controller
             ->whereIn('status', ['pending', 'confirmed', 'preparing'])
             ->whereBetween('created_at', [$startDt, $endDt])
             ->count();
+
+        $unpaidInShiftCount = $unpaidTableOrders->filter(function($o) use ($startDt, $endDt) {
+            return $o->created_at >= $startDt && $o->created_at <= $endDt;
+        })->count();
+        $pendingOrders = max(0, $pendingOrders - $unpaidInShiftCount);
 
         $alreadyClosed = ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -225,6 +251,27 @@ class ShiftClosingController extends Controller
 
         if ($exists) {
             return back()->withErrors(['shift_id' => 'Ca này đã được chốt cho ngày đã chọn.']);
+        }
+
+        // Tự động thanh toán các đơn chưa thanh toán tại bàn nếu là ca cuối & bật chế độ auto-pay
+        $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id']);
+        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId);
+
+        if ($isLastShift && $autoPayEnabled) {
+            $shift = WorkShift::withoutGlobalScopes()->findOrFail($data['shift_id']);
+            $closingDate = Carbon::parse($data['closing_date']);
+            [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+
+            $unpaidOrders = Order::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->whereNotNull('table_id')
+                ->where('payment_status', 'unpaid')
+                ->whereIn('status', ['pending', 'confirmed', 'preparing'])
+                ->get();
+
+            foreach ($unpaidOrders as $order) {
+                $this->processAutoPay($order, $user->id, $endDt);
+            }
         }
 
         $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date']);
@@ -348,8 +395,10 @@ class ShiftClosingController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$startDt, $endDt])
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->where(fn($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
+                  ->orWhere(fn($q2) => $q2->where('payment_status', 'unpaid')->whereBetween('created_at', [$startDt, $endDt]));
+            })
             ->sum('total_amount');
 
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
@@ -371,5 +420,129 @@ class ShiftClosingController extends Controller
             : Carbon::parse($closingDate->toDateString() . ' ' . $shift->end_time);
 
         return [$startDt, $endDt];
+    }
+
+    private function isAutoPayEnabled(int $restaurantId): bool
+    {
+        $setting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+            ->where('restaurant_id', $restaurantId)
+            ->where('key_name', 'auto_pay_on_last_shift_close')
+            ->value('value');
+
+        if (is_null($setting)) {
+            return false;
+        }
+
+        return filter_var(json_decode($setting) ?? $setting, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function checkIsLastShift(int $restaurantId, int $shiftId): bool
+    {
+        $activeShifts = WorkShift::where('restaurant_id', $restaurantId)->where('status', 'active')->get();
+        if ($activeShifts->isEmpty()) {
+            return false;
+        }
+
+        $latestShift = $activeShifts->sortBy(function ($s) {
+            try {
+                $timeVal = Carbon::parse($s->end_time)->secondsSinceMidnight();
+                if ($s->is_overnight) {
+                    $timeVal += 86400;
+                }
+                return $timeVal;
+            } catch (\Throwable $e) {
+                return 0;
+            }
+        })->last();
+
+        return $latestShift && $latestShift->id == $shiftId;
+    }
+
+    private function processAutoPay(Order $order, int $userId, Carbon $completedAt): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $userId, $completedAt) {
+            // 1. Tạo Payment record
+            \App\Models\Payment::create([
+                'restaurant_id' => $order->restaurant_id,
+                'branch_id' => $order->branch_id,
+                'order_id' => $order->id,
+                'processed_by' => $userId,
+                'payment_method' => 'cash',
+                'status' => 'paid',
+                'amount' => $order->total_amount,
+                'cash_received' => $order->total_amount,
+                'change_amount' => 0,
+                'paid_at' => $completedAt,
+            ]);
+
+            // 2. Trừ kho nguyên liệu
+            $order->load(['items.product.recipes.ingredient.unit']);
+            foreach ($order->items as $item) {
+                $product = $item->product;
+                if ($product && $product->track_inventory) {
+                    foreach ($product->recipes as $recipe) {
+                        $recipeQuantity = (float) $recipe->quantity;
+                        $itemQuantity = (float) $item->quantity;
+                        $wasteRate = (float) $recipe->waste_rate;
+
+                        $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
+
+                        $inventory = \App\Models\Inventory::firstOrCreate([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                        ], [
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => $recipe->ingredient->average_cost ?? 0,
+                        ]);
+
+                        $oldQty = (float) $inventory->quantity_on_hand;
+                        $oldTheoretical = (float) $inventory->theoretical_quantity;
+
+                        $inventory->update([
+                            'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
+                            'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
+                        ]);
+
+                        \App\Models\InventoryTransaction::create([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                            'inventory_id' => $inventory->id,
+                            'order_id' => $order->id,
+                            'performed_by' => $userId,
+                            'type' => 'usage',
+                            'direction' => 'out',
+                            'quantity' => $totalUsed,
+                            'unit_cost' => $recipe->ingredient->average_cost ?? 0,
+                            'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
+                            'notes' => "Khấu hao nguyên vật liệu cho đơn hàng tự động thanh toán {$order->order_number} (Món: {$product->name})",
+                            'occurred_at' => $completedAt,
+                        ]);
+
+                        \App\Models\InventoryReservation::where('order_id', $order->id)
+                            ->where('ingredient_id', $recipe->ingredient_id)
+                            ->where('status', 'holding')
+                            ->update(['status' => 'committed']);
+                    }
+                }
+            }
+
+            // 3. Cập nhật Order status thành completed & payment_status paid
+            $order->update([
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'completed_at' => $completedAt,
+                'cashier_user_id' => $userId,
+            ]);
+
+            // 4. Giải phóng bàn
+            if ($order->table_id) {
+                \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+            }
+
+            \App\Models\AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);
+        });
     }
 }

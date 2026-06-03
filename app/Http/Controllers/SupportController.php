@@ -19,6 +19,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Models\ScheduleAssignment;
+use App\Models\ScheduleRegistration;
 use App\Models\LeaveRequest;
 use App\Services\ApprovalService;
 use App\Services\SalaryService;
@@ -502,10 +503,21 @@ class SupportController extends Controller
                 'created_at'    => $lr->created_at->format('H:i d/m/Y'),
             ]);
 
+        $registrations = ScheduleRegistration::where('restaurant_id', $user->restaurant_id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->with(['employee:id,full_name', 'shift:id,name'])
+            ->get()
+            ->map(fn ($r) => [
+                'employee_name' => $r->employee?->full_name ?? 'Không rõ',
+                'shift_name' => $r->shift?->name ?? '—',
+                'day' => Carbon::parse($r->scheduled_date)->format('l'),
+            ]);
+
         return Inertia::render('employees/Index', [
             'employees'     => $employees,
             'shifts'        => $shifts,
             'schedules'     => $schedules,
+            'registrations' => $registrations,
             'leaveRequests' => $leaveRequests,
             'autoSchedule'  => (bool) $user->restaurant->auto_schedule,
         ]);

@@ -36,6 +36,7 @@ const props = defineProps<{
     employees: Employee[];
     shifts: Shift[];
     schedules: Assignment[];
+    registrations?: Array<{ employee_name: string; shift_name: string; day: string }>;
     leaveRequests?: any[];
     autoSchedule?: boolean;
 }>();
@@ -410,6 +411,11 @@ const removeAssignment = (dayKey: string, empName: string, shiftName: string) =>
 const expandedEmployeeId = ref<number | null>(null);
 const toggleExpandEmployee = (id: number) => {
     expandedEmployeeId.value = expandedEmployeeId.value === id ? null : id;
+};
+
+const getRegistrationsForDay = (dayKey: string) => {
+    if (!props.registrations) return [];
+    return props.registrations.filter(r => r.day === dayKey);
 };
 </script>
 
@@ -892,6 +898,21 @@ const toggleExpandEmployee = (id: number) => {
                                             <div v-if="!schedulesState.some(sc => sc.day === day.key)" class="text-[10px] text-slate-400 italic">
                                                 Không có ca xếp
                                             </div>
+
+                                            <!-- Shift registrations availability list -->
+                                            <div v-if="getRegistrationsForDay(day.key).length" class="w-full mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 flex-wrap">
+                                                <span class="text-[9px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded">Rảnh ca:</span>
+                                                <div class="flex flex-wrap gap-1">
+                                                    <span 
+                                                        v-for="r in getRegistrationsForDay(day.key)" 
+                                                        :key="r.employee_name + '-' + r.shift_name"
+                                                        class="text-[9px] font-bold text-slate-650 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border px-1.5 py-0.5 rounded-md"
+                                                        :title="`Đăng ký rảnh: ${r.employee_name} (${r.shift_name})`"
+                                                    >
+                                                        {{ r.employee_name }} ({{ r.shift_name.split(' (')[0] }})
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1116,7 +1137,24 @@ const toggleExpandEmployee = (id: number) => {
                                 </option>
                             </select>
                         </div>
- 
+
+                        <!-- Suggestions helper -->
+                        <div v-if="getRegistrationsForDay(currentAssignDay).length" class="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-350">
+                            <span class="font-bold flex items-center gap-1"><Sparkles class="size-3.5" /> Gợi ý: Nhân viên đăng ký rảnh hôm nay</span>
+                            <div class="mt-1.5 flex flex-wrap gap-1">
+                                <button
+                                    v-for="r in getRegistrationsForDay(currentAssignDay)"
+                                    :key="r.employee_name + '-' + r.shift_name"
+                                    type="button"
+                                    @click="assignForm.employee_name = r.employee_name; assignForm.shift_name = r.shift_name.split(' (')[0]"
+                                    class="px-2 py-1 rounded bg-white dark:bg-slate-900 border text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer active:scale-95 text-[10px] transition-colors"
+                                    title="Chọn nhanh nhân viên này"
+                                >
+                                    {{ r.employee_name }} ({{ r.shift_name.split(' (')[0] }})
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
                             <Button type="button" variant="outline" size="sm" @click="showAssignModal = false">Hủy</Button>
                             <Button type="submit" size="sm" class="bg-indigo-600 text-white font-semibold">Xác nhận xếp ca</Button>

@@ -95,6 +95,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::post('schedules/check-in-employee', [ScheduleController::class, 'checkInEmployee'])->name('schedules.check-in-employee');
     Route::post('schedules/check-out-employee', [ScheduleController::class, 'checkOutEmployee'])->name('schedules.check-out-employee');
     Route::post('schedules/absent-employee', [ScheduleController::class, 'markAbsentEmployee'])->name('schedules.absent-employee');
+    Route::post('schedules/register', [ScheduleController::class, 'register'])->name('schedules.register');
 
     // Quản lý Khách hàng (CRM Mini) & Bảo mật tài sản số
     Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
@@ -127,6 +128,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::post('orders/{order}/split', [\App\Http\Controllers\OrdersController::class, 'split'])->name('orders.split');
     Route::patch('orders/{order}/override-split-penalty', [\App\Http\Controllers\OrdersController::class, 'overrideSplitPenalty'])->name('orders.override-split-penalty');
     Route::patch('orders/{order}', [\App\Http\Controllers\OrdersController::class, 'update'])->name('orders.update');
+    Route::post('orders/{order}/pay', [\App\Http\Controllers\OrdersController::class, 'pay'])->name('orders.pay');
+    Route::post('orders/{order}/confirm-qr', [\App\Http\Controllers\OrdersController::class, 'confirmQr'])->name('orders.confirm-qr');
+    Route::post('settings/toggle-auto-pay', [\App\Http\Controllers\OrdersController::class, 'toggleAutoPaySetting'])->name('settings.toggle-auto-pay');
 
     // Audit Logs (Owner & Manager — chỉ xem log của nhà hàng mình)
     Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');

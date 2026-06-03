@@ -86,7 +86,7 @@ function clearImage() {
 }
 
 function submitBanner() {
-    form.post(route('superadmin.banners.store'), {
+    form.post('/super-admin/banners', {
         forceFormData: true,
         onSuccess: () => {
             form.reset();
@@ -97,7 +97,7 @@ function submitBanner() {
 
 function toggleActive(banner: Banner) {
     router.patch(
-        route('superadmin.banners.update', banner.id),
+        `/super-admin/banners/${banner.id}`,
         { is_active: !banner.is_active },
         { preserveScroll: true }
     );
@@ -108,7 +108,7 @@ function deleteBanner(banner: Banner) {
 return;
 }
 
-    router.delete(route('superadmin.banners.destroy', banner.id), { preserveScroll: true });
+    router.delete(`/super-admin/banners/${banner.id}`, { preserveScroll: true });
 }
 
 const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.value)!);

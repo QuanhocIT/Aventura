@@ -177,11 +177,11 @@ const managerNav = computed<NavItem[]>(() => {
 
 // ─── CASHIER MENU ─────────────────────────────────────────────────────────────
 const cashierNav: NavItem[] = [
-    { title: 'Tạo đơn hàng',    href: '/orders/create',           icon: ShoppingCart },
-    { title: 'Sơ đồ bàn',       href: '/tables',                  icon: Building2 },
+    { title: 'Trang chủ',       href: '/dashboard',               icon: LayoutGrid },
     { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
     { title: 'Doanh thu ca',     href: '/shift-closings',          icon: ClipboardCheck },
     { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays },
+    { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
 ];
 
 // ─── KITCHEN MENU ─────────────────────────────────────────────────────────────
@@ -270,7 +270,7 @@ const footerNavItems: NavItem[] = [
             </div>
             
             <!-- Widget hạn ngạch & dùng thử chuyên nghiệp -->
-            <SubscriptionWidget v-if="tenant && !isSuperAdmin" />
+            <SubscriptionWidget v-if="tenant && isOwner" />
         </SidebarContent>
 
         <SidebarFooter>

@@ -3,7 +3,7 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     CalendarDays, Clock, CheckCircle2, AlertCircle, Sparkles, UserCheck, 
     ShieldCheck, Calendar, Users, LogIn, LogOut, Check, Ban, Search, 
-    ArrowLeft, Printer, RefreshCw, HelpCircle, MessageSquare
+    ArrowLeft, Printer, RefreshCw, HelpCircle, MessageSquare, X
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,17 @@ type PropType = {
     weeklyAssignments?: RosterAssignment[];
     shifts?: Array<{ id: number; name: string; start: string; end: string }>;
     employees?: Array<{ id: number; full_name: string; job_title: string; employee_code: string }>;
+    registrations?: Array<{
+        id: number;
+        employee_id: number;
+        employee_name: string;
+        employee_code: string;
+        job_title: string;
+        shift_id: number;
+        shift_name: string;
+        scheduled_date: string;
+        day: string;
+    }>;
     // Staff specific props
     myWeeklySchedules?: Array<{
         id: number;
@@ -73,6 +84,7 @@ type PropType = {
         check_out_at: string | null;
         status: string;
     }>;
+    myRegistrations?: Array<{ shift_id: number; date: string }>;
     todayActiveAssignment?: {
         id: number;
         shift_name: string;
@@ -132,12 +144,65 @@ const startLiveDurationTimer = (checkInStr: string) => {
     durationInterval = setInterval(updateTimer, 1000);
 };
 
+const selectedRegs = ref<Array<{ shift_id: number; date: string }>>([]);
+const isSavingRegs = ref(false);
+const activeStaffTab = ref<'roster' | 'register'>('roster');
+const activeAdminTab = ref<'attendance' | 'roster' | 'register'>('attendance');
+
+// Pagination for personal weekly schedules
+const rosterPage = ref(1);
+const rosterPerPage = 10;
+const rosterTotalPages = computed(() => Math.ceil((props.myWeeklySchedules?.length || 0) / rosterPerPage));
+const paginatedRoster = computed(() => {
+    if (!props.myWeeklySchedules) return [];
+    const start = (rosterPage.value - 1) * rosterPerPage;
+    const end = start + rosterPerPage;
+    return props.myWeeklySchedules.slice(start, end);
+});
+
+const isShiftSelected = (shiftId: number, dateStr: string) => {
+    return selectedRegs.value.some(r => r.shift_id === shiftId && r.date === dateStr);
+};
+
+const toggleShiftSelection = (shiftId: number, dateStr: string) => {
+    const index = selectedRegs.value.findIndex(r => r.shift_id === shiftId && r.date === dateStr);
+    if (index > -1) {
+        selectedRegs.value.splice(index, 1);
+    } else {
+        selectedRegs.value.push({ shift_id: shiftId, date: dateStr });
+    }
+};
+
+const saveRegistrations = () => {
+    isSavingRegs.value = true;
+    router.post('/schedules/register', {
+        registrations: selectedRegs.value
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã lưu đăng ký ca làm rảnh thành công!'));
+        },
+        onError: () => {
+            import('vue-sonner').then(m => m.toast.error('Có lỗi xảy ra khi lưu đăng ký.'));
+        },
+        onFinish: () => {
+            isSavingRegs.value = false;
+        }
+    });
+};
+
 onMounted(() => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
 
     if (!props.isAdmin && props.todayActiveAssignment && props.todayActiveAssignment.status === 'checked_in' && props.todayActiveAssignment.check_in_at) {
         startLiveDurationTimer(props.todayActiveAssignment.check_in_at);
+    }
+
+    if (!props.isAdmin && props.myRegistrations) {
+        selectedRegs.value = props.myRegistrations.map(r => ({
+            shift_id: r.shift_id,
+            date: r.date
+        }));
     }
 });
 
@@ -174,12 +239,14 @@ const weekDaysWithDates = computed(() => {
     return weekDays.map((wd, index) => {
         const nextDay = new Date(monday);
         nextDay.setDate(monday.getDate() + index);
-        const dd = String(nextDay.getDate()).padStart(2, '0');
+        const yyyy = nextDay.getFullYear();
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+        const dd = String(nextDay.getDate()).padStart(2, '0');
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
-            fullLabel: `${wd.label} (${dd}/${mm})`
+            fullLabel: `${wd.label} (${dd}/${mm})`,
+            dateStr: `${yyyy}-${mm}-${dd}`
         };
     });
 });
@@ -428,8 +495,52 @@ const printRoster = () => {
                 </Card>
             </div>
 
-            <!-- Attendance Controls & Table -->
-            <Card class="shadow-sm">
+            <!-- Admin Tabs Switcher -->
+            <div class="flex p-1 bg-slate-100 dark:bg-slate-900 border rounded-xl w-fit print:hidden">
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'attendance'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'attendance'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <Users class="size-3.5" />
+                    Nhật ký chấm công
+                </button>
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'roster'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'roster'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <CalendarDays class="size-3.5" />
+                    Roster toàn hệ thống
+                </button>
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'register'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'register'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <Clock class="size-3.5" />
+                    Đăng ký ca rảnh
+                </button>
+            </div>
+
+            <!-- Card 1: Attendance Logs -->
+            <div v-if="activeAdminTab === 'attendance'">
+                <Card class="shadow-sm">
                 <CardHeader class="pb-3 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
                     <div class="flex-1">
                         <CardTitle class="text-base flex items-center gap-1.5">
@@ -582,9 +693,12 @@ const printRoster = () => {
                     </div>
                 </CardContent>
             </Card>
+            </div>
 
-            <!-- Global Weekly Roster Overview (For reference) -->
-            <Card class="shadow-sm print:hidden">
+            <!-- Card 2: Weekly Roster -->
+            <div v-else-if="activeAdminTab === 'roster'">
+                <!-- Global Weekly Roster Overview (For reference) -->
+                <Card class="shadow-sm print:hidden">
                 <CardHeader class="pb-3 border-b flex flex-row items-center justify-between">
                     <div>
                         <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
@@ -634,6 +748,72 @@ const printRoster = () => {
                     </div>
                 </CardContent>
             </Card>
+            </div>
+
+            <!-- Card 3: Shift Registrations -->
+            <div v-else-if="activeAdminTab === 'register'">
+                <!-- Global Weekly Shift Registrations (Admin View) -->
+                <Card class="shadow-sm mt-6 print:hidden">
+                <CardHeader class="pb-3 border-b">
+                    <CardTitle class="text-base flex items-center gap-1.5 text-emerald-600 dark:text-emerald-450">
+                        <Clock class="size-5" />
+                        Tổng Hợp Đăng Ký Ca Rảnh Của Nhân Sự Tuần Này
+                    </CardTitle>
+                    <CardDescription>Xem nhanh danh sách nhân viên rảnh và có thể đi làm tại từng ca trong tuần.</CardDescription>
+                </CardHeader>
+                <CardContent class="p-4">
+                    <div class="border rounded-2xl overflow-hidden bg-white dark:bg-slate-950">
+                        <table class="w-full text-xs text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 dark:bg-slate-900 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                                    <th class="p-3.5 border-r w-[120px]">Thứ trong tuần</th>
+                                    <th class="p-3.5">Danh sách nhân viên đăng ký rảnh theo ca</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tr v-for="day in weekDaysWithDates" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                    <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">
+                                        <div class="flex flex-col gap-0.5">
+                                            <span>{{ day.label }}</span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-3.5">
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div 
+                                                v-for="shift in shifts" 
+                                                :key="shift.id"
+                                                class="p-2 border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/10 rounded-xl"
+                                            >
+                                                <div class="font-bold text-[10px] text-indigo-650 dark:text-indigo-400 flex items-center gap-1">
+                                                    <span class="size-1 rounded-full bg-indigo-500" />
+                                                    {{ shift.name.split(' (')[0] }}
+                                                </div>
+                                                <div class="mt-1 flex flex-wrap gap-1">
+                                                    <span
+                                                        v-for="r in registrations?.filter(reg => reg.day === day.key && reg.shift_id === shift.id)"
+                                                        :key="r.id"
+                                                        class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30"
+                                                    >
+                                                        {{ r.employee_name }}
+                                                    </span>
+                                                    <span 
+                                                        v-if="!registrations?.some(reg => reg.day === day.key && reg.shift_id === shift.id)"
+                                                        class="text-[10px] text-slate-400 italic font-medium"
+                                                    >
+                                                        (Trống)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+            </div>
         </div>
 
         <!-- ========================================== -->
@@ -746,7 +926,39 @@ const printRoster = () => {
 
             <!-- Employee Weekly Shift Roster (Right / Span 2) -->
             <div class="lg:col-span-2">
-                <Card class="shadow-sm h-full">
+                <!-- Staff Tabs Switcher -->
+                <div class="flex p-1 bg-slate-100 dark:bg-slate-900 border rounded-xl w-fit mb-4">
+                    <button
+                        type="button"
+                        @click="activeStaffTab = 'roster'"
+                        :class="[
+                            'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                            activeStaffTab === 'roster'
+                                ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                        ]"
+                    >
+                        <CalendarDays class="size-3.5" />
+                        Lịch làm việc cá nhân
+                    </button>
+                    <button
+                        type="button"
+                        @click="activeStaffTab = 'register'"
+                        :class="[
+                            'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                            activeStaffTab === 'register'
+                                ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                        ]"
+                    >
+                        <Clock class="size-3.5" />
+                        Đăng ký ca làm việc rảnh
+                    </button>
+                </div>
+
+                <!-- Card 2.1: Personal Weekly Roster -->
+                <div v-if="activeStaffTab === 'roster'">
+                    <Card class="shadow-sm">
                     <CardHeader class="pb-3 border-b flex flex-row items-center justify-between">
                         <div>
                             <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
@@ -760,7 +972,7 @@ const printRoster = () => {
                     <CardContent class="p-0">
                         <div v-if="myWeeklySchedules?.length" class="divide-y divide-slate-100 dark:divide-slate-800">
                             <div 
-                                v-for="ws in myWeeklySchedules" 
+                                v-for="ws in paginatedRoster" 
                                 :key="ws.id" 
                                 class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors gap-3"
                             >
@@ -795,6 +1007,35 @@ const printRoster = () => {
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Pagination Controls -->
+                        <div v-if="rosterTotalPages > 1" class="flex items-center justify-between p-4 border-t bg-slate-50/30 dark:bg-slate-900/10">
+                            <span class="text-xs text-slate-500 dark:text-slate-400">
+                                Hiển thị trang <strong>{{ rosterPage }}</strong> / <strong>{{ rosterTotalPages }}</strong> (Tổng số <strong>{{ myWeeklySchedules?.length }}</strong> ca)
+                            </span>
+                            <div class="flex items-center gap-1.5">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="rosterPage === 1"
+                                    @click="rosterPage--"
+                                    class="h-7 text-xs font-semibold cursor-pointer select-none active:scale-95 disabled:opacity-50"
+                                >
+                                    Trước
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="rosterPage === rosterTotalPages"
+                                    @click="rosterPage++"
+                                    class="h-7 text-xs font-semibold cursor-pointer select-none active:scale-95 disabled:opacity-50"
+                                >
+                                    Sau
+                                </Button>
+                            </div>
+                        </div>
                         <div v-else class="py-24 text-center">
                             <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mx-auto mb-3">
                                 <Calendar class="size-7 text-muted-foreground/40" />
@@ -804,6 +1045,75 @@ const printRoster = () => {
                         </div>
                     </CardContent>
                 </Card>
+                </div>
+
+                <!-- 2.2 EMPLOYEE SHIFT REGISTRATION CARD -->
+                <div v-else-if="activeStaffTab === 'register'">
+                    <Card class="shadow-sm">
+                    <CardHeader class="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <CardTitle class="text-base flex items-center gap-1.5 text-emerald-650 dark:text-emerald-400">
+                                <Clock class="size-5 text-emerald-650 dark:text-emerald-450" />
+                                Đăng Ký Ca Làm Việc Rảnh Tuần Này
+                            </CardTitle>
+                            <CardDescription>Chọn các ca trực rảnh trong tuần của bạn. Chủ quán sẽ dựa trên thông tin này để xếp lịch phù hợp.</CardDescription>
+                        </div>
+                        <Button
+                            @click="saveRegistrations"
+                            :disabled="isSavingRegs"
+                            class="bg-emerald-650 hover:bg-emerald-700 text-white font-semibold text-xs h-8 flex items-center gap-1.5 shadow"
+                        >
+                            <CheckCircle2 class="size-4" />
+                            {{ isSavingRegs ? 'Đang lưu...' : 'Lưu đăng ký ca rảnh' }}
+                        </Button>
+                    </CardHeader>
+
+                    <CardContent class="p-4">
+                        <div class="border rounded-2xl overflow-hidden bg-white dark:bg-slate-950">
+                            <table class="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-55 dark:bg-slate-900 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                                        <th class="p-3.5 border-r w-[120px]">Thứ trong tuần</th>
+                                        <th class="p-3.5">Các ca có thể nhận việc (Tích chọn để đăng ký)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tr v-for="day in weekDaysWithDates" :key="day.key" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td class="p-3.5 font-bold border-r text-slate-700 dark:text-slate-300 bg-slate-50/30">
+                                            <div class="flex flex-col gap-0.5">
+                                                <span>{{ day.label }}</span>
+                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3.5 flex flex-wrap gap-2 items-center">
+                                            <button
+                                                v-for="shift in shifts"
+                                                :key="shift.id"
+                                                type="button"
+                                                @click="toggleShiftSelection(shift.id, day.dateStr)"
+                                                :class="[
+                                                    'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all duration-150 cursor-pointer select-none active:scale-95',
+                                                    isShiftSelected(shift.id, day.dateStr)
+                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400 font-extrabold'
+                                                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 font-medium'
+                                                ]"
+                                            >
+                                                <span class="size-1.5 rounded-full" :class="isShiftSelected(shift.id, day.dateStr) ? 'bg-emerald-600 dark:bg-emerald-400 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'" />
+                                                <span>{{ shift.name.split(' (')[0] }}</span>
+                                                <span class="text-[9px] font-mono opacity-70">({{ shift.start }} - {{ shift.end }})</span>
+                                                <Check v-if="isShiftSelected(shift.id, day.dateStr)" class="size-3 text-emerald-600 dark:text-emerald-400 shrink-0 ml-0.5" />
+                                            </button>
+                                            <div v-if="!shifts || !shifts.length" class="text-[10px] text-slate-400 italic">
+                                                Không có ca làm việc khả dụng
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+                </div>
             </div>
         </div>
 
