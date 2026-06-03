@@ -22,7 +22,7 @@ class FraudController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('view_fraud_detection'), 403);
 
         $user         = $request->user();
         $restaurantId = $user->restaurant_id;
@@ -56,14 +56,14 @@ class FraudController extends Controller
             'activeTab' => $activeTab,
             'summary'   => $service->getSummary(),
             'data'      => $data,
-            'canAct'    => $user->hasRole('owner'),
+            'canAct'    => $user->can('approve_requests'),
             'dateRange' => ['start' => $start, 'end' => $end],
         ]);
     }
 
     public function createViolation(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('approve_requests'), 403);
 
         $data = $request->validate([
             'employee_id'     => ['required', 'integer', 'exists:employees,id'],
@@ -97,7 +97,7 @@ class FraudController extends Controller
                 ->where('restaurant_id', $restaurantId)
                 ->findOrFail($data['employee_id']);
 
-            if ($user->hasRole('owner')) {
+            if ($user->can('approve_requests')) {
                 $salary = $this->salaryService->getOrCreateDraft(
                     $restaurantId,
                     $employee,
@@ -127,7 +127,7 @@ class FraudController extends Controller
             }
         }
 
-        $msg = $request->boolean('apply_deduction') && ! $user->hasRole('owner')
+        $msg = $request->boolean('apply_deduction') && ! $user->can('approve_requests')
             ? 'Đã ghi vi phạm. Yêu cầu khấu trừ lương đã gửi chủ nhà hàng để phê duyệt.'
             : 'Đã ghi nhận vi phạm thành công.';
 

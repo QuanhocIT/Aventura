@@ -15,7 +15,7 @@ class ApprovalController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('approve_requests'), 403);
 
         $restaurantId = $request->user()->restaurant_id;
         $statusFilter = $request->input('status', 'pending');
@@ -56,7 +56,7 @@ class ApprovalController extends Controller
 
     public function approve(Request $request, ApprovalRequest $approval): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('approve_requests'), 403);
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
 
@@ -67,7 +67,7 @@ class ApprovalController extends Controller
 
     public function reject(Request $request, ApprovalRequest $approval): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('approve_requests'), 403);
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
 

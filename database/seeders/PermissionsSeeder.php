@@ -12,11 +12,24 @@ class PermissionsSeeder extends Seeder
     {
         // 1. Danh sách các quyền thực tế trong hệ thống Aventura
         $permissions = [
-            'manage_feedback',
-            'view_audit_log',
+            'create_orders',
+            'manage_orders',
+            'process_payments',
+            'override_split_penalty',
+            'manage_kitchen',
+            'manage_employees',
             'manage_salary',
             'view_report',
+            'view_fraud_detection',
+            'manage_customers',
+            'export_customers',
+            'view_audit_log',
+            'approve_requests',
+            'manage_feedback',
             'manage_violations',
+            'view_violations',
+            'report_violations',
+            'manage_restaurant_settings',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -27,13 +40,11 @@ class PermissionsSeeder extends Seeder
             ]);
         }
 
-        // 2. Lấy hoặc tạo role owner (Chủ nhà hàng)
+        // 2. Lấy hoặc tạo role owner (Chủ nhà hàng) - Có đầy đủ quyền
         $ownerRole = Role::firstOrCreate([
             'name' => 'owner',
             'guard_name' => 'web',
         ]);
-
-        // Gán toàn bộ quyền cho role owner
         $ownerRole->syncPermissions($permissions);
 
         // 3. Lấy hoặc tạo role manager (Quản lý)
@@ -41,11 +52,49 @@ class PermissionsSeeder extends Seeder
             'name' => 'manager',
             'guard_name' => 'web',
         ]);
-
-        // Manager được cấp quyền xem/quản lý phản hồi và xem/quản lý tố cáo sai phạm
         $managerRole->syncPermissions([
+            'create_orders',
+            'manage_orders',
+            'process_payments',
+            'manage_kitchen',
+            'manage_employees',
+            'manage_customers',
             'manage_feedback',
-            'manage_violations',
+            'view_violations',
+            'report_violations',
+            'view_report',
+        ]);
+
+        // 4. Lấy hoặc tạo role cashier (Thu ngân)
+        $cashierRole = Role::firstOrCreate([
+            'name' => 'cashier',
+            'guard_name' => 'web',
+        ]);
+        $cashierRole->syncPermissions([
+            'create_orders',
+            'process_payments',
+            'manage_customers',
+            'report_violations',
+        ]);
+
+        // 5. Lấy hoặc tạo role kitchen (Bếp)
+        $kitchenRole = Role::firstOrCreate([
+            'name' => 'kitchen',
+            'guard_name' => 'web',
+        ]);
+        $kitchenRole->syncPermissions([
+            'manage_kitchen',
+            'report_violations',
+        ]);
+
+        // 6. Lấy hoặc tạo role inventory_staff (Nhân viên kho)
+        $inventoryRole = Role::firstOrCreate([
+            'name' => 'inventory_staff',
+            'guard_name' => 'web',
+        ]);
+        $inventoryRole->syncPermissions([
+            'view_violations',
+            'report_violations',
         ]);
 
         // Xóa cache permission để đảm bảo cập nhật ngay lập tức

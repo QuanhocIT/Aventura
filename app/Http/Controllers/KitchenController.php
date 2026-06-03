@@ -15,7 +15,7 @@ class KitchenController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole('kitchen') || $user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->can('manage_kitchen'), 403);
         $restaurantId = $user->restaurant_id;
 
         // 1. Nhận đơn (Pending/Preparing items in active orders)
@@ -70,7 +70,7 @@ class KitchenController extends Controller
     public function prepare(Request $request, OrderItem $item): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasRole('kitchen') || $user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
         $item->update([
@@ -86,7 +86,7 @@ class KitchenController extends Controller
     public function serve(Request $request, OrderItem $item): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasRole('kitchen') || $user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
         $item->update([

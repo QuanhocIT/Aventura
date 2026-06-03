@@ -17,7 +17,7 @@ class CustomerController extends Controller
      */
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403, 'Bạn không có quyền truy cập trang quản lý khách hàng.');
+        abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền truy cập trang quản lý khách hàng.');
 
         $query = Customer::query();
 
@@ -92,7 +92,7 @@ class CustomerController extends Controller
             'customers' => $customers,
             'stats'     => $stats,
             'search'    => $search ?? '',
-            'isOwner'   => $request->user()->hasRole('owner'),
+            'isOwner'   => $request->user()->can('export_customers'),
         ]);
     }
 
@@ -167,7 +167,7 @@ class CustomerController extends Controller
      */
     public function export(Request $request): StreamedResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403, 'Chỉ có Chủ nhà hàng (Owner) mới được cấp quyền xuất dữ liệu tệp khách hàng.');
+        abort_unless($request->user()->can('export_customers'), 403, 'Chỉ có Chủ nhà hàng (Owner) mới được cấp quyền xuất dữ liệu tệp khách hàng.');
 
         $headers = [
             'Content-type' => 'text/csv; charset=UTF-8',

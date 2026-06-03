@@ -10,6 +10,17 @@ export default defineConfig({
     server: {
         host: '127.0.0.1',
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        return 'vendor';
+                    }
+                },
+            },
+        },
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.ts'],

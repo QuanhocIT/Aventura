@@ -24,7 +24,7 @@ class FeedbackController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->can('manage_feedback'), 403);
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách phản hồi kèm bối cảnh truy vết ca trực & món lỗi
@@ -253,7 +253,7 @@ class FeedbackController extends Controller
     public function resolve(Request $request, CustomerFeedback $feedback): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner') || $user->hasRole('manager'), 403);
+        abort_unless($user->can('manage_feedback'), 403);
         abort_if($feedback->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $request->validate([

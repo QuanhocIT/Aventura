@@ -21,7 +21,7 @@ class PromotionController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->can('manage_orders') || $user->can('view_report'), 403);
 
         $restaurantId = $user->restaurant_id;
 
@@ -75,7 +75,7 @@ class PromotionController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->can('manage_orders'), 403);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -102,7 +102,7 @@ class PromotionController extends Controller
         }
 
         // Quy trình duyệt: Owner tạo tự duyệt, Manager tạo cần phê duyệt
-        $isOwner = $user->hasRole('owner');
+        $isOwner = $user->can('approve_requests');
 
         Promotion::create([
             'restaurant_id' => $restaurantId,
@@ -128,7 +128,7 @@ class PromotionController extends Controller
      */
     public function toggleActive(Request $request, Promotion $promotion): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->can('manage_orders'), 403);
         abort_if($promotion->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $promotion->update([
@@ -143,7 +143,7 @@ class PromotionController extends Controller
      */
     public function approve(Request $request, Promotion $promotion): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        abort_unless($request->user()->can('approve_requests'), 403);
         abort_if($promotion->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $promotion->update([
@@ -238,7 +238,7 @@ class PromotionController extends Controller
     public function getBasketAnalysis(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->can('view_report'), 403);
 
         $restaurantId = $user->restaurant_id;
 

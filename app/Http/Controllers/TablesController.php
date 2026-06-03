@@ -19,32 +19,36 @@ class TablesController extends Controller
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
-        $areas = Area::where('restaurant_id', $restaurantId)
-            ->where('status', 'active')
-            ->orderBy('display_order')
-            ->withCount('tables')
-            ->get()
-            ->map(fn ($a) => [
-                'id'     => $a->id,
-                'name'   => $a->name,
-                'code'   => $a->code,
-                'tables_count' => $a->tables_count,
-            ]);
+        $areas = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_areas", 3600, function () use ($restaurantId) {
+            return Area::where('restaurant_id', $restaurantId)
+                ->where('status', 'active')
+                ->orderBy('display_order')
+                ->withCount('tables')
+                ->get()
+                ->map(fn ($a) => [
+                    'id'     => $a->id,
+                    'name'   => $a->name,
+                    'code'   => $a->code,
+                    'tables_count' => $a->tables_count,
+                ])->toArray();
+        });
 
-        $tables = RestaurantTable::where('restaurant_id', $restaurantId)
-            ->with('area')
-            ->whereNull('deleted_at')
-            ->orderBy('area_id')
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($t) => [
-                'id'       => $t->id,
-                'name'     => $t->name,
-                'capacity' => $t->capacity,
-                'status'   => $t->status,
-                'area'     => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
-                'qr_code'  => $t->qr_code,
-            ]);
+        $tables = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_tables", 3600, function () use ($restaurantId) {
+            return RestaurantTable::where('restaurant_id', $restaurantId)
+                ->with('area')
+                ->whereNull('deleted_at')
+                ->orderBy('area_id')
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($t) => [
+                    'id'       => $t->id,
+                    'name'     => $t->name,
+                    'capacity' => $t->capacity,
+                    'status'   => $t->status,
+                    'area'     => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
+                    'qr_code'  => $t->qr_code,
+                ])->toArray();
+        });
 
         return Inertia::render('tables/Index', [
             'areas'  => $areas,

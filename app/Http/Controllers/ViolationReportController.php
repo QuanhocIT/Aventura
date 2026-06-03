@@ -23,13 +23,13 @@ class ViolationReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner') || $user->hasRole('manager') || $user->hasRole('cashier') || $user->hasRole('kitchen'), 403);
+        abort_unless($user->can('view_violations') || $user->can('report_violations'), 403);
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác
         $query = ViolationReport::where('restaurant_id', $restaurantId);
 
-        if (!$user->hasRole('owner') && !$user->hasRole('manager')) {
+        if (!$user->can('view_violations')) {
             $query->where('reported_by', $user->id);
         }
 
@@ -121,7 +121,7 @@ class ViolationReportController extends Controller
     public function resolve(Request $request, ViolationReport $report): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasRole('owner'), 403);
+        abort_unless($user->can('manage_violations'), 403);
         abort_if($report->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $request->validate([

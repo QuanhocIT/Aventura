@@ -43,6 +43,12 @@ class Product extends Model
             ->where('collection', 'product_image');
     }
 
+    protected static function booted(): void
+    {
+        static::saved(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
+        static::deleted(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
+    }
+
     protected static function newFactory(): Factory
     {
         return ProductFactory::new();

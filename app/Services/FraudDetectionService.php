@@ -109,67 +109,32 @@ class FraudDetectionService
      */
     public function detectAiFraudAlerts(): array
     {
-        // 1. Thu thập dữ liệu logs thực tế từ MySQL
+        $cacheKey = "fraud_alerts:{$this->restaurantId}:{$this->periodStart}:{$this->periodEnd}";
+
+        // 1. Read from Redis Cache
+        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            return \Illuminate\Support\Facades\Cache::get($cacheKey);
+        }
+
+        // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
+        // We use a lock flag to avoid dispatching multiple duplicate jobs simultaneously
+        $lockKey = "fraud_alerts_job_dispatched:{$this->restaurantId}";
+        if (!\Illuminate\Support\Facades\Cache::has($lockKey)) {
+            \Illuminate\Support\Facades\Cache::put($lockKey, true, 60); // 1 minute lock
+            dispatch(new \App\Jobs\FetchAiFraudAlertsJob($this->restaurantId, $this->periodStart, $this->periodEnd));
+
+            if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                return \Illuminate\Support\Facades\Cache::get($cacheKey);
+            }
+        }
+
+        // 3. Fallback PHP preparation: Fetch audit logs for fallback data
         $logs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
             ->latest('created_at')
-            ->take(100)
+            ->take(15)
             ->get();
-
-        $logPayload = [];
-        foreach ($logs as $log) {
-            $logPayload[] = [
-                'id' => $log->id,
-                'user_id' => $log->user_id,
-                'user_name' => $log->user?->name ?? 'Nhân viên',
-                'user_role' => $log->user_role ?? 'staff',
-                'action' => $log->action,
-                'subject_id' => $log->subject_id,
-                'old_values' => $log->old_values,
-                'new_values' => $log->new_values,
-                'created_at' => $log->created_at->toIso8601String(),
-            ];
-        }
-
-        // 2. Gửi request sang Python FastAPI microservice
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/fraud-detection';
-
-        try {
-            $response = \Illuminate\Support\Facades\Http::timeout(3)
-                ->post($url, [
-                    'logs' => $logPayload,
-                ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                if (!empty($data['alerts'])) {
-                    return array_map(function ($alert) {
-                        $emp = \App\Models\Employee::withoutGlobalScopes()
-                            ->where('restaurant_id', $this->restaurantId)
-                            ->where('full_name', $alert['employee_name'])
-                            ->first();
-
-                        $employeeId = $emp ? $emp->id : null;
-
-                        return [
-                            'id'             => $alert['id'],
-                            'employee_id'    => $employeeId,
-                            'employee_name'  => $alert['employee_name'],
-                            'violation_type' => $alert['violation_type'],
-                            'severity'       => $alert['severity'],
-                            'description'    => $alert['description'] . " [Nguồn: Python AI Service]",
-                            'penalty_amount' => (float)$alert['penalty_amount'],
-                            'occurred_at'    => today()->toDateString(),
-                            'risk_score'     => (float)$alert['risk_score'],
-                            'reason'         => $alert['reason'],
-                        ];
-                    }, $data['alerts']);
-                }
-            }
-        } catch (\Throwable $e) {
-            // FastAPI lỗi hoặc offline, chạy fallback PHP
-        }
 
         // 3. Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
         $emp1 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->first() ?? \App\Models\Employee::first();

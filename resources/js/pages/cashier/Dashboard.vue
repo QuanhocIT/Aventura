@@ -979,7 +979,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                     <div v-for="item in cartItems" :key="item.id ? 'exist-' + item.id : 'new-' + item.product_id" class="flex justify-between items-center p-3 border rounded-2xl bg-slate-50/50 dark:bg-slate-900/20">
                         <div class="text-left max-w-[60%]">
                             <span class="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                <Lock v-if="activeTable.active_order && activeTable.active_order.status !== 'pending' && item.id" class="size-3 text-amber-500" />
+                                <Lock v-if="item.id" class="size-3 text-amber-500" />
                                 {{ item.product_name }}
                             </span>
                             <p class="text-[10px] text-muted-foreground font-mono mt-0.5">{{ number_format(item.price) }}đ</p>
@@ -991,7 +991,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                 size="icon"
                                 variant="outline"
                                 class="h-7 w-7 rounded-lg"
-                                :disabled="!!(activeTable.active_order && activeTable.active_order.status !== 'pending' && item.id)"
+                                :disabled="!!item.id"
                                 @click="decreaseQty(item)"
                             >
                                 <Minus class="size-3" />
@@ -1009,7 +1009,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                 size="icon"
                                 variant="ghost"
                                 class="h-7 w-7 rounded-lg text-rose-500 hover:text-rose-600"
-                                :disabled="!!(activeTable.active_order && activeTable.active_order.status !== 'pending' && item.id)"
+                                :disabled="!!item.id"
                                 @click="removeItem(item)"
                             >
                                 <Trash2 class="size-3.5" />

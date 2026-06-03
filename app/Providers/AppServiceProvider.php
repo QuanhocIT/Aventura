@@ -18,6 +18,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Support\Tenant\TenantContext::class, function () {
             return new \App\Support\Tenant\TenantContext();
         });
+
+        $this->app->bind(
+            \App\Repositories\OrderRepositoryInterface::class,
+            \App\Repositories\Eloquent\EloquentOrderRepository::class
+        );
     }
 
     /**

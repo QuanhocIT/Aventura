@@ -16,7 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 class ApprovalService
 {
-    public function __construct(private SalaryService $salaryService) {}
+    public function __construct(
+        private SalaryService $salaryService,
+        private InventoryService $inventoryService
+    ) {}
 
     /**
      * Tạo yêu cầu chờ phê duyệt và thông báo đến Owner.
@@ -94,80 +97,18 @@ class ApprovalService
 
     private function executePurchase(array $data, int $restaurantId, int $performedBy): void
     {
-        $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
-
-        $inventory = Inventory::withoutGlobalScopes()->firstOrCreate(
-            ['restaurant_id' => $restaurantId, 'ingredient_id' => $ingredient->id],
-            ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]
-        );
-
-        $newQty  = (float) $data['quantity'];
-        $newCost = (float) $data['unit_cost'];
-        $oldQty  = (float) $inventory->quantity_on_hand;
-        $oldAvg  = (float) $ingredient->average_cost;
-
-        $newAvg = ($oldQty + $newQty) > 0
-            ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
-            : $newCost;
-
-        InventoryTransaction::create([
-            'restaurant_id'    => $restaurantId,
-            'ingredient_id'    => $ingredient->id,
-            'inventory_id'     => $inventory->id,
-            'supplier_id'      => $data['supplier_id'] ?? null,
-            'performed_by'     => $performedBy,
-            'type'             => 'purchase',
-            'direction'        => 'in',
-            'quantity'         => $newQty,
-            'unit_cost'        => $newCost,
-            'total_cost'       => $newQty * $newCost,
-            'invoice_file_url' => $data['invoice_file_url'] ?? null,
-            'notes'            => $data['notes'] ?? null,
-            'occurred_at'      => $data['occurred_at'] ?? now(),
-        ]);
-
-        $inventory->update([
-            'quantity_on_hand'     => $oldQty + $newQty,
-            'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
-            'last_cost'            => $newCost,
-        ]);
-
-        $ingredient->update(['average_cost' => round($newAvg, 2)]);
+        $this->inventoryService->executePurchase($data, $restaurantId, $performedBy);
     }
 
     private function executeWaste(array $data, int $restaurantId, int $performedBy): void
     {
+        $transaction = $this->inventoryService->executeWaste($data, $restaurantId, $performedBy);
+
         $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
-
-        $inventory = Inventory::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('ingredient_id', $ingredient->id)
-            ->first();
-
         $wasteQty  = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
-        $transaction = InventoryTransaction::create([
-            'restaurant_id' => $restaurantId,
-            'ingredient_id' => $ingredient->id,
-            'inventory_id'  => $inventory?->id,
-            'performed_by'  => $performedBy,
-            'type'          => 'waste',
-            'direction'     => 'out',
-            'quantity'      => $wasteQty,
-            'unit_cost'     => (float) $ingredient->average_cost,
-            'total_cost'    => $wasteCost,
-            'notes'         => $data['notes'] ?? null,
-            'occurred_at'   => now(),
-        ]);
-
-        if ($inventory) {
-            $inventory->update([
-                'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
-            ]);
-        }
-
-        if (! empty($data['employee_id']) && $wasteCost > 0) {
+        if ($transaction && ! empty($data['employee_id']) && $wasteCost > 0) {
             $employee = Employee::withoutGlobalScopes()->find($data['employee_id']);
             if ($employee) {
                 $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
