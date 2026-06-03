@@ -22,6 +22,7 @@ class KitchenController extends Controller
         // Grouped by table in frontend, so we just return the flat list ordered by time
         $pendingItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNull('prepared_at')
+            ->where('status', '!=', 'cancelled')
             ->whereHas('order', function ($q) {
                 $q->whereNotIn('status', ['completed', 'cancelled']);
             })
@@ -43,6 +44,7 @@ class KitchenController extends Controller
         $completedItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNotNull('prepared_at')
             ->whereNull('served_at')
+            ->where('status', '!=', 'cancelled')
             ->whereHas('order', function ($q) {
                 $q->whereNotIn('status', ['completed', 'cancelled']);
             })

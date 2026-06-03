@@ -47,6 +47,7 @@ const roles = computed(() => {
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));
+const canUpdateStatus = computed(() => !roles.value.includes('kitchen'));
 
 const toggleAutoPay = () => {
     router.post('/settings/toggle-auto-pay', {}, { preserveScroll: true });
@@ -242,7 +243,7 @@ const nextStatus: Record<string, string | null> = {
                                 {{ statusConfig[o.status]?.label }}
                             </span>
                             <button
-                                v-if="nextStatus[o.status]"
+                                v-if="nextStatus[o.status] && canUpdateStatus"
                                 @click="updateOrderStatus(o, nextStatus[o.status]!)"
                                 class="h-7 px-2.5 rounded-lg text-[10px] font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
                             >
