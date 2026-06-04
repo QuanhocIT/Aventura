@@ -33,7 +33,35 @@ class FeedbackController extends Controller
             ->latest()
             ->get();
 
-        $feedbacks = $feedbackModels->map(function ($fb) use ($restaurantId) {
+        // Lấy tất cả ca trực hoạt động của nhà hàng một lần duy nhất ngoài vòng lặp
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get();
+
+        // Lấy tất cả ngày đặt hàng duy nhất từ danh sách phản hồi để bulk load lịch phân công
+        $orderDates = $feedbackModels->map(function ($fb) {
+            return $fb->order?->created_at?->toDateString();
+        })->filter()->unique()->toArray();
+
+        $assignmentsGrouped = collect();
+        if (!empty($orderDates)) {
+            $assignmentsGrouped = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->where(function ($q) use ($orderDates) {
+                    foreach ($orderDates as $date) {
+                        $q->orWhereDate('scheduled_date', $date);
+                    }
+                })
+                ->with(['employee.user'])
+                ->get()
+                ->groupBy(function ($asm) {
+                    $date = $asm->scheduled_date instanceof \Carbon\CarbonInterface
+                        ? $asm->scheduled_date->toDateString()
+                        : \Carbon\Carbon::parse($asm->scheduled_date)->toDateString();
+                    return $date . '_' . $asm->shift_id;
+                });
+        }
+
+        $feedbacks = $feedbackModels->map(function ($fb) use ($restaurantId, $shifts, $assignmentsGrouped) {
             $responsibleShift = null;
             $responsibleStaff = [];
 
@@ -41,11 +69,6 @@ class FeedbackController extends Controller
                 $orderTime = $fb->order->created_at;
                 $orderDate = $orderTime->toDateString();
                 $orderTimeStr = $orderTime->toTimeString();
-
-                // Quét các ca làm việc hoạt động của nhà hàng
-                $shifts = WorkShift::where('restaurant_id', $restaurantId)
-                    ->where('status', 'active')
-                    ->get();
 
                 foreach ($shifts as $shift) {
                     $inShift = false;
@@ -63,12 +86,9 @@ class FeedbackController extends Controller
                     if ($inShift) {
                         $responsibleShift = $shift->name;
                         
-                        // Lấy nhân sự được xếp lịch ca trực này hôm xảy ra sự cố
-                        $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
-                            ->whereDate('scheduled_date', $orderDate)
-                            ->where('shift_id', $shift->id)
-                            ->with(['employee.user'])
-                            ->get();
+                        // Lấy lịch phân công đã được bulk load trước đó
+                        $key = $orderDate . '_' . $shift->id;
+                        $assignments = $assignmentsGrouped->get($key, collect());
 
                         foreach ($assignments as $asm) {
                             if ($asm->employee && $asm->employee->user) {

@@ -33,15 +33,21 @@ class EloquentOrderRepository implements OrderRepositoryInterface
      */
     public function getSummaryStats(int $restaurantId, string $date): array
     {
-        $baseQuery = Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $date);
+        $stats = Order::where('restaurant_id', $restaurantId)
+            ->whereDate('created_at', $date)
+            ->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
+            ->groupBy('status')
+            ->get();
+
+        $total = $stats->sum('count');
 
         return [
-            'total'     => (clone $baseQuery)->count(),
-            'pending'   => (clone $baseQuery)->where('status', 'pending')->count(),
-            'preparing' => (clone $baseQuery)->where('status', 'preparing')->count(),
-            'completed' => (clone $baseQuery)->where('status', 'completed')->count(),
-            'cancelled' => (clone $baseQuery)->where('status', 'cancelled')->count(),
-            'revenue'   => (float) (clone $baseQuery)->where('status', 'completed')->sum('total_amount'),
+            'total'     => (int) $total,
+            'pending'   => (int) ($stats->firstWhere('status', 'pending')?->count ?? 0),
+            'preparing' => (int) ($stats->firstWhere('status', 'preparing')?->count ?? 0),
+            'completed' => (int) ($stats->firstWhere('status', 'completed')?->count ?? 0),
+            'cancelled' => (int) ($stats->firstWhere('status', 'cancelled')?->count ?? 0),
+            'revenue'   => (float) ($stats->firstWhere('status', 'completed')?->revenue ?? 0),
         ];
     }
 
