@@ -102,6 +102,12 @@ const props = defineProps<{
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user ?? null);
 
+const can = (permission: string) => {
+    const authUser = page.props.auth?.user as any;
+    const userPermissions = authUser?.permissions ?? [];
+    return userPermissions.includes(permission);
+};
+
 // State Management
 const activeTab = ref<'tables' | 'qr' | 'history' | 'schedules'>('tables');
 const searchQuery = ref('');
@@ -1110,7 +1116,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         {{ isSubmitting ? 'Đang gửi...' : 'Thông báo' }}
                     </Button>
                     <Button
-                        v-else
+                        v-else-if="can('process_payments')"
                         class="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700"
                         @click="openPayment"
                     >
@@ -1125,7 +1131,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         Khóa đơn & Báo Bếp
                     </Button>
                     <!-- Tách đơn -->
-                    <Button variant="outline" class="flex-1 rounded-xl text-xs border-rose-200 text-rose-600 hover:bg-rose-50" @click="openSplitOrder">
+                    <Button variant="outline" class="flex-1 rounded-xl text-xs border-rose-200 text-rose-600 hover:bg-rose-50" v-if="can('split_orders')" @click="openSplitOrder">
                         Tách đơn
                     </Button>
                 </div>

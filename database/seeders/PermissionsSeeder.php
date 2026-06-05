@@ -14,6 +14,7 @@ class PermissionsSeeder extends Seeder
         $permissions = [
             'create_orders',
             'manage_orders',
+            'split_orders',
             'process_payments',
             'override_split_penalty',
             'manage_kitchen',
@@ -55,6 +56,7 @@ class PermissionsSeeder extends Seeder
         $managerRole->syncPermissions([
             'create_orders',
             'manage_orders',
+            'split_orders',
             'process_payments',
             'manage_kitchen',
             'manage_employees',
@@ -72,6 +74,7 @@ class PermissionsSeeder extends Seeder
         ]);
         $cashierRole->syncPermissions([
             'create_orders',
+            'split_orders',
             'process_payments',
             'manage_customers',
             'report_violations',
@@ -94,6 +97,17 @@ class PermissionsSeeder extends Seeder
         ]);
         $inventoryRole->syncPermissions([
             'view_violations',
+            'report_violations',
+        ]);
+
+        // 7. Lấy hoặc tạo role waiter (Nhân viên order)
+        $waiterRole = Role::firstOrCreate([
+            'name' => 'waiter',
+            'guard_name' => 'web',
+        ]);
+        $waiterRole->syncPermissions([
+            'create_orders',
+            'manage_customers',
             'report_violations',
         ]);
 

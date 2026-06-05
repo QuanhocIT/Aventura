@@ -23,7 +23,7 @@ class SetTenantContext
 
         if ($user && $user->status === 'active') {
             if (!$request->is('logout') && !$request->routeIs('logout')) {
-                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager', 'supplier'])) {
                     if (!app()->runningUnitTests() || self::$enforceShiftLockInTests) {
                         $employee = $user->employee;
                         if (!$employee || !$employee->isWithinScheduledShift()) {

@@ -53,3 +53,12 @@ class HistoricalRevenueData(BaseModel):
 class RevenueForecastRequest(BaseModel):
     history: List[HistoricalRevenueData]
 
+# --- Supplier Price Analytics ---
+class PriceHistoryData(BaseModel):
+    date: str
+    price: float
+
+class PriceAnalyticsRequest(BaseModel):
+    history: List[PriceHistoryData]
+
+

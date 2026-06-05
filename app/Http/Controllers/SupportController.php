@@ -632,7 +632,7 @@ class SupportController extends Controller
             'citizen_id_back'   => ['required', 'image', 'max:2048'],
             'hire_date'         => ['required', 'date'],
             'base_salary'       => ['required', 'numeric', 'min:0'],
-            'role'              => ['required', 'string', 'in:cashier,kitchen,manager'],
+            'role'              => ['required', 'string', 'in:cashier,kitchen,manager,waiter'],
             'job_title'         => ['required', 'string', 'max:100'],
         ]);
 
@@ -1181,7 +1181,7 @@ class SupportController extends Controller
             'full_name'         => ['sometimes', 'string', 'max:255'],
             'phone'             => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title'         => ['sometimes', 'string', 'max:100'],
-            'role'              => ['sometimes', 'string', 'in:cashier,kitchen,manager'],
+            'role'              => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter'],
             'date_of_birth'     => ['sometimes', 'nullable', 'date', 'before:today'],
             'address'           => ['sometimes', 'nullable', 'string', 'max:500'],
             'citizen_id_number' => ['sometimes', 'nullable', 'string', 'max:20'],

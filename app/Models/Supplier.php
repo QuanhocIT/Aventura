@@ -22,5 +22,26 @@ class Supplier extends Model
     {
         return SupplierFactory::new();
     }
+
+    public function users()
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function ingredients()
+    {
+        return $this->hasMany(Ingredient::class);
+    }
+
+    public function priceHistories()
+    {
+        return $this->hasMany(SupplierPriceHistory::class);
+    }
 }
+
 
