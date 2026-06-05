@@ -48,6 +48,7 @@ createInertiaApp({
                         page.layout = GuestLayout;
                         break;
                     case name === 'Khach':
+                    case name.startsWith('customers/'):
                     case name === 'auth/Login':
                     case name === 'auth/Register':
                     case name === 'auth/ChooseRestaurant':

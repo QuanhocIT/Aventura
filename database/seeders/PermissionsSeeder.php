@@ -60,6 +60,7 @@ class PermissionsSeeder extends Seeder
             'process_payments',
             'manage_kitchen',
             'manage_employees',
+            'manage_salary',
             'manage_customers',
             'manage_feedback',
             'view_violations',

@@ -37,6 +37,94 @@ class RfpController extends Controller
             ->latest()
             ->get();
 
+        foreach ($rfps as $rfp) {
+            $bids = $rfp->bids;
+            if ($bids->isEmpty()) {
+                continue;
+            }
+
+            // Pre-calculate baseline values
+            $minPrice = (float) $bids->min('total_amount');
+            
+            $bidLeadTimes = [];
+            foreach ($bids as $bid) {
+                $leadTime = max(1, now()->diffInDays(\Carbon\Carbon::parse($bid->proposed_delivery_date)));
+                $bidLeadTimes[$bid->id] = $leadTime;
+            }
+            $minLeadTime = count($bidLeadTimes) > 0 ? min($bidLeadTimes) : 1;
+
+            foreach ($bids as $bid) {
+                // 1. Calculate SLA score
+                $supplierId = $bid->supplier_id;
+                
+                $pos = \App\Models\PurchaseOrder::where('supplier_id', $supplierId)
+                    ->whereIn('status', ['delivered', 'frozen'])
+                    ->get();
+
+                $totalPos = $pos->count();
+                $onTimeCount = 0;
+                $accurateCount = 0;
+
+                foreach ($pos as $po) {
+                    if (!$po->is_discrepant) {
+                        $accurateCount++;
+                    }
+
+                    if ($po->delivery_due_date && $po->delivered_at) {
+                        $dueDate = \Carbon\Carbon::parse($po->delivery_due_date);
+                        $deliveredDate = \Carbon\Carbon::parse($po->delivered_at);
+                        if ($deliveredDate->lte($dueDate->addMinutes(30))) {
+                            $onTimeCount++;
+                        }
+                    } else {
+                        $onTimeCount++;
+                    }
+                }
+
+                $onTimeRate = $totalPos > 0 ? ($onTimeCount / $totalPos) * 100 : 90.0;
+                $accuracyRate = $totalPos > 0 ? ($accurateCount / $totalPos) * 100 : 95.0;
+                $averageRating = $totalPos > 0 ? ($pos->whereNotNull('rating')->avg('rating') ?? 4.5) : 4.5;
+
+                $slaScore = ($onTimeRate * 0.4 + $accuracyRate * 0.4 + ($averageRating * 20) * 0.2) / 10;
+
+                // 2. Price score
+                $priceScore = $minPrice > 0 ? ($minPrice / (float) $bid->total_amount) * 10 : 10;
+
+                // 3. Lead time score
+                $leadTime = $bidLeadTimes[$bid->id];
+                $deliveryScore = $minLeadTime > 0 ? ($minLeadTime / $leadTime) * 10 : 10;
+
+                // 4. Composite AI score
+                $compositeScore = ($slaScore * 0.4) + ($priceScore * 0.4) + ($deliveryScore * 0.2);
+
+                $bid->setAttribute('ai_score', round($compositeScore, 1));
+                $bid->setAttribute('sla_score', round($slaScore, 1));
+            }
+
+            // Rank bids by score descending
+            $rankedBids = $bids->sortByDesc(fn($b) => $b->getAttribute('ai_score'))->values();
+            
+            // Highlight the best bid
+            if ($rankedBids->isNotEmpty()) {
+                $bestBid = $rankedBids->first();
+                foreach ($bids as $bid) {
+                    if ($bid->id === $bestBid->id) {
+                        $bid->setAttribute('is_ai_recommended', true);
+                        $avgAmount = $bids->avg('total_amount');
+                        $savingPct = $bid->total_amount > 0 ? round((($avgAmount - (float)$bid->total_amount) / (float)$bid->total_amount) * 100, 1) : 0;
+                        $bid->setAttribute('ai_reason', sprintf(
+                            "Giá thầu tối ưu nhất (tiết kiệm %s%% so với trung bình), giao hàng nhanh nhất và điểm uy tín SLA đạt %s/10.",
+                            $savingPct > 0 ? $savingPct : '0',
+                            $bid->getAttribute('sla_score')
+                        ));
+                    } else {
+                        $bid->setAttribute('is_ai_recommended', false);
+                        $bid->setAttribute('ai_reason', null);
+                    }
+                }
+            }
+        }
+
         return Inertia::render('suppliers/RfpManagement', [
             'rfps' => $rfps,
         ]);

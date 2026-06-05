@@ -8,6 +8,7 @@ use App\Models\RestaurantTable;
 use App\Models\AuditLog;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\InventoryReservation;
 use App\Repositories\OrderRepositoryInterface;
 use App\Events\Kitchen\KitchenUpdated;
 use Illuminate\Support\Facades\DB;
@@ -77,7 +78,24 @@ class OrderService
             foreach ($itemsToCreate as $item) {
                 $item['order_id'] = $order->id;
                 OrderItem::create($item);
+
+                // Reserve inventory (holding stock)
+                $product = Product::with('recipes')->find($item['product_id']);
+                if ($product && $product->track_inventory) {
+                    foreach ($product->recipes as $recipe) {
+                        $totalUsed = ($recipe->quantity * $item['quantity']) * (1 + ($recipe->waste_rate / 100));
+                        InventoryReservation::create([
+                            'restaurant_id' => $restaurantId,
+                            'order_id' => $order->id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                            'reserved_quantity' => $totalUsed,
+                            'status' => 'holding',
+                            'expires_at' => now()->addHours(4), // default 4 hour holding time
+                        ]);
+                    }
+                }
             }
+            event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
 
             if ($order->table_id) {
                 RestaurantTable::where('id', $order->table_id)->update(['status' => 'occupied']);

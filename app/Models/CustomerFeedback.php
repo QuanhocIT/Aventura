@@ -19,6 +19,8 @@ class CustomerFeedback extends Model
     protected $casts = [
         'is_anonymous' => 'boolean',
         'rating' => 'integer',
+        'items_rating' => 'array',
+        'staff_rating' => 'array',
     ];
 
     public function order(): BelongsTo

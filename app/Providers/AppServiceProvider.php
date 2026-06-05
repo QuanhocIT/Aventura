@@ -39,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         \App\Models\Order::observe(\App\Observers\OrderObserver::class);
+        \App\Models\AuditLog::observe(\App\Observers\AuditLogObserver::class);
 
         // Bảo mật trang Pulse: Chỉ cho phép Chủ nhà hàng (owner) hoặc Quản lý (manager) xem
         \Illuminate\Support\Facades\Gate::define('viewPulse', function ($user = null) {

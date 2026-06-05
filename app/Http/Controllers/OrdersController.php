@@ -242,7 +242,9 @@ class OrdersController extends Controller
         // Lấy gợi ý Upselling từ PromotionController
         $promotionController = new \App\Http\Controllers\PromotionController();
         $itemNames = $order->items->map(fn($item) => $item->product?->name)->filter()->toArray();
-        $suggestionResult = $promotionController->getUpsellSuggestion(new Request(['items' => $itemNames]));
+        $upsellRequest = new \Illuminate\Http\Request(['items' => $itemNames]);
+        $upsellRequest->setUserResolver(fn() => $user);
+        $suggestionResult = $promotionController->getUpsellSuggestion($upsellRequest);
         $upsell = $suggestionResult->getData();
 
         return response()->json([

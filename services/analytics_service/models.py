@@ -62,3 +62,20 @@ class PriceAnalyticsRequest(BaseModel):
     history: List[PriceHistoryData]
 
 
+# --- Multi-branch Inventory Optimizer ---
+class BranchInventoryData(BaseModel):
+    branch_id: int
+    branch_name: str
+    ingredient_id: int
+    ingredient_name: str
+    sku: Optional[str] = None
+    current_stock: float
+    min_stock_level: float
+    unit_symbol: str
+    average_daily_usage: float
+
+class TransferRecommendationsRequest(BaseModel):
+    inventories: List[BranchInventoryData]
+
+
+

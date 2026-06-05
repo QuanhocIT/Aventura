@@ -39,7 +39,26 @@ class RecalculateAverageCostJob implements ShouldQueue
 
         $ingredient->update(['average_cost' => round($newAvg, 2)]);
 
-        Log::info("RecalculateAverageCostJob: Recalculated average cost", [
+        // Recalculate product cost_price for all products that use this ingredient in their recipe
+        $recipes = \App\Models\ProductRecipe::where('ingredient_id', $this->ingredientId)->get();
+        foreach ($recipes as $recipe) {
+            $product = \App\Models\Product::find($recipe->product_id);
+            if ($product) {
+                $totalCost = 0.0;
+                $productRecipes = \App\Models\ProductRecipe::where('product_id', $product->id)
+                    ->with('ingredient')
+                    ->get();
+                foreach ($productRecipes as $pr) {
+                    $ingCost = $pr->ingredient ? (float) $pr->ingredient->average_cost : 0.0;
+                    $prQty = (float) $pr->quantity;
+                    $prWaste = (float) $pr->waste_rate;
+                    $totalCost += $prQty * $ingCost * (1.0 + ($prWaste / 100.0));
+                }
+                $product->update(['cost_price' => round($totalCost, 2)]);
+            }
+        }
+
+        Log::info("RecalculateAverageCostJob: Recalculated average cost and updated " . $recipes->count() . " products.", [
             'ingredient_id' => $this->ingredientId,
             'old_avg' => $oldAvg,
             'new_avg' => $newAvg,

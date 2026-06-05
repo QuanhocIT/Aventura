@@ -93,21 +93,61 @@ class MenuInsightService
 
         if ($products->isEmpty()) return [];
 
-        $medianRevenue = $this->median($products->pluck('total_revenue')->map(fn ($v) => (float) $v)->all());
-        $medianQty     = $this->median($products->pluck('total_qty')->map(fn ($v) => (int) $v)->all());
+        $mapped = $products->map(function ($p) {
+            $price = (float) $p->price;
+            $cost = (float) ($p->cost_price ?? 0);
+            $margin = $price > 0 ? (($price - $cost) / $price) * 100 : 0.0;
+            return [
+                'name'          => $p->name,
+                'product_id'    => $p->product_id,
+                'total_revenue' => (float) $p->total_revenue,
+                'total_qty'     => (int)   $p->total_qty,
+                'price'         => $price,
+                'cost_price'    => $cost,
+                'margin'        => round($margin, 1),
+            ];
+        });
 
-        return $products->map(fn ($p) => [
-            'name'          => $p->name,
-            'product_id'    => $p->product_id,
-            'total_revenue' => (float) $p->total_revenue,
-            'total_qty'     => (int)   $p->total_qty,
-            'quadrant'      => $this->classifyBcg(
-                (float) $p->total_revenue,
-                (int)   $p->total_qty,
-                $medianRevenue,
-                $medianQty
-            ),
-        ])->values()->all();
+        $medianQty = $this->median($mapped->pluck('total_qty')->all());
+        $medianMargin = $this->median($mapped->pluck('margin')->all());
+
+        return $mapped->map(function ($item) use ($medianQty, $medianMargin) {
+            $highQty = $item['total_qty'] >= $medianQty;
+            $highMargin = $item['margin'] >= $medianMargin;
+
+            $quadrant = match (true) {
+                $highQty && $highMargin     => 'star',       // ⭐ Stars
+                $highQty && !$highMargin    => 'plowhorse',  // 🐎 Plowhorses
+                !$highQty && $highMargin    => 'puzzle',     // 🧩 Puzzles
+                default                     => 'dog',        // 🐶 Dogs
+            };
+
+            // AI suggestions for action
+            $recommendation = match ($quadrant) {
+                'star' => 'Món ăn Ngôi sao: Sản lượng cao & Lợi nhuận cao. Hãy duy trì vị trí nổi bật trên thực đơn, giữ nguyên giá bán và chất lượng để bảo vệ dòng tiền.',
+                'plowhorse' => 'Món ăn Bò sữa: Bán rất tốt nhưng lợi nhuận thấp. Hãy thử đàm phán giảm giá nguyên vật liệu, hoặc tăng giá bán nhẹ (khoảng 3-5%), hoặc giảm kích thước khẩu phần một chút.',
+                'puzzle' => 'Món ăn Câu đố: Biên lợi nhuận cực tốt nhưng kén khách. Đề xuất ghép món này vào các COMBO bán kèm cùng món bán chạy, tăng cường PR, hoặc đưa lên vị trí bắt mắt nhất trên thực đơn.',
+                'dog' => 'Món ăn Thú cưng: Cả sản lượng và biên lợi nhuận đều thấp. Cân nhắc loại bỏ hoàn toàn khỏi thực đơn, hoặc thay thế bằng một công thức mới thu hút khách hơn.',
+            };
+
+            return array_merge($item, [
+                'quadrant' => $quadrant,
+                'ai_recommendation' => $recommendation,
+                'median_qty' => $medianQty,
+                'median_margin' => $medianMargin,
+            ]);
+        })->values()->all();
+    }
+
+    private function median(array $values): float
+    {
+        if (empty($values)) return 0;
+        sort($values);
+        $count = count($values);
+        $mid   = (int) floor($count / 2);
+        return $count % 2 === 0
+            ? ($values[$mid - 1] + $values[$mid]) / 2
+            : $values[$mid];
     }
 
     /**
@@ -134,8 +174,6 @@ class MenuInsightService
             ->all();
     }
 
-    // ── Private helpers ────────────────────────────────────────────────────────
-
     private function queryProductPerformance(int $restaurantId, int $days)
     {
         return DB::table('order_items')
@@ -155,29 +193,5 @@ class MenuInsightService
             ->groupBy('products.id', 'products.name', 'products.price', 'products.cost_price')
             ->orderByDesc('total_revenue')
             ->get();
-    }
-
-    private function classifyBcg(float $revenue, int $qty, float $medianRevenue, float $medianQty): string
-    {
-        $highRevenue = $revenue >= $medianRevenue;
-        $highQty     = $qty >= $medianQty;
-
-        return match (true) {
-            $highRevenue && $highQty     => 'star',       // ⭐ Bán nhiều, doanh thu cao
-            $highRevenue && !$highQty    => 'cash_cow',   // 🐄 Ít bán nhưng doanh thu cao (đắt tiền)
-            !$highRevenue && $highQty    => 'question',   // ❓ Bán nhiều nhưng rẻ
-            default                      => 'dog',        // 🐶 Bán ít, doanh thu thấp
-        };
-    }
-
-    private function median(array $values): float
-    {
-        if (empty($values)) return 0;
-        sort($values);
-        $count = count($values);
-        $mid   = (int) floor($count / 2);
-        return $count % 2 === 0
-            ? ($values[$mid - 1] + $values[$mid]) / 2
-            : $values[$mid];
     }
 }

@@ -8,6 +8,12 @@ class ChatRequest(BaseModel):
     source: str = "widget"
 
 
+class AdvisorChatRequest(BaseModel):
+    session_id: str
+    message: str
+    restaurant_id: int
+
+
 class ChatResponse(BaseModel):
     answer: str
     knowledge_id: Optional[int] = None

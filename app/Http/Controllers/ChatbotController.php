@@ -92,4 +92,36 @@ class ChatbotController extends Controller
             // Không ảnh hưởng đến response nếu lưu session thất bại
         }
     }
+
+    public function advisorIndex(Request $request): \Inertia\Response
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        return \Inertia\Inertia::render('ai-advisor/Index');
+    }
+
+    public function advisorMessage(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $request->validate([
+            'message' => ['required', 'string', 'max:500'],
+            'session_id' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $sessionId = $request->input('session_id') ?: Str::uuid()->toString();
+        $message = trim($request->input('message'));
+        $restaurantId = $request->user()->restaurant_id;
+
+        $result = $this->chatbot->sendAdvisorMessage($sessionId, $message, $restaurantId);
+
+        $this->persistSession($sessionId, 'advisor', $message, $result, $request);
+
+        return response()->json([
+            'session_id' => $sessionId,
+            'found' => $result['found'] ?? false,
+            'answer' => $result['answer'] ?? '',
+            'suggestions' => $result['suggestions'] ?? [],
+        ]);
+    }
 }

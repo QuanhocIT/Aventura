@@ -198,6 +198,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('suppliers/auto-replenish', [\App\Http\Controllers\SupplierController::class, 'triggerAutoReplenish'])->name('suppliers.auto-replenish');
     Route::post('suppliers/ocr-invoice', [\App\Http\Controllers\SupplierController::class, 'ocrInvoice'])->name('suppliers.ocr-invoice');
 
+    // Điều phối và chuyển kho nội bộ liên chi nhánh
+    Route::get('api/inventory/transfer-recommendations', [\App\Http\Controllers\SupplierController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
+    Route::post('api/inventory/internal-transfers', [\App\Http\Controllers\SupplierController::class, 'storeInternalTransfer'])->name('inventory.internal-transfers');
+    Route::get('api/inventory/internal-transfers', [\App\Http\Controllers\SupplierController::class, 'listInternalTransfers'])->name('inventory.internal-transfers.list');
+
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
     Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'index'])->name('rfps.index');
     Route::post('rfps', [\App\Http\Controllers\RfpController::class, 'store'])->name('rfps.store');
@@ -214,12 +219,31 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'supplierIndex'])->name('rfps');
         Route::post('rfps/{rfp}/bid', [\App\Http\Controllers\RfpController::class, 'supplierSubmitBid'])->name('rfps.bid');
     });
+
+    // Quản lý đơn đệm QR và Nhật ký hủy (Staff & Manager)
+    Route::get('api/temporary-orders', [\App\Http\Controllers\StaffQROrderController::class, 'index'])->name('temporary-orders.index');
+    Route::post('api/temporary-orders/{temporaryOrder}/confirm', [\App\Http\Controllers\StaffQROrderController::class, 'confirm'])->name('temporary-orders.confirm');
+    Route::post('api/temporary-orders/{temporaryOrder}/cancel', [\App\Http\Controllers\StaffQROrderController::class, 'cancel'])->name('temporary-orders.cancel');
+    Route::get('api/temporary-orders/rejected-logs', [\App\Http\Controllers\StaffQROrderController::class, 'rejectedLogs'])->name('temporary-orders.rejected-logs');
+
+    // Trợ lý AI Chiến lược (AI Advisor)
+    Route::get('ai-advisor', [\App\Http\Controllers\ChatbotController::class, 'advisorIndex'])->name('ai-advisor.index');
+    Route::post('api/chatbot/advisor-message', [\App\Http\Controllers\ChatbotController::class, 'advisorMessage'])->name('chatbot.advisor-message');
 });
 
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)
 Route::middleware('throttle:15,1')->group(function () {
     Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
     Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+});
+
+// Chức năng QR-Ordering dành cho khách hàng tại bàn
+Route::middleware('throttle:60,1')->group(function () {
+    Route::post('customer/order/call-staff/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'callStaff'])->name('customer.qr-order.call-staff');
+    Route::post('customer/order/payment-request/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'paymentRequest'])->name('customer.qr-order.payment-request');
+    Route::post('customer/order/feedback/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'submitFeedback'])->name('customer.qr-order.feedback');
+    Route::get('customer/order/{restaurant}/{token}', [\App\Http\Controllers\Customer\QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
+    Route::post('customer/order/{restaurant}/{token}', [\App\Http\Controllers\Customer\QROrderController::class, 'submitOrder'])->name('customer.qr-order.submit');
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới

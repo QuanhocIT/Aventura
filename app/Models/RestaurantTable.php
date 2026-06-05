@@ -31,6 +31,11 @@ class RestaurantTable extends Model
         return $this->belongsTo(Area::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class, 'table_id');
