@@ -152,7 +152,7 @@ class OrdersController extends Controller
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $user = $request->user();
-        abort_unless($user->can('manage_orders') || $user->can('create_orders'), 403);
+        abort_unless($user->can('manage_orders') || $user->can('split_orders'), 403);
 
         $data = $request->validate([
             'table_id' => ['required', 'exists:restaurant_tables,id'],

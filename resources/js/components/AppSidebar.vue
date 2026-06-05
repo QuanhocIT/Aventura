@@ -78,10 +78,11 @@ const hasRole = (...roleNames: string[]) =>
 const isSuperAdmin  = computed(() => hasRole('super_admin'));
 const isOwner       = computed(() => hasRole('owner'));
 const isManager     = computed(() => hasRole('manager'));
-const isCashier     = computed(() => hasRole('cashier'));
+const isCashier     = computed(() => hasRole('cashier', 'waiter'));
 const isKitchen     = computed(() => hasRole('kitchen'));
 const isInventory   = computed(() => hasRole('inventory_staff'));
 const isCustomer    = computed(() => hasRole('customer'));
+const isSupplier    = computed(() => hasRole('supplier'));
 
 // Lấy danh sách permissions từ Inertia shared state
 const permissions = computed(() => {
@@ -117,6 +118,7 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
         { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
         { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck },
+        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText },
         { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
         { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
         { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
@@ -153,6 +155,7 @@ const managerNav = computed<NavItem[]>(() => {
         { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
         { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
         { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
+        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText },
         { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
         { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
         { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
@@ -210,11 +213,23 @@ const customerNav: NavItem[] = [
     { title: 'Phản hồi',        href: '/feedback',                 icon: MessageSquare },
 ];
 
+// ─── SUPPLIER PORTAL MENU ────────────────────────────────────────────────────
+const supplierNav: NavItem[] = [
+    { title: 'Tổng quan',           href: '/supplier/dashboard', icon: LayoutGrid },
+    { title: 'Danh mục & Niêm yết',  href: '/supplier/catalog',   icon: Package },
+    { title: 'Đơn đặt hàng (PO)',   href: '/supplier/orders',    icon: ShoppingCart },
+    { title: 'Đấu thầu RFP',        href: '/supplier/rfps',      icon: ScrollText },
+];
+
 // ─── Chọn menu dựa trên role và hạn gói ──────────────────────────────────────────
 const mainNavItems = computed<NavItem[]>(() => {
     if (isSuperAdmin.value) {
-return superAdminNav;
-}
+        return superAdminNav;
+    }
+
+    if (isSupplier.value) {
+        return supplierNav;
+    }
     
     // Nếu gói hết hạn / bị khóa, giới hạn chỉ cho phép xem Tổng quan
     if (!isSubscriptionActive.value) {

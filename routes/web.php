@@ -181,6 +181,38 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('violations', [ViolationReportController::class, 'index'])->name('violations.index');
     Route::post('violations', [ViolationReportController::class, 'store'])->name('violations.store');
     Route::post('violations/{report}/resolve', [ViolationReportController::class, 'resolve'])->name('violations.resolve');
+
+    // Quản lý Nhà cung cấp & Đơn PO (Dành cho nhà hàng)
+    Route::get('suppliers', [\App\Http\Controllers\SupplierController::class, 'index'])->name('suppliers.index');
+    Route::post('suppliers', [\App\Http\Controllers\SupplierController::class, 'store'])->name('suppliers.store');
+    Route::patch('suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'update'])->name('suppliers.update');
+    Route::delete('suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'destroy'])->name('suppliers.destroy');
+    Route::post('suppliers/{supplier}/place-order', [\App\Http\Controllers\SupplierController::class, 'placeOrder'])->name('suppliers.place-order');
+    Route::post('suppliers/orders/{purchaseOrder}/approve', [\App\Http\Controllers\SupplierController::class, 'approveOrder'])->name('suppliers.orders.approve');
+    Route::post('suppliers/orders/{purchaseOrder}/verify', [\App\Http\Controllers\SupplierController::class, 'verifyOrder'])->name('suppliers.orders.verify');
+    Route::post('suppliers/orders/{purchaseOrder}/release-escrow', [\App\Http\Controllers\SupplierController::class, 'releaseEscrow'])->name('suppliers.orders.release-escrow');
+    Route::post('suppliers/orders/{purchaseOrder}/refund-escrow', [\App\Http\Controllers\SupplierController::class, 'refundEscrow'])->name('suppliers.orders.refund-escrow');
+    Route::get('suppliers/{supplier}/ingredients/{ingredient}/price-analytics', [\App\Http\Controllers\SupplierController::class, 'priceAnalytics'])->name('suppliers.price-analytics');
+    Route::get('suppliers/{supplier}/sla', [\App\Http\Controllers\SupplierController::class, 'getSlaMetrics'])->name('suppliers.sla');
+    Route::post('suppliers/auto-replenish', [\App\Http\Controllers\SupplierController::class, 'triggerAutoReplenish'])->name('suppliers.auto-replenish');
+    Route::post('suppliers/ocr-invoice', [\App\Http\Controllers\SupplierController::class, 'ocrInvoice'])->name('suppliers.ocr-invoice');
+
+    // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
+    Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'index'])->name('rfps.index');
+    Route::post('rfps', [\App\Http\Controllers\RfpController::class, 'store'])->name('rfps.store');
+    Route::post('rfps/{rfp}/close', [\App\Http\Controllers\RfpController::class, 'close'])->name('rfps.close');
+    Route::post('rfps/bids/{bid}/accept', [\App\Http\Controllers\RfpController::class, 'acceptBid'])->name('rfps.bids.accept');
+
+    // Portal Chuỗi cung ứng (Dành cho nhà cung cấp)
+    Route::prefix('supplier')->name('supplier.')->group(function () {
+        Route::get('dashboard', [\App\Http\Controllers\SupplierController::class, 'supplierDashboard'])->name('dashboard');
+        Route::get('catalog', [\App\Http\Controllers\SupplierController::class, 'supplierCatalog'])->name('catalog');
+        Route::post('catalog', [\App\Http\Controllers\SupplierController::class, 'storeCatalogItem'])->name('catalog.store');
+        Route::get('orders', [\App\Http\Controllers\SupplierController::class, 'supplierOrders'])->name('orders');
+        Route::post('orders/{purchaseOrder}/status', [\App\Http\Controllers\SupplierController::class, 'updateOrderStatus'])->name('orders.update-status');
+        Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'supplierIndex'])->name('rfps');
+        Route::post('rfps/{rfp}/bid', [\App\Http\Controllers\RfpController::class, 'supplierSubmitBid'])->name('rfps.bid');
+    });
 });
 
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)

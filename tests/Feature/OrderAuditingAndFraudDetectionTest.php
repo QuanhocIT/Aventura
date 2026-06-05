@@ -390,4 +390,59 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
         $this->assertEquals(92.5, $dbAlert['risk_score']);
         $this->assertStringContainsString('Nguyễn Thị Thu', $dbAlert['description']);
     }
+
+    public function test_waiter_can_create_order_but_cannot_pay_and_cannot_split(): void
+    {
+        $this->seed(\Database\Seeders\PermissionsSeeder::class);
+
+        $waiter = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Nguyễn Văn Order'
+        ]);
+        $waiter->assignRole('waiter');
+
+        $this->assertTrue($waiter->can('create_orders'));
+        $this->assertFalse($waiter->can('process_payments'));
+        $this->assertFalse($waiter->can('split_orders'));
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table1->id,
+            'created_by' => $waiter->id,
+            'order_number' => 'ORD-2001',
+            'subtotal' => 100000,
+            'total_amount' => 100000,
+            'status' => 'pending',
+            'payment_status' => 'unpaid'
+        ]);
+
+        $item1 = OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 2,
+            'unit_price' => 50000,
+            'line_total' => 100000
+        ]);
+
+        $responseSplit = $this->actingAs($waiter)->post(route('orders.split', $order), [
+            'table_id' => $this->table2->id,
+            'items' => [
+                [
+                    'order_item_id' => $item1->id,
+                    'quantity' => 1,
+                ]
+            ]
+        ]);
+        $responseSplit->assertStatus(403);
+
+        $responsePay = $this->actingAs($waiter)->post(route('orders.pay', $order), [
+            'payment_method' => 'cash',
+            'cash_received' => 100000,
+            'change_amount' => 0
+        ]);
+        $responsePay->assertStatus(403);
+    }
 }

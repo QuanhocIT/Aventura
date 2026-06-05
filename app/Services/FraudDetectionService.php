@@ -113,7 +113,7 @@ class FraudDetectionService
 
         // 1. Read from Redis Cache
         if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-            return \Illuminate\Support\Facades\Cache::get($cacheKey);
+            return $this->mergePoDiscrepancies(\Illuminate\Support\Facades\Cache::get($cacheKey));
         }
 
         // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
@@ -124,7 +124,7 @@ class FraudDetectionService
             dispatch(new \App\Jobs\FetchAiFraudAlertsJob($this->restaurantId, $this->periodStart, $this->periodEnd));
 
             if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-                return \Illuminate\Support\Facades\Cache::get($cacheKey);
+                return $this->mergePoDiscrepancies(\Illuminate\Support\Facades\Cache::get($cacheKey));
             }
         }
 
@@ -233,6 +233,53 @@ class FraudDetectionService
                     'reason'         => "Hoạt động áp voucher thông thường được lưu vết kiểm toán.",
                 ];
             }
+        }
+
+        return $this->mergePoDiscrepancies($alerts);
+    }
+
+    private function mergePoDiscrepancies(array $alerts): array
+    {
+        $poLogs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+            ->where('action', 'po_discrepancy')
+            ->whereBetween('created_at', [$this->periodStart . ' 00:00:00', $this->periodEnd . ' 23:59:59'])
+            ->latest('created_at')
+            ->get();
+
+        foreach ($poLogs as $log) {
+            $alertId = 'po-discrepancy-' . $log->id;
+            $exists = false;
+            foreach ($alerts as $a) {
+                if ($a['id'] === $alertId) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if ($exists) {
+                continue;
+            }
+
+            $old = $log->old_values;
+            $new = $log->new_values;
+            $poNumber = $new['po_number'] ?? 'PO';
+            $supplierName = $new['supplier_name'] ?? 'Nhà cung cấp';
+
+            $desc = "Phát hiện chênh lệch dòng tiền/số lượng khi giao nhận đơn hàng PO #{$poNumber} từ nhà cung cấp {$supplierName}. ";
+            $desc .= "Giá niêm yết: " . number_format($old['price'] ?? 0) . "đ vs Giá hóa đơn: " . number_format($new['price'] ?? 0) . "đ. ";
+            $desc .= "Số lượng đặt: " . ($old['qty'] ?? 0) . " vs Số lượng giao nhận: " . ($new['qty'] ?? 0) . ". Giao dịch đã bị ĐÓNG BĂNG.";
+
+            $alerts[] = [
+                'id'             => $alertId,
+                'employee_id'    => null,
+                'employee_name'  => $log->user?->name ?? 'Nhân viên kho',
+                'violation_type' => 'AI: Đối soát mua hàng thất bại',
+                'severity'       => 'critical',
+                'description'    => $desc . " [Nguồn: Laravel Fallback]",
+                'penalty_amount' => abs((float)($new['total_cost'] ?? 0) - (float)($old['total_cost'] ?? 0)),
+                'occurred_at'    => $log->created_at->toDateString(),
+                'risk_score'     => 99.5,
+                'reason'         => "Thuật toán đối chiếu chéo 3 bên phát hiện sai lệch dòng tiền/số lượng giữa niêm yết hệ thống, hóa đơn số và kiểm đếm kho thực tế.",
+            ];
         }
 
         return $alerts;

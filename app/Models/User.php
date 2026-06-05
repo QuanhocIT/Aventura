@@ -25,6 +25,7 @@ use Spatie\Permission\Traits\HasRoles;
     'last_login_at',
     'restaurant_id',
     'branch_id',
+    'supplier_id',
     'phone',
     'avatar_url',
     'status',
@@ -47,6 +48,11 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'onboarding_status' => 'array',
         ];
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     public function restaurant(): BelongsTo
