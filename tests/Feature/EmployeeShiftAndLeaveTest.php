@@ -269,4 +269,89 @@ class EmployeeShiftAndLeaveTest extends TestCase
         // Assert soft deleted
         $this->assertTrue($employeeFresh->trashed());
     }
+
+    public function test_leave_approval_with_replacement_workflow(): void
+    {
+        // 1. Setup two cashier employees
+        $cashierUser1 = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $employee1 = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $cashierUser1->id,
+            'role_id' => $this->cashierRole->id,
+            'status' => 'active',
+        ]);
+
+        $cashierUser2 = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $employee2 = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $cashierUser2->id,
+            'role_id' => $this->cashierRole->id,
+            'status' => 'active',
+        ]);
+
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Ca Sáng',
+            'code' => 'CA_SANG',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'status' => 'active',
+        ]);
+
+        // Scheduled shift for employee1
+        $assignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee1->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        // Leave request for employee1
+        $leave = LeaveRequest::create([
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id' => $employee1->id,
+            'requested_by' => $cashierUser1->id,
+            'leave_type' => 'annual',
+            'start_date' => today()->toDateString(),
+            'end_date' => today()->toDateString(),
+            'reason' => 'Nghỉ phép năm',
+            'status' => 'pending',
+        ]);
+
+        // 2. Fetch replacement suggestions
+        $responseSuggestions = $this->actingAs($this->owner)
+            ->get("/employees/leaves/{$leave->id}/replacements");
+
+        $responseSuggestions->assertOk();
+        $responseSuggestions->assertJsonFragment([
+            'id' => $employee2->id,
+            'full_name' => $employee2->full_name,
+            'registered_available' => false,
+        ]);
+
+        // 3. Approve with replacement
+        $responseApprove = $this->actingAs($this->owner)
+            ->patch("/employees/leaves/{$leave->id}/approve", [
+                'replacements' => [
+                    $assignment->id => $employee2->id,
+                ]
+            ]);
+
+        $responseApprove->assertRedirect();
+        
+        // Assertions
+        $this->assertSame('approved', $leave->fresh()->status);
+        $this->assertSame('leave_approved', $assignment->fresh()->status);
+
+        // Check that a new assignment was created for employee2
+        $newAssignment = ScheduleAssignment::where('employee_id', $employee2->id)
+            ->where('shift_id', $shift->id)
+            ->whereDate('scheduled_date', today())
+            ->first();
+
+        $this->assertNotNull($newAssignment);
+        $this->assertSame('scheduled', $newAssignment->status);
+    }
 }
