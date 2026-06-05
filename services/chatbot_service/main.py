@@ -8,6 +8,7 @@ from models import (
     SuggestionsResponse, SuggestionItem,
     FeedbackRequest, FeedbackResponse,
     HealthResponse,
+    AdvisorChatRequest,
 )
 from services import nlp_service
 from services.db_service import increment_view, record_feedback
@@ -78,6 +79,29 @@ def chat(payload: ChatRequest):
         result["found"],
         result["confidence"],
         result.get("category"),
+    )
+
+    return ChatResponse(**result)
+
+
+@app.post("/advisor-chat", response_model=ChatResponse)
+def advisor_chat(payload: AdvisorChatRequest):
+    """Xử lý câu hỏi của Chủ doanh nghiệp và trả về phân tích nghiệp vụ."""
+    if not payload.message or not payload.message.strip():
+        raise HTTPException(status_code=422, detail="Tin nhắn không được để trống.")
+
+    message = payload.message.strip()[:500]
+
+    try:
+        result = nlp_service.match_advisor_query(message, payload.restaurant_id)
+    except Exception as e:
+        logger.error("Advisor NLP error: %s", e)
+        raise HTTPException(status_code=500, detail="Lỗi xử lý câu hỏi tư vấn.")
+
+    logger.info(
+        "advisor_chat | session=%s restaurant=%d",
+        payload.session_id[:12],
+        payload.restaurant_id,
     )
 
     return ChatResponse(**result)

@@ -10,7 +10,8 @@ from models import (
     FraudDetectionRequest, 
     InventoryForecastRequest, 
     RevenueForecastRequest,
-    PriceAnalyticsRequest
+    PriceAnalyticsRequest,
+    TransferRecommendationsRequest
 )
 
 
@@ -467,6 +468,83 @@ def ocr_invoice(
         "items": items,
         "confidence": 0.96
     }
+
+@app.post("/api/analytics/transfer-recommendations")
+def get_transfer_recommendations(request: TransferRecommendationsRequest):
+    if not request.inventories:
+        return {"recommendations": []}
+
+    # Load data into DataFrame
+    data = [inv.dict() for inv in request.inventories]
+    df = pd.DataFrame(data)
+
+    recommendations = []
+
+    # 1. Deficit branches (where current_stock < min_stock_level)
+    deficit_df = df[df["current_stock"] < df["min_stock_level"]]
+
+    for _, deficit_row in deficit_df.iterrows():
+        ing_id = deficit_row["ingredient_id"]
+        to_branch_id = deficit_row["branch_id"]
+        deficit_qty = deficit_row["min_stock_level"] - deficit_row["current_stock"]
+
+        # 2. Find candidates of the same ingredient from other branches
+        candidates = df[(df["ingredient_id"] == ing_id) & (df["branch_id"] != to_branch_id)]
+        
+        # Candidate has excess stock: current_stock > min_stock_level
+        candidates = candidates[candidates["current_stock"] > candidates["min_stock_level"]].copy()
+
+        if candidates.empty:
+            continue
+
+        # Calculate B's excess stock
+        candidates["excess"] = candidates["current_stock"] - candidates["min_stock_level"]
+        
+        # Calculate coverage days (how long stock lasts)
+        candidates["coverage_days"] = candidates.apply(
+            lambda r: r["current_stock"] / r["average_daily_usage"] if r["average_daily_usage"] > 0 else 999.0,
+            axis=1
+        )
+
+        # Filter: stock must cover safety level + 14 days of average usage
+        # OR daily usage is extremely low
+        valid_candidates = candidates[
+            (candidates["coverage_days"] >= 14.0) | (candidates["average_daily_usage"] <= 0.01)
+        ].copy()
+
+        if valid_candidates.empty:
+            continue
+
+        # Pick candidate with highest excess stock
+        best_candidate = valid_candidates.sort_values(by="excess", ascending=False).iloc[0]
+
+        from_branch_id = int(best_candidate["branch_id"])
+        from_branch_name = best_candidate["branch_name"]
+        excess_stock = float(best_candidate["excess"])
+        suggested_qty = min(deficit_qty, excess_stock)
+        suggested_qty = float(np.round(suggested_qty, 3))
+
+        days_covered = float(np.round(best_candidate["coverage_days"], 1))
+        daily_usage_b = float(np.round(best_candidate["average_daily_usage"], 3))
+
+        reason = (
+            f"Chi nhánh '{from_branch_name}' đang có lượng tồn dư thừa {excess_stock:.2f} {best_candidate['unit_symbol']} "
+            f"(đủ dùng {days_covered:.1f} ngày với tốc độ tiêu thụ {daily_usage_b:.2f}/ngày)."
+        )
+
+        recommendations.append({
+            "ingredient_id": ing_id,
+            "ingredient_name": deficit_row["ingredient_name"],
+            "unit_symbol": deficit_row["unit_symbol"],
+            "from_branch_id": from_branch_id,
+            "from_branch_name": from_branch_name,
+            "to_branch_id": to_branch_id,
+            "to_branch_name": deficit_row["branch_name"],
+            "suggested_quantity": suggested_qty,
+            "reason": reason
+        })
+
+    return {"recommendations": recommendations}
 
 
 

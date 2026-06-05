@@ -63,7 +63,7 @@ class FraudController extends Controller
 
     public function createViolation(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->can('approve_requests'), 403);
+        abort_unless($request->user()->can('report_violations'), 403);
 
         $data = $request->validate([
             'employee_id'     => ['required', 'integer', 'exists:employees,id'],

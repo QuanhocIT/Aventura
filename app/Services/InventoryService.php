@@ -9,7 +9,9 @@ use App\Models\InventoryReservation;
 use App\Models\Ingredient;
 use App\Models\User;
 use App\Models\OrderItem;
+use App\Models\RequestForProposal;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InventoryService
 {
@@ -80,9 +82,16 @@ class InventoryService
                         ->where('ingredient_id', $recipe->ingredient_id)
                         ->where('status', 'holding')
                         ->update(['status' => 'committed']);
+
+                    // Tự động chào thầu RFP nếu tồn kho của chi nhánh rơi xuống dưới reorder_level
+                    $ingredient = $recipe->ingredient;
+                    if ($ingredient && $inventory->quantity_on_hand < $ingredient->reorder_level) {
+                        $this->createAutoRfpIfNecessary($order->restaurant_id, $ingredient, (float) $inventory->quantity_on_hand);
+                    }
                 }
             }
         }
+        event(new \App\Events\Customer\ProductStockUpdated($order->restaurant_id));
     }
 
     /**
@@ -147,6 +156,7 @@ class InventoryService
 
         // Đẩy tác vụ tính toán lại average_cost sang Queue ngầm để tối ưu hiệu năng
         dispatch(new \App\Jobs\RecalculateAverageCostJob($restaurantId, $ingredient->id, $oldQty, $newQty, $newCost));
+        event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
     }
 
     /**
@@ -186,6 +196,59 @@ class InventoryService
             ]);
         }
 
+        event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
+
         return $transaction;
+    }
+
+    /**
+     * Tự động tạo RFP nếu tồn kho chạm ngưỡng tái đặt thầu.
+     */
+    protected function createAutoRfpIfNecessary(int $restaurantId, Ingredient $ingredient, float $currentStock): void
+    {
+        $today = now()->format('Y-m-d');
+        $title = "AI Tự động gom hàng {$today}";
+
+        // Kiểm tra xem đã có RFP tự động nào được tạo trong ngày cho nguyên liệu này chưa
+        $existingRfp = RequestForProposal::where('restaurant_id', $restaurantId)
+            ->whereDate('created_at', now()->toDateString())
+            ->where('title', 'like', 'AI Tự động gom hàng%')
+            ->whereHas('items', function ($query) use ($ingredient) {
+                $query->where('ingredient_name', $ingredient->name);
+            })
+            ->first();
+
+        if ($existingRfp) {
+            return;
+        }
+
+        // Lượng yêu cầu: (min_stock_level * 2) - current_stock
+        $qtyRequired = ((float) $ingredient->min_stock_level * 2) - $currentStock;
+        if ($qtyRequired <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($restaurantId, $ingredient, $title, $qtyRequired) {
+            $rfp = RequestForProposal::create([
+                'restaurant_id' => $restaurantId,
+                'title' => $title,
+                'description' => "Yêu cầu chào thầu tự động từ AI do tồn kho nguyên liệu '{$ingredient->name}' dưới ngưỡng an toàn.",
+                'due_date' => now()->addDays(3),
+                'status' => 'open',
+            ]);
+
+            $rfp->items()->create([
+                'ingredient_name' => $ingredient->name,
+                'quantity_required' => round($qtyRequired, 3),
+                'unit_symbol' => $ingredient->unit?->symbol ?? 'kg',
+                'notes' => "Hệ thống tự động kích hoạt khi tồn kho chạm mức tái đặt thầu.",
+            ]);
+        });
+
+        Log::info("createAutoRfpIfNecessary: Auto RFP created for ingredient {$ingredient->name}", [
+            'restaurant_id' => $restaurantId,
+            'ingredient_id' => $ingredient->id,
+            'quantity_required' => $qtyRequired,
+        ]);
     }
 }

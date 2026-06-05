@@ -89,6 +89,39 @@ class ChatbotService
         }
     }
 
+    public function sendAdvisorMessage(string $sessionId, string $message, int $restaurantId): array
+    {
+        if (empty($this->baseUrl)) {
+            return $this->unavailableResponse();
+        }
+
+        try {
+            $response = Http::timeout(10)
+                ->post($this->baseUrl.'/advisor-chat', [
+                    'session_id' => $sessionId,
+                    'message' => $message,
+                    'restaurant_id' => $restaurantId,
+                ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('ChatbotService: phản hồi lỗi từ advisor-chat', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return $this->unavailableResponse();
+        } catch (\Throwable $e) {
+            Log::error('ChatbotService: không kết nối được Python service /advisor-chat', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->unavailableResponse();
+        }
+    }
+
     public function reloadCache(): bool
     {
         if (empty($this->baseUrl)) {

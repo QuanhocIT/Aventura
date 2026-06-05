@@ -9,6 +9,7 @@ import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import OnboardingTour from '@/components/OnboardingTour.vue';
 import { Toaster } from '@/components/ui/sonner';
+import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
 import type { BreadcrumbItem } from '@/types';
 
 type Props = {
@@ -58,6 +59,7 @@ const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.
         </AppContent>
         <Toaster />
         <FlashToast />
+        <QROrderAlertCenter />
         <OnboardingTour />
         <ChatbotWidget v-if="showChatbot" source="support" />
     </AppShell>

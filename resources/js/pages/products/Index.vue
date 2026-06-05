@@ -28,6 +28,14 @@ const showInsights   = ref(false);
 const insightsLoaded = ref(false);
 const insightsLoading = ref(false);
 const insights       = ref<MenuInsight[]>([]);
+const bcgData        = ref<any[]>([]);
+const selectedBcgProduct = ref<any>(null);
+const insightTab     = ref('matrix'); // 'matrix' | 'alerts'
+
+const stars = computed(() => bcgData.value.filter(p => p.quadrant === 'star'));
+const plowhorses = computed(() => bcgData.value.filter(p => p.quadrant === 'plowhorse'));
+const puzzles = computed(() => bcgData.value.filter(p => p.quadrant === 'puzzle'));
+const dogs = computed(() => bcgData.value.filter(p => p.quadrant === 'dog'));
 
 async function loadInsights() {
     if (insightsLoaded.value) { showInsights.value = !showInsights.value; return; }
@@ -37,9 +45,17 @@ async function loadInsights() {
         const res = await fetch('/api/products/menu-insights');
         const data = await res.json();
         insights.value = data.insights ?? [];
+        bcgData.value = data.bcg ?? [];
+        if (bcgData.value.length > 0) {
+            selectedBcgProduct.value = bcgData.value[0];
+        }
         insightsLoaded.value = true;
-    } catch { insights.value = []; }
-    finally { insightsLoading.value = false; }
+    } catch (e) {
+        insights.value = [];
+        bcgData.value = [];
+    } finally {
+        insightsLoading.value = false;
+    }
 }
 
 // ── UI state ──────────────────────────────────────────────────────────────────
@@ -176,51 +192,244 @@ const toggleAvailability = (p: Product) => {
         </div>
 
         <!-- AI Menu Insights Accordion -->
-        <div v-if="showInsights" class="rounded-2xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50/50 dark:bg-indigo-950/10 overflow-hidden">
-            <div class="px-4 py-3 border-b border-indigo-100 dark:border-indigo-800/30 flex items-center gap-2">
-                <Sparkles class="size-4 text-indigo-500" />
-                <span class="text-sm font-bold text-indigo-700 dark:text-indigo-300">AI Phân tích Menu — 30 ngày gần nhất</span>
-            </div>
-            <!-- Loading -->
-            <div v-if="insightsLoading" class="flex items-center justify-center py-8 gap-2 text-indigo-500">
-                <Brain class="size-5 animate-pulse" />
-                <span class="text-sm">Đang phân tích dữ liệu...</span>
-            </div>
-            <!-- No insights -->
-            <div v-else-if="!insights.length" class="flex flex-col items-center py-8 text-center text-slate-400">
-                <CheckCircle2 class="size-8 text-emerald-400 mb-2" />
-                <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu đang hoạt động tốt!</p>
-                <p class="text-xs mt-1">Không phát hiện vấn đề cần cải thiện trong 30 ngày qua.</p>
-            </div>
-            <!-- Insights list -->
-            <div v-else class="divide-y divide-indigo-100 dark:divide-indigo-800/30">
-                <div v-for="(insight, i) in insights" :key="i"
-                    :class="[
-                        'flex items-start gap-3 px-4 py-3 text-xs',
-                        insight.severity === 'critical' ? 'bg-rose-50/80 dark:bg-rose-950/10' :
-                        insight.severity === 'warning'  ? 'bg-amber-50/80 dark:bg-amber-950/10' : ''
-                    ]"
-                >
-                    <span class="text-base shrink-0 mt-0.5">
-                        {{ insight.severity === 'critical' ? '🔴' : insight.severity === 'warning' ? '🟡' : '🔵' }}
-                    </span>
-                    <div class="flex-1">
-                        <p class="font-semibold text-slate-800 dark:text-slate-200" v-html="insight.message" />
-                        <p class="text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                            <AlertTriangle class="size-3 text-amber-500 shrink-0" />
-                            {{ insight.suggestion }}
-                        </p>
-                    </div>
-                    <span :class="[
-                        'shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border',
-                        insight.severity === 'critical' ? 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400' :
-                        insight.severity === 'warning'  ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400' :
-                                                          'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400'
-                    ]">
-                        {{ insight.value }}{{ insight.unit }}
-                    </span>
+        <div v-if="showInsights" class="rounded-2xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50/50 dark:bg-indigo-950/10 overflow-hidden shadow-lg animate-in fade-in duration-200">
+            <!-- Header and Tab Selection -->
+            <div class="px-4 py-3 border-b border-indigo-100 dark:border-indigo-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
+                <div class="flex items-center gap-2">
+                    <Sparkles class="size-4 text-indigo-500 animate-pulse" />
+                    <span class="text-sm font-bold text-indigo-700 dark:text-indigo-300">AI Kỹ nghệ thực đơn (Menu Engineering)</span>
+                </div>
+                <div class="flex items-center gap-1 bg-muted p-0.5 rounded-lg border text-xs self-start sm:self-auto">
+                    <button 
+                        @click="insightTab = 'matrix'"
+                        :class="['px-3 py-1 rounded-md font-semibold transition-all', insightTab === 'matrix' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground']"
+                    >
+                        Ma trận Boston (BCG)
+                    </button>
+                    <button 
+                        @click="insightTab = 'alerts'"
+                        :class="['px-3 py-1 rounded-md font-semibold transition-all', insightTab === 'alerts' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground']"
+                    >
+                        Cảnh báo vận hành ({{ insights.length }})
+                    </button>
                 </div>
             </div>
+
+            <!-- Loading -->
+            <div v-if="insightsLoading" class="flex items-center justify-center py-16 gap-2 text-indigo-500">
+                <Brain class="size-6 animate-pulse" />
+                <span class="text-sm font-semibold">AI đang phân tích dữ liệu bán hàng & giá vốn...</span>
+            </div>
+
+            <template v-else>
+                <!-- Tab: BCG Matrix -->
+                <div v-if="insightTab === 'matrix'" class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 4-Quadrant Matrix (Left / Span 2 columns) -->
+                    <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Top-Left: Plowhorses -->
+                        <div class="bg-amber-50/30 dark:bg-amber-950/5 border border-amber-200/50 rounded-xl p-4 min-h-[160px] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-amber-100 dark:border-amber-900/40 pb-2 mb-3">
+                                    <h5 class="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span>🐎</span> Plowhorses (Bò sữa)
+                                    </h5>
+                                    <span class="text-[10px] text-muted-foreground">Volume cao, Margin thấp</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button 
+                                        v-for="p in plowhorses" 
+                                        :key="p.product_id"
+                                        @click="selectedBcgProduct = p"
+                                        :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all', selectedBcgProduct?.product_id === p.product_id ? 'bg-amber-600 text-white border-amber-600 scale-105' : 'bg-background hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-700 dark:text-amber-450 border-amber-200']"
+                                    >
+                                        {{ p.name }}
+                                    </button>
+                                    <p v-if="plowhorses.length === 0" class="text-[11px] text-muted-foreground italic py-2">Trống.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Top-Right: Stars -->
+                        <div class="bg-emerald-50/30 dark:bg-emerald-950/5 border border-emerald-250/55 rounded-xl p-4 min-h-[160px] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-emerald-100 dark:border-emerald-900/40 pb-2 mb-3">
+                                    <h5 class="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span>⭐</span> Stars (Ngôi sao)
+                                    </h5>
+                                    <span class="text-[10px] text-muted-foreground">Volume cao, Margin cao</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button 
+                                        v-for="p in stars" 
+                                        :key="p.product_id"
+                                        @click="selectedBcgProduct = p"
+                                        :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all', selectedBcgProduct?.product_id === p.product_id ? 'bg-emerald-600 text-white border-emerald-600 scale-105' : 'bg-background hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-450 border-emerald-200']"
+                                    >
+                                        {{ p.name }}
+                                    </button>
+                                    <p v-if="stars.length === 0" class="text-[11px] text-muted-foreground italic py-2">Trống.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom-Left: Dogs -->
+                        <div class="bg-rose-50/30 dark:bg-rose-950/5 border border-rose-200/50 rounded-xl p-4 min-h-[160px] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-rose-100 dark:border-rose-900/40 pb-2 mb-3">
+                                    <h5 class="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span>🐶</span> Dogs (Thú cưng)
+                                    </h5>
+                                    <span class="text-[10px] text-muted-foreground">Volume thấp, Margin thấp</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button 
+                                        v-for="p in dogs" 
+                                        :key="p.product_id"
+                                        @click="selectedBcgProduct = p"
+                                        :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all', selectedBcgProduct?.product_id === p.product_id ? 'bg-rose-600 text-white border-rose-600 scale-105' : 'bg-background hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-700 dark:text-rose-450 border-rose-200']"
+                                    >
+                                        {{ p.name }}
+                                    </button>
+                                    <p v-if="dogs.length === 0" class="text-[11px] text-muted-foreground italic py-2">Trống.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom-Right: Puzzles -->
+                        <div class="bg-purple-50/30 dark:bg-purple-950/5 border border-purple-200/50 rounded-xl p-4 min-h-[160px] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-purple-100 dark:border-purple-900/40 pb-2 mb-3">
+                                    <h5 class="text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span>🧩</span> Puzzles (Câu đố)
+                                    </h5>
+                                    <span class="text-[10px] text-muted-foreground">Volume thấp, Margin cao</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button 
+                                        v-for="p in puzzles" 
+                                        :key="p.product_id"
+                                        @click="selectedBcgProduct = p"
+                                        :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all', selectedBcgProduct?.product_id === p.product_id ? 'bg-purple-600 text-white border-purple-600 scale-105' : 'bg-background hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-700 dark:text-purple-450 border-purple-200']"
+                                    >
+                                        {{ p.name }}
+                                    </button>
+                                    <p v-if="puzzles.length === 0" class="text-[11px] text-muted-foreground italic py-2">Trống.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Detail Analysis (Right / Span 1 column) -->
+                    <Card class="bg-background shadow-xs border">
+                        <CardHeader class="pb-3 border-b bg-muted/10">
+                            <CardTitle class="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Chi tiết đề xuất món ăn
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="p-4 space-y-4">
+                            <div v-if="selectedBcgProduct" class="space-y-4">
+                                <div>
+                                    <h4 class="text-lg font-bold text-slate-800 dark:text-slate-200">{{ selectedBcgProduct.name }}</h4>
+                                    <div class="flex items-center gap-2 mt-1.5">
+                                        <span :class="[
+                                            'text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider',
+                                            selectedBcgProduct.quadrant === 'star' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' :
+                                            selectedBcgProduct.quadrant === 'plowhorse' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400' :
+                                            selectedBcgProduct.quadrant === 'puzzle' ? 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-400' :
+                                                                                       'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
+                                        ]">
+                                            {{
+                                                selectedBcgProduct.quadrant === 'star' ? '⭐ Ngôi sao' :
+                                                selectedBcgProduct.quadrant === 'plowhorse' ? '🐎 Bò sữa' :
+                                                selectedBcgProduct.quadrant === 'puzzle' ? '🧩 Câu đố' :
+                                                                                            '🐶 Thú cưng'
+                                            }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Financial Metrics -->
+                                <div class="grid grid-cols-2 gap-3 text-xs bg-muted/20 p-3 rounded-xl">
+                                    <div>
+                                        <p class="text-muted-foreground">Doanh thu bán</p>
+                                        <p class="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                                            {{ formatCurrency(selectedBcgProduct.total_revenue) }}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p class="text-muted-foreground">Sản lượng (30 ngày)</p>
+                                        <p class="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                                            {{ selectedBcgProduct.total_qty }} đơn vị (Median: {{ selectedBcgProduct.median_qty }})
+                                        </p>
+                                    </div>
+                                    <div class="border-t pt-2 mt-1">
+                                        <p class="text-muted-foreground">Giá vốn / Giá bán</p>
+                                        <p class="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                                            {{ formatCurrency(selectedBcgProduct.cost_price) }} / {{ formatCurrency(selectedBcgProduct.price) }}
+                                        </p>
+                                    </div>
+                                    <div class="border-t pt-2 mt-1">
+                                        <p class="text-muted-foreground">Biên lợi nhuận %</p>
+                                        <p class="font-extrabold text-indigo-650 dark:text-indigo-400 mt-0.5">
+                                            {{ selectedBcgProduct.margin }}% (Median: {{ selectedBcgProduct.median_margin }}%)
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- AI Recommendation -->
+                                <div class="bg-indigo-50/50 border border-indigo-200/50 dark:bg-indigo-950/20 dark:border-indigo-900/60 rounded-xl p-3.5 flex gap-2.5">
+                                    <Sparkles class="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+                                    <div>
+                                        <h5 class="text-xs font-bold text-indigo-750 dark:text-indigo-400">Khuyến nghị AI</h5>
+                                        <p class="text-[11px] text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
+                                            {{ selectedBcgProduct.ai_recommendation }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else class="text-center py-10 text-muted-foreground text-xs">
+                                Chọn một món ăn bên trái để phân tích.
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Tab: Existing alerts -->
+                <div v-if="insightTab === 'alerts'" class="divide-y divide-indigo-100 dark:divide-indigo-800/30">
+                    <div v-if="!insights.length" class="flex flex-col items-center py-12 text-center text-slate-400">
+                        <CheckCircle2 class="size-8 text-emerald-400 mb-2" />
+                        <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu đang hoạt động tốt!</p>
+                        <p class="text-xs mt-1">Không phát hiện vấn đề cần cảnh báo trong 30 ngày qua.</p>
+                    </div>
+
+                    <div v-else v-for="(insight, i) in insights" :key="i"
+                        :class="[
+                            'flex items-start gap-3 px-4 py-3 text-xs transition-colors hover:bg-indigo-50/20',
+                            insight.severity === 'critical' ? 'bg-rose-50/80 dark:bg-rose-950/10' :
+                            insight.severity === 'warning'  ? 'bg-amber-50/80 dark:bg-amber-950/10' : ''
+                        ]"
+                    >
+                        <span class="text-base shrink-0 mt-0.5">
+                            {{ insight.severity === 'critical' ? '🔴' : insight.severity === 'warning' ? '🟡' : '🔵' }}
+                        </span>
+                        <div class="flex-1">
+                            <p class="font-semibold text-slate-800 dark:text-slate-200" v-html="insight.message" />
+                            <p class="text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                                <AlertTriangle class="size-3 text-amber-500 shrink-0" />
+                                {{ insight.suggestion }}
+                            </p>
+                        </div>
+                        <span :class="[
+                            'shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                            insight.severity === 'critical' ? 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400' :
+                            insight.severity === 'warning'  ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400' :
+                                                              'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400'
+                        ]">
+                            {{ insight.value }}{{ insight.unit }}
+                        </span>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <!-- Add Category Modal -->
