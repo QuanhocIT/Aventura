@@ -85,6 +85,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('employees/schedules/delete', [SupportController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
     Route::post('employees/schedules/toggle-auto', [SupportController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
     Route::post('employees/leaves', [SupportController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
+    Route::get('employees/leaves/{leave}/replacements', [SupportController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
     Route::patch('employees/leaves/{leave}/approve', [SupportController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
     Route::patch('employees/leaves/{leave}/reject', [SupportController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
 

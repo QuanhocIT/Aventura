@@ -1788,6 +1788,102 @@ class SupportController extends Controller
     }
 
     /**
+     * Lấy các gợi ý thế chỗ nhân sự cho đơn nghỉ phép.
+     */
+    public function getReplacementSuggestions(Request $request, LeaveRequest $leave): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
+
+        $employee = $leave->employee;
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Nhân viên không tồn tại.'], 404);
+        }
+
+        $startDate = $leave->start_date->toDateString();
+        $endDate = $leave->end_date->toDateString();
+
+        $assignments = ScheduleAssignment::where('employee_id', $employee->id)
+            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->whereBetween('scheduled_date', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->with(['shift'])
+            ->get();
+
+        $data = [];
+        foreach ($assignments as $assignment) {
+            $shift = $assignment->shift;
+            if (!$shift) continue;
+
+            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                ? $assignment->scheduled_date->toDateString()
+                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+
+            // Lấy các ứng viên có cùng vai trò chuyên môn, đang hoạt động và không trùng lịch trực ngày đó
+            $candidates = Employee::where('restaurant_id', $user->restaurant_id)
+                ->where('role_id', $employee->role_id)
+                ->where('id', '!=', $employee->id)
+                ->where('status', 'active')
+                ->get();
+
+            $suggestions = [];
+            foreach ($candidates as $cand) {
+                // Kiểm tra xem ứng viên này đã có lịch trực nào vào ngày đó chưa
+                $isScheduled = ScheduleAssignment::where('employee_id', $cand->id)
+                    ->whereDate('scheduled_date', $dateStr)
+                    ->whereIn('status', ['scheduled', 'checked_in'])
+                    ->exists();
+
+                if ($isScheduled) {
+                    continue;
+                }
+
+                // Kiểm tra đăng ký rảnh (ScheduleRegistration)
+                $isRegistered = ScheduleRegistration::where('employee_id', $cand->id)
+                    ->whereDate('scheduled_date', $dateStr)
+                    ->where('shift_id', $shift->id)
+                    ->exists();
+
+                $suggestions[] = [
+                    'id' => $cand->id,
+                    'full_name' => $cand->full_name,
+                    'employee_code' => $cand->employee_code,
+                    'registered_available' => $isRegistered,
+                ];
+            }
+
+            // Ưu tiên nhân viên đăng ký rảnh lên đầu
+            usort($suggestions, function ($a, $b) {
+                return $b['registered_available'] <=> $a['registered_available'];
+            });
+
+            $formattedDate = $assignment->scheduled_date instanceof \Carbon\Carbon
+                ? $assignment->scheduled_date->format('d/m/Y')
+                : \Carbon\Carbon::parse($assignment->scheduled_date)->format('d/m/Y');
+
+            $data[] = [
+                'assignment_id' => $assignment->id,
+                'date' => $dateStr,
+                'formatted_date' => $formattedDate,
+                'shift_id' => $shift->id,
+                'shift_name' => $shift->name ? explode(' (', $shift->name)[0] : 'Ca Mới',
+                'shift_time' => $shift->start_time . ' - ' . $shift->end_time,
+                'suggestions' => $suggestions,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'leave_id' => $leave->id,
+            'employee_name' => $employee->full_name,
+            'leave_type' => $leave->leave_type,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'assignments' => $data,
+        ]);
+    }
+
+    /**
      * Phê duyệt đơn xin nghỉ phép / nghỉ việc.
      */
     public function approveLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
@@ -1805,19 +1901,7 @@ class SupportController extends Controller
         $employee = $leave->employee;
 
         if ($employee) {
-            if ($leave->leave_type === 'emergency') {
-                // Tự động thay đổi lịch làm việc sang leave_approved (Đảm bảo hoạt động trên mọi DB)
-                $assignments = ScheduleAssignment::where('employee_id', $employee->id)->get();
-                foreach ($assignments as $assignment) {
-                    $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
-                        ? $assignment->scheduled_date->toDateString()
-                        : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
-
-                    if ($dateStr >= $leave->start_date->toDateString() && $dateStr <= $leave->end_date->toDateString()) {
-                        $assignment->update(['status' => 'leave_approved']);
-                    }
-                }
-            } elseif ($leave->leave_type === 'resignation') {
+            if ($leave->leave_type === 'resignation') {
                 // Chuyển trạng thái sang terminated
                 $employee->update(['status' => 'terminated']);
 
@@ -1829,6 +1913,40 @@ class SupportController extends Controller
 
                 // Kích hoạt Xóa mềm
                 $employee->delete();
+            } else {
+                $replacements = $request->input('replacements', []);
+
+                $assignments = ScheduleAssignment::where('employee_id', $employee->id)->get();
+                foreach ($assignments as $assignment) {
+                    $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                        ? $assignment->scheduled_date->toDateString()
+                        : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+
+                    if ($dateStr >= $leave->start_date->toDateString() && $dateStr <= $leave->end_date->toDateString()) {
+                        // Cập nhật trạng thái lịch làm sang leave_approved
+                        $assignment->update(['status' => 'leave_approved']);
+
+                        // Tạo lịch trực mới cho nhân viên thay thế (nếu có)
+                        if (!empty($replacements[$assignment->id])) {
+                            $replacementEmpId = $replacements[$assignment->id];
+                            $replacementEmp = Employee::where('restaurant_id', $user->restaurant_id)
+                                ->where('id', $replacementEmpId)
+                                ->where('status', 'active')
+                                ->first();
+
+                            if ($replacementEmp) {
+                                ScheduleAssignment::create([
+                                    'restaurant_id' => $user->restaurant_id,
+                                    'branch_id' => $assignment->branch_id,
+                                    'employee_id' => $replacementEmp->id,
+                                    'shift_id' => $assignment->shift_id,
+                                    'scheduled_date' => $assignment->scheduled_date,
+                                    'status' => 'scheduled',
+                                ]);
+                            }
+                        }
+                    }
+                }
             }
         }
 

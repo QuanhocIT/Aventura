@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
+import axios from 'axios';
 
 defineOptions({ layout: AppLayout });
 
@@ -258,6 +259,12 @@ const showLeaveModal = ref(false);
 const showRejectModal = ref<number | null>(null);
 const rejectReason = ref('');
 
+const showApproveReplacementModal = ref(false);
+const replacementLeaveId = ref<number | null>(null);
+const replacementLeaveData = ref<any>(null);
+const selectedReplacements = ref<Record<number, string>>({});
+const isLoadingReplacements = ref(false);
+
 const leaveForm = useForm({
     employee_id: '',
     leave_type: 'annual',
@@ -312,11 +319,66 @@ function submitLeaveRequest() {
     });
 }
 
-function approveLeave(id: number) {
-    if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này? Mọi tác vụ tự động (hủy ca hoặc chấm dứt hợp đồng) sẽ được thực thi.')) return;
-    router.patch(`/employees/leaves/${id}/approve`, {}, {
-        onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thành công!')),
-        onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
+function startApproveLeave(leave: any) {
+    if (leave.leave_type === 'resignation') {
+        if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn thôi việc này? Tài khoản nhân viên sẽ bị khóa và xóa mềm.')) return;
+        router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
+            onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thôi việc thành công!')),
+            onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
+        });
+        return;
+    }
+
+    isLoadingReplacements.value = true;
+    axios.get(`/employees/leaves/${leave.id}/replacements`)
+        .then(res => {
+            if (res.data.success && res.data.assignments && res.data.assignments.length > 0) {
+                replacementLeaveId.value = leave.id;
+                replacementLeaveData.value = res.data;
+                selectedReplacements.value = {};
+                res.data.assignments.forEach((assignment: any) => {
+                    if (assignment.suggestions && assignment.suggestions.length > 0) {
+                        selectedReplacements.value[assignment.assignment_id] = String(assignment.suggestions[0].id);
+                    } else {
+                        selectedReplacements.value[assignment.assignment_id] = '';
+                    }
+                });
+                showApproveReplacementModal.value = true;
+            } else {
+                if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) return;
+                router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
+                    onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thành công!')),
+                    onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
+                });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) return;
+            router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
+                onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thành công!')),
+                onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
+            });
+        })
+        .finally(() => {
+            isLoadingReplacements.value = false;
+        });
+}
+
+function submitApproveWithReplacements() {
+    if (!replacementLeaveId.value) return;
+
+    router.patch(`/employees/leaves/${replacementLeaveId.value}/approve`, {
+        replacements: selectedReplacements.value
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn nghỉ và thế chỗ thành công!'));
+            showApproveReplacementModal.value = false;
+            replacementLeaveId.value = null;
+            replacementLeaveData.value = null;
+            selectedReplacements.value = {};
+        },
+        onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt và thế chỗ.')),
     });
 }
 
@@ -980,7 +1042,7 @@ const getRegistrationsForDay = (dayKey: string) => {
                                 <td class="p-3.5 text-right flex items-center justify-end gap-1.5">
                                     <template v-if="leave.status === 'pending'">
                                         <button 
-                                            @click="approveLeave(leave.id)"
+                                            @click="startApproveLeave(leave)"
                                             class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-700 transition shadow active:scale-95 animate-in fade-in"
                                         >
                                             Phê duyệt
@@ -1242,6 +1304,86 @@ const getRegistrationsForDay = (dayKey: string) => {
                             <Button type="submit" size="sm" class="bg-indigo-600 text-white font-semibold">Gửi yêu cầu</Button>
                         </div>
                     </form>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Modal: Duyệt đơn & Gợi ý thế chỗ nhân sự (showApproveReplacementModal) -->
+        <div v-if="showApproveReplacementModal && replacementLeaveData" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <Card class="max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-emerald-600">
+                            <UserCheck class="size-5" />
+                            Duyệt Nghỉ Phép & Thế Chỗ Nhân Sự
+                        </CardTitle>
+                        <CardDescription>
+                            Nhân viên <strong class="text-slate-800 dark:text-slate-200">{{ replacementLeaveData.employee_name }}</strong> xin nghỉ từ {{ replacementLeaveData.start_date }} đến {{ replacementLeaveData.end_date }}.
+                        </CardDescription>
+                    </div>
+                    <button @click="showApproveReplacementModal = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                <CardContent class="pt-4 space-y-4">
+                    <p class="text-xs text-muted-foreground">
+                        Hệ thống tự động phát hiện nhân sự có lịch làm trùng lặp. Vui lòng chọn nhân sự thay thế cho từng ca trực dưới đây:
+                    </p>
+
+                    <div class="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                        <div 
+                            v-for="assignment in replacementLeaveData.assignments" 
+                            :key="assignment.assignment_id"
+                            class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 space-y-3"
+                        >
+                            <div class="flex justify-between items-center">
+                                <div class="text-xs">
+                                    <span class="font-black text-slate-800 dark:text-slate-200">Thứ {{ assignment.formatted_date }}</span>
+                                    <p class="text-[10px] text-muted-foreground font-semibold mt-0.5">{{ assignment.shift_name }} ({{ assignment.shift_time }})</p>
+                                </div>
+                                <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                                    Ca cần thế chỗ
+                                </span>
+                            </div>
+
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] text-muted-foreground uppercase font-bold">Nhân sự thay thế</Label>
+                                <select
+                                    v-model="selectedReplacements[assignment.assignment_id]"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                >
+                                    <option value="">-- Để trống ca trực --</option>
+                                    <option 
+                                        v-for="cand in assignment.suggestions" 
+                                        :key="cand.id" 
+                                        :value="String(cand.id)"
+                                    >
+                                        {{ cand.full_name }} ({{ cand.employee_code }}) {{ cand.registered_available ? '⚡ AI Đề xuất (Rảnh)' : '' }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div 
+                                v-if="assignment.suggestions.length === 0" 
+                                class="text-[10px] text-rose-500 italic flex items-center gap-1"
+                            >
+                                <AlertCircle class="size-3" /> Không có nhân viên cùng vị trí rảnh ca này.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
+                        <Button type="button" variant="outline" size="sm" @click="showApproveReplacementModal = false">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            @click="submitApproveWithReplacements" 
+                            class="bg-indigo-600 text-white font-semibold flex items-center gap-1 hover:bg-indigo-700 shadow"
+                        >
+                            <CheckCircle2 class="size-4" />
+                            Phê duyệt & Thế chỗ (1-Click)
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
         </div>
