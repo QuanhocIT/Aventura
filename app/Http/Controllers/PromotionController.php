@@ -165,6 +165,7 @@ class PromotionController extends Controller
         $data = $request->validate([
             'order_id' => ['required', 'exists:orders,id'],
             'code' => ['required', 'string'],
+            'bypass_code' => ['nullable', 'string'],
         ]);
 
         $order = Order::where('restaurant_id', $restaurantId)->findOrFail($data['order_id']);
@@ -178,6 +179,44 @@ class PromotionController extends Controller
 
         if (!$promotion) {
             return response()->json(['message' => 'Mã khuyến mãi không tồn tại hoặc đã bị vô hiệu hóa.'], 422);
+        }
+
+        // Real-Time Fraud Prevention Checks
+        $cashierAppliedCount = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
+            ->where('user_id', $user->id)
+            ->where('action', 'discount_applied')
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->count();
+
+        $customerId = $order->customer_id;
+        $customerAppliedCount = 0;
+        if ($customerId) {
+            $customerAppliedCount = Order::where('restaurant_id', $restaurantId)
+                ->where('customer_id', $customerId)
+                ->where('id', '!=', $order->id)
+                ->whereNotNull('completed_at')
+                ->where('discount_amount', '>', 0)
+                ->where('completed_at', '>=', now()->subMinutes(10))
+                ->count();
+        }
+
+        $suspicious = ($cashierAppliedCount >= 3) || ($customerAppliedCount > 0);
+
+        if ($suspicious) {
+            $bypassCode = $data['bypass_code'] ?? null;
+            if ($bypassCode !== 'MANAGER123') {
+                return response()->json([
+                    'status' => 'requires_bypass',
+                    'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý (MANAGER123) để tiếp tục.'
+                ], 422);
+            }
+
+            // Log special bypass action
+            AuditLog::log('discount_applied_bypass', 'updated', $order, null, [
+                'cashier_applied_last_5_min' => $cashierAppliedCount,
+                'customer_applied_last_10_min' => $customerAppliedCount,
+                'bypass_code_used' => true,
+            ]);
         }
 
         // 2. Kiểm tra thời hạn áp dụng

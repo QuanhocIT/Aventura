@@ -84,6 +84,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('employees/schedules', [SupportController::class, 'storeAssignment'])->name('employees.schedules.store');
     Route::post('employees/schedules/delete', [SupportController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
     Route::post('employees/schedules/toggle-auto', [SupportController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
+    Route::post('employees/schedules/copy-last-week', [SupportController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
     Route::post('employees/leaves', [SupportController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
     Route::get('employees/leaves/{leave}/replacements', [SupportController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
     Route::patch('employees/leaves/{leave}/approve', [SupportController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
@@ -97,6 +98,19 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('schedules/check-out-employee', [ScheduleController::class, 'checkOutEmployee'])->name('schedules.check-out-employee');
     Route::post('schedules/absent-employee', [ScheduleController::class, 'markAbsentEmployee'])->name('schedules.absent-employee');
     Route::post('schedules/register', [ScheduleController::class, 'register'])->name('schedules.register');
+    Route::post('schedules/toggle-leader', [ScheduleController::class, 'toggleShiftLeader'])->name('schedules.toggle-leader');
+    Route::post('schedules/settings', [ScheduleController::class, 'updateSettings'])->name('schedules.update-settings');
+    Route::post('schedules/settings/generate-qr', [ScheduleController::class, 'generateDailyQR'])->name('schedules.settings.generate-qr');
+    Route::post('schedules/approve-registration', [ScheduleController::class, 'approveRegistration'])->name('schedules.approve-registration');
+    Route::get('schedules/export', [ScheduleController::class, 'export'])->name('schedules.export');
+
+    // Shift Swapping
+    Route::post('schedules/swap/request', [ScheduleController::class, 'requestSwap'])->name('schedules.swap.request');
+    Route::post('schedules/swap/{swap}/accept', [ScheduleController::class, 'acceptSwap'])->name('schedules.swap.accept');
+    Route::post('schedules/swap/{swap}/cancel', [ScheduleController::class, 'cancelSwap'])->name('schedules.swap.cancel');
+    Route::patch('schedules/swap/{swap}/approve', [SupportController::class, 'approveSwap'])->name('schedules.swap.approve');
+    Route::patch('schedules/swap/{swap}/reject', [SupportController::class, 'rejectSwap'])->name('schedules.swap.reject');
+
 
     // Quản lý Khách hàng (CRM Mini) & Bảo mật tài sản số
     Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');

@@ -39,6 +39,7 @@ class ScheduleAssignment extends Model
             'scheduled_date' => 'date',
             'check_in_at' => 'datetime',
             'check_out_at' => 'datetime',
+            'is_shift_leader' => 'boolean',
         ];
     }
 
@@ -52,7 +53,7 @@ class ScheduleAssignment extends Model
         return $this->belongsTo(WorkShift::class, 'shift_id');
     }
 
-    public static function findEmployeeOnShiftAt($timestamp, $restaurantId)
+    public static function findEmployeesOnShiftAt($timestamp, $restaurantId)
     {
         $dateTime = \Carbon\Carbon::parse($timestamp);
         $targetDate = $dateTime->toDateString();
@@ -60,9 +61,11 @@ class ScheduleAssignment extends Model
         $nextDate = $dateTime->copy()->addDay()->toDateString();
 
         $assignments = self::where('restaurant_id', $restaurantId)
-            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
             ->with(['employee', 'shift'])
             ->get();
+
+        $activeAssignments = collect();
 
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
@@ -87,11 +90,17 @@ class ScheduleAssignment extends Model
             }
 
             if ($dateTime->between($start, $end)) {
-                return $assignment->employee;
+                $activeAssignments->push($assignment);
             }
         }
 
-        return null;
+        return $activeAssignments;
+    }
+
+    public static function findEmployeeOnShiftAt($timestamp, $restaurantId)
+    {
+        $active = self::findEmployeesOnShiftAt($timestamp, $restaurantId);
+        return $active->first()?->employee;
     }
 
     protected static function newFactory(): Factory

@@ -268,6 +268,7 @@ class OrdersController extends Controller
             'payment_method' => ['required', 'in:cash,bank_transfer,card,ewallet'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change_amount' => ['nullable', 'numeric', 'min:0'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $this->orderService->payOrder($order, $data, $user);

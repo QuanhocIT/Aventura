@@ -3,7 +3,7 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     CalendarDays, Clock, CheckCircle2, AlertCircle, Sparkles, UserCheck, 
     ShieldCheck, Calendar, Users, LogIn, LogOut, Check, Ban, Search, 
-    ArrowLeft, Printer, RefreshCw, HelpCircle, MessageSquare, X
+    ArrowLeft, Printer, RefreshCw, HelpCircle, MessageSquare, X, Crown, Settings
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ type Assignment = {
     check_in_at: string | null;
     check_out_at: string | null;
     status: 'scheduled' | 'checked_in' | 'completed' | 'absent' | 'leave_approved';
+    is_shift_leader: boolean;
     duration: string | null;
     notes: string | null;
 };
@@ -58,7 +59,8 @@ type PropType = {
         leave: number;
         total: number;
     };
-    weeklyAssignments?: RosterAssignment[];
+    weeklyAssignments?: any[];
+    employee?: { id: number; full_name: string };
     shifts?: Array<{ id: number; name: string; start: string; end: string }>;
     employees?: Array<{ id: number; full_name: string; job_title: string; employee_code: string }>;
     registrations?: Array<{
@@ -71,6 +73,36 @@ type PropType = {
         shift_name: string;
         scheduled_date: string;
         day: string;
+    }>;
+    restaurantSettings?: {
+        grace_period_minutes: number;
+        ot_multiplier: number;
+    };
+    gpsSettings?: {
+        latitude: number | null;
+        longitude: number | null;
+        radius: number;
+    };
+    qrSettings?: {
+        code: string | null;
+        expires_at: string | null;
+        is_expired: boolean;
+    };
+    allPendingSwaps?: ShiftSwapType[];
+    pendingSwapRequests?: ShiftSwapType[];
+    monthlyAssignments?: Array<{
+        id: number;
+        employee_id: number;
+        employee_name: string;
+        employee_code: string;
+        job_title: string;
+        compensation_type: string;
+        pay_rate: number;
+        base_salary: number;
+        scheduled_date: string;
+        status: string;
+        duration_hours: number;
+        late_minutes: number | null;
     }>;
     // Staff specific props
     myWeeklySchedules?: Array<{
@@ -95,6 +127,19 @@ type PropType = {
         can_check_in: boolean;
         can_check_out: boolean;
     } | null;
+};
+
+type ShiftSwapType = {
+    id: number;
+    status: 'pending' | 'accepted' | 'approved' | 'rejected' | 'cancelled';
+    notes: string | null;
+    is_requester?: boolean;
+    requester_name: string;
+    requester_shift: string;
+    requester_date: string;
+    receiver_name: string;
+    receiver_shift: string;
+    receiver_date: string;
 };
 
 const props = defineProps<PropType>();
@@ -147,7 +192,83 @@ const startLiveDurationTimer = (checkInStr: string) => {
 const selectedRegs = ref<Array<{ shift_id: number; date: string }>>([]);
 const isSavingRegs = ref(false);
 const activeStaffTab = ref<'roster' | 'register'>('roster');
-const activeAdminTab = ref<'attendance' | 'roster' | 'register'>('attendance');
+const activeAdminTab = ref<'attendance' | 'roster' | 'register' | 'settings' | 'swaps' | 'analytics'>('attendance');
+
+// --- SETTINGS PANEL STATE ---
+const gracePeriod = ref(props.restaurantSettings?.grace_period_minutes ?? 10);
+const otMultiplier = ref(props.restaurantSettings?.ot_multiplier ?? 1.50);
+const latitude = ref(props.gpsSettings?.latitude ?? '');
+const longitude = ref(props.gpsSettings?.longitude ?? '');
+const checkinRadius = ref(props.gpsSettings?.radius ?? 100);
+const isSavingSettings = ref(false);
+const isGeneratingQR = ref(false);
+
+const saveSettings = () => {
+    isSavingSettings.value = true;
+    router.post('/schedules/settings', {
+        grace_period_minutes: gracePeriod.value,
+        ot_multiplier: otMultiplier.value,
+        latitude: latitude.value === '' ? null : Number(latitude.value),
+        longitude: longitude.value === '' ? null : Number(longitude.value),
+        checkin_radius_meters: Number(checkinRadius.value),
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã lưu cấu hình chấm công thành công!'));
+        },
+        onError: () => {
+            import('vue-sonner').then(m => m.toast.error('Có lỗi xảy ra khi lưu cấu hình.'));
+        },
+        onFinish: () => {
+            isSavingSettings.value = false;
+        }
+    });
+};
+
+const generateDailyQR = () => {
+    isGeneratingQR.value = true;
+    router.post('/schedules/settings/generate-qr', {}, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã tạo mã QR chấm công hôm nay thành công!'));
+        },
+        onError: () => {
+            import('vue-sonner').then(m => m.toast.error('Có lỗi xảy ra khi tạo mã QR.'));
+        },
+        onFinish: () => {
+            isGeneratingQR.value = false;
+        }
+    });
+};
+
+// --- SHIFT LEADER TOGGLE ---
+const toggleShiftLeader = (assignmentId: number) => {
+    router.post('/schedules/toggle-leader', {
+        assignment_id: assignmentId
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Cập nhật vai trò Trưởng ca thành công!'));
+        }
+    });
+};
+
+// --- APPROVE REGISTRATION ---
+const isApprovingReg = ref<number | null>(null);
+const approveRegistration = (regId: number) => {
+    isApprovingReg.value = regId;
+    router.post('/schedules/approve-registration', {
+        registration_id: regId
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã xếp lịch trực từ ca rảnh thành công!'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi xếp ca.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isApprovingReg.value = null;
+        }
+    });
+};
 
 // Pagination for personal weekly schedules
 const rosterPage = ref(1);
@@ -220,6 +341,10 @@ const overrideAction = ref<'check_in' | 'check_out' | 'absent'>('check_in');
 const overrideNotes = ref('');
 const processingOverride = ref(false);
 
+const applyViolation = ref(false);
+const penaltyAmount = ref(0);
+const violationNotes = ref('');
+
 const weekDays = [
     { key: 'Monday', label: 'Thứ Hai' },
     { key: 'Tuesday', label: 'Thứ Ba' },
@@ -264,20 +389,288 @@ const closeOverrideModal = () => {
     overrideModal.value = false;
     activeOverrideAssignment.value = null;
     overrideNotes.value = '';
+    applyViolation.value = false;
+    penaltyAmount.value = 0;
+    violationNotes.value = '';
 };
 
 // --- ACTIONS ---
-const handleCheckIn = () => {
-    router.post('/schedules/check-in', {}, {
+// --- SECURE CHECK-IN STATE ---
+const checkInModalOpen = ref(false);
+const gpsCoords = ref<{ latitude: number | null; longitude: number | null }>({ latitude: null, longitude: null });
+const gpsStatus = ref<'idle' | 'fetching' | 'success' | 'error'>('idle');
+const gpsErrorMsg = ref('');
+const inputQrCode = ref('');
+const isCheckingIn = ref(false);
+
+const openCheckInFlow = () => {
+    gpsCoords.value = { latitude: null, longitude: null };
+    gpsStatus.value = 'idle';
+    gpsErrorMsg.value = '';
+    inputQrCode.value = '';
+    isCheckingIn.value = false;
+    checkInModalOpen.value = true;
+
+    if (props.gpsSettings?.latitude && props.gpsSettings?.longitude) {
+        gpsStatus.value = 'fetching';
+        if (!navigator.geolocation) {
+            gpsStatus.value = 'error';
+            gpsErrorMsg.value = 'Trình duyệt không hỗ trợ định vị GPS.';
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                gpsCoords.value.latitude = position.coords.latitude;
+                gpsCoords.value.longitude = position.coords.longitude;
+                gpsStatus.value = 'success';
+            },
+            (error) => {
+                gpsStatus.value = 'error';
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        gpsErrorMsg.value = 'Quyền truy cập định vị bị từ chối. Vui lòng bật định vị.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        gpsErrorMsg.value = 'Không thể xác định vị trí GPS hiện tại.';
+                        break;
+                    case error.TIMEOUT:
+                        gpsErrorMsg.value = 'Hết thời gian yêu cầu lấy vị trí GPS.';
+                        break;
+                    default:
+                        gpsErrorMsg.value = error.message || 'Lỗi định vị vị trí.';
+                }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    } else {
+        gpsStatus.value = 'success';
+    }
+};
+
+const submitCheckIn = () => {
+    isCheckingIn.value = true;
+    router.post('/schedules/check-in', {
+        latitude: gpsCoords.value.latitude,
+        longitude: gpsCoords.value.longitude,
+        qr_code: inputQrCode.value
+    }, {
         onSuccess: (page: any) => {
-            // Start duration timer immediately if active assignment checked-in successfully
+            checkInModalOpen.value = false;
+            import('vue-sonner').then(m => m.toast.success('Bấm giờ vào ca thành công!'));
             const freshAssign = page.props.todayActiveAssignment as any;
             if (freshAssign && freshAssign.status === 'checked_in' && freshAssign.check_in_at) {
                 startLiveDurationTimer(freshAssign.check_in_at);
             }
+        },
+        onError: (errors: any) => {
+            const errorMsg = Object.values(errors).join(', ') || 'Có lỗi xảy ra khi check-in.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isCheckingIn.value = false;
         }
     });
 };
+
+// --- STAFF SHIFT SWAPPING STATE ---
+const swapModalOpen = ref(false);
+const selectedMyShift = ref<any>(null);
+const selectedTargetShiftId = ref<number | null>(null);
+const swapNotes = ref('');
+const isSubmittingSwap = ref(false);
+
+const swappableShifts = computed(() => {
+    if (!props.weeklyAssignments || !props.employee) return [];
+    return props.weeklyAssignments.filter(wa => wa.employee_id !== props.employee?.id);
+});
+
+const openSwapModal = (myShift: any) => {
+    selectedMyShift.value = myShift;
+    selectedTargetShiftId.value = null;
+    swapNotes.value = '';
+    isSubmittingSwap.value = false;
+    swapModalOpen.value = true;
+};
+
+const submitSwapRequest = () => {
+    if (!selectedMyShift.value || !selectedTargetShiftId.value) {
+        import('vue-sonner').then(m => m.toast.error('Vui lòng chọn ca muốn đề xuất đổi.'));
+        return;
+    }
+    isSubmittingSwap.value = true;
+    router.post('/schedules/swap/request', {
+        requester_assignment_id: selectedMyShift.value.id,
+        receiver_assignment_id: selectedTargetShiftId.value,
+        notes: swapNotes.value
+    }, {
+        onSuccess: () => {
+            swapModalOpen.value = false;
+            import('vue-sonner').then(m => m.toast.success('Đã gửi đề xuất đổi ca tới đồng nghiệp thành công!'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi gửi yêu cầu đổi ca.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isSubmittingSwap.value = false;
+        }
+    });
+};
+
+const acceptSwapRequest = (swapId: number) => {
+    router.post(`/schedules/swap/${swapId}/accept`, {}, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đồng ý đổi ca thành công! Đang chờ Quản lý duyệt.'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi đồng ý đổi ca.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        }
+    });
+};
+
+const cancelSwapRequest = (swapId: number) => {
+    router.post(`/schedules/swap/${swapId}/cancel`, {}, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã hủy/từ chối yêu cầu đổi ca thành công!'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi xử lý hủy ca.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        }
+    });
+};
+
+// --- ADMIN SHIFT SWAP APPROVALS ---
+const isRejectingSwap = ref(false);
+const activeRejectSwapId = ref<number | null>(null);
+const rejectNotes = ref('');
+
+const approveSwap = (swapId: number) => {
+    router.patch(`/schedules/swap/${swapId}/approve`, {}, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đổi ca thành công!'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi phê duyệt.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        }
+    });
+};
+
+const openRejectSwapModal = (swapId: number) => {
+    activeRejectSwapId.value = swapId;
+    rejectNotes.value = '';
+    isRejectingSwap.value = true;
+};
+
+const submitRejectSwap = () => {
+    if (!activeRejectSwapId.value) return;
+    router.patch(`/schedules/swap/${activeRejectSwapId.value}/reject`, {
+        notes: rejectNotes.value
+    }, {
+        onSuccess: () => {
+            isRejectingSwap.value = false;
+            import('vue-sonner').then(m => m.toast.success('Đã từ chối đổi ca thành công!'));
+        },
+        onError: (errors: any) => {
+            const errorMsg = errors.error || 'Có lỗi xảy ra khi từ chối.';
+            import('vue-sonner').then(m => m.toast.error(errorMsg));
+        }
+    });
+};
+
+// --- REAL-TIME ATTENDANCE ANALYTICS ---
+const analyticsData = computed(() => {
+    if (!props.monthlyAssignments || props.monthlyAssignments.length === 0) {
+        return {
+            totalAssignments: 0,
+            onTimeCount: 0,
+            lateCount: 0,
+            absentCount: 0,
+            punctualityRate: 0,
+            employeeStats: []
+        };
+    }
+
+    const assignments = props.monthlyAssignments;
+    const total = assignments.length;
+    
+    const punctualityChecked = assignments.filter(a => a.status === 'completed' || a.status === 'checked_in');
+    const late = punctualityChecked.filter(a => a.late_minutes && a.late_minutes > 0);
+    const absent = assignments.filter(a => a.status === 'absent');
+    const onTime = punctualityChecked.length - late.length;
+    
+    const punctualityRate = punctualityChecked.length > 0 
+        ? Math.round((onTime / punctualityChecked.length) * 100) 
+        : 0;
+
+    const employeeMap: Record<number, {
+        name: string;
+        code: string;
+        jobTitle: string;
+        compensationType: string;
+        payRate: number;
+        baseSalary: number;
+        totalHours: number;
+        completedCount: number;
+        lateCount: number;
+    }> = {};
+
+    assignments.forEach(a => {
+        if (!employeeMap[a.employee_id]) {
+            employeeMap[a.employee_id] = {
+                name: a.employee_name,
+                code: a.employee_code,
+                jobTitle: a.job_title,
+                compensationType: a.compensation_type,
+                payRate: a.pay_rate,
+                baseSalary: a.base_salary,
+                totalHours: 0,
+                completedCount: 0,
+                lateCount: 0
+            };
+        }
+        
+        const emp = employeeMap[a.employee_id];
+        if (a.status === 'completed') {
+            emp.completedCount++;
+            emp.totalHours += a.duration_hours;
+        } else if (a.status === 'checked_in') {
+            emp.totalHours += a.duration_hours;
+        }
+        
+        if (a.late_minutes && a.late_minutes > 0) {
+            emp.lateCount++;
+        }
+    });
+
+    const employeeStats = Object.values(employeeMap).map(emp => {
+        let estimatedWage = 0;
+        if (emp.compensationType === 'hourly') {
+            estimatedWage = emp.totalHours * emp.payRate;
+        } else if (emp.compensationType === 'shift') {
+            estimatedWage = emp.completedCount * emp.payRate;
+        } else {
+            estimatedWage = (emp.baseSalary / 208) * emp.totalHours;
+        }
+
+        return {
+            ...emp,
+            totalHours: Math.round(emp.totalHours * 100) / 100,
+            estimatedWage: Math.round(estimatedWage)
+        };
+    });
+
+    return {
+        totalAssignments: total,
+        onTimeCount: onTime,
+        lateCount: late.length,
+        absentCount: absent.length,
+        punctualityRate,
+        employeeStats
+    };
+});
 
 const handleCheckOut = () => {
     if (confirm('Bạn chắc chắn muốn check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.')) {
@@ -299,10 +692,14 @@ const submitAdminOverride = () => {
     
     router.post(url, {
         assignment_id: activeOverrideAssignment.value.id,
-        notes: overrideNotes.value
+        notes: overrideNotes.value,
+        apply_violation: applyViolation.value,
+        penalty_amount: penaltyAmount.value,
+        violation_notes: violationNotes.value
     }, {
         onSuccess: () => {
             closeOverrideModal();
+            import('vue-sonner').then(m => m.toast.success('Ghi nhận điều chỉnh chấm công thành công!'));
         },
         onFinish: () => {
             processingOverride.value = false;
@@ -536,6 +933,45 @@ const printRoster = () => {
                     <Clock class="size-3.5" />
                     Đăng ký ca rảnh
                 </button>
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'settings'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'settings'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <Settings class="size-3.5" />
+                    Cài đặt chấm công
+                </button>
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'swaps'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'swaps'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <RefreshCw class="size-3.5" />
+                    Duyệt đổi ca
+                </button>
+                <button
+                    type="button"
+                    @click="activeAdminTab = 'analytics'"
+                    :class="[
+                        'px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1.5',
+                        activeAdminTab === 'analytics'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                    ]"
+                >
+                    <Sparkles class="size-3.5" />
+                    Báo cáo & Phân tích
+                </button>
             </div>
 
             <!-- Card 1: Attendance Logs -->
@@ -572,8 +1008,18 @@ const printRoster = () => {
                             class="h-8 text-xs shrink-0 flex items-center gap-1 text-slate-600 border-slate-200"
                         >
                             <Printer class="size-3.5" />
-                            In/Xuất báo cáo
+                            In báo cáo
                         </Button>
+
+                        <!-- Export CSV -->
+                        <a 
+                            :href="'/schedules/export?date=' + adminDate"
+                            class="h-8 text-xs shrink-0 inline-flex items-center justify-center rounded-md font-semibold border border-slate-200 bg-white shadow-xs hover:bg-slate-50 px-3 gap-1 text-indigo-650 dark:text-indigo-400"
+                            target="_blank"
+                        >
+                            <LogOut class="size-3.5 rotate-90 text-indigo-650 dark:text-indigo-400" />
+                            Xuất Excel (CSV)
+                        </a>
                     </div>
                 </CardHeader>
 
@@ -612,7 +1058,10 @@ const printRoster = () => {
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                                 <tr v-for="a in filteredAssignments" :key="a.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                                     <td class="p-3.5">
-                                        <div class="font-bold text-slate-800 dark:text-slate-200">{{ a.employee_name }}</div>
+                                        <div class="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                                            <span>{{ a.employee_name }}</span>
+                                            <Crown v-if="a.is_shift_leader" class="size-3.5 text-amber-500 fill-amber-500 shrink-0 animate-bounce" title="Trưởng ca trực" />
+                                        </div>
                                         <div class="text-[10px] text-slate-400 mt-0.5">{{ a.employee_code }} · {{ a.job_title }}</div>
                                     </td>
                                     <td class="p-3.5">
@@ -652,6 +1101,20 @@ const printRoster = () => {
                                         </span>
                                     </td>
                                     <td class="p-3.5 text-right flex items-center justify-end gap-1.5 print:hidden">
+                                        <!-- Toggle Shift Leader Button -->
+                                        <button 
+                                            @click="toggleShiftLeader(a.id)"
+                                            :class="[
+                                                'inline-flex cursor-pointer items-center justify-center rounded p-1 text-[10px] font-bold border transition active:scale-95 shadow-xs',
+                                                a.is_shift_leader 
+                                                    ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600' 
+                                                    : 'bg-white hover:bg-slate-50 text-slate-650 border-slate-200 dark:bg-slate-900 dark:border-slate-800'
+                                            ]"
+                                            :title="a.is_shift_leader ? 'Hủy vai trò Trưởng ca' : 'Gán làm Trưởng ca'"
+                                        >
+                                            <Crown class="size-3.5" />
+                                        </button>
+
                                         <!-- Actions based on status -->
                                         <template v-if="a.status === 'scheduled'">
                                             <button 
@@ -790,13 +1253,17 @@ const printRoster = () => {
                                                     {{ shift.name.split(' (')[0] }}
                                                 </div>
                                                 <div class="mt-1 flex flex-wrap gap-1">
-                                                    <span
+                                                    <button
                                                         v-for="r in registrations?.filter(reg => reg.day === day.key && reg.shift_id === shift.id)"
                                                         :key="r.id"
-                                                        class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30"
+                                                        @click="approveRegistration(r.id)"
+                                                        :disabled="isApprovingReg === r.id"
+                                                        class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30 active:scale-95 transition-all inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                                        title="Click để duyệt nhanh ca rảnh và xếp lịch trực cho nhân sự này"
                                                     >
-                                                        {{ r.employee_name }}
-                                                    </span>
+                                                        <span>{{ r.employee_name }}</span>
+                                                        <span class="text-[8px] text-emerald-500 opacity-80 font-bold shrink-0">(+ Xếp)</span>
+                                                    </button>
                                                     <span 
                                                         v-if="!registrations?.some(reg => reg.day === day.key && reg.shift_id === shift.id)"
                                                         class="text-[10px] text-slate-400 italic font-medium"
@@ -813,6 +1280,365 @@ const printRoster = () => {
                     </div>
                 </CardContent>
             </Card>
+            </div>
+
+            <!-- Card 4: Timekeeping Settings -->
+            <div v-else-if="activeAdminTab === 'settings'">
+                <Card class="shadow-sm">
+                    <CardHeader class="pb-3 border-b">
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-650">
+                            <Settings class="size-5 text-indigo-650" />
+                            Cấu Hình Tham Số Chấm Công
+                        </CardTitle>
+                        <CardDescription>Thiết lập thời gian đi trễ cho phép và hệ số tính lương làm thêm giờ cho nhà hàng.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-6">
+                        <form @submit.prevent="saveSettings" class="max-w-md space-y-6">
+                            <!-- Grace period -->
+                            <div class="grid gap-2">
+                                <Label for="grace-period-input" class="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                    Thời gian đi trễ cho phép (Phút)
+                                </Label>
+                                <span class="text-[11px] text-muted-foreground">
+                                    Nhân viên check-in trễ trong khoảng thời gian này so với giờ bắt đầu ca vẫn được tính là đi đúng giờ.
+                                </span>
+                                <Input 
+                                    id="grace-period-input"
+                                    type="number"
+                                    v-model.number="gracePeriod"
+                                    min="0"
+                                    max="120"
+                                    required
+                                    class="h-10 text-sm w-full md:w-2/3"
+                                />
+                            </div>
+
+                            <!-- OT Multiplier -->
+                            <div class="grid gap-2">
+                                <Label for="ot-multiplier-input" class="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                    Hệ số tính lương tăng ca (Overtime Multiplier)
+                                </Label>
+                                <span class="text-[11px] text-muted-foreground">
+                                    Hệ số nhân với mức lương cơ bản theo giờ cho phần thời gian nhân viên làm ngoài giờ ca trực được duyệt.
+                                </span>
+                                <Input 
+                                    id="ot-multiplier-input"
+                                    type="number"
+                                    v-model.number="otMultiplier"
+                                    min="1.0"
+                                    max="5.0"
+                                    step="0.05"
+                                    required
+                                    class="h-10 text-sm w-full md:w-2/3"
+                                />
+                            </div>
+
+                            <!-- GPS Latitude & Longitude -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-2">
+                                    <Label for="gps-lat" class="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                        Vĩ độ GPS (Latitude)
+                                    </Label>
+                                    <Input 
+                                        id="gps-lat"
+                                        type="number"
+                                        step="0.00000001"
+                                        v-model="latitude"
+                                        placeholder="Ví dụ: 10.7769"
+                                        class="h-10 text-sm w-full"
+                                    />
+                                </div>
+                                <div class="grid gap-2">
+                                    <Label for="gps-lng" class="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                        Kinh độ GPS (Longitude)
+                                    </Label>
+                                    <Input 
+                                        id="gps-lng"
+                                        type="number"
+                                        step="0.00000001"
+                                        v-model="longitude"
+                                        placeholder="Ví dụ: 106.7009"
+                                        class="h-10 text-sm w-full"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- GPS Radius -->
+                            <div class="grid gap-2">
+                                <Label for="gps-radius" class="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                    Bán kính giới hạn check-in (Mét)
+                                </Label>
+                                <span class="text-[11px] text-muted-foreground">
+                                    Khoảng cách tối đa cho phép nhân viên check-in so với vị trí của nhà hàng.
+                                </span>
+                                <Input 
+                                    id="gps-radius"
+                                    type="number"
+                                    v-model.number="checkinRadius"
+                                    min="10"
+                                    max="10000"
+                                    required
+                                    class="h-10 text-sm w-full md:w-2/3"
+                                />
+                            </div>
+
+                            <!-- Daily QR Code Generation Section -->
+                            <div class="border-t pt-6 space-y-4">
+                                <h3 class="text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                                    Mã QR Code chấm công hôm nay
+                                </h3>
+                                <p class="text-[11px] text-muted-foreground">
+                                    Tạo mã QR an toàn dùng để dán tại nhà hàng. Nhân viên nhập mã này khi check-in để xác minh.
+                                </p>
+                                
+                                <div class="flex items-center gap-3">
+                                    <div class="p-3 bg-slate-50 dark:bg-slate-900 border rounded-xl flex-1">
+                                        <div class="text-[10px] text-slate-400 font-bold uppercase">Mã hiện tại:</div>
+                                        <div class="text-lg font-mono font-black text-indigo-650 dark:text-indigo-400 mt-1">
+                                            {{ props.qrSettings?.code || 'Chưa tạo mã' }}
+                                        </div>
+                                        <div v-if="props.qrSettings?.expires_at" class="text-[10px] text-slate-400 mt-1">
+                                            Hiệu lực đến: {{ props.qrSettings.expires_at }} 
+                                            <span v-if="props.qrSettings.is_expired" class="text-rose-600 font-bold ml-1">(Hết hạn)</span>
+                                            <span v-else class="text-emerald-600 font-bold ml-1">(Còn hiệu lực)</span>
+                                        </div>
+                                    </div>
+                                    <Button 
+                                        type="button" 
+                                        @click="generateDailyQR"
+                                        :disabled="isGeneratingQR"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-12 px-4 shadow cursor-pointer"
+                                    >
+                                        {{ isGeneratingQR ? 'Đang tạo...' : 'Tạo mã QR' }}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <!-- Audit info notice -->
+                            <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl flex items-start gap-2 text-[10px] text-indigo-700 dark:text-indigo-400 border border-indigo-100/50">
+                                <AlertCircle class="size-4 shrink-0 text-indigo-650 dark:text-indigo-400 mt-0.5" />
+                                <p><strong>Lưu ý:</strong> Cài đặt mới sẽ lập tức áp dụng cho mọi lượt chấm công hoàn thành tiếp theo và được dùng khi tính toán lại bảng lương nháp tháng này.</p>
+                            </div>
+
+                            <!-- Submit button -->
+                            <div class="flex justify-start">
+                                <Button 
+                                    type="submit" 
+                                    :disabled="isSavingSettings"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-9 px-4 shadow-sm"
+                                >
+                                    {{ isSavingSettings ? 'Đang lưu...' : 'Lưu cấu hình' }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <!-- Card 5: Admin Shift Swap Approvals -->
+            <div v-else-if="activeAdminTab === 'swaps'">
+                <Card class="shadow-sm">
+                    <CardHeader class="pb-3 border-b">
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-650">
+                            <RefreshCw class="size-5 text-indigo-650" />
+                            Phê Duyệt Đổi Ca Trực
+                        </CardTitle>
+                        <CardDescription>Xem xét và phê duyệt các yêu cầu trao đổi ca trực đã được cả hai nhân sự thống nhất.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div v-if="props.allPendingSwaps && props.allPendingSwaps.length > 0" class="overflow-x-auto">
+                            <table class="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 dark:bg-slate-950 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                                        <th class="p-3.5">Nhân viên yêu cầu</th>
+                                        <th class="p-3.5">Ca của người yêu cầu</th>
+                                        <th class="p-3.5">Nhân viên nhận ca</th>
+                                        <th class="p-3.5">Ca của người nhận</th>
+                                        <th class="p-3.5">Ghi chú đổi</th>
+                                        <th class="p-3.5 text-right">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tr v-for="sw in props.allPendingSwaps" :key="sw.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">
+                                            {{ sw.requester_name }}
+                                        </td>
+                                        <td class="p-3.5">
+                                            <span class="font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded font-mono">{{ sw.requester_shift }}</span>
+                                            <div class="text-[10px] text-slate-400 mt-0.5 font-mono">{{ sw.requester_date }}</div>
+                                        </td>
+                                        <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">
+                                            {{ sw.receiver_name }}
+                                        </td>
+                                        <td class="p-3.5">
+                                            <span class="font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded font-mono">{{ sw.receiver_shift }}</span>
+                                            <div class="text-[10px] text-slate-400 mt-0.5 font-mono">{{ sw.receiver_date }}</div>
+                                        </td>
+                                        <td class="p-3.5 text-slate-500 font-medium">
+                                            {{ sw.notes || '—' }}
+                                        </td>
+                                        <td class="p-3.5 text-right flex items-center justify-end gap-1.5">
+                                            <button 
+                                                @click="approveSwap(sw.id)"
+                                                class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 shadow-xs"
+                                                title="Duyệt yêu cầu đổi ca"
+                                            >
+                                                Phê duyệt
+                                            </button>
+                                            <button 
+                                                @click="openRejectSwapModal(sw.id)"
+                                                class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition active:scale-95"
+                                                title="Từ chối yêu cầu đổi ca"
+                                            >
+                                                Từ chối
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="py-16 text-center text-slate-400">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-900 mx-auto mb-3 text-slate-400">
+                                <RefreshCw class="size-6 text-slate-350" />
+                            </div>
+                            <p class="text-xs font-semibold">Không có yêu cầu đổi ca nào đang chờ duyệt</p>
+                            <p class="mt-1 text-[11px] text-slate-400">Yêu cầu đổi ca chỉ hiển thị ở đây sau khi cả hai nhân viên đã xác nhận đồng ý.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <!-- Card 6: Attendance & Payroll Analytics -->
+            <div v-else-if="activeAdminTab === 'analytics'">
+                <!-- Analytics Summary KPIs -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <Card class="shadow-xs hover:translate-y-[-2px] transition-transform">
+                        <CardHeader class="pb-2">
+                            <CardDescription class="text-xs font-bold uppercase tracking-wider text-slate-400">Ca làm tháng này</CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex items-center justify-between pb-3">
+                            <span class="text-3xl font-black text-slate-800 dark:text-slate-100 font-mono">{{ analyticsData.totalAssignments }}</span>
+                            <div class="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                                <Calendar class="size-4" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card class="shadow-xs border-indigo-150 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-transform">
+                        <CardHeader class="pb-2">
+                            <CardDescription class="text-xs font-bold uppercase tracking-wider text-indigo-500">Tỷ lệ đúng giờ</CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex items-center justify-between pb-3">
+                            <span class="text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{{ analyticsData.punctualityRate }}%</span>
+                            <div class="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-650 dark:text-indigo-400">
+                                <Sparkles class="size-4 animate-pulse" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card class="shadow-xs border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-transform">
+                        <CardHeader class="pb-2">
+                            <CardDescription class="text-xs font-bold uppercase tracking-wider text-emerald-500 font-sans">Đúng giờ</CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex items-center justify-between pb-3">
+                            <span class="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{{ analyticsData.onTimeCount }}</span>
+                            <div class="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600">
+                                <CheckCircle2 class="size-4" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card class="shadow-xs border-amber-100 dark:border-amber-950/20 hover:translate-y-[-2px] transition-transform">
+                        <CardHeader class="pb-2">
+                            <CardDescription class="text-xs font-bold uppercase tracking-wider text-amber-500">Đi trễ</CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex items-center justify-between pb-3">
+                            <span class="text-3xl font-black text-amber-600 dark:text-amber-400 font-mono">{{ analyticsData.lateCount }}</span>
+                            <div class="h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600">
+                                <AlertCircle class="size-4" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card class="shadow-xs border-rose-100 dark:border-rose-950/20 hover:translate-y-[-2px] transition-transform">
+                        <CardHeader class="pb-2">
+                            <CardDescription class="text-xs font-bold uppercase tracking-wider text-rose-500">Vắng mặt</CardDescription>
+                        </CardHeader>
+                        <CardContent class="flex items-center justify-between pb-3">
+                            <span class="text-3xl font-black text-rose-600 dark:text-rose-400 font-mono">{{ analyticsData.absentCount }}</span>
+                            <div class="h-8 w-8 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-rose-600">
+                                <Ban class="size-4" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Detailed Table -->
+                <Card class="shadow-sm">
+                    <CardHeader class="pb-3 border-b">
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-650">
+                            <Users class="size-5 text-indigo-650" />
+                            Báo Cáo Tổng Hợp Công & Dự Tính Lương Trong Tháng
+                        </CardTitle>
+                        <CardDescription>Bảng thống kê số giờ làm việc thực tế, số lần đi trễ và mức lương tích lũy ước tính của nhân viên.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div v-if="analyticsData.employeeStats.length > 0" class="overflow-x-auto">
+                            <table class="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 dark:bg-slate-950 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                                        <th class="p-3.5">Nhân viên</th>
+                                        <th class="p-3.5">Hình thức lương</th>
+                                        <th class="p-3.5">Số ca hoàn thành</th>
+                                        <th class="p-3.5">Tổng số giờ làm</th>
+                                        <th class="p-3.5">Số lần đi trễ</th>
+                                        <th class="p-3.5 text-right">Lương tích lũy dự tính</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tr v-for="emp in analyticsData.employeeStats" :key="emp.code" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td class="p-3.5">
+                                            <div class="font-bold text-slate-800 dark:text-slate-200">{{ emp.name }}</div>
+                                            <div class="text-[10px] text-slate-400 mt-0.5 font-mono">{{ emp.code }} · {{ emp.jobTitle }}</div>
+                                        </td>
+                                        <td class="p-3.5">
+                                            <span 
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold"
+                                                :class="[
+                                                    emp.compensationType === 'hourly' ? 'bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400' : '',
+                                                    emp.compensationType === 'shift' ? 'bg-amber-50 text-amber-600 border border-amber-100 dark:bg-amber-950/20 dark:text-amber-400' : '',
+                                                    emp.compensationType === 'fixed' ? 'bg-purple-50 text-purple-600 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400' : ''
+                                                ]"
+                                            >
+                                                {{ 
+                                                    emp.compensationType === 'hourly' ? 'Theo giờ' : 
+                                                    (emp.compensationType === 'shift' ? 'Theo ca' : 'Lương cứng') 
+                                                }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3.5 font-mono text-slate-650 dark:text-slate-350">
+                                            {{ emp.completedCount }} ca
+                                        </td>
+                                        <td class="p-3.5 font-mono font-bold text-slate-700 dark:text-slate-200">
+                                            {{ emp.totalHours }} giờ
+                                        </td>
+                                        <td class="p-3.5 font-mono">
+                                            <span 
+                                                v-if="emp.lateCount > 0" 
+                                                class="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 font-bold"
+                                            >
+                                                {{ emp.lateCount }} lần
+                                            </span>
+                                            <span v-else class="text-emerald-650 font-bold">0</span>
+                                        </td>
+                                        <td class="p-3.5 text-right font-mono font-black text-indigo-650 dark:text-indigo-400 text-sm">
+                                            {{ emp.estimatedWage.toLocaleString('vi-VN') }} ₫
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="py-16 text-center text-slate-450">
+                            <p class="text-xs font-semibold">Chưa có dữ liệu thống kê nào trong tháng</p>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </div>
 
@@ -885,7 +1711,7 @@ const printRoster = () => {
                         <!-- Check In Action Button -->
                         <Button 
                             v-if="todayActiveAssignment?.can_check_in"
-                            @click="handleCheckIn" 
+                            @click="openCheckInFlow" 
                             class="w-full h-12 text-sm font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-md active:scale-98 animate-pulse flex items-center justify-center gap-1.5"
                         >
                             <LogIn class="size-4" />
@@ -994,14 +1820,24 @@ const printRoster = () => {
                                 </div>
 
                                 <!-- Attendance Status Tag -->
-                                <div class="flex items-center gap-3 self-end sm:self-center">
+                                <div class="flex items-center gap-3 self-end sm:self-center font-bold">
                                     <!-- Times of check-in/out -->
                                     <div v-if="ws.check_in_at" class="text-right text-[10px] font-mono text-slate-400 leading-tight">
                                         <div>Vào: {{ ws.check_in_at }}</div>
                                         <div v-if="ws.check_out_at">Ra: {{ ws.check_out_at }}</div>
                                     </div>
 
-                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase shrink-0" :class="statusColors[ws.status]">
+                                    <button 
+                                        v-if="ws.status === 'scheduled'"
+                                        type="button"
+                                        @click="openSwapModal(ws)"
+                                        class="h-7 px-2 border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-indigo-650 dark:text-indigo-400 text-[10px] rounded-lg font-bold flex items-center gap-1 cursor-pointer select-none active:scale-95 transition-all"
+                                    >
+                                        <RefreshCw class="size-3" />
+                                        Đổi ca
+                                    </button>
+
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase shrink-0 font-sans" :class="statusColors[ws.status]">
                                         {{ statusLabels[ws.status] }}
                                     </span>
                                 </div>
@@ -1042,6 +1878,99 @@ const printRoster = () => {
                             </div>
                             <p class="text-sm font-semibold">Chưa có lịch trực tuần này</p>
                             <p class="mt-1 text-xs text-muted-foreground">Vui lòng liên hệ với Quản lý cửa hàng để kiểm tra việc xếp ca làm việc của bạn.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Shift Swap Requests Panel -->
+                <Card class="shadow-sm mt-6">
+                    <CardHeader class="pb-3 border-b">
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-650 dark:text-indigo-400">
+                            <RefreshCw class="size-5 animate-spin-slow" />
+                            Danh Sách Yêu Cầu Đổi Ca Trực
+                        </CardTitle>
+                        <CardDescription>Theo dõi tình trạng các đề xuất đổi ca làm việc của bạn hoặc nhận được từ đồng nghiệp.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div v-if="props.pendingSwapRequests && props.pendingSwapRequests.length > 0" class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <div 
+                                v-for="swap in props.pendingSwapRequests" 
+                                :key="swap.id" 
+                                class="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs"
+                            >
+                                <div class="space-y-1">
+                                    <!-- Heading description -->
+                                    <div class="font-bold flex flex-wrap items-center gap-1.5 text-slate-800 dark:text-slate-205">
+                                        <span v-if="swap.is_requester" class="text-indigo-600 dark:text-indigo-400 font-extrabold">[ĐÃ GỬI]</span>
+                                        <span v-else class="text-emerald-600 dark:text-emerald-400 font-extrabold">[NHẬN ĐƯỢC]</span>
+                                        
+                                        <span v-if="swap.is_requester">
+                                            Bạn muốn đổi ca <strong class="font-mono text-indigo-600 dark:text-indigo-400">{{ swap.requester_shift }}</strong> ({{ swap.requester_date }}) 
+                                            lấy ca <strong class="font-mono text-indigo-600 dark:text-indigo-400">{{ swap.receiver_shift }}</strong> của <strong>{{ swap.receiver_name }}</strong>
+                                        </span>
+                                        <span v-else>
+                                            <strong>{{ swap.requester_name }}</strong> đề xuất đổi ca <strong class="font-mono text-indigo-600 dark:text-indigo-400">{{ swap.requester_shift }}</strong> ({{ swap.requester_date }})
+                                            lấy ca <strong class="font-mono text-indigo-600 dark:text-indigo-400">{{ swap.receiver_shift }}</strong> của bạn
+                                        </span>
+                                    </div>
+                                    <div class="text-slate-400 font-medium italic mt-0.5">Ghi chú: {{ swap.notes || 'Không có ghi chú' }}</div>
+                                </div>
+
+                                <!-- Status & Action Buttons -->
+                                <div class="flex items-center gap-3 self-end md:self-center font-bold">
+                                    <span 
+                                        class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0" 
+                                        :class="[
+                                            swap.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400' : '',
+                                            swap.status === 'accepted' ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400' : '',
+                                            swap.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400' : '',
+                                            swap.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/20 dark:text-rose-400' : '',
+                                            swap.status === 'cancelled' ? 'bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-900/20 dark:text-slate-400' : ''
+                                        ]"
+                                    >
+                                        {{ 
+                                            swap.status === 'pending' ? 'Chờ đồng ý' : 
+                                            (swap.status === 'accepted' ? 'Chờ duyệt' : 
+                                            (swap.status === 'approved' ? 'Đã duyệt' : 
+                                            (swap.status === 'rejected' ? 'Đã từ chối' : 'Đã hủy'))) 
+                                        }}
+                                    </span>
+
+                                    <!-- Actions based on pending / accepted status -->
+                                    <template v-if="swap.status === 'pending'">
+                                        <button 
+                                            v-if="!swap.is_requester"
+                                            type="button"
+                                            @click="acceptSwapRequest(swap.id)"
+                                            class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                        >
+                                            Đồng ý
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            @click="cancelSwapRequest(swap.id)"
+                                            class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                        >
+                                            {{ swap.is_requester ? 'Hủy' : 'Từ chối' }}
+                                        </button>
+                                    </template>
+                                    <template v-else-if="swap.status === 'accepted'">
+                                        <button 
+                                            type="button"
+                                            @click="cancelSwapRequest(swap.id)"
+                                            class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                        >
+                                            Hủy
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="py-12 text-center text-slate-400">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-900 mx-auto mb-2">
+                                <RefreshCw class="size-5 text-slate-350" />
+                            </div>
+                            <p class="text-xs font-semibold">Không có yêu cầu đổi ca nào đang chờ xử lý</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -1172,6 +2101,45 @@ const printRoster = () => {
                             class="h-9 text-xs" 
                         />
                     </div>
+
+                    <!-- Violation Integration Checkbox -->
+                    <div class="flex items-center space-x-2 p-1 pt-2">
+                        <input 
+                            id="apply-violation-check" 
+                            type="checkbox" 
+                            v-model="applyViolation" 
+                            class="rounded border-slate-300 text-indigo-650 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                        />
+                        <Label for="apply-violation-check" class="text-xs font-bold text-rose-600 cursor-pointer select-none">
+                            Lập biên bản vi phạm kỷ luật & Khấu trừ lương
+                        </Label>
+                    </div>
+
+                    <!-- Expandable Violation Fields -->
+                    <div v-if="applyViolation" class="space-y-3 p-3 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 rounded-xl animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div class="grid gap-1.5">
+                            <Label for="violation-notes" class="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Mô tả vi phạm kỷ luật</Label>
+                            <Input 
+                                id="violation-notes" 
+                                type="text" 
+                                v-model="violationNotes" 
+                                placeholder="Ví dụ: Đi trễ quá 30 phút / Vắng mặt không lý do..."
+                                class="h-8 text-xs border-rose-200 focus-visible:ring-rose-500" 
+                            />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label for="penalty-amount" class="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Số tiền khấu trừ phạt (VND)</Label>
+                            <Input 
+                                id="penalty-amount" 
+                                type="number" 
+                                v-model.number="penaltyAmount" 
+                                min="0" 
+                                step="1000"
+                                placeholder="Nhập số tiền phạt ví dụ: 50000"
+                                class="h-8 text-xs border-rose-200 focus-visible:ring-rose-500 font-mono font-bold" 
+                            />
+                        </div>
+                    </div>
                     
                     <div class="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl flex items-start gap-2 text-[10px] text-amber-700 dark:text-amber-400 border border-amber-100/50">
                         <AlertCircle class="size-4 shrink-0 text-amber-600 mt-0.5" />
@@ -1189,6 +2157,215 @@ const printRoster = () => {
                             :disabled="processingOverride"
                         >
                             {{ processingOverride ? 'Đang cập nhật...' : 'Xác nhận ghi nhận' }}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 4. SECURE CHECK-IN MODAL (GPS & QR) -->
+        <!-- ========================================== -->
+        <div v-if="checkInModalOpen" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
+            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
+                            <Clock class="size-5" />
+                            Xác Thực Vào Ca (Check-In)
+                        </CardTitle>
+                        <CardDescription>Hệ thống tự động xác minh vị trí địa lý (GPS) và mã QR an toàn để ghi nhận ca trực.</CardDescription>
+                    </div>
+                    <button @click="checkInModalOpen = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                
+                <CardContent class="pt-4 space-y-4">
+                    <!-- GPS Verification Status -->
+                    <div v-if="props.gpsSettings?.latitude && props.gpsSettings?.longitude" class="space-y-2">
+                        <Label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Xác minh định vị GPS</Label>
+                        <div 
+                            class="p-3 border rounded-xl flex items-center gap-3 text-xs" 
+                            :class="[
+                                gpsStatus === 'fetching' ? 'bg-amber-50/50 border-amber-200 text-amber-600' : '',
+                                gpsStatus === 'success' ? 'bg-emerald-50/55 border-emerald-200 text-emerald-600' : '',
+                                gpsStatus === 'error' ? 'bg-rose-50/50 border-rose-200 text-rose-600' : ''
+                            ]"
+                        >
+                            <span v-if="gpsStatus === 'fetching'" class="size-2 rounded-full bg-amber-500 animate-ping"></span>
+                            <span v-if="gpsStatus === 'success'" class="size-2 rounded-full bg-emerald-600"></span>
+                            <span v-if="gpsStatus === 'error'" class="size-2 rounded-full bg-rose-600"></span>
+
+                            <div class="flex-1">
+                                <p v-if="gpsStatus === 'fetching'" class="font-bold">Đang lấy tọa độ GPS của thiết bị...</p>
+                                <p v-if="gpsStatus === 'success'" class="font-bold">Định vị GPS hợp lệ! (Kinh độ: {{ gpsCoords.longitude }}, Vĩ độ: {{ gpsCoords.latitude }})</p>
+                                <p v-if="gpsStatus === 'error'" class="font-bold">Không thể xác minh định vị GPS</p>
+                                <p v-if="gpsStatus === 'error'" class="text-[10px] text-rose-500 mt-0.5 font-medium">{{ gpsErrorMsg }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Input (if configured) -->
+                    <div v-if="props.qrSettings?.code && !props.qrSettings?.is_expired" class="space-y-2">
+                        <Label for="qr-input" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nhập mã QR của ca trực hôm nay</Label>
+                        <Input 
+                            id="qr-input" 
+                            type="text" 
+                            v-model="inputQrCode" 
+                            placeholder="Mã QR hiển thị trên bảng thông tin..."
+                            required 
+                            class="h-10 text-sm font-mono tracking-widest text-center" 
+                        />
+                    </div>
+
+                    <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl flex items-start gap-2 text-[10px] text-indigo-700 dark:text-indigo-400 border border-indigo-100/50">
+                        <AlertCircle class="size-4 shrink-0 text-indigo-650 mt-0.5" />
+                        <p><strong>Lưu ý:</strong> Vị trí GPS của bạn phải nằm trong bán kính {{ props.gpsSettings?.radius ?? 100 }}m của cửa hàng để có thể check-in thành công.</p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-end gap-2 pt-2 border-t">
+                        <Button type="button" variant="outline" size="sm" @click="checkInModalOpen = false">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            @click="submitCheckIn" 
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                            :disabled="isCheckingIn || gpsStatus !== 'success' || (props.qrSettings?.code && !props.qrSettings?.is_expired && !inputQrCode)"
+                        >
+                            {{ isCheckingIn ? 'Đang xác thực...' : 'Xác nhận Vào Ca' }}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 5. EMPLOYEE SHIFT SWAP PROPOSAL MODAL -->
+        <!-- ========================================== -->
+        <div v-if="swapModalOpen" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
+            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
+                            <RefreshCw class="size-5" />
+                            Đề Xuất Đổi Ca Trực
+                        </CardTitle>
+                        <CardDescription>Gửi yêu cầu trao đổi ca làm việc của bạn cho một đồng nghiệp trong tuần này.</CardDescription>
+                    </div>
+                    <button @click="swapModalOpen = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                
+                <CardContent class="pt-4 space-y-4">
+                    <!-- Source Shift Info -->
+                    <div>
+                        <Label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Ca trực của bạn muốn đổi</Label>
+                        <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 rounded-xl mt-1 text-xs">
+                            <span class="font-bold text-indigo-700 dark:text-indigo-400">Ca {{ selectedMyShift?.shift_name }}</span> · {{ selectedMyShift?.day_vn }} ({{ selectedMyShift?.date }})
+                            <div class="text-[10px] text-slate-400 mt-0.5">Khung giờ: {{ selectedMyShift?.shift_time }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Target Shift Selection -->
+                    <div class="grid gap-2">
+                        <Label for="target-shift-select" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Chọn ca của đồng nghiệp muốn đổi cùng</Label>
+                        <select 
+                            id="target-shift-select"
+                            v-model="selectedTargetShiftId"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <option :value="null" disabled>-- Chọn ca trực của đồng nghiệp --</option>
+                            <option 
+                                v-for="ts in swappableShifts" 
+                                :key="ts.id" 
+                                :value="ts.id"
+                            >
+                                {{ ts.employee_name }} · Ca {{ ts.shift_name }} ({{ ts.shift_time }}) - {{ ts.day }} ({{ ts.date }})
+                            </option>
+                        </select>
+                        <p v-if="swappableShifts.length === 0" class="text-[10px] text-rose-500 font-semibold italic">Không có ca trực nào khác của đồng nghiệp trong tuần này để đổi.</p>
+                    </div>
+
+                    <!-- Swap Notes -->
+                    <div class="grid gap-1.5">
+                        <Label for="swap-reason" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lý do xin đổi ca (Ghi chú)</Label>
+                        <Input 
+                            id="swap-reason" 
+                            type="text" 
+                            v-model="swapNotes" 
+                            placeholder="Ví dụ: Bận việc gia đình đột xuất, nhờ đổi hộ..."
+                            required 
+                            class="h-10 text-xs" 
+                        />
+                    </div>
+
+                    <div class="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl flex items-start gap-2 text-[10px] text-amber-700 dark:text-amber-400 border border-amber-100/50">
+                        <AlertCircle class="size-4 shrink-0 text-amber-600 mt-0.5" />
+                        <p><strong>Quy trình phê duyệt:</strong> Sau khi gửi, đồng nghiệp nhận được yêu cầu phải nhấn "Đồng ý", sau đó Quản lý/Owner duyệt thì ca đổi mới chính thức có hiệu lực.</p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-end gap-2 pt-2 border-t">
+                        <Button type="button" variant="outline" size="sm" @click="swapModalOpen = false">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            @click="submitSwapRequest" 
+                            class="bg-indigo-650 hover:bg-indigo-755 text-white font-bold"
+                            :disabled="isSubmittingSwap || !selectedTargetShiftId"
+                        >
+                            {{ isSubmittingSwap ? 'Đang gửi...' : 'Gửi Yêu Cầu' }}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 6. ADMIN PORTAL MODAL: REJECT SHIFT SWAP -->
+        <!-- ========================================== -->
+        <div v-if="isRejectingSwap" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
+            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
+                            <Ban class="size-5" />
+                            Từ Chối Yêu Cầu Đổi Ca
+                        </CardTitle>
+                        <CardDescription>Vui lòng nhập lý do từ chối yêu cầu đổi ca để thông báo cho nhân viên.</CardDescription>
+                    </div>
+                    <button @click="isRejectingSwap = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                
+                <CardContent class="pt-4 space-y-4">
+                    <div class="grid gap-1.5">
+                        <Label for="reject-reason" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lý do từ chối</Label>
+                        <Input 
+                            id="reject-reason" 
+                            type="text" 
+                            v-model="rejectNotes" 
+                            placeholder="Ví dụ: Không cân bằng được vai trò nhân sự trong ca..."
+                            required 
+                            class="h-10 text-xs border-rose-200 focus-visible:ring-rose-500" 
+                        />
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex justify-end gap-2 pt-2 border-t">
+                        <Button type="button" variant="outline" size="sm" @click="isRejectingSwap = false">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            @click="submitRejectSwap" 
+                            class="bg-rose-650 hover:bg-rose-755 text-white font-bold"
+                            :disabled="!rejectNotes"
+                        >
+                            Xác nhận từ chối
                         </Button>
                     </div>
                 </CardContent>

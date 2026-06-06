@@ -26,6 +26,12 @@ class Restaurant extends Model
             'subscription_started_at' => 'datetime',
             'subscription_ends_at'    => 'datetime',
             'trial_ends_at'           => 'datetime',
+            'grace_period_minutes'    => 'integer',
+            'ot_multiplier'           => 'float',
+            'latitude'                => 'float',
+            'longitude'               => 'float',
+            'checkin_radius_meters'   => 'integer',
+            'qr_checkin_expires_at'   => 'datetime',
         ];
     }
 
@@ -77,6 +83,11 @@ class Restaurant extends Model
     public function billingAdjustments(): HasMany
     {
         return $this->hasMany(BillingAdjustment::class);
+    }
+
+    public function shiftSwaps(): HasMany
+    {
+        return $this->hasMany(ShiftSwap::class);
     }
 
     public function activeSubscription(): HasOne

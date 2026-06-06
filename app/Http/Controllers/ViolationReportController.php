@@ -142,56 +142,27 @@ class ViolationReportController extends Controller
 
             // Tự động tích hợp cấn trừ lương khi xác định vi phạmresolved và có phạt tiền
             if ($data['status'] === 'resolved' && $penaltyAmount > 0) {
-                $employeeId = $report->employee_id;
-                $restaurantId = $report->restaurant_id;
+                $employee = $report->employee;
+                if ($employee) {
+                    $salaryService = app(\App\Services\SalaryService::class);
+                    // 1. Tìm hoặc khởi tạo bản ghi Salary Nháp của nhân viên vi phạm dùng Carbon thống nhất
+                    $salary = $salaryService->getOrCreateDraft($report->restaurant_id, $employee, now()->toDateString());
 
-                // Lấy kỳ lương tháng hiện tại (Đầu tháng -> Cuối tháng xảy ra vi phạm)
-                $startOfMonth = now()->startOfMonth()->toDateString();
-                $endOfMonth = now()->endOfMonth()->toDateString();
+                    // 2. Tạo Salary Adjustment loại violation cấn trừ phạt lương
+                    SalaryAdjustment::create([
+                        'salary_id' => $salary->id,
+                        'restaurant_id' => $report->restaurant_id,
+                        'employee_id' => $employee->id,
+                        'type' => 'violation',
+                        'amount' => $penaltyAmount,
+                        'reason' => "Cấn trừ phạt sai phạm nội bộ (Tố cáo ID #{$report->id}: {$report->violation_type})",
+                        'reference_id' => $report->id,
+                        'reference_type' => ViolationReport::class,
+                    ]);
 
-                // 1. Tìm hoặc khởi tạo bản ghi Salary Nháp của nhân viên vi phạm
-                $salary = Salary::firstOrCreate([
-                    'restaurant_id' => $restaurantId,
-                    'employee_id' => $employeeId,
-                    'pay_period_start' => $startOfMonth,
-                    'pay_period_end' => $endOfMonth,
-                ], [
-                    'branch_id' => $report->branch_id,
-                    'base_salary' => $report->employee->base_salary ?? 0,
-                    'bonus_amount' => 0,
-                    'deduction_amount' => 0,
-                    'net_salary' => $report->employee->base_salary ?? 0,
-                    'status' => 'draft',
-                ]);
-
-                // 2. Tạo Salary Adjustment loại violation cấn trừ phạt lương
-                SalaryAdjustment::create([
-                    'salary_id' => $salary->id,
-                    'restaurant_id' => $restaurantId,
-                    'employee_id' => $employeeId,
-                    'type' => 'violation',
-                    'amount' => $penaltyAmount,
-                    'reason' => "Cấn trừ phạt sai phạm nội bộ (Tố cáo ID #{$report->id}: {$report->violation_type})",
-                    'reference_id' => $report->id,
-                    'reference_type' => ViolationReport::class,
-                ]);
-
-                // 3. Tính toán lại tổng khấu trừ và thực nhận Net Salary cho bảng lương
-                $totalDeductions = SalaryAdjustment::where('salary_id', $salary->id)
-                    ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation'])
-                    ->sum('amount');
-
-                $totalBonuses = SalaryAdjustment::where('salary_id', $salary->id)
-                    ->where('type', 'bonus')
-                    ->sum('amount');
-
-                $netSalary = max(0.0, (float)$salary->base_salary + $totalBonuses - $totalDeductions);
-
-                $salary->update([
-                    'deduction_amount' => $totalDeductions,
-                    'bonus_amount' => $totalBonuses,
-                    'net_salary' => $netSalary,
-                ]);
+                    // 3. Tính toán lại tổng khấu trừ và thực nhận Net Salary cho bảng lương
+                    $salaryService->recalculate($salary);
+                }
             }
 
             // Cập nhật trạng thái vé tố cáo
