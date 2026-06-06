@@ -352,6 +352,25 @@ class OrderService
     public function payOrder(Order $order, array $data, \App\Models\User $user): void
     {
         DB::transaction(function () use ($order, $data, $user) {
+            $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
+            $redeemedPoints = isset($data['redeem_points']) ? (int) $data['redeem_points'] : 0;
+            $redeemDiscount = 0.0;
+
+            if ($customer && $redeemedPoints > 0) {
+                // Ensure customer has enough points
+                $pointsToRedeem = min($redeemedPoints, $customer->loyalty_points);
+                if ($pointsToRedeem > 0) {
+                    $redeemDiscount = $pointsToRedeem * 100.0; // 1 point = 100 VND
+                    $customer->decrement('loyalty_points', $pointsToRedeem);
+                    
+                    // Deduct discount from order
+                    $order->discount_amount = (float) $order->discount_amount + $redeemDiscount;
+                    $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
+                    $order->note = ($order->note ? $order->note . ' ' : '') . "[Đã quy đổi {$pointsToRedeem} điểm loyalty thưởng: -" . number_format($redeemDiscount) . "đ]";
+                    $order->save();
+                }
+            }
+
             // 1. Tạo Payment record
             Payment::create([
                 'restaurant_id' => $order->restaurant_id,
@@ -380,6 +399,15 @@ class OrderService
             // 4. Giải phóng bàn
             if ($order->table_id) {
                 RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+            }
+
+            // 5. Cộng điểm loyalty tích lũy mới cho khách hàng: 1 điểm cho mỗi 10,000 VND của total_amount
+            if ($customer) {
+                $pointsEarned = floor((float) $order->total_amount / 10000);
+                if ($pointsEarned > 0) {
+                    $customer->increment('loyalty_points', $pointsEarned);
+                }
+                $customer->update(['last_order_at' => now()]);
             }
 
             AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);

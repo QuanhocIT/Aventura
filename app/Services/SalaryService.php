@@ -14,8 +14,8 @@ class SalaryService
      */
     public function getOrCreateDraft(int $restaurantId, Employee $employee, string $date): Salary
     {
-        $periodStart = Carbon::parse($date)->startOfMonth()->toDateString();
-        $periodEnd   = Carbon::parse($date)->endOfMonth()->toDateString();
+        $periodStart = Carbon::parse($date)->startOfMonth();
+        $periodEnd   = Carbon::parse($date)->endOfMonth();
 
         return Salary::withoutGlobalScopes()->firstOrCreate(
             [
@@ -25,7 +25,7 @@ class SalaryService
                 'pay_period_end'   => $periodEnd,
             ],
             [
-                'base_salary'      => $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd),
+                'base_salary'      => $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString()),
                 'bonus_amount'     => 0,
                 'deduction_amount' => 0,
                 'net_salary'       => 0, // recalculate will handle it
@@ -52,15 +52,89 @@ class SalaryService
                 ->whereNotNull('check_out_at')
                 ->get();
 
-            $totalHours = 0.0;
+            $restaurant = \App\Models\Restaurant::find($employee->restaurant_id);
+            $graceMinutes = $restaurant?->grace_period_minutes ?? 10;
+            $otMultiplier = (float) ($restaurant?->ot_multiplier ?? 1.50);
+
+            $totalWages = 0.0;
             foreach ($assignments as $assignment) {
-                $checkIn = Carbon::parse($assignment->check_in_at);
-                $checkOut = Carbon::parse($assignment->check_out_at);
-                $hours = $checkIn->diffInSeconds($checkOut) / 3600.0;
-                $totalHours += $hours;
+                $shift = $assignment->shift;
+                if (!$shift) {
+                    $checkIn = Carbon::parse($assignment->check_in_at);
+                    $checkOut = Carbon::parse($assignment->check_out_at);
+                    $hours = $checkIn->diffInSeconds($checkOut) / 3600.0;
+                    $totalWages += $hours * $payRate;
+                    continue;
+                }
+
+                $dateStr = $assignment->scheduled_date instanceof Carbon 
+                    ? $assignment->scheduled_date->toDateString() 
+                    : Carbon::parse($assignment->scheduled_date)->toDateString();
+                
+                $schedStart = Carbon::parse($dateStr . ' ' . $shift->start_time);
+                if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                    $schedEnd = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                } else {
+                    $schedEnd = Carbon::parse($dateStr . ' ' . $shift->end_time);
+                }
+
+                $actualCheckIn = Carbon::parse($assignment->check_in_at);
+                $actualCheckOut = Carbon::parse($assignment->check_out_at);
+
+                // Apply Grace Period to Check-In
+                $graceStartThreshold = $schedStart->copy()->addMinutes($graceMinutes);
+                if ($actualCheckIn->greaterThan($schedStart) && $actualCheckIn->lessThanOrEqualTo($graceStartThreshold)) {
+                    $workedCheckIn = $schedStart->copy();
+                } else {
+                    $workedCheckIn = $actualCheckIn->copy();
+                }
+
+                // Apply Grace Period to Check-Out
+                $graceEndThreshold = $schedEnd->copy()->subMinutes($graceMinutes);
+                if ($actualCheckOut->lessThan($schedEnd) && $actualCheckOut->greaterThanOrEqualTo($graceEndThreshold)) {
+                    $workedCheckOut = $schedEnd->copy();
+                } else {
+                    $workedCheckOut = $actualCheckOut->copy();
+                }
+
+                if ($workedCheckOut->lessThanOrEqualTo($workedCheckIn)) {
+                    continue;
+                }
+
+                $regularDurationSeconds = 0.0;
+                $otDurationSeconds = 0.0;
+
+                // Duration within scheduled shift
+                $intersectStart = $workedCheckIn->greaterThan($schedStart) ? $workedCheckIn : $schedStart;
+                $intersectEnd = $workedCheckOut->lessThan($schedEnd) ? $workedCheckOut : $schedEnd;
+
+                if ($intersectEnd->greaterThan($intersectStart)) {
+                    $regularDurationSeconds = $intersectStart->diffInSeconds($intersectEnd);
+                }
+
+                // OT after scheduled end
+                if ($workedCheckOut->greaterThan($schedEnd)) {
+                    $otStart = $workedCheckIn->greaterThan($schedEnd) ? $workedCheckIn : $schedEnd;
+                    if ($workedCheckOut->greaterThan($otStart)) {
+                        $otDurationSeconds += $otStart->diffInSeconds($workedCheckOut);
+                    }
+                }
+
+                // OT before scheduled start
+                if ($workedCheckIn->lessThan($schedStart)) {
+                    $otEnd = $workedCheckOut->lessThan($schedStart) ? $workedCheckOut : $schedStart;
+                    if ($otEnd->greaterThan($workedCheckIn)) {
+                        $otDurationSeconds += $workedCheckIn->diffInSeconds($otEnd);
+                    }
+                }
+
+                $regularHours = $regularDurationSeconds / 3600.0;
+                $otHours = $otDurationSeconds / 3600.0;
+
+                $totalWages += ($regularHours * $payRate) + ($otHours * $payRate * $otMultiplier);
             }
 
-            return round($totalHours * $payRate, 2);
+            return round($totalWages, 2);
         }
 
         if ($compType === 'shift') {
@@ -126,8 +200,8 @@ class SalaryService
      */
     public function generateMonthlyDrafts(int $restaurantId, string $yearMonth): array
     {
-        $periodStart = Carbon::parse($yearMonth . '-01')->startOfMonth()->toDateString();
-        $periodEnd   = Carbon::parse($yearMonth . '-01')->endOfMonth()->toDateString();
+        $periodStart = Carbon::parse($yearMonth . '-01')->startOfMonth();
+        $periodEnd   = Carbon::parse($yearMonth . '-01')->endOfMonth();
 
         $employees = Employee::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -138,7 +212,7 @@ class SalaryService
         $skipped = 0;
 
         foreach ($employees as $employee) {
-            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd);
+            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString());
 
             $salary = Salary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
@@ -232,8 +306,31 @@ class SalaryService
             ->get();
 
         foreach ($wasteTransactions as $transaction) {
-            $scheduledEmployee = \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($transaction->occurred_at, $restaurantId);
-            if ($scheduledEmployee && $scheduledEmployee->id === $employee->id) {
+            $activeAssignments = \App\Models\ScheduleAssignment::findEmployeesOnShiftAt($transaction->occurred_at, $restaurantId);
+            if ($activeAssignments->isEmpty()) {
+                continue;
+            }
+
+            $myAssignment = $activeAssignments->first(fn($a) => $a->employee_id === $employee->id);
+            if (!$myAssignment) {
+                continue;
+            }
+
+            $leaders = $activeAssignments->filter(fn($a) => $a->is_shift_leader);
+            $shareCount = 1;
+            $isResponsible = false;
+
+            if ($leaders->isNotEmpty()) {
+                if ($myAssignment->is_shift_leader) {
+                    $isResponsible = true;
+                    $shareCount = $leaders->count();
+                }
+            } else {
+                $isResponsible = true;
+                $shareCount = $activeAssignments->count();
+            }
+
+            if ($isResponsible) {
                 $exists = SalaryAdjustment::withoutGlobalScopes()
                     ->where('employee_id', $employee->id)
                     ->where('reference_id', $transaction->id)
@@ -244,9 +341,10 @@ class SalaryService
                     $ingredient = \App\Models\Ingredient::withoutGlobalScopes()->find($transaction->ingredient_id);
                     $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
                     
-                    // Phạt = max(0, total_cost * (1 - allowedRatio / 100))
-                    $penaltyAmount = (float) $transaction->total_cost * (1 - $allowedRatio / 100);
-                    $penaltyAmount = max(0.0, $penaltyAmount);
+                    $totalPenalty = (float) $transaction->total_cost * (1 - $allowedRatio / 100);
+                    $totalPenalty = max(0.0, $totalPenalty);
+                    
+                    $penaltyAmount = $totalPenalty / $shareCount;
 
                     if ($penaltyAmount > 0) {
                         SalaryAdjustment::create([
@@ -255,7 +353,7 @@ class SalaryService
                             'employee_id'    => $employee->id,
                             'type'           => 'inventory_loss',
                             'amount'         => $penaltyAmount,
-                            'reason'         => "Phạt hao hụt nguyên liệu: " . ($transaction->notes ?: "Thất thoát nguyên liệu ca trực") . " (Đã khấu trừ " . $allowedRatio . "% định mức cho phép)",
+                            'reason'         => "Phạt hao hụt nguyên liệu: " . ($transaction->notes ?: "Thất thoát nguyên liệu ca trực") . " (Đã khấu trừ " . $allowedRatio . "% định mức, chia sẻ cho " . $shareCount . " người chịu trách nhiệm)",
                             'reference_id'   => $transaction->id,
                             'reference_type' => \App\Models\InventoryTransaction::class,
                             'status'         => 'applied',

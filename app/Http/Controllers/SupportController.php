@@ -21,6 +21,7 @@ use App\Models\WorkShift;
 use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
 use App\Models\LeaveRequest;
+use App\Models\ShiftSwap;
 use App\Services\ApprovalService;
 use App\Services\SalaryService;
 use App\Services\SupportPortalService;
@@ -518,12 +519,36 @@ class SupportController extends Controller
                 'day' => Carbon::parse($r->scheduled_date)->format('l'),
             ]);
 
+        $pendingSwaps = ShiftSwap::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'accepted')
+            ->with([
+                'requesterAssignment.employee',
+                'requesterAssignment.shift',
+                'receiverAssignment.employee',
+                'receiverAssignment.shift'
+            ])
+            ->latest()
+            ->get()
+            ->map(fn ($sw) => [
+                'id' => $sw->id,
+                'notes' => $sw->notes,
+                'status' => $sw->status,
+                'created_at' => $sw->created_at->format('H:i d/m/Y'),
+                'requester_name' => $sw->requesterAssignment?->employee?->full_name ?? 'Không rõ',
+                'requester_shift' => $sw->requesterAssignment?->shift?->name ?? '—',
+                'requester_date' => $sw->requesterAssignment?->scheduled_date instanceof Carbon ? $sw->requesterAssignment->scheduled_date->toDateString() : Carbon::parse($sw->requesterAssignment?->scheduled_date)->toDateString(),
+                'receiver_name' => $sw->receiverAssignment?->employee?->full_name ?? 'Không rõ',
+                'receiver_shift' => $sw->receiverAssignment?->shift?->name ?? '—',
+                'receiver_date' => $sw->receiverAssignment?->scheduled_date instanceof Carbon ? $sw->receiverAssignment->scheduled_date->toDateString() : Carbon::parse($sw->receiverAssignment?->scheduled_date)->toDateString(),
+            ]);
+
         return Inertia::render('employees/Index', [
             'employees'     => $employees,
             'shifts'        => $shifts,
             'schedules'     => $schedules,
             'registrations' => $registrations,
             'leaveRequests' => $leaveRequests,
+            'pendingSwaps'  => $pendingSwaps,
             'autoSchedule'  => (bool) $user->restaurant->auto_schedule,
         ]);
     }
@@ -568,6 +593,12 @@ class SupportController extends Controller
                 ->get();
 
             if ($activeEmployees->isNotEmpty() && $activeShifts->isNotEmpty()) {
+                // Track shift count per employee to limit workload (max 6 shifts/week)
+                $employeeShiftCounts = [];
+                foreach ($activeEmployees as $emp) {
+                    $employeeShiftCounts[$emp->id] = 0;
+                }
+
                 // Lặp qua 7 ngày trong tuần
                 for ($i = 0; $i < 7; $i++) {
                     $currentDate = $startOfWeek->copy()->addDays($i);
@@ -584,24 +615,76 @@ class SupportController extends Controller
                     $availableEmployees = $activeEmployees->reject(fn ($e) => in_array($e->id, $onLeaveEmployeeIds))->values();
 
                     if ($availableEmployees->isNotEmpty()) {
-                        // Trộn danh sách nhân viên để xếp lịch ngẫu nhiên nhưng đồng đều cho mỗi ngày
-                        $shuffledEmployees = $availableEmployees->shuffle();
-                        
-                        foreach ($activeShifts as $sIdx => $shift) {
+                        // Get availability registrations for today
+                        $registrationsToday = ScheduleRegistration::where('restaurant_id', $restaurant->id)
+                            ->whereDate('scheduled_date', $dateStr)
+                            ->get()
+                            ->groupBy('shift_id');
+
+                        foreach ($activeShifts as $shift) {
                             // Phân phối tối đa 2 nhân viên cho mỗi ca trực (nếu có đủ nhân sự)
-                            $empPerShift = $shuffledEmployees->count() >= 3 ? 2 : 1;
+                            $empPerShift = $availableEmployees->count() >= 3 ? 2 : 1;
+                            $assignedForThisShift = [];
                             
                             for ($j = 0; $j < $empPerShift; $j++) {
-                                $employeeIndex = ($sIdx * $empPerShift + $j) % $shuffledEmployees->count();
-                                $employee = $shuffledEmployees->get($employeeIndex);
+                                $candidates = $availableEmployees->reject(function ($e) use ($assignedForThisShift, $employeeShiftCounts, $shift, $dateStr) {
+                                    // Already assigned to this shift today
+                                    if (in_array($e->id, $assignedForThisShift)) {
+                                        return true;
+                                    }
+                                    // Max 6 shifts per week constraint
+                                    if (($employeeShiftCounts[$e->id] ?? 0) >= 6) {
+                                        return true;
+                                    }
+                                    // Already assigned to some shift today (prevent double booking)
+                                    $isAssignedToday = ScheduleAssignment::where('employee_id', $e->id)
+                                        ->whereDate('scheduled_date', $dateStr)
+                                        ->exists();
+                                    if ($isAssignedToday) {
+                                        return true;
+                                    }
+                                    return false;
+                                });
 
-                                ScheduleAssignment::create([
-                                    'restaurant_id' => $restaurant->id,
-                                    'employee_id'   => $employee->id,
-                                    'shift_id'      => $shift->id,
-                                    'scheduled_date'=> $dateStr,
-                                    'status'        => 'scheduled',
-                                ]);
+                                if ($candidates->isEmpty()) {
+                                    break;
+                                }
+
+                                // Sort candidates:
+                                // 1. Registered available for this shift (registered_available = true)
+                                // 2. Role balance: Prefer adding a different role to this shift if one is already assigned
+                                // 3. Lowest shift count so far in the week.
+                                $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts) {
+                                    $hasRegistered = isset($registrationsToday[$shift->id]) && $registrationsToday[$shift->id]->contains('employee_id', $cand->id);
+                                    $registrationScore = $hasRegistered ? 0 : 1;
+
+                                    $shiftCount = $employeeShiftCounts[$cand->id] ?? 0;
+
+                                    $roleScore = 0;
+                                    if (!empty($assignedForThisShift)) {
+                                        $assignedRoles = Employee::whereIn('id', $assignedForThisShift)->pluck('role_id')->toArray();
+                                        if (in_array($cand->role_id, $assignedRoles)) {
+                                            $roleScore = 1;
+                                        }
+                                    }
+
+                                    return sprintf('%d-%02d-%d', $registrationScore, $shiftCount, $roleScore);
+                                });
+
+                                $bestCandidate = $candidates->first();
+                                if ($bestCandidate) {
+                                    ScheduleAssignment::create([
+                                        'restaurant_id' => $restaurant->id,
+                                        'branch_id'     => $bestCandidate->branch_id ?? $user->branch_id,
+                                        'employee_id'   => $bestCandidate->id,
+                                        'shift_id'      => $shift->id,
+                                        'scheduled_date'=> $dateStr,
+                                        'status'        => 'scheduled',
+                                    ]);
+
+                                    $assignedForThisShift[] = $bestCandidate->id;
+                                    $employeeShiftCounts[$bestCandidate->id] = ($employeeShiftCounts[$bestCandidate->id] ?? 0) + 1;
+                                }
                             }
                         }
                     }
@@ -1974,5 +2057,123 @@ class SupportController extends Controller
         ]);
 
         return back()->with('success', 'Đã từ chối đơn xin nghỉ.');
+    }
+
+    /**
+     * Sao chép lịch xếp ca từ tuần trước sang tuần hiện tại.
+     */
+    public function copyLastWeekSchedules(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        // Current week boundaries
+        $startOfCurrentWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $endOfCurrentWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+        // Last week boundaries
+        $startOfLastWeek = Carbon::now()->subWeek()->startOfWeek(Carbon::MONDAY);
+        $endOfLastWeek = Carbon::now()->subWeek()->endOfWeek(Carbon::SUNDAY);
+
+        // Get all assignments from last week
+        $lastWeekAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$startOfLastWeek->toDateString(), $endOfLastWeek->toDateString()])
+            ->get();
+
+        if ($lastWeekAssignments->isEmpty()) {
+            return back()->with('error', 'Không tìm thấy lịch trực nào từ tuần trước để sao chép.');
+        }
+
+        // Delete current week schedules first
+        ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$startOfCurrentWeek->toDateString(), $endOfCurrentWeek->toDateString()])
+            ->delete();
+
+        $copiedCount = 0;
+
+        foreach ($lastWeekAssignments as $assignment) {
+            // Calculate corresponding day in current week
+            $lastWeekDate = Carbon::parse($assignment->scheduled_date);
+            $dayOffset = $lastWeekDate->diffInDays($startOfLastWeek); // days since Monday of last week
+            $currentWeekDateStr = $startOfCurrentWeek->copy()->addDays($dayOffset)->toDateString();
+
+            // Check if employee is on approved leave on that day
+            $isOnLeave = LeaveRequest::where('restaurant_id', $restaurantId)
+                ->where('employee_id', $assignment->employee_id)
+                ->where('status', 'approved')
+                ->whereDate('start_date', '<=', $currentWeekDateStr)
+                ->whereDate('end_date', '>=', $currentWeekDateStr)
+                ->exists();
+
+            if ($isOnLeave) {
+                continue; // Skip copying this assignment as they are on leave
+            }
+
+            // Duplicate assignment
+            ScheduleAssignment::create([
+                'restaurant_id'  => $restaurantId,
+                'branch_id'      => $assignment->branch_id,
+                'employee_id'    => $assignment->employee_id,
+                'shift_id'       => $assignment->shift_id,
+                'scheduled_date' => $currentWeekDateStr,
+                'status'         => 'scheduled',
+            ]);
+
+            $copiedCount++;
+        }
+
+        return back()->with('success', "Đã sao chép thành công {$copiedCount} phân công lịch trực từ tuần trước.");
+    }
+
+    /**
+     * Phê duyệt yêu cầu đổi ca.
+     */
+    public function approveSwap(Request $request, ShiftSwap $swap): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($swap->status === 'accepted', 422);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $user, $request) {
+            $reqAssignment = $swap->requesterAssignment;
+            $recAssignment = $swap->receiverAssignment;
+
+            if ($reqAssignment && $recAssignment) {
+                // Swap employee_ids
+                $tempEmpId = $reqAssignment->employee_id;
+                $reqAssignment->update(['employee_id' => $recAssignment->employee_id]);
+                $recAssignment->update(['employee_id' => $tempEmpId]);
+            }
+
+            $swap->update([
+                'status' => 'approved',
+                'approved_by' => $user->id,
+                'notes' => $request->input('notes', 'Phê duyệt bởi Quản lý/Chủ nhà hàng')
+            ]);
+        });
+
+        return back()->with('success', 'Đã phê duyệt yêu cầu đổi ca làm việc thành công.');
+    }
+
+    /**
+     * Từ chối yêu cầu đổi ca.
+     */
+    public function rejectSwap(Request $request, ShiftSwap $swap): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($swap->status === 'accepted', 422);
+
+        $swap->update([
+            'status' => 'rejected',
+            'approved_by' => $user->id,
+            'notes' => $request->input('notes', 'Từ chối bởi Quản lý/Chủ nhà hàng')
+        ]);
+
+        return back()->with('success', 'Đã từ chối yêu cầu đổi ca làm việc.');
     }
 }

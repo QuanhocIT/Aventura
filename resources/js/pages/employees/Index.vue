@@ -3,7 +3,8 @@ import { Head, useForm, router } from '@inertiajs/vue3';
 import {
     Users, Plus, Calendar, Clock, CheckCircle2,
     AlertCircle, Sparkles, UserCheck, ShieldCheck, Mail, Phone,
-    Pencil, ToggleLeft, ToggleRight, X, Trash2, Settings
+    Pencil, ToggleLeft, ToggleRight, X, Trash2, Settings,
+    RefreshCw, ArrowUpDown
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,18 @@ type Employee = {
 };
 type Shift = { id: number; name: string; start: string; end: string };
 type Assignment = { day: string; employee_name: string; shift_name: string };
+type Swap = {
+    id: number;
+    notes: string | null;
+    status: string;
+    created_at: string;
+    requester_name: string;
+    requester_shift: string;
+    requester_date: string;
+    receiver_name: string;
+    receiver_shift: string;
+    receiver_date: string;
+};
 
 const props = defineProps<{
     employees: Employee[];
@@ -39,6 +52,7 @@ const props = defineProps<{
     schedules: Assignment[];
     registrations?: Array<{ employee_name: string; shift_name: string; day: string }>;
     leaveRequests?: any[];
+    pendingSwaps?: Swap[];
     autoSchedule?: boolean;
 }>();
 
@@ -479,6 +493,55 @@ const getRegistrationsForDay = (dayKey: string) => {
     if (!props.registrations) return [];
     return props.registrations.filter(r => r.day === dayKey);
 };
+
+const dragOverDay = ref<string | null>(null);
+
+const handleDropShift = (e: DragEvent, dayKey: string) => {
+    dragOverDay.value = null;
+    const shiftName = e.dataTransfer?.getData('text/plain');
+    if (!shiftName) return;
+
+    currentAssignDay.value = dayKey;
+    assignForm.value.employee_name = availableEmployeesList.value[0] ?? '';
+    assignForm.value.shift_name = shiftName;
+    showAssignModal.value = true;
+};
+
+const copyLastWeekSchedules = () => {
+    if (confirm('Sao chép toàn bộ lịch xếp ca của tuần trước sang tuần này? Các lịch đã xếp trong tuần này sẽ bị thế chỗ.')) {
+        router.post('/employees/schedules/copy-last-week', {}, {
+            onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã sao chép lịch trực thành công!')),
+            onError: (errs: any) => import('vue-sonner').then(m => m.toast.error(errs.error || 'Lỗi khi sao chép.'))
+        });
+    }
+};
+
+const showSwapRejectModal = ref<number | null>(null);
+const swapRejectReason = ref('');
+
+const approveSwap = (swapId: number) => {
+    if (confirm('Phê duyệt yêu cầu đổi ca trực này?')) {
+        router.patch(`/schedules/swap/${swapId}/approve`, {}, {
+            onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đổi ca thành công!'))
+        });
+    }
+};
+
+const submitSwapReject = () => {
+    if (!swapRejectReason.value) {
+        import('vue-sonner').then(m => m.toast.error('Vui lòng nhập lý do từ chối.'));
+        return;
+    }
+    router.patch(`/schedules/swap/${showSwapRejectModal.value}/reject`, {
+        notes: swapRejectReason.value
+    }, {
+        onSuccess: () => {
+            import('vue-sonner').then(m => m.toast.success('Đã từ chối yêu cầu đổi ca.'));
+            showSwapRejectModal.value = null;
+            swapRejectReason.value = '';
+        }
+    });
+};
 </script>
 
 <template>
@@ -888,6 +951,17 @@ const getRegistrationsForDay = (dayKey: string) => {
                             </div>
 
                             <Button 
+                                @click="copyLastWeekSchedules"
+                                :disabled="isAutoSchedule"
+                                variant="outline" 
+                                size="sm"
+                                class="h-8 text-xs shrink-0 flex items-center gap-1.5 text-emerald-650 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300 disabled:opacity-50"
+                            >
+                                <RefreshCw class="size-3.5" />
+                                Sao chép tuần trước
+                            </Button>
+
+                            <Button 
                                 @click="showShiftConfigModal = true"
                                 :disabled="isAutoSchedule"
                                 variant="outline" 
@@ -902,7 +976,18 @@ const getRegistrationsForDay = (dayKey: string) => {
                     <CardContent class="p-4">
                         <!-- Shifts listing brief -->
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-                            <div v-for="s in shiftsState" :key="s.id" class="p-3 bg-white dark:bg-slate-950 border rounded-xl shadow-sm text-center flex flex-col justify-center items-center relative group">
+                            <div 
+                                v-for="s in shiftsState" 
+                                :key="s.id" 
+                                draggable="true"
+                                @dragstart="e => {
+                                    if (e.dataTransfer) {
+                                        e.dataTransfer.setData('text/plain', s.name.split(' (')[0]);
+                                        e.dataTransfer.effectAllowed = 'copy';
+                                    }
+                                }"
+                                class="p-3 bg-white dark:bg-slate-950 border rounded-xl shadow-sm text-center flex flex-col justify-center items-center relative group cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-all duration-150"
+                            >
                                 <Clock class="size-4 text-indigo-600 mb-1" />
                                 <span class="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate max-w-full">{{ s.name }}</span>
                                 <span class="text-[9px] text-slate-400 font-mono mt-0.5">{{ s.start }} - {{ s.end }}</span>
@@ -915,7 +1000,7 @@ const getRegistrationsForDay = (dayKey: string) => {
                                 <thead>
                                     <tr class="bg-slate-55 dark:bg-slate-900 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
                                         <th class="p-3.5 border-r w-[120px]">Thứ trong tuần</th>
-                                        <th class="p-3.5">Lịch xếp ca nhân sự hôm nay</th>
+                                        <th class="p-3.5">Lịch xếp ca nhân sự hôm nay (Kéo thả ca trực từ trên vào đây để xếp ca)</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -926,7 +1011,13 @@ const getRegistrationsForDay = (dayKey: string) => {
                                                 <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
                                             </div>
                                         </td>
-                                        <td class="p-3.5 flex flex-wrap gap-2 items-center">
+                                        <td 
+                                            class="p-3.5 flex flex-wrap gap-2 items-center min-h-[60px] transition-colors"
+                                            :class="dragOverDay === day.key ? 'bg-indigo-50/45 dark:bg-indigo-950/20 border border-dashed border-indigo-400 rounded-lg' : ''"
+                                            @dragover.prevent="dragOverDay = day.key"
+                                            @dragleave="dragOverDay = null"
+                                            @drop="handleDropShift($event, day.key)"
+                                        >
                                             <!-- Load assigned schedules -->
                                             <div
                                                 v-for="(s, idx) in schedulesState.filter(sc => sc.day === day.key)"
@@ -1069,6 +1160,82 @@ const getRegistrationsForDay = (dayKey: string) => {
                 </div>
             </CardContent>
         </Card>
+
+        <!-- Section: Shift Swaps Approvals (Full-Width Card) -->
+        <Card class="shadow-sm border-slate-100 bg-white dark:bg-slate-900 mt-6">
+            <CardHeader class="pb-3 border-b">
+                <div>
+                    <CardTitle class="text-base flex items-center gap-1.5 text-indigo-650 dark:text-indigo-400">
+                        <ArrowUpDown class="size-5 text-indigo-600" />
+                        Quản lý Yêu cầu Đổi ca trực (Shift Swaps)
+                    </CardTitle>
+                    <CardDescription>Phê duyệt hoặc từ chối các yêu cầu đổi ca trực đã được đồng ý bởi cả hai nhân sự.</CardDescription>
+                </div>
+            </CardHeader>
+            <CardContent class="p-0">
+                <div v-if="pendingSwaps && pendingSwaps.length" class="overflow-x-auto">
+                    <table class="w-full text-xs text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-slate-950 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                                <th class="p-3.5">Thời gian gửi</th>
+                                <th class="p-3.5">Nhân sự đề xuất (Ca trực)</th>
+                                <th class="p-3.5 text-center">Đổi với</th>
+                                <th class="p-3.5">Nhân sự nhận (Ca trực)</th>
+                                <th class="p-3.5">Ghi chú / Lý do</th>
+                                <th class="p-3.5">Trạng thái</th>
+                                <th class="p-3.5 text-right">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-for="swap in pendingSwaps" :key="swap.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                <td class="p-3.5 font-medium text-slate-400 font-mono">{{ swap.created_at }}</td>
+                                <td class="p-3.5">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">{{ swap.requester_name }}</div>
+                                    <div class="text-[10px] text-indigo-600 font-semibold font-mono">{{ swap.requester_shift }} ({{ swap.requester_date }})</div>
+                                </td>
+                                <td class="p-3.5 text-center font-bold text-slate-400">
+                                    <ArrowUpDown class="size-4 mx-auto text-slate-300 animate-pulse" />
+                                </td>
+                                <td class="p-3.5">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">{{ swap.receiver_name }}</div>
+                                    <div class="text-[10px] text-emerald-600 font-semibold font-mono">{{ swap.receiver_shift }} ({{ swap.receiver_date }})</div>
+                                </td>
+                                <td class="p-3.5 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" :title="swap.notes || ''">
+                                    {{ swap.notes }}
+                                </td>
+                                <td class="p-3.5">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                                        Chờ duyệt
+                                    </span>
+                                </td>
+                                <td class="p-3.5 text-right flex items-center justify-end gap-1.5">
+                                    <button 
+                                        @click="approveSwap(swap.id)"
+                                        class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-700 transition shadow active:scale-95 animate-in fade-in"
+                                    >
+                                        Phê duyệt
+                                    </button>
+                                    <button 
+                                        @click="showSwapRejectModal = swap.id"
+                                        class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-rose-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-rose-700 transition shadow active:scale-95 animate-in fade-in"
+                                    >
+                                        Từ chối
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="py-16 text-center">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-900 mx-auto mb-3 text-slate-400">
+                        <ArrowUpDown class="size-6" />
+                    </div>
+                    <p class="text-sm font-semibold">Chưa có yêu cầu đổi ca trực nào</p>
+                    <p class="mt-1 text-xs text-muted-foreground">Các yêu cầu đổi ca đã được hai nhân sự đồng ý và chờ quản lý duyệt sẽ hiển thị tại đây.</p>
+                </div>
+            </CardContent>
+        </Card>
+
 
         <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
         <div v-if="showShiftConfigModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1419,6 +1586,44 @@ const getRegistrationsForDay = (dayKey: string) => {
 
                         <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
                             <Button type="button" variant="outline" size="sm" @click="showRejectModal = null">Hủy</Button>
+                            <Button type="submit" size="sm" class="bg-rose-600 text-white font-semibold">Xác nhận từ chối</Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Modal: Nhập lý do từ chối đổi ca trực (showSwapRejectModal) -->
+        <div v-if="showSwapRejectModal !== null" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <Card class="max-w-sm w-full shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
+                            <AlertCircle class="size-5" />
+                            Từ chối yêu cầu đổi ca
+                        </CardTitle>
+                        <CardDescription>Vui lòng nhập lý do từ chối yêu cầu đổi ca trực này.</CardDescription>
+                    </div>
+                    <button @click="showSwapRejectModal = null" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                <CardContent class="pt-4">
+                    <form @submit.prevent="submitSwapReject" class="space-y-4">
+                        <div class="grid gap-1.5">
+                            <Label for="swap-reject-reason">Lý do từ chối <span class="text-rose-500">*</span></Label>
+                            <textarea
+                                id="swap-reject-reason"
+                                v-model="swapRejectReason"
+                                required
+                                rows="3"
+                                placeholder="Ví dụ: Ca trực hôm nay không thể thay đổi do yêu cầu đặc biệt..."
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            ></textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
+                            <Button type="button" variant="outline" size="sm" @click="showSwapRejectModal = null">Hủy</Button>
                             <Button type="submit" size="sm" class="bg-rose-600 text-white font-semibold">Xác nhận từ chối</Button>
                         </div>
                     </form>

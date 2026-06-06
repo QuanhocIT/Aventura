@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
 use App\Models\ScheduleRegistration;
+use App\Models\ShiftSwap;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class ScheduleController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $restaurant = \App\Models\Restaurant::find($restaurantId);
 
         // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
         if ($user->hasAnyRole(['owner', 'manager'])) {
@@ -52,6 +54,7 @@ class ScheduleController extends Controller
                         'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i:s d/m/Y') : null,
                         'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : null,
                         'status' => $a->status,
+                        'is_shift_leader' => (bool) $a->is_shift_leader,
                         'duration' => $duration,
                         'notes' => $a->notes,
                     ];
@@ -158,6 +161,67 @@ class ScheduleController extends Controller
                     'day' => Carbon::parse($r->scheduled_date)->format('l'),
                 ]);
 
+            $allPendingSwaps = ShiftSwap::where('restaurant_id', $restaurantId)
+                ->where('status', 'accepted')
+                ->with([
+                    'requesterAssignment.employee:id,full_name,employee_code',
+                    'requesterAssignment.shift:id,name,start_time,end_time',
+                    'receiverAssignment.employee:id,full_name,employee_code',
+                    'receiverAssignment.shift:id,name,start_time,end_time'
+                ])
+                ->get()
+                ->map(fn ($sw) => [
+                    'id' => $sw->id,
+                    'status' => $sw->status,
+                    'notes' => $sw->notes,
+                    'requester_name' => $sw->requesterAssignment?->employee?->full_name ?? '—',
+                    'requester_shift' => $sw->requesterAssignment?->shift?->name ?? '—',
+                    'requester_date' => $sw->requesterAssignment?->scheduled_date instanceof Carbon ? $sw->requesterAssignment->scheduled_date->toDateString() : Carbon::parse($sw->requesterAssignment?->scheduled_date)->toDateString(),
+                    'receiver_name' => $sw->receiverAssignment?->employee?->full_name ?? '—',
+                    'receiver_shift' => $sw->receiverAssignment?->shift?->name ?? '—',
+                    'receiver_date' => $sw->receiverAssignment?->scheduled_date instanceof Carbon ? $sw->receiverAssignment->scheduled_date->toDateString() : Carbon::parse($sw->receiverAssignment?->scheduled_date)->toDateString(),
+                ]);
+
+            $startOfMonth = Carbon::now()->startOfMonth()->toDateString();
+            $endOfMonth = Carbon::now()->endOfMonth()->toDateString();
+
+            $monthlyAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
+                ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
+                ->get()
+                ->map(function ($a) use ($restaurant) {
+                    $durationHours = 0;
+                    if ($a->check_in_at && $a->check_out_at) {
+                        $diffInSeconds = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at));
+                        $durationHours = round($diffInSeconds / 3600.0, 2);
+                    }
+
+                    $lateMin = null;
+                    if ($a->check_in_at && $a->shift) {
+                        $shiftStart = Carbon::parse(($a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString()) . ' ' . $a->shift->start_time);
+                        $graceEnd = $shiftStart->copy()->addMinutes($restaurant?->grace_period_minutes ?? 10);
+                        $checkIn = Carbon::parse($a->check_in_at);
+                        if ($checkIn->greaterThan($graceEnd)) {
+                            $lateMin = round($checkIn->diffInMinutes($graceEnd));
+                        }
+                    }
+
+                    return [
+                        'id' => $a->id,
+                        'employee_id' => $a->employee_id,
+                        'employee_name' => $a->employee?->full_name ?? 'Không rõ',
+                        'employee_code' => $a->employee?->employee_code ?? '—',
+                        'job_title' => $a->employee?->job_title ?? '—',
+                        'compensation_type' => $a->employee?->compensation_type ?? 'fixed',
+                        'pay_rate' => (float) ($a->employee?->pay_rate ?? 0),
+                        'base_salary' => (float) ($a->employee?->base_salary ?? 0),
+                        'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
+                        'status' => $a->status,
+                        'duration_hours' => $durationHours,
+                        'late_minutes' => $lateMin,
+                    ];
+                });
+
             return Inertia::render('schedules/Index', [
                 'isAdmin'          => true,
                 'selectedDate'     => $selectedDate,
@@ -168,6 +232,22 @@ class ScheduleController extends Controller
                 'employees'        => $employees,
                 'staffingTips'     => $staffingTips,
                 'registrations'    => $registrations,
+                'allPendingSwaps'  => $allPendingSwaps,
+                'monthlyAssignments' => $monthlyAssignments,
+                'gpsSettings'      => [
+                    'latitude'  => $restaurant?->latitude,
+                    'longitude' => $restaurant?->longitude,
+                    'radius'    => $restaurant?->checkin_radius_meters ?? 100,
+                ],
+                'qrSettings'       => [
+                    'code'       => $restaurant?->qr_checkin_code,
+                    'expires_at' => $restaurant?->qr_checkin_expires_at ? $restaurant->qr_checkin_expires_at->toDateTimeString() : null,
+                    'is_expired' => $restaurant?->qr_checkin_expires_at ? now()->greaterThan($restaurant->qr_checkin_expires_at) : true,
+                ],
+                'restaurantSettings' => [
+                    'grace_period_minutes' => $restaurant?->grace_period_minutes ?? 10,
+                    'ot_multiplier'        => (float) ($restaurant?->ot_multiplier ?? 1.50),
+                ],
             ]);
         }
 
@@ -284,12 +364,75 @@ class ScheduleController extends Controller
                 'date' => $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString(),
             ]);
 
+        $myAssignmentIds = ScheduleAssignment::where('employee_id', $employee->id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->pluck('id');
+
+        $pendingSwapRequests = ShiftSwap::where('restaurant_id', $restaurantId)
+            ->where(function ($q) use ($myAssignmentIds) {
+                $q->whereIn('requester_assignment_id', $myAssignmentIds)
+                  ->orWhereIn('receiver_assignment_id', $myAssignmentIds);
+            })
+            ->with([
+                'requesterAssignment.employee:id,full_name,employee_code',
+                'requesterAssignment.shift:id,name,start_time,end_time',
+                'receiverAssignment.employee:id,full_name,employee_code',
+                'receiverAssignment.shift:id,name,start_time,end_time'
+            ])
+            ->get()
+            ->map(fn ($sw) => [
+                'id' => $sw->id,
+                'status' => $sw->status,
+                'notes' => $sw->notes,
+                'is_requester' => in_array($sw->requester_assignment_id, $myAssignmentIds->toArray()),
+                'requester_name' => $sw->requesterAssignment?->employee?->full_name ?? '—',
+                'requester_shift' => $sw->requesterAssignment?->shift?->name ?? '—',
+                'requester_date' => $sw->requesterAssignment?->scheduled_date instanceof Carbon ? $sw->requesterAssignment->scheduled_date->toDateString() : Carbon::parse($sw->requesterAssignment?->scheduled_date)->toDateString(),
+                'receiver_name' => $sw->receiverAssignment?->employee?->full_name ?? '—',
+                'receiver_shift' => $sw->receiverAssignment?->shift?->name ?? '—',
+                'receiver_date' => $sw->receiverAssignment?->scheduled_date instanceof Carbon ? $sw->receiverAssignment->scheduled_date->toDateString() : Carbon::parse($sw->receiverAssignment?->scheduled_date)->toDateString(),
+            ]);
+
+        $restaurant = \App\Models\Restaurant::find($restaurantId);
+
+        $weeklyAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->with(['employee:id,full_name,employee_code', 'shift:id,name,start_time,end_time'])
+            ->get()
+            ->map(fn ($wa) => [
+                'id' => $wa->id,
+                'day' => Carbon::parse($wa->scheduled_date)->format('l'),
+                'date' => Carbon::parse($wa->scheduled_date)->format('d/m/Y'),
+                'employee_id' => $wa->employee_id,
+                'employee_name' => $wa->employee?->full_name ?? 'Không rõ',
+                'employee_code' => $wa->employee?->employee_code ?? '—',
+                'shift_id' => $wa->shift_id,
+                'shift_name' => $wa->shift?->name ?? '—',
+                'shift_time' => $wa->shift ? substr($wa->shift->start_time, 0, 5) . ' - ' . substr($wa->shift->end_time, 0, 5) : '—',
+            ]);
+
         return Inertia::render('schedules/Index', [
             'isAdmin' => false,
             'myWeeklySchedules' => $myWeeklySchedules,
             'todayActiveAssignment' => $todayActiveAssignment,
             'shifts' => $shifts,
             'myRegistrations' => $myRegistrations,
+            'pendingSwapRequests' => $pendingSwapRequests,
+            'weeklyAssignments' => $weeklyAssignments,
+            'employee' => [
+                'id' => $employee->id,
+                'full_name' => $employee->full_name,
+            ],
+            'gpsSettings' => [
+                'latitude' => $restaurant?->latitude,
+                'longitude' => $restaurant?->longitude,
+                'radius' => $restaurant?->checkin_radius_meters ?? 100,
+            ],
+            'qrSettings' => [
+                'code' => $restaurant?->qr_checkin_code,
+                'expires_at' => $restaurant?->qr_checkin_expires_at ? $restaurant->qr_checkin_expires_at->toDateTimeString() : null,
+                'is_expired' => $restaurant?->qr_checkin_expires_at ? now()->greaterThan($restaurant->qr_checkin_expires_at) : true,
+            ],
         ]);
     }
 
@@ -301,6 +444,48 @@ class ScheduleController extends Controller
         $employee = $request->user()->employee;
         if (!$employee) {
             return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
+        }
+
+        $restaurant = $employee->restaurant;
+
+        // 1. Geolocation (GPS) Validation
+        if ($restaurant && $restaurant->latitude && $restaurant->longitude) {
+            $clientLat = $request->input('latitude');
+            $clientLng = $request->input('longitude');
+
+            if (is_null($clientLat) || is_null($clientLng)) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Vui lòng bật vị trí (GPS) và cấp quyền truy cập để chấm công.']);
+            }
+
+            $earthRadius = 6371000; // in meters
+            $latFrom = deg2rad($restaurant->latitude);
+            $lonFrom = deg2rad($restaurant->longitude);
+            $latTo = deg2rad(floatval($clientLat));
+            $lonTo = deg2rad(floatval($clientLng));
+
+            $latDelta = $latTo - $latFrom;
+            $lonDelta = $lonTo - $lonFrom;
+
+            $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) +
+                cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+            $distance = $angle * $earthRadius;
+            
+            $allowedRadius = $restaurant->checkin_radius_meters ?? 100;
+            if ($distance > $allowedRadius) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Bạn đang ở cách xa nhà hàng (' . round($distance) . 'm). Khoảng cách cho phép là dưới ' . $allowedRadius . 'm.']);
+            }
+        }
+
+        // 2. QR Code Validation
+        if ($restaurant && $restaurant->qr_checkin_code) {
+            if ($restaurant->qr_checkin_expires_at && now()->greaterThan($restaurant->qr_checkin_expires_at)) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công trong ngày đã hết hạn. Hãy yêu cầu quản lý tạo mã QR mới.']);
+            }
+
+            $clientQR = $request->input('qr_code');
+            if (empty($clientQR) || $clientQR !== $restaurant->qr_checkin_code) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công không hợp lệ hoặc không khớp.']);
+            }
         }
 
         // Tìm ca được xếp có hiệu lực hiện tại
@@ -384,6 +569,9 @@ class ScheduleController extends Controller
         $data = $request->validate([
             'assignment_id' => ['required', 'exists:schedule_assignments,id'],
             'notes' => ['nullable', 'string', 'max:250'],
+            'apply_violation' => ['nullable', 'boolean'],
+            'penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
@@ -394,6 +582,10 @@ class ScheduleController extends Controller
             'approved_by' => $request->user()->id,
             'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
         ]);
+
+        if ($request->boolean('apply_violation')) {
+            $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca');
+        }
 
         return back()->with('success', 'Đã ghi nhận Check-in hộ thành công cho nhân viên.');
     }
@@ -408,6 +600,9 @@ class ScheduleController extends Controller
         $data = $request->validate([
             'assignment_id' => ['required', 'exists:schedule_assignments,id'],
             'notes' => ['nullable', 'string', 'max:250'],
+            'apply_violation' => ['nullable', 'boolean'],
+            'penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
@@ -418,6 +613,10 @@ class ScheduleController extends Controller
             'approved_by' => $request->user()->id,
             'notes' => $data['notes'] ?? 'Check-out hộ bởi Quản lý/Chủ nhà hàng',
         ]);
+
+        if ($request->boolean('apply_violation')) {
+            $this->createAutoViolation($request, $sa, 'Về sớm / Vấn đề ra ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-out hộ kèm vi phạm ra ca');
+        }
 
         return back()->with('success', 'Đã ghi nhận Check-out hộ thành công cho nhân viên.');
     }
@@ -432,6 +631,9 @@ class ScheduleController extends Controller
         $data = $request->validate([
             'assignment_id' => ['required', 'exists:schedule_assignments,id'],
             'notes' => ['nullable', 'string', 'max:250'],
+            'apply_violation' => ['nullable', 'boolean'],
+            'penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
@@ -442,7 +644,34 @@ class ScheduleController extends Controller
             'notes' => $data['notes'] ?? 'Vắng mặt không lý do',
         ]);
 
+        if ($request->boolean('apply_violation')) {
+            $this->createAutoViolation($request, $sa, 'Vắng mặt', $data['violation_notes'] ?? $data['notes'] ?? 'Báo vắng trực không lý do');
+        }
+
         return back()->with('success', 'Đã ghi nhận báo vắng thành công cho nhân viên.');
+    }
+
+    /**
+     * Tự động tạo Biên bản vi phạm kỷ luật khi có tuỳ chọn kèm theo.
+     */
+    private function createAutoViolation(Request $request, ScheduleAssignment $sa, string $violationType, string $description): void
+    {
+        $user = $request->user();
+        $penaltyAmount = (float) ($request->input('penalty_amount') ?? 0);
+
+        \App\Models\ViolationReport::create([
+            'restaurant_id'  => $sa->restaurant_id,
+            'branch_id'      => $sa->branch_id,
+            'employee_id'    => $sa->employee_id,
+            'reported_by'    => $user->id,
+            'violation_type' => $violationType,
+            'severity'       => 'low',
+            'description'    => $description,
+            'penalty_amount' => $penaltyAmount,
+            'occurred_at'    => $sa->scheduled_date ? Carbon::parse($sa->scheduled_date)->toDateString() . ' ' . now()->format('H:i:s') : now(),
+            'status'         => 'resolved', // Đã phê duyệt và áp dụng trực tiếp lên bảng lương nháp
+            'is_anonymous'   => false,
+        ]);
     }
 
     /**
@@ -502,5 +731,304 @@ class ScheduleController extends Controller
         });
 
         return back()->with('success', 'Đã lưu đăng ký ca làm việc khả dụng thành công!');
+    }
+
+    /**
+     * Kích hoạt/Hủy vai trò Trưởng ca của phân công lịch trực.
+     */
+    public function toggleShiftLeader(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $data = $request->validate([
+            'assignment_id' => ['required', 'exists:schedule_assignments,id'],
+        ]);
+
+        $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
+        $sa->update([
+            'is_shift_leader' => !$sa->is_shift_leader,
+        ]);
+
+        $statusMsg = $sa->is_shift_leader ? 'Đã gán vai trò Trưởng ca.' : 'Đã hủy vai trò Trưởng ca.';
+        return back()->with('success', $statusMsg);
+    }
+
+    /**
+     * Cập nhật các thiết lập chấm công của Nhà hàng.
+     */
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $data = $request->validate([
+            'grace_period_minutes'  => ['required', 'integer', 'min:0', 'max:120'],
+            'ot_multiplier'         => ['required', 'numeric', 'min:1.0', 'max:5.0'],
+            'latitude'              => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude'             => ['nullable', 'numeric', 'between:-180,180'],
+            'checkin_radius_meters' => ['required', 'integer', 'min:10', 'max:10000'],
+        ]);
+
+        $restaurant = \App\Models\Restaurant::find($request->user()->restaurant_id);
+        if ($restaurant) {
+            $restaurant->update([
+                'grace_period_minutes'  => $data['grace_period_minutes'],
+                'ot_multiplier'         => (float) $data['ot_multiplier'],
+                'latitude'              => $data['latitude'] ? (float) $data['latitude'] : null,
+                'longitude'             => $data['longitude'] ? (float) $data['longitude'] : null,
+                'checkin_radius_meters' => (int) $data['checkin_radius_meters'],
+            ]);
+        }
+
+        return back()->with('success', 'Đã lưu cài đặt tham số chấm công thành công.');
+    }
+
+    /**
+     * Duyệt ca làm việc rảnh của nhân sự thành phân công lịch trực.
+     */
+    public function approveRegistration(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $data = $request->validate([
+            'registration_id' => ['required', 'exists:schedule_registrations,id'],
+        ]);
+
+        $reg = ScheduleRegistration::with('employee')->findOrFail($data['registration_id']);
+
+        // Check if already assigned
+        $exists = ScheduleAssignment::where('employee_id', $reg->employee_id)
+            ->where('shift_id', $reg->shift_id)
+            ->whereDate('scheduled_date', $reg->scheduled_date)
+            ->exists();
+
+        if ($exists) {
+            return back()->withErrors(['error' => 'Nhân viên này đã được xếp ca trực này vào ngày tương ứng.']);
+        }
+
+        // Auto schedule
+        ScheduleAssignment::create([
+            'restaurant_id'  => $reg->restaurant_id,
+            'branch_id'      => $reg->employee?->branch_id ?? $request->user()->branch_id,
+            'employee_id'    => $reg->employee_id,
+            'shift_id'       => $reg->shift_id,
+            'scheduled_date' => $reg->scheduled_date,
+            'status'         => 'scheduled',
+        ]);
+
+        return back()->with('success', 'Đã duyệt ca rảnh và xếp lịch trực thành công cho nhân viên ' . ($reg->employee?->full_name ?? '') . '.');
+    }
+
+    /**
+     * Xuất báo cáo chấm công của ngày được chọn ra file CSV.
+     */
+    public function export(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $restaurantId = $request->user()->restaurant_id;
+        $selectedDate = $request->input('date', today()->toDateString());
+
+        $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereDate('scheduled_date', $selectedDate)
+            ->with(['employee:id,full_name,employee_code,job_title', 'shift'])
+            ->get();
+
+        $headers = [
+            'Content-type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename=bao_cao_cham_cong_' . $selectedDate . '.csv',
+            'Pragma'              => 'no-cache',
+            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires'             => '0',
+        ];
+
+        $callback = function () use ($assignments, $selectedDate) {
+            $file = fopen('php://output', 'w');
+            
+            // UTF-8 BOM to prevent Excel display issues in Vietnamese
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Header row
+            fputcsv($file, [
+                'Họ và tên',
+                'Mã nhân viên',
+                'Chức vụ',
+                'Ca trực',
+                'Khung giờ ca',
+                'Ngày trực',
+                'Thực tế Vào',
+                'Thực tế Ra',
+                'Tổng giờ làm',
+                'Trạng thái',
+                'Trưởng ca',
+                'Ghi chú'
+            ]);
+
+            $statusLabels = [
+                'scheduled'      => 'Chưa vào ca',
+                'checked_in'     => 'Đang làm việc',
+                'completed'      => 'Đã hoàn thành ca',
+                'absent'         => 'Vắng mặt',
+                'leave_approved' => 'Nghỉ phép',
+            ];
+
+            foreach ($assignments as $a) {
+                $duration = '—';
+                if ($a->check_in_at) {
+                    $end = $a->check_out_at ? Carbon::parse($a->check_out_at) : now();
+                    $diff = Carbon::parse($a->check_in_at)->diff($end);
+                    $duration = sprintf('%02d:%02d:%02d', $diff->h + ($diff->days * 24), $diff->i, $diff->s);
+                }
+
+                $shiftTime = $a->shift ? substr($a->shift->start_time, 0, 5) . ' - ' . substr($a->shift->end_time, 0, 5) : '—';
+                $checkIn = $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i:s d/m/Y') : '—';
+                $checkOut = $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : '—';
+
+                fputcsv($file, [
+                    $a->employee?->full_name ?? 'Không rõ',
+                    $a->employee?->employee_code ?? '—',
+                    $a->employee?->job_title ?? '—',
+                    $a->shift?->name ?? '—',
+                    $shiftTime,
+                    $selectedDate,
+                    $checkIn,
+                    $checkOut,
+                    $duration,
+                    $statusLabels[$a->status] ?? $a->status,
+                    $a->is_shift_leader ? 'Có' : 'Không',
+                    $a->notes ?? ''
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Tạo mã QR chấm công trong ngày.
+     */
+    public function generateDailyQR(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $restaurant = \App\Models\Restaurant::find($request->user()->restaurant_id);
+        if ($restaurant) {
+            $restaurant->update([
+                'qr_checkin_code'       => 'QR_' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(10)),
+                'qr_checkin_expires_at' => now()->addHours(16),
+            ]);
+        }
+
+        return back()->with('success', 'Đã tạo mã QR chấm công mới trong ngày thành công (hiệu lực 16 giờ).');
+    }
+
+    /**
+     * Gửi yêu cầu đổi ca cho đồng nghiệp.
+     */
+    public function requestSwap(Request $request): RedirectResponse
+    {
+        $employee = $request->user()->employee;
+        if (!$employee) {
+            return back()->withErrors(['error' => 'Bạn không phải là nhân viên hợp lệ để thực hiện chức năng này.']);
+        }
+
+        $data = $request->validate([
+            'requester_assignment_id' => ['required', 'exists:schedule_assignments,id'],
+            'receiver_assignment_id'  => ['required', 'exists:schedule_assignments,id'],
+            'notes'                   => ['nullable', 'string', 'max:250'],
+        ]);
+
+        $reqAssignment = ScheduleAssignment::findOrFail($data['requester_assignment_id']);
+        $recAssignment = ScheduleAssignment::findOrFail($data['receiver_assignment_id']);
+
+        // Check ownership of requester assignment
+        if ($reqAssignment->employee_id !== $employee->id) {
+            return back()->withErrors(['error' => 'Bạn chỉ được gửi yêu cầu đổi ca cho ca trực của chính bạn.']);
+        }
+
+        // Check if assignments are in the same restaurant
+        if ($reqAssignment->restaurant_id !== $employee->restaurant_id || $recAssignment->restaurant_id !== $employee->restaurant_id) {
+            return back()->withErrors(['error' => 'Ca trực không hợp lệ.']);
+        }
+
+        // Check duplicate swap request
+        $exists = ShiftSwap::where('restaurant_id', $employee->restaurant_id)
+            ->where('requester_assignment_id', $data['requester_assignment_id'])
+            ->where('receiver_assignment_id', $data['receiver_assignment_id'])
+            ->whereIn('status', ['pending', 'accepted'])
+            ->exists();
+
+        if ($exists) {
+            return back()->withErrors(['error' => 'Yêu cầu đổi ca này đang được xử lý, không thể tạo trùng lặp.']);
+        }
+
+        ShiftSwap::create([
+            'restaurant_id'           => $employee->restaurant_id,
+            'requester_assignment_id' => $data['requester_assignment_id'],
+            'receiver_assignment_id'  => $data['receiver_assignment_id'],
+            'status'                  => 'pending',
+            'notes'                   => $data['notes'] ?? 'Đề xuất đổi ca làm việc',
+        ]);
+
+        return back()->with('success', 'Đã gửi yêu cầu đổi ca trực thành công đến đồng nghiệp.');
+    }
+
+    /**
+     * Chấp nhận đổi ca từ đồng nghiệp.
+     */
+    public function acceptSwap(Request $request, ShiftSwap $swap): RedirectResponse
+    {
+        $employee = $request->user()->employee;
+        if (!$employee) {
+            return back()->withErrors(['error' => 'Bạn không phải là nhân viên hợp lệ.']);
+        }
+
+        abort_if($swap->restaurant_id !== $employee->restaurant_id, 403);
+        abort_unless($swap->status === 'pending', 422);
+
+        // Verify that the current employee is the receiver of the swap
+        $recAssignment = $swap->receiverAssignment;
+        if (!$recAssignment || $recAssignment->employee_id !== $employee->id) {
+            return back()->withErrors(['error' => 'Bạn không phải là người nhận của yêu cầu đổi ca này.']);
+        }
+
+        $swap->update([
+            'status' => 'accepted',
+            'notes'  => $swap->notes . "\n[Chấp nhận bởi " . $employee->full_name . "]",
+        ]);
+
+        return back()->with('success', 'Bạn đã đồng ý đổi ca. Yêu cầu đã được chuyển đến Quản lý để phê duyệt cuối cùng.');
+    }
+
+    /**
+     * Hủy yêu cầu đổi ca.
+     */
+    public function cancelSwap(Request $request, ShiftSwap $swap): RedirectResponse
+    {
+        $employee = $request->user()->employee;
+        if (!$employee) {
+            return back()->withErrors(['error' => 'Bạn không phải là nhân viên hợp lệ.']);
+        }
+
+        abort_if($swap->restaurant_id !== $employee->restaurant_id, 403);
+        
+        $reqAssignment = $swap->requesterAssignment;
+        $recAssignment = $swap->receiverAssignment;
+
+        // Requester or receiver can cancel/reject
+        $isRequester = $reqAssignment && $reqAssignment->employee_id === $employee->id;
+        $isReceiver = $recAssignment && $recAssignment->employee_id === $employee->id;
+
+        if (!$isRequester && !$isReceiver) {
+            return back()->withErrors(['error' => 'Bạn không có quyền thực hiện thao tác này.']);
+        }
+
+        $swap->update([
+            'status' => 'cancelled',
+            'notes'  => $swap->notes . "\n[Bị hủy bởi " . $employee->full_name . "]",
+        ]);
+
+        return back()->with('success', 'Đã hủy yêu cầu đổi ca.');
     }
 }
