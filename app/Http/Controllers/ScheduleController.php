@@ -12,6 +12,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ScheduleController extends Controller
 {
@@ -57,6 +59,7 @@ class ScheduleController extends Controller
                         'is_shift_leader' => (bool) $a->is_shift_leader,
                         'duration' => $duration,
                         'notes' => $a->notes,
+                        'check_in_photo_path' => $a->check_in_photo_path ? asset('storage/' . $a->check_in_photo_path) : null,
                     ];
                 });
 
@@ -219,6 +222,8 @@ class ScheduleController extends Controller
                         'status' => $a->status,
                         'duration_hours' => $durationHours,
                         'late_minutes' => $lateMin,
+                        'shift_id' => $a->shift_id,
+                        'shift_name' => $a->shift?->name ?? '—',
                     ];
                 });
 
@@ -277,6 +282,7 @@ class ScheduleController extends Controller
                     'check_in_at' => $wa->check_in_at ? Carbon::parse($wa->check_in_at)->format('H:i:s') : null,
                     'check_out_at' => $wa->check_out_at ? Carbon::parse($wa->check_out_at)->format('H:i:s') : null,
                     'status' => $wa->status,
+                    'check_in_photo_path' => $wa->check_in_photo_path ? asset('storage/' . $wa->check_in_photo_path) : null,
                 ];
             });
 
@@ -525,9 +531,23 @@ class ScheduleController extends Controller
             return back()->withErrors(['email' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.']);
         }
 
+        $photo = $request->input('check_in_photo');
+        $photoPath = null;
+        if ($photo && preg_match('/^data:image\/(\w+);base64,/', $photo, $matches)) {
+            $type = strtolower($matches[1]);
+            $data = substr($photo, strpos($photo, ',') + 1);
+            $data = base64_decode($data);
+            if ($data !== false) {
+                $filename = 'checkin_' . $employee->id . '_' . time() . '_' . Str::random(5) . '.' . $type;
+                $photoPath = 'checkins/' . $filename;
+                Storage::disk('public')->put($photoPath, $data);
+            }
+        }
+
         $sa->update([
             'check_in_at' => now(),
             'status' => 'checked_in',
+            'check_in_photo_path' => $photoPath,
         ]);
 
         return back()->with('success', 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!');
@@ -963,13 +983,22 @@ class ScheduleController extends Controller
             return back()->withErrors(['error' => 'Yêu cầu đổi ca này đang được xử lý, không thể tạo trùng lặp.']);
         }
 
-        ShiftSwap::create([
+        $swap = ShiftSwap::create([
             'restaurant_id'           => $employee->restaurant_id,
             'requester_assignment_id' => $data['requester_assignment_id'],
             'receiver_assignment_id'  => $data['receiver_assignment_id'],
             'status'                  => 'pending',
             'notes'                   => $data['notes'] ?? 'Đề xuất đổi ca làm việc',
         ]);
+
+        $receiverUser = $recAssignment->employee?->user;
+        if ($receiverUser) {
+            $receiverUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'requested',
+                "Đồng nghiệp {$employee->full_name} đề xuất đổi ca trực tuần này với bạn."
+            ));
+        }
 
         return back()->with('success', 'Đã gửi yêu cầu đổi ca trực thành công đến đồng nghiệp.');
     }
@@ -997,6 +1026,28 @@ class ScheduleController extends Controller
             'status' => 'accepted',
             'notes'  => $swap->notes . "\n[Chấp nhận bởi " . $employee->full_name . "]",
         ]);
+
+        $requesterUser = $swap->requesterAssignment?->employee?->user;
+        if ($requesterUser) {
+            $requesterUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'accepted',
+                "Đồng nghiệp {$employee->full_name} đã đồng ý yêu cầu đổi ca của bạn. Đang chờ Quản lý duyệt."
+            ));
+        }
+
+        $managers = \App\Models\User::where('restaurant_id', $swap->restaurant_id)
+            ->whereHas('roles', function($q) {
+                $q->whereIn('name', ['owner', 'manager']);
+            })
+            ->get();
+        foreach ($managers as $manager) {
+            $manager->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'accepted',
+                "Yêu cầu đổi ca giữa {$swap->requesterAssignment->employee->full_name} và {$swap->receiverAssignment->employee->full_name} đang chờ bạn phê duyệt."
+            ));
+        }
 
         return back()->with('success', 'Bạn đã đồng ý đổi ca. Yêu cầu đã được chuyển đến Quản lý để phê duyệt cuối cùng.');
     }
@@ -1029,6 +1080,171 @@ class ScheduleController extends Controller
             'notes'  => $swap->notes . "\n[Bị hủy bởi " . $employee->full_name . "]",
         ]);
 
+        $isRequester = $reqAssignment && $reqAssignment->employee_id === $employee->id;
+        $otherUser = $isRequester 
+            ? ($recAssignment?->employee?->user) 
+            : ($reqAssignment?->employee?->user);
+
+        if ($otherUser) {
+            $actionWord = $isRequester ? 'hủy' : 'từ chối';
+            $otherUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'cancelled',
+                "Đồng nghiệp {$employee->full_name} đã {$actionWord} yêu cầu đổi ca trực."
+            ));
+        }
+
         return back()->with('success', 'Đã hủy yêu cầu đổi ca.');
+    }
+
+    /**
+     * Lấy gợi ý đổi ca trực thông minh bằng AI.
+     */
+    public function getSwapSuggestions(Request $request)
+    {
+        $employee = $request->user()->employee;
+        if (!$employee) {
+            return response()->json(['success' => false, 'error' => 'Nhân viên không hợp lệ.'], 403);
+        }
+
+        $assignmentId = $request->query('assignment_id');
+        $myAssignment = ScheduleAssignment::with('shift')->where('employee_id', $employee->id)->findOrFail($assignmentId);
+        $myShift = $myAssignment->shift;
+
+        $startOfWeek = Carbon::parse($myAssignment->scheduled_date)->startOfWeek(Carbon::MONDAY)->toDateString();
+        $endOfWeek = Carbon::parse($myAssignment->scheduled_date)->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+        // 1. Lấy tất cả ca trực của đồng nghiệp trong cùng tuần
+        $candidates = ScheduleAssignment::where('restaurant_id', $employee->restaurant_id)
+            ->where('employee_id', '!=', $employee->id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->with(['employee:id,full_name,role_id,job_title', 'shift'])
+            ->get();
+
+        // 2. Lấy danh sách đăng ký ca rảnh của nhân viên trong tuần này
+        $myRegistrations = ScheduleRegistration::where('employee_id', $employee->id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->get();
+
+        // 3. Lấy đăng ký ca rảnh của đồng nghiệp trong tuần này
+        $colleagueRegistrations = ScheduleRegistration::where('restaurant_id', $employee->restaurant_id)
+            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->get();
+
+        // 4. Lấy tất cả phép nghỉ của đồng nghiệp và bản thân
+        $leaves = \App\Models\LeaveRequest::where('restaurant_id', $employee->restaurant_id)
+            ->where('status', 'approved')
+            ->where(function ($q) use ($startOfWeek, $endOfWeek) {
+                $q->whereBetween('start_date', [$startOfWeek, $endOfWeek])
+                  ->orWhereBetween('end_date', [$startOfWeek, $endOfWeek]);
+            })
+            ->get();
+
+        $suggestions = [];
+
+        foreach ($candidates as $cand) {
+            $colleague = $cand->employee;
+            $candShift = $cand->shift;
+            if (!$colleague || !$candShift) continue;
+
+            $score = 0;
+            $reasons = [];
+
+            // A. Trùng vai trò công việc: +50 điểm
+            if ($colleague->role_id === $employee->role_id || $colleague->job_title === $employee->job_title) {
+                $score += 50;
+                $reasons[] = 'Cùng vai trò công việc';
+            }
+
+            // B. Đồng nghiệp rảnh vào ngày của tôi: +30 điểm
+            $colleagueFreeOnMyDay = $colleagueRegistrations->where('employee_id', $colleague->id)
+                ->where('scheduled_date', $myAssignment->scheduled_date)
+                ->where('shift_id', $myShift->id)
+                ->isNotEmpty();
+            if ($colleagueFreeOnMyDay) {
+                $score += 30;
+                $reasons[] = 'Đồng nghiệp đăng ký rảnh vào ngày của bạn';
+            }
+
+            // C. Tôi rảnh vào ngày của đồng nghiệp: +20 điểm
+            $iAmFreeOnColleagueDay = $myRegistrations->where('scheduled_date', $cand->scheduled_date)
+                ->where('shift_id', $candShift->id)
+                ->isNotEmpty();
+            if ($iAmFreeOnColleagueDay) {
+                $score += 20;
+                $reasons[] = 'Bạn đăng ký rảnh vào ngày của đồng nghiệp';
+            }
+
+            // D. Kiểm tra phép nghỉ (Tránh đổi vào ngày nghỉ): Nếu nghỉ thì bỏ qua luôn
+            $colleagueOnLeaveOnMyDay = $leaves->where('employee_id', $colleague->id)
+                ->filter(fn ($l) => $myAssignment->scheduled_date >= $l->start_date && $myAssignment->scheduled_date <= $l->end_date)
+                ->isNotEmpty();
+            if ($colleagueOnLeaveOnMyDay) continue;
+
+            $iAmOnLeaveOnColleagueDay = $leaves->where('employee_id', $employee->id)
+                ->filter(fn ($l) => $cand->scheduled_date >= $l->start_date && $cand->scheduled_date <= $l->end_date)
+                ->isNotEmpty();
+            if ($iAmOnLeaveOnColleagueDay) continue;
+
+            if ($score === 0) {
+                $reasons[] = 'Khác vị trí (Cần quản lý phê duyệt đặc biệt)';
+            }
+
+            $suggestions[] = [
+                'id' => $cand->id,
+                'employee_name' => $colleague->full_name,
+                'shift_name' => $candShift->name,
+                'shift_time' => substr($candShift->start_time, 0, 5) . ' - ' . substr($candShift->end_time, 0, 5),
+                'day' => $this->getDayVn(Carbon::parse($cand->scheduled_date)->format('l')),
+                'date' => Carbon::parse($cand->scheduled_date)->format('d/m/Y'),
+                'score' => $score,
+                'reasons' => $reasons,
+            ];
+        }
+
+        usort($suggestions, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        return response()->json([
+            'success' => true,
+            'suggestions' => $suggestions
+        ]);
+    }
+
+    /**
+     * Lấy danh sách thông báo của nhân sự.
+     */
+    public function getNotifications(Request $request)
+    {
+        $user = $request->user();
+        
+        $notifications = $user->unreadNotifications()
+            ->get()
+            ->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'type' => $n->data['type'] ?? 'general',
+                    'action' => $n->data['action'] ?? 'info',
+                    'message' => $n->data['message'] ?? '',
+                    'created_at' => $n->created_at->diffForHumans(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'notifications' => $notifications
+        ]);
+    }
+
+    /**
+     * Đánh dấu thông báo đã đọc.
+     */
+    public function markNotificationAsRead(Request $request, $id)
+    {
+        $notification = $request->user()->notifications()->findOrFail($id);
+        $notification->markAsRead();
+
+        return response()->json([
+            'success' => true
+        ]);
     }
 }

@@ -2155,6 +2155,24 @@ class SupportController extends Controller
             ]);
         });
 
+        $requesterUser = $swap->requesterAssignment?->employee?->user;
+        $receiverUser = $swap->receiverAssignment?->employee?->user;
+
+        if ($requesterUser) {
+            $requesterUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'approved',
+                "Yêu cầu đổi ca trực của bạn đã được Quản lý phê duyệt thành công."
+            ));
+        }
+        if ($receiverUser) {
+            $receiverUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'approved',
+                "Yêu cầu đổi ca trực của bạn đã được Quản lý phê duyệt thành công."
+            ));
+        }
+
         return back()->with('success', 'Đã phê duyệt yêu cầu đổi ca làm việc thành công.');
     }
 
@@ -2173,6 +2191,25 @@ class SupportController extends Controller
             'approved_by' => $user->id,
             'notes' => $request->input('notes', 'Từ chối bởi Quản lý/Chủ nhà hàng')
         ]);
+
+        $requesterUser = $swap->requesterAssignment?->employee?->user;
+        $receiverUser = $swap->receiverAssignment?->employee?->user;
+
+        $reason = $request->input('notes', 'Từ chối bởi Quản lý/Chủ nhà hàng');
+        if ($requesterUser) {
+            $requesterUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'rejected',
+                "Yêu cầu đổi ca trực của bạn bị Quản lý từ chối: {$reason}"
+            ));
+        }
+        if ($receiverUser) {
+            $receiverUser->notify(new \App\Notifications\ShiftSwapNotification(
+                $swap,
+                'rejected',
+                "Yêu cầu đổi ca trực của bạn bị Quản lý từ chối: {$reason}"
+            ));
+        }
 
         return back()->with('success', 'Đã từ chối yêu cầu đổi ca làm việc.');
     }
