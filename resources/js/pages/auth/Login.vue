@@ -28,7 +28,8 @@ defineProps<{
     plans: Plan[];
 }>();
 
-const selectedPlan = ref('free');
+const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const selectedPlan = ref(urlParams?.get('plan') || 'free');
 </script>
 
 <template>
@@ -132,7 +133,7 @@ const selectedPlan = ref('free');
             <!-- Footer (bottom) -->
             <p v-if="canRegister" class="text-center text-sm text-muted-foreground mt-6 relative z-10">
                 Chưa có tài khoản?
-                <TextLink :href="register()" :tabindex="6" class="font-bold text-emerald-600 dark:text-emerald-400 underline underline-offset-4 hover:text-emerald-500 transition-colors">
+                <TextLink :href="register.url({ query: { plan: selectedPlan } })" :tabindex="6" class="font-bold text-emerald-600 dark:text-emerald-400 underline underline-offset-4 hover:text-emerald-500 transition-colors">
                     Đăng ký miễn phí
                 </TextLink>
             </p>

@@ -76,7 +76,7 @@ const props = defineProps<{
         user: {
             id: number;
             name: string;
-            roles: { name: string }[];
+            roles: string[];
         };
     };
 }>();
@@ -93,8 +93,8 @@ const analysisResults = ref<{
 } | null>(null);
 
 // User check roles
-const isOwner = props.auth.user.roles.some(r => r.name === 'owner');
-const isManager = props.auth.user.roles.some(r => r.name === 'manager');
+const isOwner = props.auth.user.roles.includes('owner');
+const isManager = props.auth.user.roles.includes('manager');
 
 // Promotion Creation Form
 const form = useForm({

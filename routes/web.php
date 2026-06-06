@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('tables', [\App\Http\Controllers\TablesController::class, 'store'])->name('tables.store');
     Route::patch('tables/{table}', [\App\Http\Controllers\TablesController::class, 'update'])->name('tables.update');
     Route::delete('tables/{table}', [\App\Http\Controllers\TablesController::class, 'destroy'])->name('tables.destroy');
+    Route::post('tables/{table}/regenerate-qr', [\App\Http\Controllers\TablesController::class, 'regenerateQr'])->name('tables.regenerate-qr');
 
     // Kitchen management
     Route::get('kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])->name('kitchen.index');

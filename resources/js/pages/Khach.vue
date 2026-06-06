@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
     Bot,
@@ -39,7 +39,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
-import { register } from '@/routes';
+import { register, login } from '@/routes';
 import { toast } from 'vue-sonner';
 
 interface Banner {
@@ -79,6 +79,9 @@ const props = defineProps<{
     latestNews?: NewsPost[];
     plans?: DbPlan[];
 }>();
+
+const page = usePage();
+const user = computed(() => page.props.auth?.user);
 
 // ── Hero Slideshow ──────────────────────────────────────────────
 const heroIndex = ref(0);
@@ -2072,7 +2075,7 @@ const demoState = computed(() => {
                                         plan.code === 'ultra',
                                 }"
                             >
-                                <Link :href="register() + '?plan=' + plan.code"
+                                <Link :href="user ? '/billing/checkout?plan=' + plan.code : login.url({ query: { status: 'Bạn cần đăng nhập tài khoản để nâng gói', plan: plan.code } })"
                                     >Chọn {{ plan.name }}</Link
                                 >
                             </Button>

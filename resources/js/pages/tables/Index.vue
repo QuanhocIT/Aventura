@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import {
     LayoutGrid, Plus, Pencil, Trash2, X, QrCode,
     Users, MapPin, CheckCircle2, Clock, AlertCircle
@@ -10,22 +10,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { toast } from 'vue-sonner';
 
 defineOptions({ layout: AppLayout });
 
 type Area  = { id: number; name: string; code: string; tables_count: number };
-type Table = { id: number; name: string; capacity: number; status: string; area: { id: number; name: string } | null; qr_code: string | null };
+type Table = { id: number; name: string; capacity: number; status: string; area: { id: number; name: string } | null; qr_code: string | null; qr_token: string };
 
 const props = defineProps<{
     areas:  Area[];
     tables: Table[];
 }>();
 
+const page = usePage();
 const selectedArea   = ref<number | 'all'>('all');
 const showAddArea    = ref(false);
 const showAddTable   = ref(false);
 const editingTable   = ref<Table | null>(null);
 const deletingTable  = ref<Table | null>(null);
+const selectedQrTable = ref<Table | null>(null);
 
 const areaForm = useForm({ name: '' });
 const tableForm = useForm({ name: '', area_id: props.areas[0]?.id ? String(props.areas[0].id) : '', capacity: '4' });
@@ -85,6 +88,110 @@ return;
  deletingTable.value = null; 
 }
     });
+};
+
+const getQrUrl = (table: Table | null) => {
+    if (!table) return '';
+    const tenantId = (page.props.tenant as any)?.id;
+    return window.location.origin + '/customer/order/' + tenantId + '/' + table.qr_token;
+};
+
+const showQrModal = (table: Table | null) => {
+    if (!table) return;
+    selectedQrTable.value = table;
+};
+
+const copyLink = (table: Table | null) => {
+    if (!table) return;
+    const url = getQrUrl(table);
+    navigator.clipboard.writeText(url);
+    toast.success('Đã sao chép liên kết đặt món tại bàn ' + table.name);
+};
+
+const printQrCode = (table: Table | null) => {
+    if (!table) return;
+    const qrUrl = getQrUrl(table);
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Mã QR - ${table.name}</title>
+                <style>
+                    body {
+                        font-family: system-ui, -apple-system, sans-serif;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 90vh;
+                        margin: 0;
+                        text-align: center;
+                    }
+                    .container {
+                        border: 2px dashed #0D9488;
+                        padding: 30px;
+                        border-radius: 20px;
+                        background: #FAFAFA;
+                    }
+                    h1 {
+                        font-size: 28px;
+                        color: #0F172A;
+                        margin-bottom: 5px;
+                    }
+                    p {
+                        font-size: 16px;
+                        color: #64748B;
+                        margin-bottom: 25px;
+                    }
+                    img {
+                        width: 250px;
+                        height: 250px;
+                    }
+                    .footer {
+                        margin-top: 25px;
+                        font-size: 12px;
+                        color: #94A3B8;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>MÃ QR ĐẶT MÓN</h1>
+                    <p>Bàn: <strong>${table.name}</strong> - Khu vực: <strong>${table.area?.name || 'Mặc định'}</strong></p>
+                    <img src="${qrImageUrl}" alt="Mã QR Bàn ${table.name}" />
+                    <p class="footer">Quét mã QR để xem menu và gọi món</p>
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 500);
+                    };
+                <\/script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
+
+const regenerateQrCode = (table: Table | null) => {
+    if (!table) return;
+    if (confirm('Bạn có chắc chắn muốn tạo mới mã QR cho bàn "' + table.name + '"? Mã QR cũ sẽ không thể sử dụng để quét đặt món được nữa.')) {
+        router.post(`/tables/${table.id}/regenerate-qr`, {}, {
+            onSuccess: () => {
+                toast.success('Đã tạo mới mã QR cho bàn ' + table.name);
+                if (selectedQrTable.value && selectedQrTable.value.id === table.id) {
+                    const updatedTable = props.tables.find(t => t.id === table.id);
+                    if (updatedTable) {
+                        selectedQrTable.value = updatedTable;
+                    }
+                }
+            }
+        });
+    }
 };
 </script>
 
@@ -211,6 +318,12 @@ return;
                                 </select>
                             </div>
                         </div>
+                        <div class="grid gap-1.5 pt-2 border-t mt-4">
+                            <Label>QR Code gọi món</Label>
+                            <Button type="button" variant="outline" @click="showQrModal(editingTable!)" class="w-full flex items-center gap-1.5 text-xs h-9">
+                                <QrCode class="size-4 text-teal-600" /> Xem mã QR & Link đặt món
+                            </Button>
+                        </div>
                         <div class="flex justify-end gap-2">
                             <Button type="button" variant="outline" @click="editingTable = null">Hủy</Button>
                             <Button type="submit" class="bg-teal-600 text-white" :disabled="editForm.processing">
@@ -236,6 +349,68 @@ return;
                     <div class="flex justify-center gap-3">
                         <Button variant="outline" @click="deletingTable = null">Hủy</Button>
                         <Button class="bg-rose-600 hover:bg-rose-700 text-white" @click="submitDelete">Xóa</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- QR Code Modal -->
+        <div v-if="selectedQrTable" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl border border-teal-500/20">
+                <CardHeader class="pb-3 border-b">
+                    <div class="flex items-center justify-between">
+                        <CardTitle class="text-base flex items-center gap-2">
+                            <QrCode class="size-5 text-teal-600 animate-pulse" />
+                            Mã QR Gọi Món - {{ selectedQrTable.name }}
+                        </CardTitle>
+                        <button @click="selectedQrTable = null" class="text-muted-foreground hover:text-foreground">
+                            <X class="size-4" />
+                        </button>
+                    </div>
+                    <CardDescription>
+                        Khu vực: {{ selectedQrTable.area?.name || 'Mặc định' }}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="pt-6 flex flex-col items-center space-y-5">
+                    <!-- QR Image Container -->
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-inner flex items-center justify-center">
+                        <img 
+                            :src="'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(getQrUrl(selectedQrTable))" 
+                            :alt="'Mã QR Bàn ' + selectedQrTable.name"
+                            class="size-56 object-contain"
+                        />
+                    </div>
+
+                    <!-- URL Info -->
+                    <div class="w-full space-y-2">
+                        <Label class="text-xs font-semibold text-slate-500">Liên kết đặt món của bàn:</Label>
+                        <div class="flex items-center gap-2">
+                            <Input 
+                                readonly 
+                                :value="getQrUrl(selectedQrTable)" 
+                                class="bg-slate-50 dark:bg-slate-900 border-slate-200 text-xs font-mono select-all"
+                            />
+                            <Button size="sm" variant="outline" @click="copyLink(selectedQrTable)">
+                                Sao chép
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="w-full flex items-center gap-3 pt-3 border-t">
+                        <Button 
+                            class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold"
+                            @click="printQrCode(selectedQrTable)"
+                        >
+                            In mã QR
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            class="flex-1 border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                            @click="regenerateQrCode(selectedQrTable)"
+                        >
+                            Tạo lại mã
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
@@ -324,6 +499,15 @@ return;
                                     {{ statusConfig[t.status]?.label }}
                                 </span>
                                 <p v-if="t.area" class="text-[9px] text-slate-400 mt-1.5 truncate">{{ t.area.name }}</p>
+
+                                <!-- QrCode button on hover -->
+                                <button
+                                    @click.stop="showQrModal(t)"
+                                    class="absolute top-2 right-8 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Xem mã QR đặt món"
+                                >
+                                    <QrCode class="size-3" />
+                                </button>
 
                                 <!-- Delete button on hover -->
                                 <button
