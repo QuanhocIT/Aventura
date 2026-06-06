@@ -24,7 +24,8 @@ defineProps<{
     plans: Plan[];
 }>();
 
-const selectedPlan = ref('free');
+const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const selectedPlan = ref(urlParams?.get('plan') || 'free');
 
 const passwordValue = ref('');
 

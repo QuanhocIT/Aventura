@@ -33,6 +33,14 @@ class TablesController extends Controller
                 ])->toArray();
         });
 
+        // Backward compatibility: ensure all existing tables have a qr_token
+        RestaurantTable::where('restaurant_id', $restaurantId)
+            ->whereNull('qr_token')
+            ->get()
+            ->each(function (RestaurantTable $t) {
+                $t->update(['qr_token' => Str::random(32)]);
+            });
+
         $tables = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_tables", 3600, function () use ($restaurantId) {
             return RestaurantTable::where('restaurant_id', $restaurantId)
                 ->with('area')
@@ -47,6 +55,7 @@ class TablesController extends Controller
                     'status'   => $t->status,
                     'area'     => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
                     'qr_code'  => $t->qr_code,
+                    'qr_token' => $t->qr_token,
                 ])->toArray();
         });
 
@@ -127,5 +136,17 @@ class TablesController extends Controller
         $table->delete();
 
         return back()->with('success', 'Đã xóa bàn.');
+    }
+
+    public function regenerateQr(Request $request, RestaurantTable $table): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $table->update([
+            'qr_token' => Str::random(32),
+        ]);
+
+        return back()->with('success', 'Đã tạo lại mã QR mới cho bàn.');
     }
 }
