@@ -110,6 +110,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('schedules/swap/{swap}/cancel', [ScheduleController::class, 'cancelSwap'])->name('schedules.swap.cancel');
     Route::patch('schedules/swap/{swap}/approve', [SupportController::class, 'approveSwap'])->name('schedules.swap.approve');
     Route::patch('schedules/swap/{swap}/reject', [SupportController::class, 'rejectSwap'])->name('schedules.swap.reject');
+    Route::get('schedules/swap-suggestions', [ScheduleController::class, 'getSwapSuggestions'])->name('schedules.swap-suggestions');
+    Route::get('notifications', [ScheduleController::class, 'getNotifications'])->name('notifications.index');
+    Route::post('notifications/{id}/read', [ScheduleController::class, 'markNotificationAsRead'])->name('notifications.read');
 
 
     // Quản lý Khách hàng (CRM Mini) & Bảo mật tài sản số

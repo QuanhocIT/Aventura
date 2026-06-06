@@ -219,12 +219,14 @@ const weekDaysWithDates = computed(() => {
     return weekDays.map((wd, index) => {
         const nextDay = new Date(monday);
         nextDay.setDate(monday.getDate() + index);
-        const dd = String(nextDay.getDate()).padStart(2, '0');
+        const yyyy = nextDay.getFullYear();
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+        const dd = String(nextDay.getDate()).padStart(2, '0');
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
-            fullLabel: `${wd.label} (${dd}/${mm})`
+            fullLabel: `${wd.label} (${dd}/${mm})`,
+            dateStr: `${yyyy}-${mm}-${dd}`
         };
     });
 });
@@ -465,6 +467,39 @@ const openAssignModal = (dayKey: string) => {
 };
 
 const submitAssignment = () => {
+    // 1. Check duplicate day assignment
+    const alreadyScheduled = props.schedules?.some(s => s.employee_name === assignForm.value.employee_name && s.day === currentAssignDay.value);
+
+    // 2. Check approved leave
+    const targetDayDate = weekDaysWithDates.value.find(d => d.key === currentAssignDay.value)?.dateStr || '';
+    const employeeObj = props.employees.find(e => e.full_name === assignForm.value.employee_name);
+    const onLeave = employeeObj && props.leaveRequests && props.leaveRequests.some(lr => 
+        lr.employee_id === employeeObj.id && 
+        lr.status === 'approved' && 
+        targetDayDate >= lr.start_date && 
+        targetDayDate <= lr.end_date
+    );
+
+    // 3. Check weekly limit
+    const weeklyCount = props.schedules?.filter(s => s.employee_name === assignForm.value.employee_name).length ?? 0;
+
+    let warningMsg = '';
+    if (alreadyScheduled) {
+        warningMsg += `⚠️ Nhân sự này đã được xếp ca trực vào ${currentAssignDayLabel.value}.\n`;
+    }
+    if (onLeave) {
+        warningMsg += `⚠️ Nhân sự đang trong thời gian NGHỈ PHÉP đã được phê duyệt ngày ${targetDayDate}.\n`;
+    }
+    if (weeklyCount >= 6) {
+        warningMsg += `⚠️ Nhân sự đã làm đủ ${weeklyCount} ca trong tuần này (vượt giới hạn tối đa 6 ca).\n`;
+    }
+
+    if (warningMsg) {
+        if (!confirm(warningMsg + '\nBạn vẫn muốn tiếp tục xếp lịch ca trực này chứ?')) {
+            return;
+        }
+    }
+
     router.post('/employees/schedules', {
         day: currentAssignDay.value,
         employee_name: assignForm.value.employee_name,
