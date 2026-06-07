@@ -49,9 +49,15 @@ class CheckoutController extends Controller
             return redirect('/dashboard')->with('success', 'Đã chuyển sang gói miễn phí.');
         }
 
-        // Check for existing pending subscription for this plan to avoid duplicates
+        $cycle = $request->query('cycle', 'monthly');
+        if (! in_array($cycle, ['monthly', 'yearly'])) {
+            $cycle = 'monthly';
+        }
+
+        // Check for existing pending subscription for this plan & cycle to avoid duplicates
         $existing = $restaurant->subscriptions()
             ->where('plan_id', $plan->id)
+            ->where('billing_cycle', $cycle)
             ->where('status', 'expired')
             ->whereJsonContains('meta->pending_payment', true)
             ->latest()
@@ -62,13 +68,14 @@ class CheckoutController extends Controller
         }
 
         try {
-            $checkout = $this->checkout->createCheckout($restaurant, $plan, 'self_serve_checkout');
+            $checkout = $this->checkout->createCheckout($restaurant, $plan, 'self_serve_checkout', $cycle);
         } catch (\Throwable $e) {
             return redirect('/dashboard')->with('error', $e->getMessage());
         }
 
         return redirect()->route('billing.pay', ['code' => $checkout['transaction_code']]);
     }
+
 
     public function payPage(Request $request, string $code)
     {
@@ -135,6 +142,59 @@ class CheckoutController extends Controller
 
         return response()->json([
             'active' => $subscription->status === 'active',
+        ]);
+    }
+
+    public function applyCoupon(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'transaction_code' => 'required|string',
+            'coupon_code' => 'required|string',
+        ]);
+
+        $user = $request->user();
+        $restaurant = $user?->restaurant;
+
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $subscription = $restaurant->subscriptions()
+            ->where('transaction_code', $validated['transaction_code'])
+            ->where('status', 'expired')
+            ->first();
+
+        if (!$subscription) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thông tin thanh toán.'], 404);
+        }
+
+        $coupon = \App\Models\Coupon::where('code', $validated['coupon_code'])->first();
+
+        if (!$coupon || !$coupon->isValid()) {
+            return response()->json(['success' => false, 'message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn.'], 422);
+        }
+
+        $discountAmount = $coupon->getDiscountAmount((float) $subscription->original_price);
+        $newPrice = max(0.0, (float) $subscription->original_price - $discountAmount);
+
+        $subscription->update([
+            'price' => $newPrice,
+            'coupon_code' => $coupon->code,
+            'meta' => array_merge($subscription->meta ?? [], [
+                'discount_amount' => $discountAmount,
+                'coupon_applied' => true,
+            ])
+        ]);
+
+        $paymentUrl = $this->checkout->paymentUrl($restaurant, $subscription);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Áp dụng mã giảm giá thành công!',
+            'original_price' => (float) $subscription->original_price,
+            'discount_amount' => $discountAmount,
+            'new_price' => $newPrice,
+            'payment_url' => $paymentUrl,
         ]);
     }
 }

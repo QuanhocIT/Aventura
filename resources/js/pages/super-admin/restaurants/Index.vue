@@ -1,6 +1,6 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown } from 'lucide-vue-next';
+import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown, UserCheck, Building2, CheckCircle, CreditCard, Ban } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,13 +16,16 @@ const props = defineProps<{
         data: Array<{
             id: number; name: string; code: string; status: string;
             plan: string; plan_code: string; owner: string; owner_email: string;
+            owner_id?: number;
             branches_count: number; employees_count: number; tables_count: number;
+            max_branches: number | null; max_tables: number | null; max_users: number | null;
             created_at: string;
         }>;
         links: any[]; meta: any;
     };
     plans: Array<{ id: number; code: string; name: string }>;
     filters: { status?: string; plan?: string; search?: string };
+    stats: { total: number; active: number; paid: number; suspended: number };
 }>();
 
 const search   = ref(props.filters.search ?? '');
@@ -41,6 +44,31 @@ function applyFilter() {
         status: status.value || undefined,
         plan:   planFilter.value || undefined,
     }, { preserveState: true, replace: true });
+}
+
+// Sắm vai (Đăng nhập hộ)
+function impersonateUser(ownerId: number | undefined) {
+    if (!ownerId) {
+        alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+        return;
+    }
+    if (confirm('Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu này không?')) {
+        router.post(`/super-admin/impersonate/${ownerId}`);
+    }
+}
+
+// Định dạng & tô màu giới hạn tài nguyên
+function getQuotaColor(used: number, limit: number | null) {
+    if (limit === null) return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30';
+    const percentage = (used / limit) * 100;
+    if (percentage >= 100) return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30 font-semibold';
+    if (percentage >= 80) return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30';
+    return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/20 border-slate-100 dark:border-slate-800';
+}
+
+function formatQuota(used: number, limit: number | null) {
+    if (limit === null) return `${used}/∞`;
+    return `${used}/${limit}`;
 }
 
 // Dialog tạo nhà hàng
@@ -69,7 +97,7 @@ function openStatus(r: any) {
 }
 function submitStatus() {
     if (!selectedRestaurant.value) {
-return;
+ return;
 }
 
     statusForm.patch(`/super-admin/restaurants/${selectedRestaurant.value.id}/status`, {
@@ -103,6 +131,54 @@ const statusLabel: Record<string, string> = {
             <Button @click="showCreate = true" class="gap-2">
                 <Plus class="size-4" /> Thêm nhà hàng
             </Button>
+        </div>
+
+        <!-- Thống kê tổng quan -->
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card class="overflow-hidden border-border bg-card shadow-sm">
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
+                        <Building2 class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tổng nhà hàng</span>
+                        <span class="text-xl font-bold tracking-tight">{{ stats?.total ?? 0 }}</span>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card class="overflow-hidden border-border bg-card shadow-sm">
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-emerald-50 p-2.5 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
+                        <CheckCircle class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Đang hoạt động</span>
+                        <span class="text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats?.active ?? 0 }}</span>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card class="overflow-hidden border-border bg-card shadow-sm">
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-purple-50 p-2.5 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400">
+                        <CreditCard class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Gói trả phí</span>
+                        <span class="text-xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{{ stats?.paid ?? 0 }}</span>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card class="overflow-hidden border-border bg-card shadow-sm">
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-amber-50 p-2.5 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
+                        <Ban class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tạm ngưng / Khóa</span>
+                        <span class="text-xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{{ stats?.suspended ?? 0 }}</span>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
 
         <!-- Bộ lọc -->
@@ -164,10 +240,18 @@ const statusLabel: Record<string, string> = {
                                     {{ r.plan }}
                                 </span>
                             </td>
-                            <td class="px-4 py-4 text-xs text-muted-foreground">
-                                <span>{{ r.branches_count }} chi nhánh</span> ·
-                                <span>{{ r.employees_count }} NV</span> ·
-                                <span>{{ r.tables_count }} bàn</span>
+                            <td class="px-4 py-4">
+                                <div class="flex flex-wrap gap-1">
+                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.branches_count, r.max_branches)]" title="Chi nhánh">
+                                        CN: {{ formatQuota(r.branches_count, r.max_branches) }}
+                                    </span>
+                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.employees_count, r.max_users)]" title="Nhân viên">
+                                        NV: {{ formatQuota(r.employees_count, r.max_users) }}
+                                    </span>
+                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.tables_count, r.max_tables)]" title="Bàn ăn">
+                                        Bàn: {{ formatQuota(r.tables_count, r.max_tables) }}
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-4 py-4">
                                 <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', statusColor[r.status]]">
@@ -182,6 +266,15 @@ const statusLabel: Record<string, string> = {
                                             <Eye class="size-4" />
                                         </Button>
                                     </Link>
+                                    <Button
+                                        v-if="r.owner_id"
+                                        variant="ghost" size="icon-sm"
+                                        title="Sắm vai (Đăng nhập hộ)"
+                                        class="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                        @click="impersonateUser(r.owner_id)"
+                                    >
+                                        <UserCheck class="size-4" />
+                                    </Button>
                                     <Button
                                         variant="ghost" size="icon-sm"
                                         :title="r.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'"

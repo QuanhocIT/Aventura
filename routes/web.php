@@ -20,6 +20,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
     Route::get('billing/pay/{code}', [CheckoutController::class, 'payPage'])->name('billing.pay');
     Route::get('api/billing/check/{code}', [CheckoutController::class, 'checkStatus']);
+    Route::post('api/billing/apply-coupon', [CheckoutController::class, 'applyCoupon'])->name('billing.apply-coupon');
 
     // Multi-tenant restaurant selector
     Route::get('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { router, Head } from '@inertiajs/vue3';
 import { 
     Sparkles, 
@@ -36,6 +36,51 @@ const copiedField = ref<string | null>(null);
 const isSuccess = ref(false);
 const isChecking = ref(false);
 const countdown = ref(3);
+
+const couponCode = ref('');
+const isApplyingCoupon = ref(false);
+const couponError = ref('');
+const couponSuccess = ref('');
+
+const currentAmount = ref(props.bank_details.amount);
+const discountAmount = ref(0);
+const qrCodeUrl = ref(props.payment_url);
+
+async function applyCoupon() {
+    if (!couponCode.value.trim()) return;
+    isApplyingCoupon.value = true;
+    couponError.value = '';
+    couponSuccess.value = '';
+
+    try {
+        const response = await fetch('/api/billing/apply-coupon', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+            },
+            body: JSON.stringify({
+                transaction_code: props.subscription.transaction_code,
+                coupon_code: couponCode.value.trim()
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            currentAmount.value = data.new_price;
+            discountAmount.value = data.discount_amount;
+            qrCodeUrl.value = data.payment_url;
+            couponSuccess.value = data.message;
+        } else {
+            couponError.value = data.message || 'Mã giảm giá không hợp lệ.';
+        }
+    } catch (e) {
+        console.error('Error applying coupon:', e);
+        couponError.value = 'Lỗi hệ thống khi áp dụng mã giảm giá.';
+    } finally {
+        isApplyingCoupon.value = false;
+    }
+}
 
 let pollInterval: any = null;
 
@@ -180,14 +225,20 @@ defineOptions({
                     <div class="space-y-3 rounded-xl bg-muted/40 border border-border p-5">
                         
                         <!-- Hàng Số Tiền -->
-                        <div class="flex items-center justify-between pb-3 border-b border-border/60">
-                            <div class="flex items-center gap-2 text-muted-foreground text-xs">
-                                <DollarSign class="size-4 text-primary" />
-                                <span>Số tiền chuyển khoản</span>
+                        <div class="flex flex-col gap-1.5 pb-3 border-b border-border/60">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-muted-foreground text-xs">
+                                    <DollarSign class="size-4 text-primary" />
+                                    <span>Số tiền chuyển khoản</span>
+                                </div>
+                                <span class="text-lg font-extrabold text-primary">
+                                    {{ formatCurrency(currentAmount) }}
+                                </span>
                             </div>
-                            <span class="text-lg font-extrabold text-primary">
-                                {{ formatCurrency(bank_details.amount) }}
-                            </span>
+                            <div v-if="discountAmount > 0" class="flex items-center justify-between text-[11px] px-1">
+                                <span class="text-muted-foreground">Giá gốc: <del>{{ formatCurrency(bank_details.amount) }}</del></span>
+                                <span class="text-emerald-600 font-bold">-{{ formatCurrency(discountAmount) }}</span>
+                            </div>
                         </div>
 
                         <!-- Hàng Nội Dung -->
@@ -253,6 +304,30 @@ defineOptions({
                         </div>
 
                     </div>
+
+                    <!-- Mã giảm giá -->
+                    <div class="rounded-xl border border-border p-4 bg-muted/20 space-y-2">
+                        <label class="text-xs font-semibold text-muted-foreground block">Mã giảm giá (Coupon Code)</label>
+                        <div class="flex gap-2">
+                            <input 
+                                v-model="couponCode" 
+                                type="text" 
+                                placeholder="Nhập mã giảm giá..." 
+                                class="flex-grow rounded-lg border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                :disabled="isApplyingCoupon || discountAmount > 0"
+                                @keyup.enter="applyCoupon"
+                            />
+                            <Button 
+                                size="sm" 
+                                @click="applyCoupon" 
+                                :disabled="isApplyingCoupon || discountAmount > 0 || !couponCode.trim()"
+                            >
+                                {{ isApplyingCoupon ? 'Đang áp dụng...' : 'Áp dụng' }}
+                            </Button>
+                        </div>
+                        <p v-if="couponError" class="text-xs text-rose-500 font-medium animate-in fade-in">{{ couponError }}</p>
+                        <p v-if="couponSuccess" class="text-xs text-emerald-600 font-medium animate-in fade-in">{{ couponSuccess }}</p>
+                    </div>
                 </div>
 
                 <!-- Footer thông tin bảo mật -->
@@ -300,7 +375,7 @@ defineOptions({
                     
                     <div class="relative rounded-xl border border-border bg-white p-3.5 shadow-md max-w-[210px] sm:max-w-[240px] aspect-square flex items-center justify-center">
                         <img 
-                            :src="payment_url" 
+                            :src="qrCodeUrl" 
                             alt="Mã QR thanh toán SePay" 
                             class="w-full h-full object-contain"
                         />

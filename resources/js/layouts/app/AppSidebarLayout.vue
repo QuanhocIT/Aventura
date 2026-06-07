@@ -11,6 +11,7 @@ import OnboardingTour from '@/components/OnboardingTour.vue';
 import { Toaster } from '@/components/ui/sonner';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
 import type { BreadcrumbItem } from '@/types';
+import { AlertTriangle } from 'lucide-vue-next';
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
@@ -34,6 +35,24 @@ const isSuperAdmin  = computed(() => hasRole('super_admin') || hasRole('admin'))
 const isOwner       = computed(() => hasRole('owner'));
 
 const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.value);
+
+const tenant = computed(() => page.props.tenant as any);
+const quotaSummary = computed(() => tenant.value?.quota_summary ?? null);
+
+const quotaWarnings = computed(() => {
+    if (!quotaSummary.value || !quotaSummary.value.resources) return [];
+    return Object.entries(quotaSummary.value.resources)
+        .map(([key, res]: [string, any]) => ({
+            key,
+            label: key === 'branches' ? 'Chi nhánh' : key === 'tables' ? 'Bàn' : key === 'employees' ? 'Nhân viên' : 'Khu vực',
+            ...res
+        }))
+        .filter(res => !res.unlimited && res.percentage >= 85);
+});
+
+function openUpgradeModal() {
+    window.dispatchEvent(new CustomEvent('open-upgrade-modal'));
+}
 </script>
 
 <template>
@@ -52,6 +71,23 @@ const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.
                 <Link href="/impersonate/stop" method="post" as="button" class="bg-amber-950 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-amber-900 transition-colors">
                     Thoát sắm vai
                 </Link>
+            </div>
+
+            <!-- Quota Alerting Banner -->
+            <div v-if="isOwner && quotaWarnings.length > 0" class="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm font-medium border-b border-orange-600/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-pulse text-white" />
+                    <span>
+                        Bạn đã sử dụng gần hết hạn mức: 
+                        <span v-for="(warn, idx) in quotaWarnings" :key="warn.key">
+                            <strong class="underline font-bold">{{ warn.used }}/{{ warn.limit }} {{ warn.label }}</strong> ({{ warn.percentage }}%){{ idx < quotaWarnings.length - 1 ? ', ' : '' }}
+                        </span>. 
+                        Nâng cấp gói dịch vụ để không làm gián đoạn trải nghiệm của nhà hàng.
+                    </span>
+                </div>
+                <button @click="openUpgradeModal" class="bg-white text-orange-700 hover:bg-orange-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap">
+                    Nâng cấp gói ngay
+                </button>
             </div>
             
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />

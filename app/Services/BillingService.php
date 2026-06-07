@@ -68,7 +68,7 @@ class BillingService
 
             $paidAt = now();
             $graceDays = (int) config('billing.grace_period_days', 30);
-            $durationDays = $this->billingCycleDays($subscription->plan);
+            $durationDays = $this->billingCycleDays($subscription);
             $endAt = Carbon::parse($subscription->ended_at ?? $subscription->renewal_at ?? $paidAt)->greaterThan($paidAt)
                 ? Carbon::parse($subscription->ended_at ?? $subscription->renewal_at)
                 : $paidAt;
@@ -336,9 +336,11 @@ class BillingService
         return null;
     }
 
-    private function billingCycleDays(SubscriptionPlan $plan): int
+    private function billingCycleDays(RestaurantSubscription $subscription): int
     {
-        return match ($plan->billing_cycle) {
+        $cycle = $subscription->billing_cycle ?? $subscription->plan?->billing_cycle ?? 'monthly';
+
+        return match ($cycle) {
             'yearly' => 365,
             'quarterly' => 90,
             default => 30,

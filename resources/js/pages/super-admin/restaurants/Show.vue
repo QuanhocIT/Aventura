@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     Crown,
@@ -11,6 +11,7 @@ import {
     ShieldAlert,
     WalletCards,
     RefreshCcw,
+    UserCheck,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +27,7 @@ const props = defineProps<{
         tax_code: string; phone: string; email: string; address: string;
         status: string; timezone: string; currency: string;
         trial_ends_at: string; subscription_ends_at: string; created_at: string;
-        owner: { name: string; email: string };
+        owner: { id?: number; name: string; email: string };
         plan: { id: number; name: string; code: string };
     };
     quota: {
@@ -69,6 +70,29 @@ function submitOverride() {
     });
 }
 
+function impersonateUser() {
+    if (!props.restaurant.owner?.id) {
+        alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+        return;
+    }
+    if (confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu "${props.restaurant.owner.name}" không?`)) {
+        router.post(`/super-admin/impersonate/${props.restaurant.owner.id}`);
+    }
+}
+
+function applyPreset(type: string, days: number, discount: number, reason: string) {
+    overrideForm.type = type;
+    overrideForm.days = days;
+    overrideForm.discount_amount = discount;
+    overrideForm.reason = reason;
+    
+    // Tự động focus ô mật khẩu
+    const pwdInput = document.getElementById('override-password');
+    if (pwdInput) {
+        pwdInput.focus();
+    }
+}
+
 const statusColor: Record<string, string> = {
     active: 'bg-green-100 text-green-800',
     suspended: 'bg-amber-100 text-amber-800',
@@ -99,12 +123,12 @@ const resourceLabels: Record<string, string> = {
 
 function barColor(pct: number, canAdd: boolean) {
     if (!canAdd) {
-return 'bg-rose-500';
-}
+        return 'bg-rose-500';
+    }
 
     if (pct >= 80) {
-return 'bg-amber-500';
-}
+        return 'bg-amber-500';
+    }
 
     return 'bg-emerald-500';
 }
@@ -132,8 +156,17 @@ function typeLabel(type: string) {
             </Link>
             <div class="flex-1">
                 <h1 class="text-2xl font-bold tracking-tight">{{ restaurant.name }}</h1>
-                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} � Billing Center</p>
+                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} · Billing Center</p>
             </div>
+            <Button
+                v-if="restaurant.owner && restaurant.owner.id"
+                variant="outline"
+                size="sm"
+                class="gap-2 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                @click="impersonateUser"
+            >
+                <UserCheck class="size-4" /> Sắm vai chủ nhà
+            </Button>
             <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status] || 'bg-slate-100 text-slate-800']">
                 {{ statusLabel[restaurant.status] ?? restaurant.status }}
             </span>
@@ -146,13 +179,13 @@ function typeLabel(type: string) {
                         <CardTitle class="text-base">Tong quan doanh nghiep</CardTitle>
                     </CardHeader>
                     <CardContent class="grid gap-4 md:grid-cols-2 text-sm">
-                        <div><p class="text-muted-foreground">Chu so huu</p><p class="font-medium">{{ restaurant.owner.name || '�' }}</p></div>
-                        <div><p class="text-muted-foreground">Email chu</p><p class="font-medium">{{ restaurant.owner.email || '�' }}</p></div>
-                        <div><p class="text-muted-foreground">Goi hien tai</p><p class="font-medium">{{ restaurant.plan.name || '�' }}</p></div>
-                        <div><p class="text-muted-foreground">Het han dich vu</p><p class="font-medium">{{ restaurant.subscription_ends_at || '�' }}</p></div>
-                        <div><p class="text-muted-foreground">Het han trial</p><p class="font-medium">{{ restaurant.trial_ends_at || '�' }}</p></div>
+                        <div><p class="text-muted-foreground">Chu so huu</p><p class="font-medium">{{ restaurant.owner.name || '—' }}</p></div>
+                        <div><p class="text-muted-foreground">Email chu</p><p class="font-medium">{{ restaurant.owner.email || '—' }}</p></div>
+                        <div><p class="text-muted-foreground">Goi hien tai</p><p class="font-medium">{{ restaurant.plan.name || '—' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han dich vu</p><p class="font-medium">{{ restaurant.subscription_ends_at || '—' }}</p></div>
+                        <div><p class="text-muted-foreground">Het han trial</p><p class="font-medium">{{ restaurant.trial_ends_at || '—' }}</p></div>
                         <div><p class="text-muted-foreground">Tien te</p><p class="font-medium">{{ restaurant.currency }}</p></div>
-                        <div class="md:col-span-2"><p class="text-muted-foreground">Dia chi</p><p class="font-medium">{{ restaurant.address || '�' }}</p></div>
+                        <div class="md:col-span-2"><p class="text-muted-foreground">Dia chi</p><p class="font-medium">{{ restaurant.address || '—' }}</p></div>
                     </CardContent>
                 </Card>
 
@@ -170,7 +203,7 @@ function typeLabel(type: string) {
                                     {{ resourceLabels[key] ?? key }}
                                 </span>
                                 <span class="font-mono text-xs text-muted-foreground">
-                                    {{ res.used }} / {{ res.unlimited ? '8' : res.limit }}
+                                    {{ res.used }} / {{ res.unlimited ? '∞' : res.limit }}
                                 </span>
                             </div>
                             <div class="h-2 overflow-hidden rounded-full bg-muted">
@@ -193,7 +226,7 @@ function typeLabel(type: string) {
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="font-medium">{{ invoice.invoice_number }}</p>
-                                        <p class="text-xs text-muted-foreground">{{ typeLabel(invoice.type) }} � Han {{ invoice.due_on || '�' }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ typeLabel(invoice.type) }} · Han {{ invoice.due_on || '—' }}</p>
                                     </div>
                                     <span :class="['rounded-full px-2.5 py-1 text-xs font-medium', statusColor[invoice.status] || 'bg-slate-100 text-slate-800']">
                                         {{ statusLabel[invoice.status] ?? invoice.status }}
@@ -235,10 +268,36 @@ function typeLabel(type: string) {
                     <Card>
                         <CardHeader class="pb-3">
                             <CardTitle class="flex items-center gap-2 text-base">
-                                <ShieldAlert class="size-4 text-rose-600" /> Dieu chinh billing thu cong
+                                <ShieldAlert class="size-4 text-rose-600" /> Điều chỉnh billing thủ công
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
+                            <!-- Nút điền nhanh Presets -->
+                            <div class="mb-4 flex flex-wrap gap-2 border-b pb-4">
+                                <span class="text-xs text-muted-foreground w-full mb-1">Điền nhanh thiết lập:</span>
+                                <Button
+                                    type="button" variant="outline"
+                                    class="text-xs py-1 px-2.5 h-auto text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-900/40 dark:hover:bg-blue-950/20"
+                                    @click="applyPreset('trial', 14, 0, 'Tặng dùng thử 14 ngày')"
+                                >
+                                    +14 ngày Dùng thử
+                                </Button>
+                                <Button
+                                    type="button" variant="outline"
+                                    class="text-xs py-1 px-2.5 h-auto text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-900/40 dark:hover:bg-purple-950/20"
+                                    @click="applyPreset('extend', 30, 0, 'Gia hạn dịch vụ 30 ngày')"
+                                >
+                                    +30 ngày Gia hạn
+                                </Button>
+                                <Button
+                                    type="button" variant="outline"
+                                    class="text-xs py-1 px-2.5 h-auto text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-900/40 dark:hover:bg-emerald-950/20"
+                                    @click="applyPreset('extend', 365, 0, 'Khuyến mãi đặc biệt 365 ngày')"
+                                >
+                                    +1 năm Free
+                                </Button>
+                            </div>
+
                             <form class="grid gap-4" @submit.prevent="submitOverride">
                                 <div class="grid gap-1.5">
                                     <Label>Loai thao tac</Label>
@@ -272,7 +331,7 @@ function typeLabel(type: string) {
 
                                 <div class="grid gap-1.5">
                                     <Label class="text-rose-600 dark:text-rose-400 font-semibold">Xác nhận mật khẩu của bạn</Label>
-                                    <Input v-model="overrideForm.password" type="password" placeholder="Nhập mật khẩu Super Admin để xác nhận" required />
+                                    <Input id="override-password" v-model="overrideForm.password" type="password" placeholder="Nhập mật khẩu Super Admin để xác nhận" required />
                                     <span v-if="overrideForm.errors.password" class="text-xs text-rose-600 font-medium">{{ overrideForm.errors.password }}</span>
                                 </div>
 
@@ -368,4 +427,3 @@ function typeLabel(type: string) {
         </div>
     </div>
 </template>
-

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -20,6 +22,11 @@ interface Plan {
 const props = defineProps<{ plans: Plan[] }>();
 
 const editingId = ref<number | null>(null);
+const isEditing = ref(false);
+
+const selectedPlanForRestaurants = ref<Plan | null>(null);
+const restaurants = ref<any[]>([]);
+const isLoadingRestaurants = ref(false);
 
 const form = useForm({
     name: '', description: '',
@@ -34,6 +41,7 @@ const toForm = (v: number | null) => (v === null ? -1 : v);
 
 function startEdit(plan: Plan) {
     editingId.value = plan.id;
+    isEditing.value = true;
     form.name               = plan.name;
     form.description        = plan.features?.description ?? planNotes[plan.code] ?? '';
     form.price              = plan.price;
@@ -51,9 +59,25 @@ function startEdit(plan: Plan) {
 function save(planId: number) {
     form.patch(`/super-admin/plans/${planId}`, {
         onSuccess: () => {
- editingId.value = null; 
-},
+            editingId.value = null; 
+            isEditing.value = false;
+        },
     });
+}
+
+async function showRestaurants(plan: Plan) {
+    selectedPlanForRestaurants.value = plan;
+    isLoadingRestaurants.value = true;
+    restaurants.value = [];
+    try {
+        const response = await fetch(`/super-admin/plans/${plan.id}/restaurants`);
+        const data = await response.json();
+        restaurants.value = data.restaurants || [];
+    } catch (e) {
+        console.error('Error fetching plan restaurants:', e);
+    } finally {
+        isLoadingRestaurants.value = false;
+    }
 }
 
 // Build the customer-facing feature list from plan data (mirrors Khach.vue logic)
@@ -143,171 +167,87 @@ const planIcon: Record<string, any> = {
 
         <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <div v-for="plan in plans" :key="plan.id" class="flex flex-col gap-0">
-
-                <!-- ── VIEW MODE: giống trang khách hàng ── -->
-                <template v-if="editingId !== plan.id">
-                    <Card
-                        class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md h-full"
-                        :class="{
-                            'border-2 border-primary shadow-sm': plan.code === 'pro',
-                            'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'ultra',
-                        }"
-                    >
-                        <CardHeader>
-                            <div class="mb-2 flex items-center justify-between">
-                                <CardTitle
-                                    class="flex items-center gap-1.5 text-2xl font-bold"
-                                    :class="{
-                                        'text-primary': plan.code === 'pro',
-                                        'text-violet-500': plan.code === 'ultra',
-                                    }"
-                                >
-                                    <component :is="planIcon[plan.code] ?? Star" class="size-5" />
-                                    {{ plan.name }}
-                                </CardTitle>
-                                <div class="flex items-center gap-1">
-                                    <Badge v-if="plan.code === 'free'" variant="secondary">Mặc định</Badge>
-                                    <Badge v-else-if="plan.code === 'pro'">Khuyến nghị</Badge>
-                                    <Badge v-else-if="plan.code === 'ultra'" class="bg-violet-600 text-white">VIP</Badge>
-                                    <Button variant="ghost" size="icon" class="size-7 ml-1" @click="startEdit(plan)">
-                                        <Edit2 class="size-3.5 text-muted-foreground" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div class="flex items-end gap-1">
-                                <span
-                                    class="text-3xl font-extrabold"
-                                    :class="{
-                                        'text-primary': plan.code === 'pro',
-                                        'text-violet-500': plan.code === 'ultra',
-                                    }"
-                                >
-                                    {{ formatVnd(plan.price) }}
-                                </span>
-                                <span class="pb-1 text-xs text-muted-foreground">/tháng</span>
-                            </div>
-
-                            <CardDescription class="mt-2 min-h-[36px] text-xs">
-                                {{ plan.features?.description || planNotes[plan.code] || '' }}
-                            </CardDescription>
-                        </CardHeader>
-
-                        <CardContent class="flex-grow space-y-1.5 text-xs">
-                            <p v-for="feat in planFeatures(plan)" :key="feat" class="flex items-center gap-2">
-                                <Check
-                                    class="size-4 flex-shrink-0 text-emerald-500"
-                                    :class="{
-                                        'text-primary': plan.code === 'pro',
-                                        'text-violet-500': plan.code === 'ultra',
-                                    }"
-                                />
-                                {{ feat }}
-                            </p>
-                            <p
-                                v-for="unfeat in planUnsupported(plan)"
-                                :key="unfeat"
-                                class="flex items-center gap-2 text-muted-foreground opacity-60"
+                <Card
+                    class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md h-full"
+                    :class="{
+                        'border-2 border-primary shadow-sm': plan.code === 'pro',
+                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'ultra',
+                    }"
+                >
+                    <CardHeader>
+                        <div class="mb-2 flex items-center justify-between">
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-2xl font-bold"
+                                :class="{
+                                    'text-primary': plan.code === 'pro',
+                                    'text-violet-500': plan.code === 'ultra',
+                                }"
                             >
-                                <X class="size-4 flex-shrink-0" />
-                                {{ unfeat }}
-                            </p>
-                        </CardContent>
-
-                        <!-- Meta footer -->
-                        <div class="px-6 pb-4 pt-2 border-t border-border mt-3">
-                            <p class="text-xs text-muted-foreground flex items-center justify-between">
-                                <span>{{ plan.restaurants_count }} nhà hàng đang dùng</span>
-                                <span class="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{{ plan.code }}</span>
-                            </p>
+                                <component :is="planIcon[plan.code] ?? Star" class="size-5" />
+                                {{ plan.name }}
+                            </CardTitle>
+                            <div class="flex items-center gap-1">
+                                <Badge v-if="plan.code === 'free'" variant="secondary">Mặc định</Badge>
+                                <Badge v-else-if="plan.code === 'pro'">Khuyến nghị</Badge>
+                                <Badge v-else-if="plan.code === 'ultra'" class="bg-violet-600 text-white">VIP</Badge>
+                                <Button variant="ghost" size="icon" class="size-7 ml-1" @click="startEdit(plan)">
+                                    <Edit2 class="size-3.5 text-muted-foreground" />
+                                </Button>
+                            </div>
                         </div>
-                    </Card>
-                </template>
 
-                <!-- ── EDIT MODE ── -->
-                <template v-else>
-                    <Card class="border-2 border-primary/40">
-                        <CardHeader class="pb-3">
-                            <div class="flex items-center justify-between">
-                                <CardTitle class="text-base">Chỉnh sửa · {{ plan.name }}</CardTitle>
-                                <Button variant="ghost" size="icon" class="size-7" @click="editingId = null">
-                                    <X class="size-4" />
-                                </Button>
-                            </div>
-                        </CardHeader>
+                        <div class="flex items-end gap-1">
+                            <span
+                                class="text-3xl font-extrabold"
+                                :class="{
+                                    'text-primary': plan.code === 'pro',
+                                    'text-violet-500': plan.code === 'ultra',
+                                }"
+                            >
+                                {{ formatVnd(plan.price) }}
+                            </span>
+                            <span class="pb-1 text-xs text-muted-foreground">/tháng</span>
+                        </div>
 
-                        <CardContent class="flex flex-col gap-4">
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-xs">Tên gói</Label>
-                                    <Input v-model="form.name" />
-                                </div>
-                                <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-xs">Mô tả ngắn (hiển thị trên trang khách)</Label>
-                                    <textarea
-                                        v-model="form.description"
-                                        rows="2"
-                                        class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                                        placeholder="Mô tả ngắn về gói dịch vụ..."
-                                    />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Giá (VND/tháng)</Label>
-                                    <Input v-model.number="form.price" type="number" min="0" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Rate limit (req/phút)</Label>
-                                    <Input v-model.number="form.api_rate_limit" type="number" min="10" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Chi nhánh tối đa (-1 = ∞)</Label>
-                                    <Input v-model.number="form.max_branches" type="number" min="-1" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Bàn tối đa (-1 = ∞)</Label>
-                                    <Input v-model.number="form.max_tables" type="number" min="-1" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Nhân viên tối đa (-1 = ∞)</Label>
-                                    <Input v-model.number="form.max_users" type="number" min="-1" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Khu vực tối đa (-1 = ∞)</Label>
-                                    <Input v-model.number="form.max_areas" type="number" min="-1" />
-                                </div>
-                                <div class="grid gap-1.5">
-                                    <Label class="text-xs">Lưu trữ (MB)</Label>
-                                    <Input v-model.number="form.max_storage_mb" type="number" min="1" />
-                                </div>
-                            </div>
+                        <CardDescription class="mt-2 min-h-[36px] text-xs">
+                            {{ plan.features?.description || planNotes[plan.code] || '' }}
+                        </CardDescription>
+                    </CardHeader>
 
-                            <!-- Feature toggles - styled -->
-                            <div class="rounded-lg border border-border p-3 space-y-2">
-                                <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng nâng cao</p>
-                                <label class="flex items-center justify-between gap-2 cursor-pointer">
-                                    <span class="text-sm">AI dự báo & phát hiện gian lận</span>
-                                    <input type="checkbox" v-model="form.ai_features" class="size-4 rounded accent-primary" />
-                                </label>
-                                <label class="flex items-center justify-between gap-2 cursor-pointer">
-                                    <span class="text-sm">Realtime sync</span>
-                                    <input type="checkbox" v-model="form.realtime" class="size-4 rounded accent-primary" />
-                                </label>
-                                <label class="flex items-center justify-between gap-2 cursor-pointer">
-                                    <span class="text-sm">Phân tích nâng cao & Audit Log</span>
-                                    <input type="checkbox" v-model="form.advanced_analytics" class="size-4 rounded accent-primary" />
-                                </label>
-                            </div>
+                    <CardContent class="flex-grow space-y-1.5 text-xs">
+                        <p v-for="feat in planFeatures(plan)" :key="feat" class="flex items-center gap-2">
+                            <Check
+                                class="size-4 flex-shrink-0 text-emerald-500"
+                                :class="{
+                                    'text-primary': plan.code === 'pro',
+                                    'text-violet-500': plan.code === 'ultra',
+                                }"
+                            />
+                            {{ feat }}
+                        </p>
+                        <p
+                            v-for="unfeat in planUnsupported(plan)"
+                            :key="unfeat"
+                            class="flex items-center gap-2 text-muted-foreground opacity-60"
+                        >
+                            <X class="size-4 flex-shrink-0" />
+                            {{ unfeat }}
+                        </p>
+                    </CardContent>
 
-                            <div class="flex gap-2">
-                                <Button size="sm" @click="save(plan.id)" :disabled="form.processing" class="flex-1">
-                                    <Save class="size-3.5 mr-1.5" />
-                                    {{ form.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
-                                </Button>
-                                <Button size="sm" variant="outline" @click="editingId = null">Hủy</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </template>
+                    <!-- Meta footer -->
+                    <div class="px-6 pb-4 pt-2 border-t border-border mt-3">
+                        <div class="text-xs text-muted-foreground flex items-center justify-between">
+                            <button 
+                                @click="showRestaurants(plan)" 
+                                class="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                                {{ plan.restaurants_count }} nhà hàng đang dùng
+                            </button>
+                            <span class="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{{ plan.code }}</span>
+                        </div>
+                    </div>
+                </Card>
             </div>
         </div>
 
@@ -315,5 +255,141 @@ const planIcon: Record<string, any> = {
         <p class="text-xs text-muted-foreground text-center">
             Thay đổi giá hoặc tính năng sẽ ảnh hưởng ngay đến trang khách hàng — không cần deploy lại.
         </p>
+
+        <!-- ── PLAN EDIT SHEET (DRAWER) ── -->
+        <Sheet v-model:open="isEditing">
+            <SheetContent class="sm:max-w-md overflow-y-auto" @close="editingId = null">
+                <SheetHeader class="pb-4 border-b border-border">
+                    <SheetTitle>Chỉnh sửa gói dịch vụ</SheetTitle>
+                    <SheetDescription>Cập nhật thông tin chi tiết và hạn mức cho gói {{ form.name }}</SheetDescription>
+                </SheetHeader>
+                
+                <div class="flex flex-col gap-4 py-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Tên gói</Label>
+                            <Input v-model="form.name" />
+                        </div>
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Mô tả ngắn (hiển thị trên trang khách)</Label>
+                            <textarea
+                                v-model="form.description"
+                                rows="2"
+                                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                                placeholder="Mô tả ngắn về gói dịch vụ..."
+                            />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Giá (VND/tháng)</Label>
+                            <Input v-model.number="form.price" type="number" min="0" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Rate limit (req/phút)</Label>
+                            <Input v-model.number="form.api_rate_limit" type="number" min="10" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Chi nhánh tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="form.max_branches" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Bàn tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="form.max_tables" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Nhân viên tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="form.max_users" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Khu vực tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="form.max_areas" type="number" min="-1" />
+                        </div>
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Lưu trữ (MB)</Label>
+                            <Input v-model.number="form.max_storage_mb" type="number" min="1" />
+                        </div>
+                    </div>
+
+                    <!-- Feature toggles - styled -->
+                    <div class="rounded-lg border border-border p-3 space-y-2">
+                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng nâng cao</p>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">AI dự báo & phát hiện gian lận</span>
+                            <input type="checkbox" v-model="form.ai_features" class="size-4 rounded accent-primary" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">Realtime sync</span>
+                            <input type="checkbox" v-model="form.realtime" class="size-4 rounded accent-primary" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">Phân tích nâng cao & Audit Log</span>
+                            <input type="checkbox" v-model="form.advanced_analytics" class="size-4 rounded accent-primary" />
+                        </label>
+                    </div>
+
+                    <div class="flex gap-2 pt-2 border-t border-border mt-2">
+                        <Button size="sm" @click="editingId && save(editingId)" :disabled="form.processing" class="flex-1">
+                            <Save class="size-3.5 mr-1.5" />
+                            {{ form.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                        </Button>
+                        <Button size="sm" variant="outline" @click="isEditing = false">Hủy</Button>
+                    </div>
+                </div>
+            </SheetContent>
+        </Sheet>
+
+        <!-- ── RESTAURANT DIRECTORY DIALOG ── -->
+        <Dialog :open="!!selectedPlanForRestaurants" @update:open="val => { if(!val) selectedPlanForRestaurants = null }">
+            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Nhà hàng đang dùng gói: {{ selectedPlanForRestaurants?.name }}</DialogTitle>
+                    <DialogDescription>Danh sách các doanh nghiệp đang đăng ký gói dịch vụ này.</DialogDescription>
+                </DialogHeader>
+
+                <div class="py-4">
+                    <div v-if="isLoadingRestaurants" class="flex items-center justify-center py-8">
+                        <span class="size-6 rounded-full border-2 border-primary border-t-transparent animate-spin inline-block" />
+                    </div>
+                    <div v-else-if="restaurants.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                        Không có nhà hàng nào đang sử dụng gói này.
+                    </div>
+                    <div v-else class="overflow-x-auto rounded-lg border border-border">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-muted border-b border-border text-muted-foreground uppercase font-semibold">
+                                    <th class="p-3">Tên Nhà Hàng</th>
+                                    <th class="p-3">Mã Code</th>
+                                    <th class="p-3">Chủ sở hữu</th>
+                                    <th class="p-3">Ngày hết hạn</th>
+                                    <th class="p-3 text-right">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="res in restaurants" :key="res.id" class="border-b border-border last:border-0 hover:bg-muted/30">
+                                    <td class="p-3 font-semibold">
+                                        <a :href="`/super-admin/restaurants/${res.id}`" class="text-primary hover:underline">
+                                            {{ res.name }}
+                                        </a>
+                                    </td>
+                                    <td class="p-3 font-mono text-[10px]">{{ res.code }}</td>
+                                    <td class="p-3">
+                                        <div>{{ res.owner_name }}</div>
+                                        <div class="text-[10px] text-muted-foreground">{{ res.owner_email }}</div>
+                                    </td>
+                                    <td class="p-3">{{ res.subscription_ends_at }}</td>
+                                    <td class="p-3 text-right">
+                                        <Badge 
+                                            :variant="res.status === 'active' ? 'default' : 'secondary'"
+                                            :class="res.status === 'active' ? 'bg-emerald-500 text-white' : ''"
+                                        >
+                                            {{ res.status }}
+                                        </Badge>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>

@@ -32,6 +32,7 @@ Route::prefix('super-admin')
 
         Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
         Route::patch('plans/{plan}', [SubscriptionPlanController::class, 'update'])->name('plans.update');
+        Route::get('plans/{plan}/restaurants', [SubscriptionPlanController::class, 'planRestaurants'])->name('plans.restaurants');
 
         Route::get('accounts', [AccountController::class, 'index'])->name('accounts.index');
         Route::post('accounts/{user}/reset-password', [AccountController::class, 'resetPassword'])->name('accounts.reset-password');

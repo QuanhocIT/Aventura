@@ -4,7 +4,7 @@ import {
     Heart, Star, AlertTriangle, ShieldCheck, CheckCircle2,
     Calendar, RefreshCw, Filter, Search, ShieldAlert,
     ChevronRight, ArrowUpRight, Award, MessageSquare, Coffee,
-    UserX, Clock, Users, Flame, Percent
+    UserX, Clock, Users, Flame, Percent, Utensils
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ interface Feedback {
     responsible_staff: string[];
     compensation_voucher: string | null;
     resolution_notes: string | null;
+    items_rating?: { product_id: number; name: string; rating: number; comment: string }[];
+    staff_rating?: { employee_id: number; name: string; rating: number; comment: string }[];
 }
 
 interface Voucher {
@@ -110,6 +112,57 @@ const filteredFeedbacks = computed(() => {
 const crisisFeedbacks = computed(() => {
     return props.feedbacks.filter(fb => fb.rating <= 2 && fb.status === 'new');
 });
+
+// Thống kê các món ăn bị đánh giá thấp (điểm trung bình <= 3.5)
+const lowRatedItems = computed(() => {
+    const itemRatings: Record<string, { totalRating: number; count: number }> = {};
+    props.feedbacks.forEach(fb => {
+        if (fb.items_rating) {
+            fb.items_rating.forEach(ir => {
+                if (!itemRatings[ir.name]) {
+                    itemRatings[ir.name] = { totalRating: 0, count: 0 };
+                }
+                itemRatings[ir.name].totalRating += ir.rating;
+                itemRatings[ir.name].count += 1;
+            });
+        }
+    });
+
+    return Object.entries(itemRatings)
+        .map(([name, data]) => ({
+            name,
+            avgRating: Math.round((data.totalRating / data.count) * 10) / 10,
+            count: data.count,
+        }))
+        .filter(item => item.avgRating <= 3.5)
+        .sort((a, b) => a.avgRating - b.avgRating);
+});
+
+// Thống kê nhân sự bị đánh giá thấp (điểm trung bình <= 3.5)
+const lowRatedStaff = computed(() => {
+    const staffRatings: Record<string, { totalRating: number; count: number }> = {};
+    props.feedbacks.forEach(fb => {
+        if (fb.staff_rating) {
+            fb.staff_rating.forEach(sr => {
+                if (!staffRatings[sr.name]) {
+                    staffRatings[sr.name] = { totalRating: 0, count: 0 };
+                }
+                staffRatings[sr.name].totalRating += sr.rating;
+                staffRatings[sr.name].count += 1;
+            });
+        }
+    });
+
+    return Object.entries(staffRatings)
+        .map(([name, data]) => ({
+            name,
+            avgRating: Math.round((data.totalRating / data.count) * 10) / 10,
+            count: data.count,
+        }))
+        .filter(s => s.avgRating <= 3.5)
+        .sort((a, b) => a.avgRating - b.avgRating);
+});
+
 
 // --- ACTIONS ---
 const openResolveModal = (fb: Feedback) => {
@@ -202,6 +255,30 @@ const ratingStarsConfig: Record<number, { text: string; bg: string; text_color: 
                                 <span>Ca chịu trách nhiệm: {{ alert.responsible_shift }}</span>
                                 <span>•</span>
                                 <span>Các món trong đơn: {{ alert.items.join(', ') || 'N/A' }}</span>
+                            </div>
+
+                            <!-- Bad items or bad staff highlights -->
+                            <div v-if="(alert.items_rating && alert.items_rating.some(i => i.rating <= 2)) || (alert.staff_rating && alert.staff_rating.some(s => s.rating <= 2))" class="mt-2 flex flex-col gap-1 text-[10px] bg-rose-50/50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-100/40 dark:border-rose-900/40">
+                                <div v-if="alert.items_rating && alert.items_rating.some(i => i.rating <= 2)" class="flex flex-wrap items-center gap-1.5">
+                                    <span class="font-extrabold text-rose-600 dark:text-rose-400">Lỗi món ăn:</span>
+                                    <span 
+                                        v-for="ir in alert.items_rating.filter(i => i.rating <= 2)" 
+                                        :key="ir.product_id"
+                                        class="bg-rose-100 dark:bg-rose-950 px-1.5 py-0.5 rounded text-rose-700 dark:text-rose-350"
+                                    >
+                                        {{ ir.name }} ({{ ir.rating }}★) <span v-if="ir.comment" class="opacity-80 font-normal"> - {{ ir.comment }}</span>
+                                    </span>
+                                </div>
+                                <div v-if="alert.staff_rating && alert.staff_rating.some(s => s.rating <= 2)" class="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <span class="font-extrabold text-rose-600 dark:text-rose-400">Lỗi phục vụ:</span>
+                                    <span 
+                                        v-for="sr in alert.staff_rating.filter(s => s.rating <= 2)" 
+                                        :key="sr.employee_id"
+                                        class="bg-rose-100 dark:bg-rose-950 px-1.5 py-0.5 rounded text-rose-700 dark:text-rose-350"
+                                    >
+                                        {{ sr.name }} ({{ sr.rating }}★) <span v-if="sr.comment" class="opacity-80 font-normal"> - {{ sr.comment }}</span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         <Button 
@@ -299,6 +376,67 @@ const ratingStarsConfig: Record<number, { text: string; bg: string; text_color: 
                             ></div>
                         </div>
                         <span class="w-6 text-right font-mono">{{ stats.distribution[s] }}</span>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- ALERT KPIS FOR LOW-RATED PRODUCTS & STAFF -->
+        <div v-if="lowRatedItems.length > 0 || lowRatedStaff.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Low Rated Dishes Card -->
+            <Card v-if="lowRatedItems.length > 0" class="rounded-2xl border-slate-200 dark:border-slate-800">
+                <CardHeader class="p-4 pb-2 flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle class="text-xs font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <Utensils class="size-4" /> Món Ăn Bị Phàn Nàn (Đánh giá thấp)
+                        </CardTitle>
+                        <CardDescription class="text-[10px] mt-0.5">Điểm trung bình của món từ 3.5★ trở xuống</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-4 pt-2">
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                        <div 
+                            v-for="item in lowRatedItems" 
+                            :key="item.name"
+                            class="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60"
+                        >
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-350">{{ item.name }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-400 font-mono">Đánh giá: {{ item.count }} lần</span>
+                                <span class="text-xs font-extrabold text-rose-500 flex items-center gap-0.5 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-100/30">
+                                    {{ item.avgRating }} <Star class="size-3 fill-current" />
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Low Rated Staff Card -->
+            <Card v-if="lowRatedStaff.length > 0" class="rounded-2xl border-slate-200 dark:border-slate-800">
+                <CardHeader class="p-4 pb-2 flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle class="text-xs font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <Coffee class="size-4" /> Nhân Sự Cần Chỉnh Đốn Phục Vụ
+                        </CardTitle>
+                        <CardDescription class="text-[10px] mt-0.5">Điểm phục vụ trung bình từ 3.5★ trở xuống</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-4 pt-2">
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                        <div 
+                            v-for="staff in lowRatedStaff" 
+                            :key="staff.name"
+                            class="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60"
+                        >
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-350">{{ staff.name }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-400 font-mono">Đánh giá: {{ staff.count }} lần</span>
+                                <span class="text-xs font-extrabold text-rose-500 flex items-center gap-0.5 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-100/30">
+                                    {{ staff.avgRating }} <Star class="size-3 fill-current" />
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -410,6 +548,53 @@ const ratingStarsConfig: Record<number, { text: string; bg: string; text_color: 
                                 "{{ fb.content ?? 'Khách không để lại ý kiến đóng góp chi tiết.' }}"
                             </p>
 
+                            <!-- Detailed Ratings (Dish & Staff) -->
+                            <div v-if="(fb.items_rating && fb.items_rating.length > 0) || (fb.staff_rating && fb.staff_rating.length > 0)" class="mt-2.5 flex flex-col gap-2 bg-slate-50/60 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100/60 dark:border-slate-800/60">
+                                <!-- Dish ratings -->
+                                <div v-if="fb.items_rating && fb.items_rating.length > 0" class="space-y-1.5">
+                                    <span class="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 flex items-center gap-1">
+                                        <Utensils class="size-3" /> Đánh giá món ăn
+                                    </span>
+                                    <div class="grid gap-1.5 sm:grid-cols-2">
+                                        <div 
+                                            v-for="ir in fb.items_rating" 
+                                            :key="ir.product_id"
+                                            class="flex flex-col gap-0.5 bg-white dark:bg-slate-900/60 p-2 rounded-lg border border-slate-150/40 dark:border-slate-800"
+                                        >
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 line-clamp-1">{{ ir.name }}</span>
+                                                <span class="text-[10px] font-bold shrink-0 flex items-center gap-0.5" :class="ir.rating <= 2 ? 'text-rose-500' : ir.rating === 3 ? 'text-amber-500' : 'text-emerald-500'">
+                                                    {{ ir.rating }}<Star class="size-3 fill-current" />
+                                                </span>
+                                            </div>
+                                            <p v-if="ir.comment" class="text-[10px] text-slate-500 dark:text-slate-400 italic">"{{ ir.comment }}"</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Staff ratings -->
+                                <div v-if="fb.staff_rating && fb.staff_rating.length > 0" class="space-y-1.5 border-t border-slate-200/50 dark:border-slate-800/50 pt-2.5 mt-1">
+                                    <span class="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 flex items-center gap-1">
+                                        <Coffee class="size-3" /> Đánh giá phục vụ
+                                    </span>
+                                    <div class="grid gap-1.5 sm:grid-cols-2">
+                                        <div 
+                                            v-for="sr in fb.staff_rating" 
+                                            :key="sr.employee_id"
+                                            class="flex flex-col gap-0.5 bg-white dark:bg-slate-900/60 p-2 rounded-lg border border-slate-150/40 dark:border-slate-800"
+                                        >
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 line-clamp-1">{{ sr.name }}</span>
+                                                <span class="text-[10px] font-bold shrink-0 flex items-center gap-0.5" :class="sr.rating <= 2 ? 'text-rose-500' : sr.rating === 3 ? 'text-amber-500' : 'text-emerald-500'">
+                                                    {{ sr.rating }}<Star class="size-3 fill-current" />
+                                                </span>
+                                            </div>
+                                            <p v-if="sr.comment" class="text-[10px] text-slate-500 dark:text-slate-400 italic">"{{ sr.comment }}"</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Resolution Context if Resolved -->
                             <div 
                                 v-if="fb.status === 'resolved' || fb.status === 'reviewed'" 
@@ -498,6 +683,30 @@ const ratingStarsConfig: Record<number, { text: string; bg: string; text_color: 
                 </div>
                 <div class="text-slate-500 dark:text-slate-400 mt-1 italic">
                     "{{ selectedFeedback.content ?? 'Khách không để lại ý kiến đóng góp chi tiết.' }}"
+                </div>
+
+                <!-- Detailed ratings context inside modal -->
+                <div v-if="(selectedFeedback.items_rating && selectedFeedback.items_rating.length > 0) || (selectedFeedback.staff_rating && selectedFeedback.staff_rating.length > 0)" class="mt-2.5 pt-2.5 border-t border-indigo-100/30 dark:border-slate-800/80 flex flex-col gap-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+                    <div v-if="selectedFeedback.items_rating && selectedFeedback.items_rating.length > 0" class="flex flex-wrap items-center gap-1.5">
+                        <span class="font-bold">Món ăn: </span>
+                        <span 
+                            v-for="ir in selectedFeedback.items_rating" 
+                            :key="ir.product_id"
+                            class="bg-indigo-100/20 dark:bg-slate-900 px-1.5 py-0.5 rounded text-indigo-700 dark:text-indigo-300"
+                        >
+                            {{ ir.name }} ({{ ir.rating }}★)<span v-if="ir.comment" class="opacity-80 font-normal"> - {{ ir.comment }}</span>
+                        </span>
+                    </div>
+                    <div v-if="selectedFeedback.staff_rating && selectedFeedback.staff_rating.length > 0" class="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span class="font-bold">Nhân sự: </span>
+                        <span 
+                            v-for="sr in selectedFeedback.staff_rating" 
+                            :key="sr.employee_id"
+                            class="bg-indigo-100/20 dark:bg-slate-900 px-1.5 py-0.5 rounded text-indigo-700 dark:text-indigo-300"
+                        >
+                            {{ sr.name }} ({{ sr.rating }}★)<span v-if="sr.comment" class="opacity-80 font-normal"> - {{ sr.comment }}</span>
+                        </span>
+                    </div>
                 </div>
             </div>
 

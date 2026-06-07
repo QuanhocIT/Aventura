@@ -61,7 +61,11 @@ class FeedbackController extends Controller
                 });
         }
 
-        $feedbacks = $feedbackModels->map(function ($fb) use ($restaurantId, $shifts, $assignmentsGrouped) {
+        // Tải sản phẩm và nhân viên của nhà hàng để ánh xạ thông tin đánh giá
+        $products = \App\Models\Product::where('restaurant_id', $restaurantId)->get()->keyBy('id');
+        $employees = \App\Models\Employee::where('restaurant_id', $restaurantId)->with('user')->get()->keyBy('id');
+
+        $feedbacks = $feedbackModels->map(function ($fb) use ($restaurantId, $shifts, $assignmentsGrouped, $products, $employees) {
             $responsibleShift = null;
             $responsibleStaff = [];
 
@@ -100,6 +104,34 @@ class FeedbackController extends Controller
                 }
             }
 
+            $itemsRatingWithNames = [];
+            if (is_array($fb->items_rating)) {
+                foreach ($fb->items_rating as $ir) {
+                    $pId = $ir['product_id'] ?? null;
+                    $p = $pId ? $products->get($pId) : null;
+                    $itemsRatingWithNames[] = [
+                        'product_id' => $pId,
+                        'name' => $p ? $p->name : 'Món ăn ẩn/đã xóa',
+                        'rating' => $ir['rating'] ?? 5,
+                        'comment' => $ir['comment'] ?? '',
+                    ];
+                }
+            }
+
+            $staffRatingWithNames = [];
+            if (is_array($fb->staff_rating)) {
+                foreach ($fb->staff_rating as $sr) {
+                    $empId = $sr['employee_id'] ?? null;
+                    $emp = $empId ? $employees->get($empId) : null;
+                    $staffRatingWithNames[] = [
+                        'employee_id' => $empId,
+                        'name' => $emp && $emp->user ? $emp->user->name : 'Nhân viên ẩn/đã nghỉ',
+                        'rating' => $sr['rating'] ?? 5,
+                        'comment' => $sr['comment'] ?? '',
+                    ];
+                }
+            }
+
             return [
                 'id' => $fb->id,
                 'submitted_by_name' => $fb->is_anonymous ? 'Ẩn danh' : ($fb->submitted_by_name ?? 'Khách vãng lai'),
@@ -117,6 +149,8 @@ class FeedbackController extends Controller
                 'responsible_staff' => $responsibleStaff,
                 'compensation_voucher' => $fb->compensation_voucher,
                 'resolution_notes' => $fb->resolution_notes,
+                'items_rating' => $itemsRatingWithNames,
+                'staff_rating' => $staffRatingWithNames,
             ];
         });
 
@@ -159,9 +193,6 @@ class FeedbackController extends Controller
         ]);
     }
 
-    /**
-     * Renders giao diện public cho khách hàng quét mã QR tại bàn để gửi đánh giá.
-     */
     public function publicCreate(Request $request): Response
     {
         $orderId = $request->query('order_id');
@@ -170,13 +201,38 @@ class FeedbackController extends Controller
 
         $orderContext = null;
         if ($orderId) {
-            $order = Order::with(['table'])->find($orderId);
+            $order = Order::with(['table', 'items.product'])->find($orderId);
             if ($order) {
                 $orderContext = [
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
                     'table_name' => $order->table?->name ?? 'Mang về',
                     'restaurant_id' => $order->restaurant_id,
+                    'items' => $order->items->map(fn($item) => [
+                        'product_id' => $item->product_id,
+                        'name' => $item->product?->name ?? 'Món ăn',
+                    ])->filter()->values()->toArray(),
+                ];
+                $restaurantId = $order->restaurant_id;
+            }
+        } elseif ($tableId) {
+            // Tự động phân giải đơn hàng chưa thanh toán mới nhất tại bàn để khách hàng đánh giá món ăn
+            $order = Order::where('table_id', $tableId)
+                ->where('payment_status', 'unpaid')
+                ->whereIn('status', ['pending', 'confirmed', 'preparing', 'completed'])
+                ->with(['table', 'items.product'])
+                ->latest()
+                ->first();
+            if ($order) {
+                $orderContext = [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'table_name' => $order->table?->name ?? 'Mang về',
+                    'restaurant_id' => $order->restaurant_id,
+                    'items' => $order->items->map(fn($item) => [
+                        'product_id' => $item->product_id,
+                        'name' => $item->product?->name ?? 'Món ăn',
+                    ])->filter()->values()->toArray(),
                 ];
                 $restaurantId = $order->restaurant_id;
             }
@@ -191,11 +247,15 @@ class FeedbackController extends Controller
             }
         }
 
+        // Tải danh sách nhân sự trực trong ca hiện tại
+        $staffList = $restaurantId ? $this->resolveCurrentShiftStaff($restaurantId) : [];
+
         return Inertia::render('feedback/PublicCreate', [
             'orderContext' => $orderContext,
             'queryRestaurantId' => $restaurantId ? (int) $restaurantId : null,
             'queryTableId' => $tableId ? (int) $tableId : null,
             'restaurantName' => $restaurantName,
+            'staffList' => $staffList,
         ]);
     }
 
@@ -213,6 +273,8 @@ class FeedbackController extends Controller
             'order_id' => ['nullable', 'exists:orders,id'],
             'table_id' => ['nullable', 'exists:restaurant_tables,id'],
             'restaurant_id' => ['nullable', 'integer'],
+            'items_rating' => ['nullable', 'array'],
+            'staff_rating' => ['nullable', 'array'],
         ]);
 
         $restaurantId = null;
@@ -257,6 +319,8 @@ class FeedbackController extends Controller
             'rating' => $data['rating'],
             'content' => $data['content'] ?? null,
             'is_anonymous' => $data['is_anonymous'],
+            'items_rating' => $data['items_rating'] ?? null,
+            'staff_rating' => $data['staff_rating'] ?? null,
             'status' => 'new',
         ]);
 
@@ -304,4 +368,65 @@ class FeedbackController extends Controller
 
         return back()->with('success', 'Đã lưu phương án xử lý và đền bù khủng hoảng thành công!');
     }
+
+    /**
+     * Giải quyết danh sách nhân viên trong ca hiện tại.
+     */
+    private function resolveCurrentShiftStaff(int $restaurantId): array
+    {
+        $now = now();
+        $currentTimeStr = $now->toTimeString();
+        $currentDateStr = $now->toDateString();
+
+        // 1. Tìm ca trực hiện tại
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get();
+
+        $matchedShiftId = null;
+
+        foreach ($shifts as $shift) {
+            $inShift = false;
+            if (!$shift->is_overnight) {
+                $inShift = $currentTimeStr >= $shift->start_time && $currentTimeStr <= $shift->end_time;
+            } else {
+                // Ca qua đêm (Ví dụ từ 22:00:00 đến 06:00:00 sáng hôm sau)
+                if ($shift->start_time > $shift->end_time) {
+                    $inShift = $currentTimeStr >= $shift->start_time || $currentTimeStr <= $shift->end_time;
+                } else {
+                    $inShift = $currentTimeStr >= $shift->start_time && $currentTimeStr <= $shift->end_time;
+                }
+            }
+
+            if ($inShift) {
+                $matchedShiftId = $shift->id;
+                break;
+            }
+        }
+
+        if (!$matchedShiftId) {
+            return [];
+        }
+
+        // 2. Tìm danh sách phân công cho ca trực và ngày hôm nay
+        return ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereDate('scheduled_date', $currentDateStr)
+            ->where('shift_id', $matchedShiftId)
+            ->with(['employee.user'])
+            ->get()
+            ->map(function ($asm) {
+                if ($asm->employee && $asm->employee->user) {
+                    return [
+                        'employee_id' => $asm->employee->id,
+                        'name' => $asm->employee->user->name,
+                        'role' => $asm->employee->role_title ?? 'Nhân viên',
+                    ];
+                }
+                return null;
+            })
+            ->filter()
+            ->values()
+            ->toArray();
+    }
 }
+
