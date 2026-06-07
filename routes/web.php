@@ -158,6 +158,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Audit Logs (Owner & Manager — chỉ xem log của nhà hàng mình)
     Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export'])->name('audit-logs.export');
+    Route::post('audit-logs/seed-demo', [\App\Http\Controllers\AuditLogController::class, 'seedDemo'])->name('audit-logs.seed-demo');
 
     // Revenue / Reports
     Route::get('reports', [\App\Http\Controllers\ReportsController::class, 'index'])->name('reports.index');
