@@ -2,12 +2,11 @@
 import { Head, router } from '@inertiajs/vue3';
 import {
     ScrollText, Search, ChevronDown, ChevronUp, Filter,
-    RefreshCw, User, Clock, Pencil, Plus, Trash2,
+    RefreshCw, User, Clock, Pencil, Plus, Trash2, Download, AlertTriangle
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -25,29 +24,31 @@ type LogEntry = {
     old_values: Record<string, any> | null;
     new_values: Record<string, any> | null;
     created_at: string;
+    violation?: {
+        id: number;
+        type: string;
+        severity: string;
+        description: string;
+    } | null;
 };
 
 const props = defineProps<{
     logs: { data: LogEntry[]; links: any[]; meta: any };
-    filters: { action?: string; user_role?: string; from?: string; to?: string };
+    filters: { action?: string; event?: string; user_role?: string; from?: string; to?: string };
     total: number;
 }>();
 
 // ── Filters ───────────────────────────────────────────────────────────────────
 const actionFilter   = ref(props.filters.action   ?? '');
+const eventFilter    = ref(props.filters.event    ?? '');
 const roleFilter     = ref(props.filters.user_role ?? '');
 const fromFilter     = ref(props.filters.from      ?? '');
 const toFilter       = ref(props.filters.to        ?? '');
 
-let debounce: ReturnType<typeof setTimeout>;
-watch(actionFilter, () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(applyFilter, 400);
-});
-
 function applyFilter() {
     router.get('/audit-logs', {
         action:    actionFilter.value  || undefined,
+        event:     eventFilter.value   || undefined,
         user_role: roleFilter.value    || undefined,
         from:      fromFilter.value    || undefined,
         to:        toFilter.value      || undefined,
@@ -56,10 +57,60 @@ function applyFilter() {
 
 function resetFilters() {
     actionFilter.value = '';
+    eventFilter.value  = '';
     roleFilter.value   = '';
     fromFilter.value   = '';
     toFilter.value     = '';
     applyFilter();
+}
+
+function setDateRange(range: 'today' | 'yesterday' | '7days' | 'month') {
+    const today = new Date();
+    const formatDate = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    if (range === 'today') {
+        fromFilter.value = formatDate(today);
+        toFilter.value = formatDate(today);
+    } else if (range === 'yesterday') {
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        fromFilter.value = formatDate(yesterday);
+        toFilter.value = formatDate(yesterday);
+    } else if (range === '7days') {
+        const last7 = new Date();
+        last7.setDate(today.getDate() - 7);
+        fromFilter.value = formatDate(last7);
+        toFilter.value = formatDate(today);
+    } else if (range === 'month') {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        fromFilter.value = formatDate(startOfMonth);
+        toFilter.value = formatDate(today);
+    }
+    applyFilter();
+}
+
+function exportCsv() {
+    const params = new URLSearchParams();
+    if (actionFilter.value) params.append('action', actionFilter.value);
+    if (eventFilter.value) params.append('event', eventFilter.value);
+    if (roleFilter.value) params.append('user_role', roleFilter.value);
+    if (fromFilter.value) params.append('from', fromFilter.value);
+    if (toFilter.value) params.append('to', toFilter.value);
+    
+    window.location.href = `/audit-logs/export?${params.toString()}`;
+}
+
+function seedDemo() {
+    router.post('/audit-logs/seed-demo', {}, {
+        onSuccess: () => {
+            // Re-fetch triggers update automatically
+        }
+    });
 }
 
 // ── Expand row ────────────────────────────────────────────────────────────────
@@ -94,9 +145,35 @@ function actionLabel(action: string): string {
     return map[action] ?? action;
 }
 
-function formatJson(obj: Record<string, any> | null): string {
-    if (!obj) return '—';
-    return JSON.stringify(obj, null, 2);
+const fieldLabels: Record<string, string> = {
+    status: 'Trạng thái',
+    total_amount: 'Tổng tiền',
+    subtotal_amount: 'Tiền trước thuế',
+    discount_amount: 'Tiền giảm giá',
+    price: 'Giá món',
+    quantity: 'Số lượng',
+    notes: 'Ghi chú',
+    split_from_order_id: 'Tách từ đơn hàng #',
+};
+
+function getDiff(oldVal: Record<string, any> | null, newVal: Record<string, any> | null) {
+    const oldV = oldVal || {};
+    const newV = newVal || {};
+    const allKeys = Array.from(new Set([...Object.keys(oldV), ...Object.keys(newV)]));
+
+    return allKeys.map(key => {
+        const oVal = oldV[key];
+        const nVal = newV[key];
+        const isChanged = JSON.stringify(oVal) !== JSON.stringify(nVal);
+
+        return {
+            key,
+            label: fieldLabels[key] ?? key,
+            oldVal: oVal,
+            newVal: nVal,
+            isChanged
+        };
+    }).filter(item => item.isChanged);
 }
 </script>
 
@@ -134,51 +211,99 @@ function formatJson(obj: Record<string, any> | null): string {
                 </CardTitle>
             </CardHeader>
             <CardContent class="p-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <!-- Action search -->
-                    <div class="relative">
-                        <Search class="absolute left-2.5 top-2.5 size-3.5 text-slate-400" />
-                        <Input
+                <div class="flex flex-col gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <!-- Action filter select -->
+                        <select
                             v-model="actionFilter"
-                            placeholder="Tìm theo hành động..."
-                            class="pl-8 h-9 text-xs"
-                        />
-                    </div>
+                            @change="applyFilter"
+                            class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                        >
+                            <option value="">Tất cả hành động</option>
+                            <option value="order_created">Tạo đơn hàng</option>
+                            <option value="order_updated">Cập nhật đơn</option>
+                            <option value="order_cancelled">Hủy đơn hàng</option>
+                            <option value="order_split">Tách đơn hàng</option>
+                            <option value="order_split_override">Xác nhận tách đơn</option>
+                            <option value="price_modified">Sửa đơn giá</option>
+                            <option value="discount_applied">Áp dụng giảm giá</option>
+                            <option value="violation_reported">Báo cáo vi phạm</option>
+                            <option value="violation_resolved">Xử lý vi phạm</option>
+                            <option value="test_data_seeded">Seed dữ liệu test</option>
+                            <option value="seed_demo_order">Seed đơn demo</option>
+                        </select>
 
-                    <!-- Role filter -->
-                    <select
-                        v-model="roleFilter"
-                        @change="applyFilter"
-                        class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-                    >
-                        <option value="">Tất cả vai trò</option>
-                        <option value="owner">Chủ nhà hàng</option>
-                        <option value="manager">Quản lý</option>
-                        <option value="cashier">Thu ngân</option>
-                        <option value="kitchen">Nhân viên bếp</option>
-                        <option value="inventory_staff">Quản lý kho</option>
-                    </select>
+                        <!-- Event filter select -->
+                        <select
+                            v-model="eventFilter"
+                            @change="applyFilter"
+                            class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                        >
+                            <option value="">Tất cả sự kiện</option>
+                            <option value="created">Tạo mới</option>
+                            <option value="updated">Cập nhật</option>
+                            <option value="deleted">Xóa</option>
+                        </select>
 
-                    <!-- Date from -->
-                    <input
-                        v-model="fromFilter"
-                        type="date"
-                        @change="applyFilter"
-                        class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-                        placeholder="Từ ngày"
-                    />
+                        <!-- Role filter -->
+                        <select
+                            v-model="roleFilter"
+                            @change="applyFilter"
+                            class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                        >
+                            <option value="">Tất cả vai trò</option>
+                            <option value="owner">Chủ nhà hàng</option>
+                            <option value="manager">Quản lý</option>
+                            <option value="cashier">Thu ngân</option>
+                            <option value="kitchen">Nhân viên bếp</option>
+                            <option value="inventory_staff">Quản lý kho</option>
+                        </select>
 
-                    <!-- Date to -->
-                    <div class="flex items-center gap-2">
+                        <!-- Date from -->
                         <input
-                            v-model="toFilter"
+                            v-model="fromFilter"
                             type="date"
                             @change="applyFilter"
-                            class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 flex-1"
-                            placeholder="Đến ngày"
+                            class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                            placeholder="Từ ngày"
                         />
-                        <Button variant="outline" size="sm" @click="resetFilters" class="h-9 px-3 text-xs">
-                            <RefreshCw class="size-3.5" />
+
+                        <!-- Date to -->
+                        <div class="flex items-center gap-2">
+                            <input
+                                v-model="toFilter"
+                                type="date"
+                                @change="applyFilter"
+                                class="h-9 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 flex-1"
+                                placeholder="Đến ngày"
+                            />
+                            <Button variant="outline" size="sm" @click="resetFilters" class="h-9 px-3 text-xs" title="Đặt lại bộ lọc">
+                                <RefreshCw class="size-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- Date range shortcuts & Export -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-t pt-3 mt-1">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-[10px] font-bold text-slate-400 mr-1 uppercase">Lọc nhanh ngày:</span>
+                            <Button variant="ghost" size="sm" @click="setDateRange('today')" class="h-7 px-2.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                Hôm nay
+                            </Button>
+                            <Button variant="ghost" size="sm" @click="setDateRange('yesterday')" class="h-7 px-2.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                Hôm qua
+                            </Button>
+                            <Button variant="ghost" size="sm" @click="setDateRange('7days')" class="h-7 px-2.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                7 ngày qua
+                            </Button>
+                            <Button variant="ghost" size="sm" @click="setDateRange('month')" class="h-7 px-2.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                Tháng này
+                            </Button>
+                        </div>
+                        
+                        <Button @click="exportCsv" variant="outline" size="sm" class="h-8 gap-1.5 text-xs bg-indigo-50/50 hover:bg-indigo-50 border-indigo-100 dark:border-indigo-950 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 font-semibold shadow-none">
+                            <Download class="size-3.5" />
+                            Xuất CSV
                         </Button>
                     </div>
                 </div>
@@ -195,6 +320,16 @@ function formatJson(obj: Record<string, any> | null): string {
                 </div>
                 <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">Không tìm thấy bản ghi nào</p>
                 <p class="text-xs text-slate-400">Thử thay đổi bộ lọc hoặc khoảng thời gian</p>
+                
+                <Button 
+                    @click="seedDemo" 
+                    variant="outline" 
+                    size="sm" 
+                    class="mt-2 text-xs font-semibold gap-1 border-indigo-200 text-indigo-600 dark:border-indigo-900/50 dark:text-indigo-400 hover:bg-indigo-50/50"
+                >
+                    <Plus class="size-3.5" />
+                    Khởi tạo dữ liệu mẫu
+                </Button>
             </div>
 
             <div v-else class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -212,11 +347,21 @@ function formatJson(obj: Record<string, any> | null): string {
 
                         <!-- Action + subject -->
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            <p class="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 flex-wrap">
                                 {{ actionLabel(log.action) }}
                                 <span v-if="log.subject_type" class="text-slate-400 font-normal">
                                     · {{ log.subject_type }}
                                     <span v-if="log.subject_id">#{{ log.subject_id }}</span>
+                                </span>
+
+                                <!-- AI Alert Badge -->
+                                <span 
+                                    v-if="log.violation" 
+                                    class="inline-flex items-center gap-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/30 animate-pulse cursor-help"
+                                    :title="log.violation.description"
+                                >
+                                    <AlertTriangle class="size-2.5 text-red-500 shrink-0" />
+                                    AI: Rủi ro
                                 </span>
                             </p>
                             <div class="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -244,25 +389,67 @@ function formatJson(obj: Record<string, any> | null): string {
                         </button>
                     </div>
 
-                    <!-- Expanded: show old/new values -->
+                    <!-- Expanded: show Visual Diff and AI Risk warnings -->
                     <div
-                        v-if="expandedId === log.id && (log.old_values || log.new_values)"
-                        class="px-4 pb-4 pt-2 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800"
+                        v-if="expandedId === log.id"
+                        class="px-4 pb-4 pt-3 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800"
                     >
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <!-- Old values -->
-                            <div v-if="log.old_values" class="rounded-xl border border-rose-100 dark:border-rose-900/30 overflow-hidden">
-                                <div class="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/20 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider border-b border-rose-100 dark:border-rose-900/30">
-                                    Trước khi thay đổi
+                        <div class="flex flex-col gap-3 max-w-4xl">
+                            <!-- AI Anomaly Alert Box -->
+                            <div 
+                                v-if="log.violation" 
+                                class="flex gap-2.5 items-start p-3 bg-red-50/50 dark:bg-red-950/10 border border-red-100 dark:border-red-900/20 rounded-xl text-xs"
+                            >
+                                <AlertTriangle class="size-4 text-red-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <p class="font-bold text-red-700 dark:text-red-400">Cảnh báo rủi ro gian lận (AI Anomaly)</p>
+                                    <p class="text-red-600/90 dark:text-red-300/90 mt-0.5 leading-relaxed">{{ log.violation.description }}</p>
+                                    <a 
+                                        href="/violations" 
+                                        class="inline-block mt-2 text-[10px] font-bold text-red-700 hover:text-red-800 dark:text-red-400 underline transition-colors"
+                                    >
+                                        Đến trang Quản lý vi phạm để xử lý →
+                                    </a>
                                 </div>
-                                <pre class="text-[10px] font-mono text-slate-600 dark:text-slate-300 p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatJson(log.old_values) }}</pre>
                             </div>
-                            <!-- New values -->
-                            <div v-if="log.new_values" class="rounded-xl border border-emerald-100 dark:border-emerald-900/30 overflow-hidden">
-                                <div class="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider border-b border-emerald-100 dark:border-emerald-900/30">
-                                    Sau khi thay đổi
+
+                            <!-- Visual Diff comparison -->
+                            <div v-if="log.old_values || log.new_values">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                    Chi tiết thay đổi dữ liệu
+                                </p>
+                                <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                                    <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                        <thead class="bg-slate-50/50 dark:bg-slate-900/40">
+                                            <tr class="text-left font-bold text-slate-500">
+                                                <th class="px-4 py-2 font-medium">Trường thay đổi</th>
+                                                <th class="px-4 py-2 font-medium">Trước (Cũ)</th>
+                                                <th class="px-4 py-2 font-medium">Sau (Mới)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                            <tr v-for="item in getDiff(log.old_values, log.new_values)" :key="item.key">
+                                                <td class="px-4 py-2 font-semibold text-slate-700 dark:text-slate-300">
+                                                    {{ item.label }}
+                                                </td>
+                                                <td class="px-4 py-2 bg-rose-50/30 dark:bg-rose-950/10 text-rose-600 dark:text-rose-400 line-through font-mono">
+                                                    {{ item.oldVal !== undefined ? (typeof item.oldVal === 'object' ? JSON.stringify(item.oldVal) : item.oldVal) : '—' }}
+                                                </td>
+                                                <td class="px-4 py-2 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 font-bold font-mono">
+                                                    {{ item.newVal !== undefined ? (typeof item.newVal === 'object' ? JSON.stringify(item.newVal) : item.newVal) : '—' }}
+                                                </td>
+                                            </tr>
+                                            <tr v-if="getDiff(log.old_values, log.new_values).length === 0">
+                                                <td colspan="3" class="px-4 py-3 text-center text-slate-400 italic">
+                                                    Không phát hiện thuộc tính cụ thể nào bị sửa đổi
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <pre class="text-[10px] font-mono text-slate-600 dark:text-slate-300 p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatJson(log.new_values) }}</pre>
+                            </div>
+                            <div v-else class="text-xs text-slate-400 italic">
+                                Không có chi tiết thay đổi thuộc tính nào cho sự kiện này.
                             </div>
                         </div>
                     </div>
