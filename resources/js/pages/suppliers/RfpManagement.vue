@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { 
     Plus, ChevronDown, ChevronUp, Check, X, 
     Calendar, FileText, Gavel, Award, Building2, 
@@ -14,6 +14,32 @@ import { Label } from '@/components/ui/label';
 const props = defineProps<{
     rfps: any[];
 }>();
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const totalPages = computed(() => Math.ceil(props.rfps.length / itemsPerPage));
+const paginatedRfps = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    return props.rfps.slice(start, start + itemsPerPage);
+});
+const visiblePages = computed(() => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+watch(() => props.rfps, () => {
+    currentPage.value = 1;
+});
 
 const page = usePage();
 const roles = computed(() => {
@@ -124,7 +150,7 @@ const getStatusLabel = (status: string) => {
         <!-- RFP List -->
         <div class="space-y-4">
             <Card 
-                v-for="rfp in rfps" 
+                v-for="rfp in paginatedRfps" 
                 :key="rfp.id" 
                 class="overflow-hidden hover:shadow-sm transition-all"
             >
@@ -339,6 +365,43 @@ const getStatusLabel = (status: string) => {
                     </div>
                 </div>
             </Card>
+
+            <!-- Pagination -->
+            <div v-if="totalPages > 1" class="flex items-center justify-between border-t pt-4 mt-4 bg-slate-50/50 dark:bg-slate-900/30">
+                <div class="text-xs text-muted-foreground">
+                    Hiển thị {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, rfps.length) }} trong tổng số {{ rfps.length }} yêu cầu RFP
+                </div>
+                <div class="flex items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        :disabled="currentPage === 1"
+                        @click="currentPage--"
+                        class="h-8 text-xs"
+                    >
+                        Trước
+                    </Button>
+                    <Button
+                        v-for="page in visiblePages"
+                        :key="page"
+                        variant="outline"
+                        size="sm"
+                        @click="currentPage = page"
+                        :class="['h-8 w-8 text-xs p-0', currentPage === page ? 'bg-emerald-600 text-white font-semibold hover:bg-emerald-700' : '']"
+                    >
+                        {{ page }}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        :disabled="currentPage === totalPages"
+                        @click="currentPage++"
+                        class="h-8 text-xs"
+                    >
+                        Sau
+                    </Button>
+                </div>
+            </div>
 
             <!-- Empty RFP State -->
             <div v-if="rfps.length === 0" class="py-16 text-center border border-dashed border-border rounded-2xl bg-muted/20">

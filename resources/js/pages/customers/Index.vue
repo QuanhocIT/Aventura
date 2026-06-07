@@ -5,7 +5,7 @@ import {
     Phone, Clock, X, Sparkles, UserCheck, ShieldCheck, AlertCircle, 
     Gift, ArrowUpDown, ChevronDown, Check
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -80,6 +80,32 @@ const displayedCustomers = computed(() => {
         });
     }
     return list;
+});
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const totalPages = computed(() => Math.ceil(displayedCustomers.value.length / itemsPerPage));
+const paginatedCustomers = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    return displayedCustomers.value.slice(start, start + itemsPerPage);
+});
+const visiblePages = computed(() => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+watch([segmentFilter, sortBy, searchQuery], () => {
+    currentPage.value = 1;
 });
 
 const form = useForm({
@@ -369,7 +395,7 @@ const genderColors = {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                            <tr v-for="c in displayedCustomers" :key="c.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                            <tr v-for="c in paginatedCustomers" :key="c.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                                 <td class="p-3.5 font-bold font-mono text-indigo-600 dark:text-indigo-400">{{ c.customer_code }}</td>
                                 <td class="p-3.5">
                                     <div class="font-bold text-slate-800 dark:text-slate-200">{{ c.full_name }}</div>
@@ -419,6 +445,43 @@ const genderColors = {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="totalPages > 1" class="flex items-center justify-between border-t p-4 bg-slate-50/50 dark:bg-slate-900/30">
+                    <div class="text-xs text-muted-foreground">
+                        Hiển thị {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, displayedCustomers.length) }} trong tổng số {{ displayedCustomers.length }} khách hàng
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            :disabled="currentPage === 1"
+                            @click="currentPage--"
+                            class="h-8 text-xs"
+                        >
+                            Trước
+                        </Button>
+                        <Button
+                            v-for="page in visiblePages"
+                            :key="page"
+                            variant="outline"
+                            size="sm"
+                            @click="currentPage = page"
+                            :class="['h-8 w-8 text-xs p-0', currentPage === page ? 'bg-indigo-650 text-white font-semibold hover:bg-indigo-700' : '']"
+                        >
+                            {{ page }}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            :disabled="currentPage === totalPages"
+                            @click="currentPage++"
+                            class="h-8 text-xs"
+                        >
+                            Sau
+                        </Button>
+                    </div>
                 </div>
             </CardContent>
         </Card>

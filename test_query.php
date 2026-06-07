@@ -11,6 +11,7 @@ use App\Models\RestaurantBranch;
 use App\Models\Employee;
 
 // Mimic the test environment setup
+Restaurant::where('code', 'TEST')->forceDelete();
 $restaurant = Restaurant::create([
     'owner_user_id' => 1,
     'grace_period_minutes' => 10,

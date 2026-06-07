@@ -5,7 +5,7 @@ import {
     CheckCircle2, AlertCircle, Pencil, Trash2, X, ChevronDown, ChevronUp,
     ToggleLeft, ToggleRight, Brain, Sparkles, TrendingDown, AlertTriangle,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -96,6 +96,32 @@ const filteredProducts = computed(() => {
     }
 
     return list;
+});
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage));
+const paginatedProducts = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    return filteredProducts.value.slice(start, start + itemsPerPage);
+});
+const visiblePages = computed(() => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+watch([selectedCategory, searchQuery], () => {
+    currentPage.value = 1;
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -657,7 +683,7 @@ const toggleAvailability = (p: Product) => {
                     <CardContent class="p-0">
                         <div v-if="filteredProducts.length" class="divide-y divide-slate-100 dark:divide-slate-800">
                             <div
-                                v-for="p in filteredProducts" :key="p.id"
+                                v-for="p in paginatedProducts" :key="p.id"
                                 class="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors group"
                             >
                                 <div class="flex items-start gap-3">
@@ -734,6 +760,43 @@ const toggleAvailability = (p: Product) => {
                             <Button class="mt-4" size="sm" @click="showAddProduct = true">
                                 <Plus class="size-4 mr-1.5" />Thêm món ăn đầu tiên
                             </Button>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div v-if="totalPages > 1" class="flex items-center justify-between border-t p-4 bg-slate-50/50 dark:bg-slate-900/30">
+                            <div class="text-xs text-muted-foreground">
+                                Hiển thị {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredProducts.length) }} trong tổng số {{ filteredProducts.length }} món ăn
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="currentPage === 1"
+                                    @click="currentPage--"
+                                    class="h-8 text-xs"
+                                >
+                                    Trước
+                                </Button>
+                                <Button
+                                    v-for="page in visiblePages"
+                                    :key="page"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="currentPage = page"
+                                    :class="['h-8 w-8 text-xs p-0', currentPage === page ? 'bg-rose-600 text-white font-semibold hover:bg-rose-700' : '']"
+                                >
+                                    {{ page }}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="currentPage === totalPages"
+                                    @click="currentPage++"
+                                    class="h-8 text-xs"
+                                >
+                                    Sau
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
