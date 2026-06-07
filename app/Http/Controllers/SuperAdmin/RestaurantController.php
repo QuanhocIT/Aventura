@@ -47,23 +47,35 @@ class RestaurantController extends Controller
 
         $restaurants = $query->latest()->paginate(15)->withQueryString();
 
+        $stats = [
+            'total'     => Restaurant::count(),
+            'active'    => Restaurant::where('status', 'active')->count(),
+            'paid'      => Restaurant::whereHas('plan', fn ($q) => $q->where('price', '>', 0))->count(),
+            'suspended' => Restaurant::where('status', 'suspended')->count(),
+        ];
+
         return Inertia::render('super-admin/restaurants/Index', [
             'restaurants' => $restaurants->through(fn ($r) => [
                 'id'              => $r->id,
                 'name'            => $r->name,
                 'code'            => $r->code,
                 'status'          => $r->status,
-                'plan'            => $r->plan?->name ?? '',
+                'plan'            => $r->plan?->name ?? '—',
                 'plan_code'       => $r->plan?->code ?? 'FREE',
-                'owner'           => $r->owner?->name ?? '',
-                'owner_email'     => $r->owner?->email ?? '',
+                'owner'           => $r->owner?->name ?? '—',
+                'owner_email'     => $r->owner?->email ?? '—',
+                'owner_id'        => $r->owner?->id,
                 'branches_count'  => $r->branches_count,
                 'employees_count' => $r->employees_count,
                 'tables_count'    => $r->tables_count,
+                'max_branches'    => $r->plan?->max_branches,
+                'max_tables'      => $r->plan?->max_tables,
+                'max_users'       => $r->plan?->max_users,
                 'created_at'      => $r->created_at->format('d/m/Y'),
             ]),
             'plans'   => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
             'filters' => $request->only(['status', 'plan', 'search']),
+            'stats'   => $stats,
         ]);
     }
 
@@ -147,6 +159,7 @@ class RestaurantController extends Controller
                 'subscription_ends_at'  => $restaurant->subscription_ends_at?->format('d/m/Y'),
                 'created_at'   => $restaurant->created_at->format('d/m/Y H:i'),
                 'owner'        => [
+                    'id'    => $restaurant->owner?->id,
                     'name'  => $restaurant->owner?->name,
                     'email' => $restaurant->owner?->email,
                 ],

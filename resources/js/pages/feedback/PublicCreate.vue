@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import { Star, Send, CheckCircle2, AlertTriangle, ShieldCheck, Heart } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 interface OrderContext {
     order_id: number;
     order_number: string;
     table_name: string;
     restaurant_id: number;
+    items?: { product_id: number; name: string }[];
+}
+
+interface Staff {
+    employee_id: number;
+    name: string;
+    role: string;
 }
 
 const props = defineProps<{
@@ -15,6 +22,7 @@ const props = defineProps<{
     queryRestaurantId: number | null;
     queryTableId: number | null;
     restaurantName: string;
+    staffList?: Staff[];
 }>();
 
 // --- STATE ---
@@ -25,9 +33,29 @@ const isAnonymous = ref(true);
 const submittedByName = ref('');
 const submittedByPhone = ref('');
 
+const itemsRating = ref<Record<number, { rating: number; comment: string }>>({});
+const staffRating = ref<Record<number, { rating: number; comment: string }>>({});
+
 const isSubmitting = ref(false);
 const isSuccess = ref(false);
 const errorMessage = ref('');
+
+// --- LIFECYCLE ---
+onMounted(() => {
+    // Tự động khởi tạo đánh giá món ăn mặc định là 5 sao
+    if (props.orderContext?.items) {
+        props.orderContext.items.forEach(item => {
+            itemsRating.value[item.product_id] = { rating: 5, comment: '' };
+        });
+    }
+
+    // Tự động khởi tạo đánh giá nhân sự mặc định là 5 sao
+    if (props.staffList) {
+        props.staffList.forEach(s => {
+            staffRating.value[s.employee_id] = { rating: 5, comment: '' };
+        });
+    }
+});
 
 // --- ACTIONS ---
 const setRating = (r: number) => {
@@ -62,6 +90,16 @@ const handleSubmit = async () => {
             order_id: props.orderContext?.order_id ?? null,
             table_id: props.queryTableId ?? null,
             restaurant_id: props.orderContext?.restaurant_id ?? props.queryRestaurantId ?? null,
+            items_rating: Object.entries(itemsRating.value).map(([pId, r]) => ({
+                product_id: parseInt(pId),
+                rating: r.rating,
+                comment: r.comment
+            })),
+            staff_rating: Object.entries(staffRating.value).map(([empId, r]) => ({
+                employee_id: parseInt(empId),
+                rating: r.rating,
+                comment: r.comment
+            }))
         };
 
         const res = await fetch('/feedback', {
@@ -85,7 +123,6 @@ const handleSubmit = async () => {
         isSubmitting.value = false;
     }
 };
-
 const ratingTexts: Record<number, string> = {
     1: 'Rất tệ - Không hài lòng',
     2: 'Tệ - Cần cải thiện nhiều',
@@ -200,8 +237,103 @@ const ratingTexts: Record<number, string> = {
                     </div>
                 </div>
 
+                <!-- Detailed Dish Ratings -->
+                <div v-if="orderContext?.items && orderContext.items.length > 0" class="flex flex-col gap-2 border-t pt-4">
+                    <Label class="text-xs font-bold text-slate-650 dark:text-slate-450">
+                        Đánh giá món ăn đã dùng:
+                    </Label>
+                    <div class="space-y-3 mt-1">
+                        <div 
+                            v-for="item in orderContext.items" 
+                            :key="item.product_id"
+                            class="p-3 bg-slate-50/60 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2"
+                        >
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-300 line-clamp-1">
+                                    {{ item.name }}
+                                </span>
+                                
+                                <div class="flex items-center gap-0.5">
+                                    <button 
+                                        v-for="star in 5" 
+                                        :key="star"
+                                        type="button"
+                                        @click="itemsRating[item.product_id] = { ...itemsRating[item.product_id], rating: star }"
+                                        class="p-0.5 focus:outline-none transition-transform active:scale-90"
+                                    >
+                                        <Star 
+                                            class="size-4.5 transition-colors" 
+                                            :class="[
+                                                star <= (itemsRating[item.product_id]?.rating ?? 5) 
+                                                    ? 'fill-amber-400 text-amber-400' 
+                                                    : 'text-slate-200 dark:text-slate-800'
+                                            ]"
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+                            <input 
+                                v-model="itemsRating[item.product_id].comment"
+                                type="text" 
+                                placeholder="Góp ý về món ăn này (ví dụ: ngon, mặn, nguội...)" 
+                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Staff Ratings -->
+                <div v-if="staffList && staffList.length > 0" class="flex flex-col gap-2 border-t pt-4">
+                    <Label class="text-xs font-bold text-slate-650 dark:text-slate-450">
+                        Đánh giá nhân viên phục vụ ca trực:
+                    </Label>
+                    <div class="space-y-3 mt-1">
+                        <div 
+                            v-for="staff in staffList" 
+                            :key="staff.employee_id"
+                            class="p-3 bg-slate-50/60 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2"
+                        >
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        {{ staff.name }}
+                                    </span>
+                                    <span class="text-[9px] font-semibold text-slate-400 px-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-150 dark:border-slate-700">
+                                        {{ staff.role }}
+                                    </span>
+                                </div>
+                                
+                                <div class="flex items-center gap-0.5">
+                                    <button 
+                                        v-for="star in 5" 
+                                        :key="star"
+                                        type="button"
+                                        @click="staffRating[staff.employee_id] = { ...staffRating[staff.employee_id], rating: star }"
+                                        class="p-0.5 focus:outline-none transition-transform active:scale-90"
+                                    >
+                                        <Star 
+                                            class="size-4.5 transition-colors" 
+                                            :class="[
+                                                star <= (staffRating[staff.employee_id]?.rating ?? 5) 
+                                                    ? 'fill-amber-400 text-amber-400' 
+                                                    : 'text-slate-200 dark:text-slate-800'
+                                            ]"
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+                            <input 
+                                v-model="staffRating[staff.employee_id].comment"
+                                type="text" 
+                                placeholder="Góp ý về nhân viên này (ví dụ: nhiệt tình, chậm chạp...)" 
+                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Comment Input Area -->
-                <div class="flex flex-col gap-1.5">
+                <div class="flex flex-col gap-1.5 border-t pt-4">
                     <Label class="text-xs font-bold text-slate-600 dark:text-slate-400">
                         Chi tiết trải nghiệm của quý khách:
                     </Label>
@@ -305,5 +437,18 @@ const ratingTexts: Record<number, string> = {
 }
 .animate-fadeIn {
     animation: fadeIn 0.25s ease-out forwards;
+}
+.text-xxs {
+    font-size: 0.65rem;
+}
+.size-4\.5 {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+.bg-slate-905 {
+    background-color: rgba(241, 245, 249, 0.9);
+}
+.dark .bg-slate-905 {
+    background-color: rgba(15, 23, 42, 0.9);
 }
 </style>

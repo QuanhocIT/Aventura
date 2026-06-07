@@ -22,6 +22,7 @@ class RestaurantSubscription extends Model
             'meta'         => 'array',
             'billing_meta' => 'array',
             'price'        => 'decimal:0',
+            'original_price' => 'decimal:0',
         ];
     }
 

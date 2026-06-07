@@ -4,7 +4,7 @@ import {
     ArrowUpRight, Building2, Check,
     Grid, Lock, Sparkles, Users2, X, Zap,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 
 interface AvailablePlan {
@@ -188,9 +188,32 @@ function planAccent(code: string) {
     }
 }
 
-function goToCheckout(code: string) {
-    window.location.href = `/billing/checkout?plan=${code}`;
+const isYearly = ref(false);
+
+function getDisplayPrice(price: number) {
+    if (price === 0) return 'Miễn phí';
+    if (isYearly.value) {
+        const yearlyPrice = Math.round(price * 12 * 0.85);
+        return yearlyPrice.toLocaleString('vi-VN') + 'đ/năm';
+    }
+    return price.toLocaleString('vi-VN') + 'đ/tháng';
 }
+
+function goToCheckout(code: string) {
+    window.location.href = `/billing/checkout?plan=${code}` + (isYearly.value ? '&cycle=yearly' : '&cycle=monthly');
+}
+
+function handleOpenModal() {
+    isUpgradeModalOpen.value = true;
+}
+
+onMounted(() => {
+    window.addEventListener('open-upgrade-modal', handleOpenModal);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('open-upgrade-modal', handleOpenModal);
+});
 </script>
 
 <template>
@@ -320,6 +343,27 @@ function goToCheckout(code: string) {
                         <p class="mt-1.5 text-sm text-muted-foreground">
                             Đang dùng <strong>{{ tenant?.plan?.name ?? 'Free' }}</strong> · Chỉ có thể nâng lên gói cao hơn
                         </p>
+
+                        <!-- Toggle cycle -->
+                        <div class="mt-4 flex items-center justify-center gap-3">
+                            <span class="text-xs" :class="!isYearly ? 'font-bold text-foreground' : 'text-muted-foreground'">Thanh toán Hàng tháng</span>
+                            <button 
+                                @click="isYearly = !isYearly"
+                                class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 bg-muted"
+                                :class="isYearly ? 'bg-primary' : 'bg-input'"
+                            >
+                                <span 
+                                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out"
+                                    :class="isYearly ? 'translate-x-4' : 'translate-x-0'"
+                                />
+                            </button>
+                            <span class="text-xs flex items-center gap-1.5" :class="isYearly ? 'font-bold text-foreground' : 'text-muted-foreground'">
+                                Thanh toán Hàng năm
+                                <span class="inline-flex rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                                    Tiết kiệm 15%
+                                </span>
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Plan grid -->
@@ -355,9 +399,8 @@ function goToCheckout(code: string) {
 
                                 <div class="mt-3 flex items-baseline gap-1">
                                     <span class="text-xl font-extrabold" :class="idx < planRank ? 'text-muted-foreground' : 'text-foreground'">
-                                        {{ plan.price === 0 ? '0đ' : plan.price.toLocaleString('vi-VN') + 'đ' }}
+                                        {{ getDisplayPrice(plan.price) }}
                                     </span>
-                                    <span v-if="plan.price > 0" class="text-[10px] text-muted-foreground">/tháng</span>
                                 </div>
 
                                 <div class="my-3 h-px bg-border" />

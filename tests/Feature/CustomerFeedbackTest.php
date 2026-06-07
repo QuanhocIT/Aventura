@@ -317,4 +317,57 @@ class CustomerFeedbackTest extends TestCase
         $this->assertContains('Súp Gà Ngô Non', $targetFb['items']);
         $this->assertEquals('Bàn VIP 1', $targetFb['table_name']);
     }
+
+    /**
+     * Test khách hàng gửi phản hồi công khai kèm đánh giá chi tiết món ăn và nhân viên.
+     */
+    public function test_guest_can_submit_public_feedback_with_details(): void
+    {
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-FEED-DETAILS',
+            'subtotal' => 100000,
+            'total_amount' => 100000,
+            'status' => 'completed',
+        ]);
+
+        $response = $this->postJson('/feedback', [
+            'rating' => 4,
+            'content' => 'Tương đối hài lòng!',
+            'is_anonymous' => false,
+            'submitted_by_name' => 'Anh Tiến',
+            'submitted_by_phone' => '0988223344',
+            'order_id' => $order->id,
+            'items_rating' => [
+                [
+                    'product_id' => 10,
+                    'rating' => 4,
+                    'comment' => 'Ngon nhưng hơi nguội'
+                ]
+            ],
+            'staff_rating' => [
+                [
+                    'employee_id' => $this->cashierEmp->id,
+                    'rating' => 5,
+                    'comment' => 'Nhiệt tình'
+                ]
+            ]
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('customer_feedback', [
+            'restaurant_id' => $this->restaurant->id,
+            'rating' => 4,
+            'submitted_by_name' => 'Anh Tiến',
+        ]);
+
+        $feedback = CustomerFeedback::latest()->first();
+        $this->assertNotNull($feedback->items_rating);
+        $this->assertEquals(10, $feedback->items_rating[0]['product_id']);
+        $this->assertEquals(4, $feedback->items_rating[0]['rating']);
+        $this->assertEquals($this->cashierEmp->id, $feedback->staff_rating[0]['employee_id']);
+    }
 }

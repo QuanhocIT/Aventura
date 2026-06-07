@@ -14,17 +14,25 @@ class SepayCheckoutService
     /**
      * @return array{subscription:RestaurantSubscription,payment_url:string,transaction_code:string}
      */
-    public function createCheckout(Restaurant $restaurant, SubscriptionPlan $plan, string $source = 'upgrade'): array
+    public function createCheckout(Restaurant $restaurant, SubscriptionPlan $plan, string $source = 'upgrade', string $billingCycle = 'monthly'): array
     {
         if ((float) $plan->price <= 0) {
             throw new RuntimeException('Goi mien phi khong can thanh toan.');
         }
 
-        $subscription = DB::transaction(function () use ($restaurant, $plan, $source): RestaurantSubscription {
+        $subscription = DB::transaction(function () use ($restaurant, $plan, $source, $billingCycle): RestaurantSubscription {
             $activeSubscription = $restaurant->activeSubscription()->lockForUpdate()->first();
             $transactionCode = $this->generateTransactionCode($restaurant->id);
             $startsAt = now();
-            $endsAt = $this->calculateEndsAt($activeSubscription);
+            $endsAt = $this->calculateEndsAt($activeSubscription, $billingCycle);
+
+            $originalPrice = $plan->price;
+            if ($billingCycle === 'yearly') {
+                $originalPrice = $plan->price * 12;
+                $price = round($originalPrice * 0.85); // 15% discount
+            } else {
+                $price = $plan->price;
+            }
 
             return RestaurantSubscription::query()->create([
                 'restaurant_id' => $restaurant->id,
@@ -33,7 +41,9 @@ class SepayCheckoutService
                 'started_at' => $startsAt,
                 'ended_at' => $endsAt,
                 'renewal_at' => $endsAt,
-                'price' => $plan->price,
+                'original_price' => $originalPrice,
+                'price' => $price,
+                'billing_cycle' => $billingCycle,
                 'transaction_code' => $transactionCode,
                 'meta' => [
                     'source' => $source,
@@ -78,13 +88,13 @@ class SepayCheckoutService
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
-    private function calculateEndsAt(?RestaurantSubscription $activeSubscription): \Carbon\CarbonInterface
+    private function calculateEndsAt(?RestaurantSubscription $activeSubscription, string $billingCycle = 'monthly'): \Carbon\CarbonInterface
     {
         $base = $activeSubscription?->ended_at && $activeSubscription->ended_at->isFuture()
             ? $activeSubscription->ended_at->copy()
             : now();
 
-        return $base->addMonth();
+        return $billingCycle === 'yearly' ? $base->addYear() : $base->addMonth();
     }
 
     private function generateTransactionCode(int $restaurantId): string

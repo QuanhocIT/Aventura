@@ -70,4 +70,24 @@ class SubscriptionPlanController extends Controller
 
         return back()->with('success', "Đã cập nhật gói {$plan->name}.");
     }
+
+    public function planRestaurants(SubscriptionPlan $plan): \Illuminate\Http\JsonResponse
+    {
+        $restaurants = $plan->restaurants()
+            ->with('owner')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'code' => $r->code,
+                'status' => $r->status,
+                'owner_name' => $r->owner?->name ?? 'N/A',
+                'owner_email' => $r->owner?->email ?? 'N/A',
+                'subscription_ends_at' => $r->subscription_ends_at ? \Illuminate\Support\Carbon::parse($r->subscription_ends_at)->format('d/m/Y') : 'N/A',
+            ]);
+
+        return response()->json([
+            'restaurants' => $restaurants
+        ]);
+    }
 }
