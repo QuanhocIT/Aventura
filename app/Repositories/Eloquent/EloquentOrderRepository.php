@@ -18,7 +18,10 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             ->latest();
 
         if (!empty($filters['date'])) {
-            $query->whereDate('created_at', $filters['date']);
+            $query->whereBetween('created_at', [
+                $filters['date'] . ' 00:00:00',
+                $filters['date'] . ' 23:59:59'
+            ]);
         }
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
@@ -34,7 +37,10 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     public function getSummaryStats(int $restaurantId, string $date): array
     {
         $stats = Order::where('restaurant_id', $restaurantId)
-            ->whereDate('created_at', $date)
+            ->whereBetween('created_at', [
+                $date . ' 00:00:00',
+                $date . ' 23:59:59'
+            ])
             ->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
             ->groupBy('status')
             ->get();

@@ -29,11 +29,11 @@ class AuditLogController extends Controller
         }
 
         if ($request->filled('from')) {
-            $query->whereDate('created_at', '>=', $request->from);
+            $query->where('created_at', '>=', $request->from . ' 00:00:00');
         }
 
         if ($request->filled('to')) {
-            $query->whereDate('created_at', '<=', $request->to);
+            $query->where('created_at', '<=', $request->to . ' 23:59:59');
         }
 
         $logs = $query->paginate(30)->withQueryString();

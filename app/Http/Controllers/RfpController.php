@@ -33,7 +33,13 @@ class RfpController extends Controller
         $user = $request->user();
 
         $rfps = RequestForProposal::where('restaurant_id', $user->restaurant_id)
-            ->with(['items', 'bids.supplier', 'bids.items.rfpItem'])
+            ->with([
+                'items',
+                'bids.supplier.purchaseOrders' => function ($q) {
+                    $q->whereIn('status', ['delivered', 'frozen']);
+                },
+                'bids.items.rfpItem'
+            ])
             ->latest()
             ->get();
 
@@ -57,9 +63,7 @@ class RfpController extends Controller
                 // 1. Calculate SLA score
                 $supplierId = $bid->supplier_id;
                 
-                $pos = \App\Models\PurchaseOrder::where('supplier_id', $supplierId)
-                    ->whereIn('status', ['delivered', 'frozen'])
-                    ->get();
+                $pos = $bid->supplier ? $bid->supplier->purchaseOrders : collect();
 
                 $totalPos = $pos->count();
                 $onTimeCount = 0;
@@ -228,8 +232,12 @@ class RfpController extends Controller
                         ->first();
                 }
 
+                if (!$ingredient) {
+                    throw new \Exception("Không tìm thấy nguyên vật liệu phù hợp cho '{$bidItem->rfpItem->ingredient_name}' trong kho của nhà hàng. Vui lòng thiết lập nguyên vật liệu này trước khi duyệt thầu.");
+                }
+
                 $po->items()->create([
-                    'ingredient_id' => $ingredient ? $ingredient->id : 1, // safety fallback ID
+                    'ingredient_id' => $ingredient->id,
                     'quantity_ordered' => $bidItem->rfpItem->quantity_required,
                     'price_per_unit' => $bidItem->proposed_price_per_unit,
                     'total_cost' => $bidItem->rfpItem->quantity_required * $bidItem->proposed_price_per_unit,

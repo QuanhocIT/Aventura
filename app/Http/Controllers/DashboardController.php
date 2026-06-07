@@ -127,7 +127,7 @@ class DashboardController extends Controller
                 if ($employee) {
                     $assignment = \App\Models\ScheduleAssignment::where('employee_id', $employee->id)
                         ->where('status', 'checked_in')
-                        ->whereDate('scheduled_date', today())
+                        ->where('scheduled_date', today())
                         ->with('shift')
                         ->first();
 
@@ -240,11 +240,11 @@ class DashboardController extends Controller
             $rid = $restaurant->id;
 
             $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->whereDate('summary_date', today())->first();
+                ->where('summary_date', today())->first();
             $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->whereDate('summary_date', today()->subDay())->first();
+                ->where('summary_date', today()->subDay())->first();
 
-            $ordersToday    = Order::where('restaurant_id', $rid)->whereDate('created_at', today());
+            $ordersToday    = Order::where('restaurant_id', $rid)->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
             $totalToday     = (clone $ordersToday)->count();
             $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
             $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
@@ -356,7 +356,7 @@ class DashboardController extends Controller
 
             // Alert 5 (AI): Nhân viên chưa check-in dù đã qua giờ ca
             $missingCheckIns = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
-                ->whereDate('scheduled_date', today())
+                ->where('scheduled_date', today())
                 ->where('status', 'scheduled')
                 ->whereHas('shift', fn ($q) => $q->where('start_time', '<=', now()->format('H:i:s')))
                 ->count();
@@ -438,7 +438,7 @@ class DashboardController extends Controller
             }
 
             $activeSchedulesForFeed = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
-                ->where('restaurant_id', $rid)->whereDate('scheduled_date', today())
+                ->where('restaurant_id', $rid)->where('scheduled_date', today())
                 ->whereNotNull('check_in_at')->latest('check_in_at')->take(4)->get();
 
             foreach ($activeSchedulesForFeed as $sa) {
@@ -626,11 +626,11 @@ class DashboardController extends Controller
     private function getHealthScore(int $rid): int
     {
         $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
-            ->whereDate('summary_date', today())->first();
+            ->where('summary_date', today())->first();
         $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
-            ->whereDate('summary_date', today()->subDay())->first();
+            ->where('summary_date', today()->subDay())->first();
 
-        $ordersToday    = Order::where('restaurant_id', $rid)->whereDate('created_at', today());
+        $ordersToday    = Order::where('restaurant_id', $rid)->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
         $totalToday     = (clone $ordersToday)->count();
         $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
         $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
@@ -711,7 +711,7 @@ class DashboardController extends Controller
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('orders.restaurant_id', $rid)
             ->where('orders.status', 'completed')
-            ->whereDate('orders.created_at', today())
+            ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
             ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('total_qty')
@@ -726,7 +726,7 @@ class DashboardController extends Controller
 
         $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
             ->where('restaurant_id', $rid)
-            ->whereDate('scheduled_date', today())
+            ->where('scheduled_date', today())
             ->whereIn('status', ['checked_in', 'scheduled'])
             ->get()
             ->map(fn ($a) => [

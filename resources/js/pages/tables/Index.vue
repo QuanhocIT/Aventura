@@ -4,7 +4,7 @@ import {
     LayoutGrid, Plus, Pencil, Trash2, X, QrCode,
     Users, MapPin, CheckCircle2, Clock, AlertCircle
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,32 @@ const filteredTables = computed(() =>
         ? props.tables
         : props.tables.filter(t => t.area?.id === selectedArea.value)
 );
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const totalPages = computed(() => Math.ceil(filteredTables.value.length / itemsPerPage));
+const paginatedTables = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    return filteredTables.value.slice(start, start + itemsPerPage);
+});
+const visiblePages = computed(() => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+watch(selectedArea, () => {
+    currentPage.value = 1;
+});
 
 const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
     available: { label: 'Trống', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400', dot: 'bg-emerald-500' },
@@ -476,7 +502,7 @@ const regenerateQrCode = (table: Table | null) => {
                     <CardContent class="p-4">
                         <div v-if="filteredTables.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                             <div
-                                v-for="t in filteredTables" :key="t.id"
+                                v-for="t in paginatedTables" :key="t.id"
                                 class="group relative rounded-xl border p-4 transition-all hover:shadow-md cursor-pointer"
                                 :class="t.status === 'available'
                                     ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/10'
@@ -526,6 +552,43 @@ const regenerateQrCode = (table: Table | null) => {
                             <p class="mt-1 text-xs text-muted-foreground">
                                 {{ areas.length === 0 ? 'Tạo khu vực trước, sau đó thêm bàn.' : 'Nhấn "+ Thêm bàn" để bắt đầu.' }}
                             </p>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div v-if="totalPages > 1" class="flex items-center justify-between border-t pt-4 mt-4 bg-slate-50/50 dark:bg-slate-900/30">
+                            <div class="text-xs text-muted-foreground">
+                                Hiển thị {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredTables.length) }} trong tổng số {{ filteredTables.length }} bàn
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="currentPage === 1"
+                                    @click="currentPage--"
+                                    class="h-8 text-xs"
+                                >
+                                    Trước
+                                </Button>
+                                <Button
+                                    v-for="page in visiblePages"
+                                    :key="page"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="currentPage = page"
+                                    :class="['h-8 w-8 text-xs p-0', currentPage === page ? 'bg-teal-650 text-white font-semibold hover:bg-teal-700' : '']"
+                                >
+                                    {{ page }}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="currentPage === totalPages"
+                                    @click="currentPage++"
+                                    class="h-8 text-xs"
+                                >
+                                    Sau
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

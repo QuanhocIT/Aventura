@@ -62,6 +62,7 @@ class ScheduleAssignment extends Model
 
         $assignments = self::where('restaurant_id', $restaurantId)
             ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+            ->whereBetween('scheduled_date', [$prevDate, $nextDate])
             ->with(['employee', 'shift'])
             ->get();
 
