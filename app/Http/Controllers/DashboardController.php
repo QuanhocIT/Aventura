@@ -57,17 +57,13 @@ class DashboardController extends Controller
                     }
                 }
 
-                // Query tables along with their active unpaid orders
-                $tablesData = \App\Models\RestaurantTable::with('area')
+                // Query tables along with their active unpaid orders (eager load activeOrder relationship)
+                $tablesData = \App\Models\RestaurantTable::with(['area', 'activeOrder.items.product'])
                     ->where('restaurant_id', $restaurant->id)
                     ->orderBy('name')
                     ->get()
-                    ->map(function ($t) use ($restaurant) {
-                        $activeOrder = Order::where('table_id', $t->id)
-                            ->whereNotIn('status', ['completed', 'cancelled'])
-                            ->where('payment_status', 'unpaid')
-                            ->with(['items.product'])
-                            ->first();
+                    ->map(function ($t) {
+                        $activeOrder = $t->activeOrder;
 
                         $status = $t->status;
                         if (!$activeOrder && $status === 'occupied') {
@@ -460,16 +456,13 @@ class DashboardController extends Controller
             $operationFeed = array_slice($feedItems, 0, 8);
 
             // ── Table grid ───────────────────────────────────────────────────
-            $tablesData = \App\Models\RestaurantTable::with('area')
+            $tablesData = \App\Models\RestaurantTable::with(['area', 'activeOrder'])
                 ->where('restaurant_id', $rid)->orderBy('name')->get()
                 ->map(function ($t) {
                     $status = $t->status;
                     if ($status === 'occupied') {
-                        $hasActiveOrder = Order::where('table_id', $t->id)
-                            ->whereNotIn('status', ['completed', 'cancelled'])
-                            ->where('payment_status', 'unpaid')
-                            ->exists();
-                        if (!$hasActiveOrder) {
+                        $activeOrder = $t->activeOrder;
+                        if (!$activeOrder) {
                             $status = 'available';
                             $t->update(['status' => 'available']);
                         }
@@ -677,6 +670,14 @@ class DashboardController extends Controller
             ->orderBy('start_time')
             ->get();
 
+        // Bulk load all completed orders from the last 7 days to calculate revenues in memory
+        $sevenDaysAgo = now()->subDays(6)->startOfDay();
+        $orders = Order::where('restaurant_id', $rid)
+            ->where('status', 'completed')
+            ->where('completed_at', '>=', $sevenDaysAgo)
+            ->select('total_amount', 'completed_at')
+            ->get();
+
         $shiftRevenue = [];
         foreach ($shifts as $shift) {
             $row = ['shift_name' => $shift->name, 'days' => []];
@@ -687,10 +688,10 @@ class DashboardController extends Controller
                     ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
                     : $day->copy()->setTimeFromTimeString($shift->end_time);
 
-                $rev = Order::where('restaurant_id', $rid)
-                    ->where('status', 'completed')
-                    ->whereBetween('completed_at', [$start, $end])
-                    ->sum('total_amount');
+                // Filter in memory to avoid running a database query in loop
+                $rev = $orders->filter(function ($order) use ($start, $end) {
+                    return $order->completed_at >= $start && $order->completed_at <= $end;
+                })->sum('total_amount');
 
                 $row['days'][] = [
                     'date'    => $day->format('d/m'),

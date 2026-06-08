@@ -183,9 +183,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('violations/{report}/resolve', [ViolationReportController::class, 'resolve'])->name('violations.resolve');
 });
 
-// Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR)
-Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
-Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+// Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)
+Route::middleware('throttle:15,1')->group(function () {
+    Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
+    Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+});
 
 // Xác thực lời mời nhận việc của nhân viên mới
 Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])

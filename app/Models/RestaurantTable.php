@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RestaurantTable extends Model
 {
@@ -33,6 +34,13 @@ class RestaurantTable extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class, 'table_id');
+    }
+
+    public function activeOrder(): HasOne
+    {
+        return $this->hasOne(Order::class, 'table_id')
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where('payment_status', 'unpaid');
     }
 
     protected static function booted(): void
