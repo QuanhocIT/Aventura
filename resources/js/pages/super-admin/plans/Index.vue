@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { Check, Crown, Edit2, Save, Star, Users, X, Zap } from 'lucide-vue-next';
+import { Check, Crown, Edit2, Plus, Save, Star, Users, X, Zap } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -19,10 +20,37 @@ interface Plan {
     features: Record<string, any>; status: string; restaurants_count: number;
 }
 
-const props = defineProps<{ plans: Plan[] }>();
+defineProps<{ plans: Plan[] }>();
 
 const editingId = ref<number | null>(null);
 const isEditing = ref(false);
+
+const isCreating = ref(false);
+const createForm = useForm({
+    code: '',
+    name: '',
+    description: '',
+    billing_cycle: 'monthly',
+    price: 0,
+    max_branches: 1,
+    max_tables: 10,
+    max_users: 5,
+    max_areas: 2,
+    max_storage_mb: 500,
+    ai_features: false,
+    realtime: false,
+    advanced_analytics: false,
+    api_rate_limit: 60,
+});
+
+function submitCreate() {
+    createForm.post(route('superadmin.plans.store'), {
+        onSuccess: () => {
+            isCreating.value = false;
+            createForm.reset();
+        },
+    });
+}
 
 const selectedPlanForRestaurants = ref<Plan | null>(null);
 const restaurants = ref<any[]>([]);
@@ -69,6 +97,7 @@ async function showRestaurants(plan: Plan) {
     selectedPlanForRestaurants.value = plan;
     isLoadingRestaurants.value = true;
     restaurants.value = [];
+
     try {
         const response = await fetch(`/super-admin/plans/${plan.id}/restaurants`);
         const data = await response.json();
@@ -159,10 +188,16 @@ const planIcon: Record<string, any> = {
                     Thay đổi ở đây sẽ hiển thị ngay trên trang khách hàng
                 </p>
             </div>
-            <Badge variant="outline" class="gap-1.5">
-                <span class="size-2 rounded-full bg-green-500 animate-pulse inline-block" />
-                Đồng bộ trang khách
-            </Badge>
+            <div class="flex items-center gap-2">
+                <Button size="sm" variant="outline" @click="isCreating = true">
+                    <Plus class="size-4 mr-1.5" />
+                    Tạo gói mới
+                </Button>
+                <Badge variant="outline" class="gap-1.5">
+                    <span class="size-2 rounded-full bg-green-500 animate-pulse inline-block" />
+                    Đồng bộ trang khách
+                </Badge>
+            </div>
         </div>
 
         <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -336,6 +371,105 @@ const planIcon: Record<string, any> = {
                 </div>
             </SheetContent>
         </Sheet>
+
+        <!-- ── CREATE PLAN DIALOG ── -->
+        <Dialog :open="isCreating" @update:open="val => { if (!val) { isCreating = false; createForm.reset(); } }">
+            <DialogContent class="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Tạo gói dịch vụ mới</DialogTitle>
+                    <DialogDescription>Gói mới sẽ xuất hiện ngay trên trang khách hàng sau khi tạo.</DialogDescription>
+                </DialogHeader>
+
+                <form class="flex flex-col gap-4 py-2" @submit.prevent="submitCreate">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Mã gói (code) <span class="text-destructive">*</span></Label>
+                            <Input v-model="createForm.code" placeholder="vd: starter" />
+                            <p v-if="createForm.errors.code" class="text-xs text-destructive">{{ createForm.errors.code }}</p>
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Chu kỳ thanh toán <span class="text-destructive">*</span></Label>
+                            <Select v-model="createForm.billing_cycle">
+                                <SelectTrigger class="h-9 text-sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="monthly">Hàng tháng</SelectItem>
+                                    <SelectItem value="yearly">Hàng năm</SelectItem>
+                                    <SelectItem value="quarterly">Hàng quý</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Tên gói <span class="text-destructive">*</span></Label>
+                            <Input v-model="createForm.name" placeholder="vd: Gói Khởi Nghiệp" />
+                            <p v-if="createForm.errors.name" class="text-xs text-destructive">{{ createForm.errors.name }}</p>
+                        </div>
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Mô tả ngắn (hiển thị trang khách)</Label>
+                            <textarea
+                                v-model="createForm.description"
+                                rows="2"
+                                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                                placeholder="Mô tả ngắn gọn về gói..."
+                            />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Giá (VND/tháng) <span class="text-destructive">*</span></Label>
+                            <Input v-model.number="createForm.price" type="number" min="0" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Rate limit (req/phút)</Label>
+                            <Input v-model.number="createForm.api_rate_limit" type="number" min="10" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Chi nhánh tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="createForm.max_branches" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Bàn tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="createForm.max_tables" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Nhân viên tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="createForm.max_users" type="number" min="-1" />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs">Khu vực tối đa (-1 = ∞)</Label>
+                            <Input v-model.number="createForm.max_areas" type="number" min="-1" />
+                        </div>
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs">Lưu trữ (MB)</Label>
+                            <Input v-model.number="createForm.max_storage_mb" type="number" min="1" />
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-border p-3 space-y-2">
+                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng nâng cao</p>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">AI dự báo & phát hiện gian lận</span>
+                            <input type="checkbox" v-model="createForm.ai_features" class="size-4 rounded accent-primary" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">Realtime sync</span>
+                            <input type="checkbox" v-model="createForm.realtime" class="size-4 rounded accent-primary" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2 cursor-pointer">
+                            <span class="text-sm">Phân tích nâng cao & Audit Log</span>
+                            <input type="checkbox" v-model="createForm.advanced_analytics" class="size-4 rounded accent-primary" />
+                        </label>
+                    </div>
+
+                    <div class="flex gap-2 pt-2 border-t border-border">
+                        <Button type="submit" size="sm" :disabled="createForm.processing" class="flex-1">
+                            <Save class="size-3.5 mr-1.5" />
+                            {{ createForm.processing ? 'Đang tạo...' : 'Tạo gói' }}
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" @click="isCreating = false; createForm.reset()">Hủy</Button>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <!-- ── RESTAURANT DIRECTORY DIALOG ── -->
         <Dialog :open="!!selectedPlanForRestaurants" @update:open="val => { if(!val) selectedPlanForRestaurants = null }">

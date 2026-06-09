@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { useForm, router } from '@inertiajs/vue3';
 import { Head } from '@inertiajs/vue3';
-import { ImageIcon, Trash2, ToggleLeft, ToggleRight, Upload, ExternalLink } from 'lucide-vue-next';
+import { ArrowDown, ArrowUp, ExternalLink, ImageIcon, Pencil, Trash2, ToggleLeft, ToggleRight, Upload } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-declare const route: (name: string, params?: unknown) => string;
 
 interface Banner {
     id: number;
@@ -34,10 +33,10 @@ const slots = [
 ] as const;
 
 const filteredBanners = computed(() =>
-    props.banners.filter((b) => b.slot === activeSlot.value)
+    props.banners.filter((b) => b.slot === activeSlot.value).sort((a, b) => a.sort_order - b.sort_order)
 );
 
-// Upload form
+// ── Upload form ──────────────────────────────────────────────
 const form = useForm({
     slot: 'hero' as 'hero' | 'promo',
     image: null as File | null,
@@ -95,6 +94,7 @@ function submitBanner() {
     });
 }
 
+// ── Toggle / Delete ──────────────────────────────────────────
 function toggleActive(banner: Banner) {
     router.patch(
         `/super-admin/banners/${banner.id}`,
@@ -109,6 +109,113 @@ return;
 }
 
     router.delete(`/super-admin/banners/${banner.id}`, { preserveScroll: true });
+}
+
+// ── Reorder ──────────────────────────────────────────────────
+function moveUp(banner: Banner) {
+    const list = filteredBanners.value;
+    const index = list.findIndex((b) => b.id === banner.id);
+
+    if (index <= 0) {
+return;
+}
+
+    const items = list.map((b, i) => {
+        if (i === index - 1) {
+return { id: b.id, sort_order: list[index].sort_order };
+}
+
+        if (i === index) {
+return { id: b.id, sort_order: list[index - 1].sort_order };
+}
+
+        return { id: b.id, sort_order: b.sort_order };
+    });
+
+    router.post('/super-admin/banners/reorder', { items }, { preserveScroll: true });
+}
+
+function moveDown(banner: Banner) {
+    const list = filteredBanners.value;
+    const index = list.findIndex((b) => b.id === banner.id);
+
+    if (index >= list.length - 1) {
+return;
+}
+
+    const items = list.map((b, i) => {
+        if (i === index) {
+return { id: b.id, sort_order: list[index + 1].sort_order };
+}
+
+        if (i === index + 1) {
+return { id: b.id, sort_order: list[index].sort_order };
+}
+
+        return { id: b.id, sort_order: b.sort_order };
+    });
+
+    router.post('/super-admin/banners/reorder', { items }, { preserveScroll: true });
+}
+
+// ── Edit dialog ──────────────────────────────────────────────
+const editingBanner = ref<Banner | null>(null);
+
+const editForm = useForm({
+    title: '',
+    subtitle: '',
+    link_url: '',
+    is_active: true,
+    starts_at: '',
+    ends_at: '',
+    image: null as File | null,
+});
+
+const editImagePreview = ref<string | null>(null);
+
+function openEdit(banner: Banner) {
+    editingBanner.value = banner;
+    editForm.title = banner.title ?? '';
+    editForm.subtitle = banner.subtitle ?? '';
+    editForm.link_url = banner.link_url ?? '';
+    editForm.is_active = banner.is_active;
+    editForm.starts_at = banner.starts_at ?? '';
+    editForm.ends_at = banner.ends_at ?? '';
+    editForm.image = null;
+    editImagePreview.value = null;
+}
+
+function closeEdit() {
+    editingBanner.value = null;
+    editImagePreview.value = null;
+    editForm.reset();
+}
+
+function onEditFileChange(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+
+    if (!file) {
+return;
+}
+
+    editForm.image = file;
+    editImagePreview.value = URL.createObjectURL(file);
+}
+
+function clearEditImage() {
+    editForm.image = null;
+    editImagePreview.value = null;
+}
+
+function submitEdit() {
+    if (!editingBanner.value) {
+return;
+}
+
+    editForm.patch(`/super-admin/banners/${editingBanner.value.id}`, {
+        forceFormData: true,
+        onSuccess: () => closeEdit(),
+    });
 }
 
 const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.value)!);
@@ -242,7 +349,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 
                         <div v-else class="space-y-3">
                             <div
-                                v-for="banner in filteredBanners"
+                                v-for="(banner, index) in filteredBanners"
                                 :key="banner.id"
                                 class="flex items-start gap-3 rounded-xl border border-gray-800 bg-gray-800/50 p-3 transition hover:border-gray-700"
                             >
@@ -278,6 +385,32 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 
                                 <!-- Actions -->
                                 <div class="flex flex-shrink-0 flex-col gap-1">
+                                    <!-- Move up/down -->
+                                    <button
+                                        @click="moveUp(banner)"
+                                        :disabled="index === 0"
+                                        title="Lên trên"
+                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                                    >
+                                        <ArrowUp class="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        @click="moveDown(banner)"
+                                        :disabled="index === filteredBanners.length - 1"
+                                        title="Xuống dưới"
+                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                                    >
+                                        <ArrowDown class="h-3.5 w-3.5" />
+                                    </button>
+                                    <!-- Edit -->
+                                    <button
+                                        @click="openEdit(banner)"
+                                        title="Sửa banner"
+                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-indigo-900/30 hover:text-indigo-400"
+                                    >
+                                        <Pencil class="h-4 w-4" />
+                                    </button>
+                                    <!-- Toggle -->
                                     <button
                                         @click="toggleActive(banner)"
                                         :title="banner.is_active ? 'Ẩn banner' : 'Hiển thị banner'"
@@ -287,6 +420,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                         <ToggleRight v-if="banner.is_active" class="h-5 w-5" />
                                         <ToggleLeft v-else class="h-5 w-5" />
                                     </button>
+                                    <!-- Delete -->
                                     <button
                                         @click="deleteBanner(banner)"
                                         title="Xóa banner"
@@ -309,5 +443,79 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
             </div>
         </div>
     </div>
-</template>
 
+    <!-- Edit Banner Dialog -->
+    <Dialog :open="!!editingBanner" @update:open="(v) => { if (!v) closeEdit(); }">
+        <DialogContent class="border-gray-800 bg-gray-900 text-white sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle class="text-white">Sửa Banner</DialogTitle>
+            </DialogHeader>
+
+            <div class="space-y-4 py-2">
+                <!-- Image replacement -->
+                <div>
+                    <Label class="text-gray-300">Thay ảnh <span class="text-gray-500">(để trống nếu giữ nguyên)</span></Label>
+                    <div class="mt-1 rounded-xl border-2 border-dashed border-gray-700 hover:border-indigo-500 transition">
+                        <label class="block cursor-pointer">
+                            <input type="file" accept="image/jpg,image/jpeg,image/png,image/webp" class="hidden" @change="onEditFileChange" />
+                            <div v-if="!editImagePreview" class="flex flex-col items-center justify-center gap-2 py-6 text-gray-500">
+                                <Upload class="h-6 w-6" />
+                                <span class="text-xs">Click để chọn ảnh mới · JPG, PNG, WebP · Tối đa 5MB</span>
+                            </div>
+                            <div v-else class="relative">
+                                <img :src="editImagePreview" class="max-h-36 w-full rounded-xl object-cover" />
+                                <button
+                                    type="button"
+                                    @click.prevent="clearEditImage"
+                                    class="absolute right-2 top-2 rounded-full bg-red-600 p-1 text-white hover:bg-red-700"
+                                >
+                                    <Trash2 class="h-3 w-3" />
+                                </button>
+                            </div>
+                        </label>
+                    </div>
+                    <p v-if="editForm.errors.image" class="mt-1 text-xs text-red-400">{{ editForm.errors.image }}</p>
+                </div>
+
+                <div>
+                    <Label class="text-gray-300">Tiêu đề</Label>
+                    <Input v-model="editForm.title" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                </div>
+                <div>
+                    <Label class="text-gray-300">Subtitle</Label>
+                    <Input v-model="editForm.subtitle" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                </div>
+                <div>
+                    <Label class="text-gray-300">URL khi click</Label>
+                    <Input v-model="editForm.link_url" placeholder="https://..." class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    <p v-if="editForm.errors.link_url" class="mt-1 text-xs text-red-400">{{ editForm.errors.link_url }}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <Label class="text-gray-300">Hiệu lực từ</Label>
+                        <Input v-model="editForm.starts_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    </div>
+                    <div>
+                        <Label class="text-gray-300">Hết hạn</Label>
+                        <Input v-model="editForm.ends_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input id="edit_is_active" v-model="editForm.is_active" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500" />
+                    <Label for="edit_is_active" class="cursor-pointer text-gray-300">Hiển thị</Label>
+                </div>
+            </div>
+
+            <DialogFooter class="gap-2">
+                <Button variant="ghost" class="text-gray-400 hover:text-white" @click="closeEdit">Huỷ</Button>
+                <Button
+                    :disabled="editForm.processing"
+                    class="bg-indigo-600 hover:bg-indigo-700"
+                    @click="submitEdit"
+                >
+                    {{ editForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

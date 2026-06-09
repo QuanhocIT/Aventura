@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\SuperAdmin\DashboardMetricsUpdated;
 use App\Jobs\Support\DispatchSystemAlertWebhook;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\SupportAnnouncement;
@@ -84,6 +85,10 @@ class SupportPortalService
             $rule->forceFill(['last_triggered_at' => now()])->save();
             DispatchSystemAlertWebhook::dispatch($alert->id)->onQueue('alerts');
             $triggered[] = $alert;
+        }
+
+        if (! empty($triggered)) {
+            broadcast(new DashboardMetricsUpdated('alert_triggered'))->toOthers();
         }
 
         return $triggered;

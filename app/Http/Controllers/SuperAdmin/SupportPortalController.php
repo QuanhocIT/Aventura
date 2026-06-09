@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
+use App\Events\SuperAdmin\DashboardMetricsUpdated;
 use App\Events\Support\SupportAnnouncementPublished;
 use App\Http\Controllers\Controller;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\Restaurant;
 use App\Models\SupportAnnouncement;
 use App\Models\SupportTicket;
+use App\Models\SupportTicketReply;
 use App\Models\SystemAlert;
 use App\Models\SystemAlertRule;
+use App\Models\User;
 use App\Services\SupportPortalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +26,7 @@ class SupportPortalController extends Controller
 
     public function index(Request $request): Response
     {
-        $ticketQuery = SupportTicket::with(['restaurant', 'creator', 'assignee'])->latest();
+        $ticketQuery = SupportTicket::with(['restaurant', 'creator', 'assignee', 'replies.user'])->latest();
 
         if ($request->filled('status')) {
             $ticketQuery->where('status', $request->string('status'));
@@ -40,7 +43,7 @@ class SupportPortalController extends Controller
         return Inertia::render('super-admin/support/Index', [
             'stats' => $this->supportPortal->dashboardMetrics(),
             'monitoring' => $this->supportPortal->monitoringSnapshot(),
-            'tickets' => $ticketQuery->take(12)->get()->map(fn ($ticket) => [
+            'tickets' => $ticketQuery->paginate(15, ['*'], 'tickets_page')->withQueryString()->through(fn ($ticket) => [
                 'id' => $ticket->id,
                 'code' => $ticket->code,
                 'restaurant' => $ticket->restaurant?->name ?? 'He thong',
@@ -50,10 +53,18 @@ class SupportPortalController extends Controller
                 'priority' => $ticket->priority,
                 'status' => $ticket->status,
                 'assignee' => $ticket->assignee?->name,
+                'assigned_to' => $ticket->assigned_to,
                 'created_by' => $ticket->creator?->name ?? 'He thong',
                 'created_at' => $ticket->created_at->format('d/m/Y H:i'),
+                'replies' => $ticket->replies->map(fn ($reply) => [
+                    'id' => $reply->id,
+                    'user_name' => $reply->user?->name ?? 'He thong',
+                    'is_internal' => (bool) $reply->is_internal,
+                    'message' => $reply->message,
+                    'created_at' => $reply->created_at->format('d/m/Y H:i'),
+                ]),
             ]),
-            'alerts' => SystemAlert::query()->latest('triggered_at')->take(8)->get()->map(fn ($alert) => [
+            'alerts' => SystemAlert::query()->latest('triggered_at')->paginate(10, ['*'], 'alerts_page')->withQueryString()->through(fn ($alert) => [
                 'id' => $alert->id,
                 'title' => $alert->title,
                 'metric_key' => $alert->metric_key,
@@ -62,7 +73,7 @@ class SupportPortalController extends Controller
                 'status' => $alert->status,
                 'triggered_at' => optional($alert->triggered_at)->format('d/m/Y H:i'),
             ]),
-            'rules' => SystemAlertRule::query()->orderBy('name')->get()->map(fn ($rule) => [
+            'rules' => SystemAlertRule::query()->orderBy('name')->paginate(20, ['*'], 'rules_page')->withQueryString()->through(fn ($rule) => [
                 'id' => $rule->id,
                 'name' => $rule->name,
                 'metric_key' => $rule->metric_key,
@@ -72,15 +83,16 @@ class SupportPortalController extends Controller
                 'is_active' => $rule->is_active,
                 'channels' => $rule->channels ?? [],
             ]),
-            'announcements' => SupportAnnouncement::query()->latest()->take(6)->get()->map(fn ($announcement) => [
+            'announcements' => SupportAnnouncement::query()->latest()->paginate(8, ['*'], 'announcements_page')->withQueryString()->through(fn ($announcement) => [
                 'id' => $announcement->id,
                 'title' => $announcement->title,
+                'message' => $announcement->message,
                 'status' => $announcement->status,
                 'level' => $announcement->level,
                 'audience' => $announcement->audience,
                 'published_at' => optional($announcement->published_at)->format('d/m/Y H:i'),
             ]),
-            'articles' => KnowledgeBaseArticle::query()->latest()->take(6)->get()->map(fn ($article) => [
+            'articles' => KnowledgeBaseArticle::query()->latest()->paginate(8, ['*'], 'articles_page')->withQueryString()->through(fn ($article) => [
                 'id' => $article->id,
                 'title' => $article->title,
                 'category' => $article->category,
@@ -89,6 +101,10 @@ class SupportPortalController extends Controller
                 'video_url' => $article->video_url,
             ]),
             'restaurants' => Restaurant::query()->orderBy('name')->get(['id', 'name']),
+            'staff' => User::query()
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['admin', 'super_admin']))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'filters' => $request->only(['status', 'severity', 'restaurant_id']),
         ]);
     }
@@ -118,14 +134,20 @@ class SupportPortalController extends Controller
             'meta' => ['source' => 'super_admin_portal'],
         ]);
 
+        broadcast(new DashboardMetricsUpdated('ticket_created'))->toOthers();
+
         return back()->with('success', 'Da tao ticket ho tro.');
     }
 
     public function updateTicket(Request $request, SupportTicket $ticket): RedirectResponse
     {
         $data = $request->validate([
-            'status' => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
+            'status'      => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
             'assigned_to' => ['nullable', 'exists:users,id'],
+            'title'       => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'category'    => ['nullable', 'string', 'max:100'],
+            'severity'    => ['nullable', 'in:low,medium,high,critical'],
         ]);
 
         if (isset($data['status'])) {
@@ -136,13 +158,142 @@ class SupportPortalController extends Controller
             $ticket->assigned_to = $data['assigned_to'];
         }
 
+        foreach (['title', 'description', 'category', 'severity'] as $field) {
+            if (isset($data[$field])) {
+                $ticket->$field = $data[$field];
+            }
+        }
+
         if ($ticket->status === 'resolved' && ! $ticket->resolved_at) {
             $ticket->resolved_at = now();
         }
 
         $ticket->save();
 
-        return back()->with('success', 'Da cap nhat ticket.');
+        return back()->with('success', 'Đã cập nhật ticket.');
+    }
+
+    public function destroyTicket(Request $request, SupportTicket $ticket): RedirectResponse
+    {
+        $ticket->delete();
+        broadcast(new DashboardMetricsUpdated('ticket_deleted'))->toOthers();
+
+        return back()->with('success', 'Đã xóa ticket.');
+    }
+
+    public function updateReply(Request $request, SupportTicket $ticket, SupportTicketReply $reply): RedirectResponse
+    {
+        $data = $request->validate([
+            'message'     => ['required', 'string'],
+            'is_internal' => ['nullable', 'boolean'],
+        ]);
+
+        $reply->update([
+            'message'     => $data['message'],
+            'is_internal' => (bool) ($data['is_internal'] ?? $reply->is_internal),
+        ]);
+
+        return back()->with('success', 'Đã cập nhật phản hồi.');
+    }
+
+    public function destroyReply(Request $request, SupportTicket $ticket, SupportTicketReply $reply): RedirectResponse
+    {
+        $reply->delete();
+
+        return back()->with('success', 'Đã xóa phản hồi.');
+    }
+
+    public function bulkUpdateTickets(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ticket_ids'   => ['required', 'array'],
+            'ticket_ids.*' => ['integer', 'exists:support_tickets,id'],
+            'status'       => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
+            'assigned_to'  => ['nullable', 'exists:users,id'],
+        ]);
+
+        $updates = [];
+
+        if (! empty($data['status'])) {
+            $updates['status'] = $data['status'];
+        }
+
+        if (array_key_exists('assigned_to', $data)) {
+            $updates['assigned_to'] = $data['assigned_to'];
+        }
+
+        if (! empty($updates)) {
+            SupportTicket::whereIn('id', $data['ticket_ids'])->update($updates);
+        }
+
+        return back()->with('success', 'Đã cập nhật ' . count($data['ticket_ids']) . ' ticket.');
+    }
+
+    public function updateRule(Request $request, SystemAlertRule $rule): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'             => ['required', 'string', 'max:255'],
+            'metric_key'       => ['required', 'string', 'max:100'],
+            'operator'         => ['required', 'in:>,>=,<,<=,='],
+            'threshold'        => ['required', 'numeric'],
+            'cooldown_minutes' => ['required', 'integer', 'min:1'],
+            'channels'         => ['nullable', 'array'],
+        ]);
+
+        $rule->update([
+            'name'             => $data['name'],
+            'metric_key'       => $data['metric_key'],
+            'operator'         => $data['operator'],
+            'threshold'        => $data['threshold'],
+            'cooldown_minutes' => $data['cooldown_minutes'],
+            'channels'         => array_values($data['channels'] ?? []),
+        ]);
+
+        return back()->with('success', 'Đã cập nhật rule cảnh báo.');
+    }
+
+    public function destroyRule(Request $request, SystemAlertRule $rule): RedirectResponse
+    {
+        $rule->delete();
+
+        return back()->with('success', 'Đã xóa rule cảnh báo.');
+    }
+
+    public function toggleRule(Request $request, SystemAlertRule $rule): RedirectResponse
+    {
+        $rule->update(['is_active' => ! $rule->is_active]);
+        $rule->refresh();
+
+        return back()->with('success', $rule->is_active ? 'Đã kích hoạt rule.' : 'Đã tạm dừng rule.');
+    }
+
+    public function storeReply(Request $request, SupportTicket $ticket): RedirectResponse
+    {
+        $data = $request->validate([
+            'message' => ['required', 'string'],
+            'is_internal' => ['nullable', 'boolean'],
+        ]);
+
+        $isInternal = (bool) ($data['is_internal'] ?? false);
+
+        SupportTicketReply::create([
+            'support_ticket_id' => $ticket->id,
+            'user_id' => $request->user()?->id,
+            'is_internal' => $isInternal,
+            'message' => $data['message'],
+        ]);
+
+        if (! $ticket->first_response_at) {
+            $ticket->first_response_at = now();
+        }
+
+        if (! $isInternal && $ticket->status === 'open') {
+            $ticket->status = 'in_progress';
+        }
+
+        $ticket->save();
+
+        return back()->with('success', 'Da gui phan hoi.');
     }
 
     public function storeAnnouncement(Request $request): RedirectResponse
@@ -234,5 +385,53 @@ class SupportPortalController extends Controller
         $triggered = $this->supportPortal->evaluateAlerts();
 
         return back()->with('success', 'Da quet canh bao: '.count($triggered).' muc moi.');
+    }
+
+    public function unpublishAnnouncement(Request $request, SupportAnnouncement $announcement): RedirectResponse
+    {
+        $announcement->update(['status' => 'draft']);
+
+        return back()->with('success', 'Đã gỡ đăng thông báo.');
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $csvRow = fn (array $fields) => implode(',', array_map(
+            fn ($v) => '"'.str_replace('"', '""', (string) $v).'"',
+            $fields
+        )).PHP_EOL;
+
+        $csv = $csvRow(['ID', 'Code', 'Nhà hàng', 'Tiêu đề', 'Danh mục', 'Mức độ', 'Trạng thái', 'Người xử lý', 'Ngày tạo']);
+
+        $query = SupportTicket::with(['restaurant', 'assignee'])->latest();
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        if ($request->filled('severity')) {
+            $query->where('severity', $request->string('severity'));
+        }
+
+        $query->chunk(200, function ($tickets) use (&$csv, $csvRow) {
+            foreach ($tickets as $ticket) {
+                $csv .= $csvRow([
+                    $ticket->id,
+                    $ticket->code,
+                    $ticket->restaurant?->name ?? 'Hệ thống',
+                    $ticket->title,
+                    $ticket->category,
+                    $ticket->severity,
+                    $ticket->status,
+                    $ticket->assignee?->name ?? '',
+                    $ticket->created_at->format('d/m/Y H:i'),
+                ]);
+            }
+        });
+
+        return response("\xEF\xBB\xBF".$csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="support-export-'.now()->format('YmdHis').'.csv"',
+        ]);
     }
 }

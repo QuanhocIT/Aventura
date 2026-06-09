@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\ChatbotKnowledge;
 use App\Services\ChatbotService;
 use Illuminate\Http\RedirectResponse;
@@ -66,9 +67,11 @@ class ChatbotKnowledgeController extends Controller
             'display_order' => ['integer', 'min:0', 'max:9999'],
         ]);
 
-        ChatbotKnowledge::create($data);
+        $knowledge = ChatbotKnowledge::create($data);
 
         $this->chatbot->reloadCache();
+
+        $this->logKnowledgeAction($request, 'created', 'chatbot_knowledge_create', $knowledge, null, $knowledge->only(['category', 'question', 'is_active']));
 
         return back()->with('success', 'Đã thêm câu hỏi thành công.');
     }
@@ -89,18 +92,25 @@ class ChatbotKnowledgeController extends Controller
             'display_order' => ['integer', 'min:0', 'max:9999'],
         ]);
 
+        $old = $knowledge->only(['category', 'question', 'is_active']);
         $knowledge->update($data);
 
         $this->chatbot->reloadCache();
 
+        $this->logKnowledgeAction($request, 'updated', 'chatbot_knowledge_update', $knowledge, $old, $knowledge->only(['category', 'question', 'is_active']));
+
         return back()->with('success', 'Đã cập nhật câu hỏi.');
     }
 
-    public function destroy(ChatbotKnowledge $knowledge): RedirectResponse
+    public function destroy(Request $request, ChatbotKnowledge $knowledge): RedirectResponse
     {
+        $old = $knowledge->only(['category', 'question', 'is_active']);
+
         $knowledge->delete();
 
         $this->chatbot->reloadCache();
+
+        $this->logKnowledgeAction($request, 'deleted', 'chatbot_knowledge_delete', $knowledge, $old, null);
 
         return back()->with('success', 'Đã xóa câu hỏi.');
     }
@@ -113,5 +123,23 @@ class ChatbotKnowledgeController extends Controller
             $success ? 'success' : 'error',
             $success ? 'Cache NLP đã được tải lại.' : 'Không thể tải lại cache  Python service có thể đang offline.',
         );
+    }
+
+    private function logKnowledgeAction(Request $request, string $event, string $action, ChatbotKnowledge $knowledge, ?array $old, ?array $new): void
+    {
+        AuditLog::create([
+            'restaurant_id' => null,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => $event,
+            'action'        => $action,
+            'subject_type'  => ChatbotKnowledge::class,
+            'subject_id'    => $knowledge->id,
+            'old_values'    => $old,
+            'new_values'    => $new,
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
+        ]);
     }
 }

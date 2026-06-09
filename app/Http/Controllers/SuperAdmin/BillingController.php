@@ -70,36 +70,36 @@ class BillingController extends Controller
         }
 
         return Inertia::render('super-admin/billing/Index', [
-            'filters' => $request->only(['restaurant_id', 'status', 'type', 'search']),
+            'filters'     => $request->only(['restaurant_id', 'status', 'type', 'search']),
             'restaurants' => $restaurants,
-            'invoices' => $invoiceQuery->take(25)->get()->map(fn ($invoice) => [
-                'id' => $invoice->id,
+            'invoices'    => $invoiceQuery->paginate(15, ['*'], 'invoices_page')->withQueryString()->through(fn ($invoice) => [
+                'id'             => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
-                'restaurant' => $invoice->restaurant?->name ?? '',
-                'status' => $invoice->status,
-                'type' => $invoice->type,
-                'total' => number_format($invoice->total),
-                'currency' => $invoice->currency,
-                'due_on' => $invoice->due_on?->format('d/m/Y'),
-                'sent_at' => $invoice->sent_at?->format('d/m/Y H:i'),
+                'restaurant'     => $invoice->restaurant?->name ?? '',
+                'status'         => $invoice->status,
+                'type'           => $invoice->type,
+                'total'          => number_format($invoice->total),
+                'currency'       => $invoice->currency,
+                'due_on'         => $invoice->due_on?->format('d/m/Y'),
+                'sent_at'        => $invoice->sent_at?->format('d/m/Y H:i'),
             ]),
-            'webhooks' => $webhookQuery->take(25)->get()->map(fn ($webhook) => [
-                'id' => $webhook->id,
-                'provider' => $webhook->provider,
-                'status' => $webhook->status,
+            'webhooks'    => $webhookQuery->paginate(15, ['*'], 'webhooks_page')->withQueryString()->through(fn ($webhook) => [
+                'id'               => $webhook->id,
+                'provider'         => $webhook->provider,
+                'status'           => $webhook->status,
                 'transaction_code' => $webhook->transaction_code,
-                'event_type' => $webhook->event_type,
-                'processed_at' => $webhook->processed_at?->format('d/m/Y H:i'),
+                'event_type'       => $webhook->event_type,
+                'processed_at'     => $webhook->processed_at?->format('d/m/Y H:i'),
             ]),
-            'adjustments' => $adjustmentQuery->take(25)->get()->map(fn ($adjustment) => [
-                'id' => $adjustment->id,
-                'restaurant' => $adjustment->restaurant?->name ?? '',
-                'type' => $adjustment->type,
-                'days' => $adjustment->days,
+            'adjustments' => $adjustmentQuery->paginate(15, ['*'], 'adjustments_page')->withQueryString()->through(fn ($adjustment) => [
+                'id'              => $adjustment->id,
+                'restaurant'      => $adjustment->restaurant?->name ?? '',
+                'type'            => $adjustment->type,
+                'days'            => $adjustment->days,
                 'discount_amount' => number_format($adjustment->discount_amount),
-                'reason' => $adjustment->reason,
-                'creator' => $adjustment->creator?->name ?? 'System',
-                'created_at' => $adjustment->created_at?->format('d/m/Y H:i'),
+                'reason'          => $adjustment->reason,
+                'creator'         => $adjustment->creator?->name ?? 'System',
+                'created_at'      => $adjustment->created_at?->format('d/m/Y H:i'),
             ]),
         ]);
     }
@@ -108,21 +108,21 @@ class BillingController extends Controller
     {
         $this->billing->queueInvoiceEmail($invoice);
 
-        return back()->with('success', 'Đă dua hóa don vào queue g?i l?i email.');
+        return back()->with('success', 'Đã đưa hóa đơn vào queue gửi lại email.');
     }
 
     public function regenerateInvoice(BillingInvoice $invoice): RedirectResponse
     {
         $this->billing->queueInvoiceRegeneration($invoice);
 
-        return back()->with('success', 'Đă dua hóa don vào queue sinh l?i file.');
+        return back()->with('success', 'Đã đưa hóa đơn vào queue sinh lại file.');
     }
 
     public function retryWebhook(PaymentWebhook $webhook): RedirectResponse
     {
         $result = $this->billing->retryWebhook($webhook);
 
-        return back()->with('success', $result['message'] ?? 'Đă retry webhook.');
+        return back()->with('success', $result['message'] ?? 'Đã retry webhook.');
     }
 
     public function exportCsv(Request $request): HttpResponse
@@ -141,24 +141,30 @@ class BillingController extends Controller
             $query->where('type', $request->string('type'));
         }
 
-        $rows = $query->take(500)->get();
+        $csvRow = fn (array $fields) => implode(',', array_map(
+            static fn ($v) => '"' . str_replace('"', '""', (string) ($v ?? '')) . '"',
+            $fields
+        )) . PHP_EOL;
 
-        $csv = collect([
-            ['invoice_number', 'restaurant', 'type', 'status', 'total', 'currency', 'due_on', 'sent_at'],
-            ...$rows->map(fn ($invoice) => [
-                $invoice->invoice_number,
-                $invoice->restaurant?->name ?? '',
-                $invoice->type,
-                $invoice->status,
-                (string) $invoice->total,
-                $invoice->currency,
-                optional($invoice->due_on)->format('Y-m-d'),
-                optional($invoice->sent_at)->format('Y-m-d H:i:s'),
-            ])->all(),
-        ])->map(fn ($row) => implode(',', array_map(static fn ($value) => '"'.str_replace('"', '""', (string) $value).'"', $row)))->implode(PHP_EOL);
+        $csv = $csvRow(['invoice_number', 'restaurant', 'type', 'status', 'total', 'currency', 'due_on', 'sent_at']);
+
+        $query->chunk(200, function ($rows) use (&$csv, $csvRow) {
+            foreach ($rows as $invoice) {
+                $csv .= $csvRow([
+                    $invoice->invoice_number,
+                    $invoice->restaurant?->name ?? '',
+                    $invoice->type,
+                    $invoice->status,
+                    (string) $invoice->total,
+                    $invoice->currency,
+                    optional($invoice->due_on)->format('Y-m-d'),
+                    optional($invoice->sent_at)->format('Y-m-d H:i:s'),
+                ]);
+            }
+        });
 
         return response($csv, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Type'        => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename=billing-export.csv',
         ]);
     }

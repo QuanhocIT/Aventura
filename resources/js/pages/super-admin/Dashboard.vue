@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     Brain,
@@ -22,11 +22,23 @@ import {
     Terminal,
     ChevronDown,
     ChevronUp,
+    Download,
+    Printer,
+    Minimize2,
+    Maximize2,
+    LayoutGrid,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import AreaChart from '@/components/charts/AreaChart.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import Echo from '@/lib/echo';
 
 defineOptions({ layout: AppLayout });
 
@@ -47,6 +59,12 @@ type RankedTenant = {
     files_count?: number;
 };
 
+type StatChange = {
+    percent: number | null;
+    label: string;
+    trend: 'up' | 'down' | 'neutral';
+};
+
 const props = defineProps<{
     stats: {
         total_restaurants: number;
@@ -65,6 +83,17 @@ const props = defineProps<{
         paid_tenants: number;
     };
     tenantGrowth: GrowthPoint[];
+    tenantGrowthCompare: GrowthPoint[] | null;
+    filters: {
+        range: string;
+        compare: boolean;
+    };
+    statChanges: {
+        total_restaurants: StatChange;
+        total_users: StatChange;
+        pro_plan: StatChange;
+        mrr: StatChange;
+    };
     resourceInsights: {
         top_order_restaurants: RankedTenant[];
         top_storage_restaurants: RankedTenant[];
@@ -83,6 +112,21 @@ const props = defineProps<{
         created_at: string;
     }>;
     planDistribution: Array<{ name: string; code: string; count: number }>;
+    cohortAnalysis: Array<{ cohort: string; month: string; total: number; m1: number | null; m3: number | null; m6: number | null }>;
+    revenueBreakdown: Array<{ label: string; month: string; by_plan: Record<string, number>; total: number }>;
+    revenueRetention: {
+        period_label: string;
+        previous_label: string;
+        starting_mrr: number;
+        expansion: number;
+        contraction: number;
+        churned: number;
+        nrr: number | null;
+        grr: number | null;
+    };
+    planPerformance: Array<{ plan_code: string; plan_name: string; tenant_count: number; orders_30d: number; avg_orders_per_tenant_per_day: number; active_tenant_ratio: number }>;
+    dashboardAlerts: Array<{ source: string; severity: 'critical' | 'warning'; metric_key: string; title: string; message: string; triggered_at: string | null }>;
+    reportSubscription: { is_active: boolean; frequency: 'weekly' | 'monthly'; last_sent_at: string | null };
     aiInsights: {
         churn_risks: Array<{ restaurant_id: number; name: string; risk_score: number; risk_level: string; reasons: string[]; actions: string[] }>;
         health_scores: Array<{ restaurant_id: number; name: string; score: number; level: string; order_count_30d: number }>;
@@ -104,11 +148,242 @@ const props = defineProps<{
     };
 }>();
 
-// --- Interactive Chart Coordinates & Hover States ---
-const hoveredGrowthIdx = ref<number | null>(null);
-const hoveredProIdx = ref<number | null>(null);
-
 const selectedKpiIdx = ref(0);
+
+// --- F2: Cập nhật real-time qua Reverb/Echo — làm mới các chỉ số thay đổi nhanh
+// (ticket mở, cảnh báo ngưỡng...) mà không cần tải lại trang ---
+const REALTIME_REFRESH_PROPS = [
+    'stats',
+    'statChanges',
+    'saasMetrics',
+    'tenantGrowth',
+    'resourceInsights',
+    'recentRestaurants',
+    'supportOverview',
+    'dashboardAlerts',
+] as const;
+
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleRealtimeRefresh() {
+    // Gộp nhiều sự kiện liên tiếp trong khoảng ngắn thành một lần reload duy nhất
+    if (realtimeRefreshTimer) {
+        clearTimeout(realtimeRefreshTimer);
+    }
+
+    realtimeRefreshTimer = setTimeout(() => {
+        router.reload({
+            only: [...REALTIME_REFRESH_PROPS],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }, 1500);
+}
+
+onMounted(() => {
+    if (Echo) {
+        Echo.channel('superadmin.dashboard')
+            .listen('.superadmin.dashboard.updated', () => {
+                scheduleRealtimeRefresh();
+            });
+    }
+});
+
+onUnmounted(() => {
+    if (realtimeRefreshTimer) {
+        clearTimeout(realtimeRefreshTimer);
+    }
+
+    if (Echo) {
+        Echo.leave('superadmin.dashboard');
+    }
+});
+
+// --- E2: Chế độ xem thu gọn (compact view) — lưu lựa chọn vào localStorage để giữ qua các phiên ---
+const COMPACT_MODE_STORAGE_KEY = 'superadmin-dashboard-compact-mode';
+const compactMode = ref(false);
+
+onMounted(() => {
+    compactMode.value = localStorage.getItem(COMPACT_MODE_STORAGE_KEY) === '1';
+});
+
+watch(compactMode, (value) => {
+    localStorage.setItem(COMPACT_MODE_STORAGE_KEY, value ? '1' : '0');
+});
+
+function toggleCompactMode() {
+    compactMode.value = !compactMode.value;
+}
+
+// --- E1: Ẩn/hiện các khối phân tích trên dashboard — lưu lựa chọn vào localStorage ---
+const DASHBOARD_SECTIONS_STORAGE_KEY = 'superadmin-dashboard-visible-sections';
+const DASHBOARD_SECTIONS: Array<{ key: string; label: string }> = [
+    { key: 'growth_chart', label: 'Biểu đồ tăng trưởng & Sức khỏe SaaS' },
+    { key: 'kpi_console', label: 'KPI Console & Chỉ số chi tiết' },
+    { key: 'ai_insights', label: 'AI Insights (Churn risk, Health score, Dự báo)' },
+    { key: 'resource_usage', label: 'Top tài nguyên (đơn hàng & lưu trữ)' },
+    { key: 'recent_restaurants', label: 'Nhà hàng gần đây & Tín hiệu hệ thống' },
+    { key: 'revenue_plan', label: 'Doanh thu & Hiệu suất theo gói' },
+    { key: 'cohort_heatmap', label: 'Phân tích Cohort giữ chân tenant' },
+];
+
+const visibleSections = ref<Record<string, boolean>>(
+    Object.fromEntries(DASHBOARD_SECTIONS.map((s) => [s.key, true])),
+);
+
+onMounted(() => {
+    try {
+        const saved = localStorage.getItem(DASHBOARD_SECTIONS_STORAGE_KEY);
+        if (saved) {
+            visibleSections.value = { ...visibleSections.value, ...JSON.parse(saved) };
+        }
+    } catch {
+        // bỏ qua dữ liệu localStorage hỏng — giữ trạng thái mặc định (hiện tất cả)
+    }
+});
+
+watch(visibleSections, (value) => {
+    localStorage.setItem(DASHBOARD_SECTIONS_STORAGE_KEY, JSON.stringify(value));
+}, { deep: true });
+
+function isSectionVisible(key: string): boolean {
+    return visibleSections.value[key] !== false;
+}
+
+function toggleSectionVisibility(key: string, value: boolean) {
+    visibleSections.value = { ...visibleSections.value, [key]: value };
+}
+
+const hiddenSectionsCount = computed(() => DASHBOARD_SECTIONS.filter((s) => !isSectionVisible(s.key)).length);
+
+// --- Bộ lọc khoảng thời gian cho biểu đồ tăng trưởng tenant (B2) + so sánh kỳ trước (B3) ---
+const RANGE_LABELS: Record<string, string> = { '3m': '3 tháng', '6m': '6 tháng', '12m': '12 tháng' };
+const selectedRange = ref(props.filters.range);
+const compareEnabled = ref(props.filters.compare);
+
+// --- E3: trạng thái "đang tải" khi đổi bộ lọc — hiển thị skeleton thay vì màn hình trắng ---
+const isNavigating = ref(false);
+
+function applyGrowthFilters() {
+    router.get('/super-admin/dashboard', {
+        range: selectedRange.value,
+        compare: compareEnabled.value ? '1' : undefined,
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        onStart: () => { isNavigating.value = true; },
+        onFinish: () => { isNavigating.value = false; },
+    });
+}
+
+function exportDashboardCsv() {
+    window.open('/super-admin/dashboard/export/csv', '_blank');
+}
+
+function openPrintableReport() {
+    window.open('/super-admin/dashboard/export/report', '_blank');
+}
+
+// --- C2: Bật/tắt nhận báo cáo định kỳ qua email + chọn tần suất (lưu DashboardReportSubscription) ---
+const reportSubActive = ref(props.reportSubscription.is_active);
+const reportSubFrequency = ref(props.reportSubscription.frequency);
+const reportSubSaving = ref(false);
+
+function saveReportSubscription() {
+    reportSubSaving.value = true;
+    router.post('/super-admin/dashboard/report-subscription', {
+        is_active: reportSubActive.value,
+        frequency: reportSubFrequency.value,
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        onFinish: () => { reportSubSaving.value = false; },
+    });
+}
+
+function toggleReportSubscription(value: boolean) {
+    reportSubActive.value = value;
+    saveReportSubscription();
+}
+
+const trendWord = (trend: string) => (trend === 'up' ? 'tăng' : trend === 'down' ? 'giảm' : 'đi ngang');
+
+/**
+ * Sinh nhận định/đề xuất cho từng bước của KPI Console dựa trên dữ liệu thật
+ * (aiInsights, statChanges, saasMetrics, supportOverview...) thay vì văn bản cố định,
+ * để nội dung luôn khớp với những gì khối "AI Insights" phía trên đang hiển thị.
+ */
+const aiNotes = computed(() => {
+    const segments = props.aiInsights?.segments;
+    const churnRisks = props.aiInsights?.churn_risks ?? [];
+    const forecast = props.aiInsights?.mrr_forecast ?? [];
+    const health = props.aiInsights?.overall_health;
+    const monitoring = props.supportOverview.monitoring;
+    const suspendedRatio = props.stats.total_restaurants > 0
+        ? Math.round((props.stats.suspended / props.stats.total_restaurants) * 100)
+        : 0;
+    const proRatio = props.stats.total_restaurants > 0
+        ? Math.round((props.stats.pro_plan / props.stats.total_restaurants) * 100)
+        : 0;
+    const density = props.stats.total_restaurants > 0
+        ? props.stats.total_users / props.stats.total_restaurants
+        : 0;
+    const arpu = props.saasMetrics.paid_tenants > 0
+        ? Math.round(props.saasMetrics.mrr / props.saasMetrics.paid_tenants)
+        : 0;
+
+    const notes: string[] = [];
+
+    // 1. Tenant Analytics
+    if (suspendedRatio > 10) {
+        notes.push(`⚠️ ${suspendedRatio}% nhà hàng (${props.stats.suspended}/${props.stats.total_restaurants}) đang ở trạng thái tạm khóa. Nên rà soát nguyên nhân (thanh toán quá hạn, vi phạm chính sách...) và chủ động liên hệ để kích hoạt lại trước khi họ rời bỏ hệ thống.`);
+    } else {
+        notes.push(`💡 ${props.statChanges.total_restaurants.label}. Hệ thống hiện có ${props.stats.active}/${props.stats.total_restaurants} nhà hàng đang hoạt động ổn định — nên duy trì các kênh thu hút đối tác mới để giữ đà này.`);
+    }
+
+    // 2. System Operation
+    if (monitoring.failed_jobs > 0 || monitoring.api_error_rate > 5) {
+        notes.push(`⚠️ Phát hiện ${monitoring.failed_jobs} job lỗi và tỉ lệ lỗi API ${monitoring.api_error_rate}%. Nên vào "DevOps & Support" kiểm tra ngay để tránh ảnh hưởng tới trải nghiệm của ${props.stats.active} nhà hàng đang hoạt động.`);
+    } else if (monitoring.slow_queries > 0) {
+        notes.push(`💡 Hệ thống ổn định nhưng có ${monitoring.slow_queries} truy vấn chậm. Với ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua, nên tối ưu các truy vấn này sớm để giữ tốc độ phản hồi khi tải tăng.`);
+    } else {
+        notes.push(`💡 Hệ thống đang vận hành ổn định: không có job lỗi, tỉ lệ lỗi API ${monitoring.api_error_rate}%. Đã ghi nhận ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua — tiếp tục theo dõi định kỳ tại DevOps & Support.`);
+    }
+
+    // 3. Pro Plan Subscriptions
+    if ((segments?.free_inactive ?? 0) > 0) {
+        notes.push(`💡 Có ${segments?.free_inactive} nhà hàng đang dùng gói Free nhưng ít hoạt động. Nên gửi chiến dịch giới thiệu tính năng Pro (QR Order, AI Forecast tồn kho...) kèm ưu đãi dùng thử để thúc đẩy chuyển đổi.`);
+    } else if ((segments?.trial_active ?? 0) > 0) {
+        notes.push(`💡 Đang có ${segments?.trial_active} nhà hàng trong giai đoạn dùng thử (Trial). Nên chủ động liên hệ chăm sóc để tăng tỉ lệ chuyển đổi sang gói trả phí trước khi hết hạn.`);
+    } else {
+        notes.push(`💡 Gói Pro hiện chiếm ${proRatio}% tổng số đối tác (${props.stats.pro_plan}/${props.stats.total_restaurants}, tương đương ${props.saasMetrics.paid_tenants} thuê bao trả phí). Tiếp tục giữ chất lượng trải nghiệm Pro để mở rộng nhóm khách hàng này.`);
+    }
+
+    // 4. Team Size Dynamics
+    if (density > 0 && density < 2) {
+        notes.push(`💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng — khá thấp, cho thấy phần lớn là quán quy mô nhỏ. Nên quảng bá các module tự động hoá (Chấm công, Tính lương, Quản lý ca) để giảm tải vận hành thủ công cho nhóm đối tác này.`);
+    } else {
+        notes.push(`💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng. ${props.statChanges.total_users.label} — nên tiếp tục theo dõi để đảm bảo hạ tầng đáp ứng khi số tài khoản tăng thêm.`);
+    }
+
+    // 5. MRR Financial Stream
+    if (props.saasMetrics.churn_rate > 5 || churnRisks.length > 0) {
+        notes.push(`⚠️ Tỉ lệ rời bỏ đang ở mức ${props.saasMetrics.churn_rate}%, với ${churnRisks.length} nhà hàng được đánh giá có nguy cơ rời bỏ cao. Nên ưu tiên chăm sóc nhóm này (xem mục "Nguy cơ rời bỏ" bên dưới) trước khi mất doanh thu định kỳ.`);
+    } else {
+        notes.push(`💡 Churn rate ở mức ${props.saasMetrics.churn_rate}% — tín hiệu tích cực. ARPU hiện đạt ${formatCurrency(arpu)}/nhà hàng Pro. Có thể cân nhắc xây dựng gói cao cấp hơn (Enterprise) để nâng ARPU mà vẫn giữ tỉ lệ giữ chân tốt.`);
+    }
+
+    // 6. ARR Forecast
+    const next = forecast[0];
+    if (next) {
+        notes.push(`💡 Dự báo tháng tới: MRR ước tính ${trendWord(next.trend)} về mức ${formatCurrency(next.predicted_mrr)}. Điểm sức khoẻ tổng thể hệ thống hiện ở mức ${health?.score ?? '-'}/100 (${health?.label ?? 'chưa đủ dữ liệu'}) — nên theo dõi sát các tenant rủi ro để giữ đà tăng trưởng ARR.`);
+    } else {
+        notes.push(`💡 Chưa có đủ dữ liệu để dự báo MRR các tháng tới. ARR hiện được ước tính trên chu kỳ 12 tháng dựa theo MRR hiện tại (${formatCurrency(props.saasMetrics.arr)}).`);
+    }
+
+    return notes;
+});
 
 const kpiDetails = computed(() => [
     {
@@ -119,9 +394,9 @@ const kpiDetails = computed(() => [
         metric2_label: 'Gia tăng tháng này',
         metric2_value: '+' + (props.tenantGrowth.length > 0 ? (props.tenantGrowth[props.tenantGrowth.length - 1]?.new_tenants ?? 0) : 0) + ' đăng ký mới',
         metric3_label: 'Tốc độ phát triển',
-        metric3_value: '+14.3% so với tháng trước',
+        metric3_value: props.statChanges.total_restaurants.label,
         tables: ['Hoạt động: ' + props.stats.active, 'Tạm khóa: ' + props.stats.suspended, 'Hết hạn: ' + props.stats.expired],
-        note: '💡 Đề xuất tăng trưởng từ AI: Tốc độ gia tăng nhà hàng đang ổn định ở mức +14.3%. Đề xuất kích hoạt chiến dịch "Tenant Referral" tặng 1 tháng Pro cho cả người giới thiệu và người được giới thiệu để đẩy nhanh lượng đăng ký mới trong mùa hè này!',
+        note: aiNotes.value[0],
         color: 'text-sky-400 border-sky-500/30 shadow-sky-500/10'
     },
     {
@@ -133,8 +408,12 @@ const kpiDetails = computed(() => [
         metric2_value: Math.round((props.stats.active / Math.max(1, props.stats.total_restaurants)) * 100) + '% tổng hệ thống',
         metric3_label: 'Mật độ tải trung bình',
         metric3_value: props.resourceInsights.totals.orders_last_30_days + ' đơn hàng / 30 ngày',
-        tables: ['Pulse: Online', 'Horizon: Active', 'WebSocket: Connected'],
-        note: '💡 Đề xuất tăng trưởng từ AI: Hệ thống đạt trạng thái 100% Uptime lý tưởng. Tuy nhiên, lượng đơn hàng 30 ngày qua khá lớn. Đội ngũ quản trị nên chủ động dọn dẹp log hàng tuần và tối ưu hóa index các truy vấn chậm (slow queries) để duy trì tốc độ tải API < 500ms.',
+        tables: [
+            'Job lỗi: ' + props.supportOverview.monitoring.failed_jobs,
+            'Job đang chờ: ' + props.supportOverview.monitoring.pending_jobs,
+            'Tỉ lệ lỗi API: ' + props.supportOverview.monitoring.api_error_rate + '%',
+        ],
+        note: aiNotes.value[1],
         color: 'text-emerald-400 border-emerald-500/30 shadow-emerald-500/10'
     },
     {
@@ -146,8 +425,14 @@ const kpiDetails = computed(() => [
         metric2_value: Math.round((props.stats.pro_plan / Math.max(1, props.stats.total_restaurants)) * 100) + '% tổng số nhà hàng',
         metric3_label: 'Lượt nâng cấp thành công',
         metric3_value: props.saasMetrics.paid_tenants + ' tài khoản trả phí thực tế',
-        tables: ['Gói Pro: ' + props.stats.pro_plan, 'Dùng thử (Trial): ' + (props.aiInsights?.segments?.trial_active ?? 0)],
-        note: '💡 Đề xuất tăng trưởng từ AI: Tỷ lệ nâng cấp lên Pro hiện tại chiếm khoảng 14% tổng số đối tác. Đề xuất tự động gửi chuỗi email giới thiệu tính năng "QR Order tại bàn" và "AI Forecast tồn kho" kèm coupon trải nghiệm Pro 7 ngày miễn phí cho nhóm đối tác đang dùng gói Free.',
+        tables: [
+            'Gói Pro: ' + props.stats.pro_plan,
+            'Dùng thử (Trial): ' + (props.aiInsights?.segments?.trial_active ?? 0),
+            ...(props.planPerformance[0]
+                ? [`Hiệu suất gói ${props.planPerformance[0].plan_name}: ${props.planPerformance[0].avg_orders_per_tenant_per_day} đơn/ngày/tenant · ${props.planPerformance[0].active_tenant_ratio}% đang hoạt động`]
+                : []),
+        ],
+        note: aiNotes.value[2],
         color: 'text-violet-400 border-violet-500/30 shadow-violet-500/10'
     },
     {
@@ -158,9 +443,9 @@ const kpiDetails = computed(() => [
         metric2_label: 'Mật độ nhân sự trung bình',
         metric2_value: (props.stats.total_users / Math.max(1, props.stats.total_restaurants)).toFixed(1) + ' nhân sự / nhà hàng',
         metric3_label: 'Gia tăng tài khoản',
-        metric3_value: '+8.2% tăng trưởng tuần này',
+        metric3_value: props.statChanges.total_users.label,
         tables: ['Super Admin: 1', 'Tenant Owners: ' + props.stats.total_restaurants, 'Nhân viên: ' + (props.stats.total_users - props.stats.total_restaurants - 1)],
-        note: '💡 Đề xuất tăng trưởng từ AI: Mật độ nhân sự bình quân (~3.4 nhân viên/tenant) cho thấy đa số là các nhà hàng quy mô vừa và nhỏ. Hãy đẩy mạnh quảng bá module "Chấm công & Tự động Tính lương" để giúp các chủ quán tối ưu hóa quản lý ca làm việc và giảm thêm 15% thời gian thủ công cuối tháng!',
+        note: aiNotes.value[3],
         color: 'text-amber-400 border-emerald-500/30 shadow-emerald-500/10'
     },
     {
@@ -172,8 +457,12 @@ const kpiDetails = computed(() => [
         metric2_value: props.saasMetrics.churn_rate + '% Churn Rate',
         metric3_label: 'Mức chi tiêu bình quân (ARPU)',
         metric3_value: formatCurrency(props.saasMetrics.paid_tenants > 0 ? Math.round(props.saasMetrics.mrr / props.saasMetrics.paid_tenants) : 0) + ' / nhà hàng Pro',
-        tables: ['MRR Pro: ' + formatCurrency(props.saasMetrics.mrr), 'Paid Subscriptions: ' + props.saasMetrics.active_subscriptions],
-        note: '💡 Đề xuất tăng trưởng từ AI: Doanh thu MRR đang giữ nhịp tăng trưởng ổn định. Tỷ lệ khách hàng rời bỏ (Churn Rate) ở mức 0% là một tín hiệu cực kỳ xuất sắc. Đề xuất xây dựng thêm gói cước "Enterprise" (như quản lý chuỗi, hỗ trợ hotline 24/7) với mức phí gấp đôi gói Pro thông thường để nâng cao chỉ số ARPU.',
+        tables: [
+            'MRR Pro: ' + formatCurrency(props.saasMetrics.mrr),
+            'Paid Subscriptions: ' + props.saasMetrics.active_subscriptions,
+            `NRR/GRR (${props.revenueRetention.previous_label} → ${props.revenueRetention.period_label}): ${props.revenueRetention.nrr ?? '—'}% / ${props.revenueRetention.grr ?? '—'}%`,
+        ],
+        note: aiNotes.value[4],
         color: 'text-cyan-400 border-cyan-500/30 shadow-cyan-500/10'
     },
     {
@@ -182,11 +471,19 @@ const kpiDetails = computed(() => [
         metric1_label: 'Doanh thu ARR dự tính năm',
         metric1_value: formatCurrency(props.saasMetrics.arr),
         metric2_label: 'Tốc độ tăng trưởng ARR dự kiến',
-        metric2_value: '+12.4% so với quý trước',
+        metric2_value: props.statChanges.mrr.label,
         metric3_label: 'Mô hình dự báo tích lũy',
         metric3_value: 'Dự tính trên chu kỳ 12 tháng kế tiếp',
-        tables: ['Dự báo 3 tháng: +18%', 'Xu hướng AI: Tăng trưởng tốt', 'Gateway: Stable'],
-        note: '💡 Đề xuất tăng trưởng từ AI: ARR đạt mức ổn định dài hạn. Để tối ưu hóa dòng tiền đầu tư hệ thống, Super Admin nên tung ra gói "Đăng ký cước 1 năm" (Yearly Subscription) với ưu đãi chiết khấu 15-20% so với trả tiền theo từng tháng. Chiến lược này sẽ giúp thu hồi 80% vốn sớm to tái đầu tư nâng cấp hạ tầng Cloud.',
+        tables: [
+            ...((props.aiInsights?.mrr_forecast ?? []).length > 0
+                ? props.aiInsights.mrr_forecast.map((f) => `${f.month}: ${formatCurrency(f.predicted_mrr)} (${trendWord(f.trend)})`)
+                : ['Chưa có dữ liệu dự báo MRR']),
+            props.cohortAnalysis.length
+                ? `Cohort ${props.cohortAnalysis[props.cohortAnalysis.length - 1].month}: giữ chân M+1 đạt ${props.cohortAnalysis[props.cohortAnalysis.length - 1].m1 ?? '—'}%`
+                : 'Chưa có đủ dữ liệu cohort để phân tích',
+            `Cảnh báo đang hoạt động: ${props.dashboardAlerts.length} (${props.dashboardAlerts.filter((a) => a.severity === 'critical').length} nghiêm trọng)`,
+        ],
+        note: aiNotes.value[5],
         color: 'text-indigo-400 border-indigo-500/30 shadow-indigo-500/10'
     }
 ]);
@@ -204,28 +501,6 @@ const isRiskExpanded = (id: number, index: number) => {
         return true;
     }
     return expandedRiskId.value === id;
-};
-
-const handleGrowthMouseMove = (e: MouseEvent) => {
-    const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = x / rect.width;
-    const idx = Math.min(
-        props.tenantGrowth.length - 1,
-        Math.max(0, Math.round(percent * (props.tenantGrowth.length - 1)))
-    );
-    hoveredGrowthIdx.value = idx;
-};
-
-const handleProMouseMove = (e: MouseEvent) => {
-    const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = x / rect.width;
-    const idx = Math.min(
-        props.tenantGrowth.length - 1,
-        Math.max(0, Math.round(percent * (props.tenantGrowth.length - 1)))
-    );
-    hoveredProIdx.value = idx;
 };
 
 const statusColor: Record<string, string> = {
@@ -255,11 +530,11 @@ const formatBytes = (bytes: number) => {
 };
 
 const statCards = computed(() => [
-    { label: 'Tổng nhà hàng', value: props.stats.total_restaurants, icon: Building2, color: 'text-sky-500 bg-sky-500/10 border-sky-500/20', change: '+14.3% so với tháng trước', trend: 'up' },
+    { label: 'Tổng nhà hàng', value: props.stats.total_restaurants, icon: Building2, color: 'text-sky-500 bg-sky-500/10 border-sky-500/20', change: props.statChanges.total_restaurants.label, trend: props.statChanges.total_restaurants.trend },
     { label: 'Đang hoạt động', value: props.stats.active, icon: CheckCircle2, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', change: 'Đang vận hành liên tục', trend: 'up' },
-    { label: 'Gói Pro cao cấp', value: props.stats.pro_plan, icon: Crown, color: 'text-violet-500 bg-violet-500/10 border-violet-500/20', change: '+25.0% tăng trưởng tháng này', trend: 'up' },
-    { label: 'Tổng người dùng', value: props.stats.total_users, icon: Users, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', change: '+8.2% tăng trưởng tuần này', trend: 'up' },
-    { label: 'Doanh thu MRR', value: formatCurrency(props.saasMetrics.mrr), icon: TrendingUp, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20', change: '+12.4% so với tháng trước', trend: 'up' },
+    { label: 'Gói Pro cao cấp', value: props.stats.pro_plan, icon: Crown, color: 'text-violet-500 bg-violet-500/10 border-violet-500/20', change: props.statChanges.pro_plan.label, trend: props.statChanges.pro_plan.trend },
+    { label: 'Tổng người dùng', value: props.stats.total_users, icon: Users, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', change: props.statChanges.total_users.label, trend: props.statChanges.total_users.trend },
+    { label: 'Doanh thu MRR', value: formatCurrency(props.saasMetrics.mrr), icon: TrendingUp, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20', change: props.statChanges.mrr.label, trend: props.statChanges.mrr.trend },
     { label: 'Ước tính ARR', value: formatCurrency(props.saasMetrics.arr), icon: Gauge, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20', change: 'Dự tính trên chu kỳ 12 tháng', trend: 'neutral' },
 ]);
 
@@ -284,12 +559,33 @@ const healthBarColor: Record<string, string> = {
 const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
     return [
-        { label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/30', border: 'border-violet-500/20 hover:border-violet-500/40', icon: '👑' },
-        { label: 'Đang dùng thử (Trial)', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/30', border: 'border-sky-500/20 hover:border-sky-500/40', icon: '⚡' },
-        { label: 'Free – Ít hoạt động', value: s.free_inactive ?? 0, color: 'text-amber-400', gradient: 'from-amber-600/20 to-amber-900/30', border: 'border-amber-500/20 hover:border-amber-500/40', icon: '💤' },
-        { label: 'Nguy cơ rời bỏ', value: s.at_risk ?? 0, color: 'text-rose-400', gradient: 'from-rose-600/20 to-rose-900/30', border: 'border-rose-500/20 hover:border-rose-500/40', icon: '⚠️' },
+        { key: 'active_pro', label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/30', border: 'border-violet-500/20 hover:border-violet-500/40', icon: '👑' },
+        { key: 'trial_active', label: 'Đang dùng thử (Trial)', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/30', border: 'border-sky-500/20 hover:border-sky-500/40', icon: '⚡' },
+        { key: 'free_inactive', label: 'Free – Ít hoạt động', value: s.free_inactive ?? 0, color: 'text-amber-400', gradient: 'from-amber-600/20 to-amber-900/30', border: 'border-amber-500/20 hover:border-amber-500/40', icon: '💤' },
+        { key: 'at_risk', label: 'Nguy cơ rời bỏ', value: s.at_risk ?? 0, color: 'text-rose-400', gradient: 'from-rose-600/20 to-rose-900/30', border: 'border-rose-500/20 hover:border-rose-500/40', icon: '⚠️' },
     ];
 });
+
+// --- Drill-down theo segment (B4): bấm vào card mở Dialog liệt kê nhà hàng thuộc nhóm ---
+type SegmentRestaurant = { id: number; name: string; code: string; status: string; plan_code: string; owner_name: string; owner_email: string; subscription_ends_at: string };
+const selectedSegment = ref<{ key: string; label: string } | null>(null);
+const isLoadingSegmentRestaurants = ref(false);
+const segmentRestaurantsList = ref<SegmentRestaurant[]>([]);
+
+async function showSegmentRestaurants(seg: { key: string; label: string }) {
+    selectedSegment.value = seg;
+    isLoadingSegmentRestaurants.value = true;
+    segmentRestaurantsList.value = [];
+    try {
+        const response = await fetch(`/super-admin/dashboard/segments/${seg.key}`);
+        const data = await response.json();
+        segmentRestaurantsList.value = data.restaurants ?? [];
+    } catch (e) {
+        console.error('Error fetching segment restaurants:', e);
+    } finally {
+        isLoadingSegmentRestaurants.value = false;
+    }
+}
 
 const donutSlices = computed(() => {
     const total = props.planDistribution.reduce((sum, p) => sum + p.count, 0) || 1;
@@ -338,68 +634,67 @@ const hasAiData = computed(() => {
     return ai && ai.overall_health != null && (ai.churn_risks?.length > 0 || ai.health_scores?.length > 0 || Object.keys(ai.segments ?? {}).length > 0);
 });
 
-// --- Dynamic Area Charts Mathematical Coordinates ---
-const growthPoints = computed(() => {
-    const values = props.tenantGrowth.map((point) => point.new_tenants);
-    const max = Math.max(...values, 1);
-    const min = Math.min(...values, 0);
-    const span = Math.max(max - min, 1);
-    const width = 100;
-    const height = 40; // leaving margin top/bottom
+// --- Dữ liệu cho AreaChart dùng chung (thay cho các computed vẽ SVG lặp lại trước đây) ---
+const growthSeries = computed(() => props.tenantGrowth.map((point) => ({
+    label: point.label,
+    value: point.new_tenants,
+    rate: point.conversion_rate,
+})));
 
-    return props.tenantGrowth.map((point, index) => {
-        const x = props.tenantGrowth.length <= 1 ? 0 : (index / (props.tenantGrowth.length - 1)) * width;
-        const y = height + 2 - ((point.new_tenants - min) / span) * height;
-        return { x, y, value: point.new_tenants, label: point.label, rate: point.conversion_rate };
-    });
-});
+// Đường so sánh "kỳ trước" (B3) — chỉ có dữ liệu khi bật compareEnabled, gắn nhãn riêng
+// để tooltip phân biệt rõ với kỳ hiện tại dù cùng vị trí trên trục thời gian.
+const compareSeries = computed(() => props.tenantGrowthCompare?.map((point) => ({
+    label: `${point.label} (kỳ trước)`,
+    value: point.new_tenants,
+    rate: point.conversion_rate,
+})) ?? undefined);
 
-const freeToProPoints = computed(() => {
-    const values = props.tenantGrowth.map((point) => point.free_to_pro);
-    const max = Math.max(...values, 1);
-    const min = Math.min(...values, 0);
-    const span = Math.max(max - min, 1);
-    const width = 100;
-    const height = 40;
-
-    return props.tenantGrowth.map((point, index) => {
-        const x = props.tenantGrowth.length <= 1 ? 0 : (index / (props.tenantGrowth.length - 1)) * width;
-        const y = height + 2 - ((point.free_to_pro - min) / span) * height;
-        return { x, y, value: point.free_to_pro, label: point.label };
-    });
-});
-
-const growthPath = computed(() => {
-    if (growthPoints.value.length === 0) return '';
-    return growthPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-});
-
-const growthAreaPath = computed(() => {
-    if (growthPoints.value.length === 0) return '';
-    const line = growthPath.value;
-    return `${line} L 100 44 L 0 44 Z`;
-});
-
-const freeToProPath = computed(() => {
-    if (freeToProPoints.value.length === 0) return '';
-    return freeToProPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-});
-
-const freeToProAreaPath = computed(() => {
-    if (freeToProPoints.value.length === 0) return '';
-    const line = freeToProPath.value;
-    return `${line} L 100 44 L 0 44 Z`;
-});
+const freeToProSeries = computed(() => props.tenantGrowth.map((point) => ({
+    label: point.label,
+    value: point.free_to_pro,
+})));
 
 // Calculate percentages for Top Tenants Progress Bars
 const topOrdersMax = computed(() => Math.max(...props.resourceInsights.top_order_restaurants.map(i => i.orders_count ?? 1), 1));
 const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_storage_restaurants.map(i => i.storage_bytes ?? 1), 1));
+
+// --- Bảng màu theo plan_code, dùng chung cho biểu đồ Revenue Breakdown (D2) & bảng hiệu suất gói (D5) ---
+const PLAN_COLORS: Record<string, { bar: string; text: string; dot: string }> = {
+    free: { bar: 'bg-sky-500', text: 'text-sky-500', dot: 'bg-sky-500' },
+    pro: { bar: 'bg-violet-500', text: 'text-violet-500', dot: 'bg-violet-500' },
+    max: { bar: 'bg-amber-500', text: 'text-amber-500', dot: 'bg-amber-500' },
+    ultra: { bar: 'bg-emerald-500', text: 'text-emerald-500', dot: 'bg-emerald-500' },
+};
+const planColor = (code: string) => PLAN_COLORS[code?.toLowerCase()] ?? { bar: 'bg-slate-500', text: 'text-slate-500', dot: 'bg-slate-500' };
+
+// --- D4: Banner cảnh báo ngưỡng — gộp cảnh báo SaaS tính trực tiếp + SystemAlert đang mở ---
+const alertSeverityStyle: Record<string, { card: string; badge: string; icon: string }> = {
+    critical: { card: 'border-rose-500/30 bg-rose-500/[0.06]', badge: 'text-rose-500 bg-rose-500/10 border-rose-500/25', icon: 'text-rose-500' },
+    warning: { card: 'border-amber-500/30 bg-amber-500/[0.06]', badge: 'text-amber-500 bg-amber-500/10 border-amber-500/25', icon: 'text-amber-500' },
+};
+
+// --- D2: Doanh thu theo gói (stacked bar ngang theo tháng) ---
+const revenueBreakdownPlanCodes = computed(() => {
+    const codes = new Set<string>();
+    props.revenueBreakdown.forEach((point) => Object.keys(point.by_plan).forEach((code) => codes.add(code)));
+    return Array.from(codes);
+});
+const revenueBreakdownMax = computed(() => Math.max(...props.revenueBreakdown.map((p) => p.total), 1));
+const planDisplayName = (code: string) => props.planDistribution.find((p) => p.code?.toLowerCase() === code)?.name ?? code.toUpperCase();
+
+// --- D1: Heatmap cohort — màu nền theo % giữ chân ---
+function cohortCellStyle(value: number | null): string {
+    if (value === null) return 'bg-muted/30 text-muted-foreground';
+    if (value >= 70) return 'bg-emerald-500/80 text-white';
+    if (value >= 40) return 'bg-amber-500/70 text-white';
+    return 'bg-rose-500/70 text-white';
+}
 </script>
 
 <template>
     <Head title="Super Admin Analytics" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+    <div :class="['flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full', { 'compact-mode': compactMode }]">
         <!-- Header -->
         <div class="flex flex-wrap items-center justify-between gap-4 border-b pb-5 border-border/60">
             <div>
@@ -411,6 +706,43 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                 </p>
             </div>
             <div class="flex flex-wrap gap-2">
+                <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                        <button type="button"
+                            class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
+                            <LayoutGrid class="size-3.5" /> Tuỳ chỉnh khối
+                            <Badge v-if="hiddenSectionsCount > 0" variant="secondary" class="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[9px] font-bold">
+                                {{ hiddenSectionsCount }}
+                            </Badge>
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-72">
+                        <DropdownMenuLabel class="text-xs">Hiển thị / Ẩn khối phân tích</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuCheckboxItem
+                            v-for="section in DASHBOARD_SECTIONS"
+                            :key="section.key"
+                            :model-value="isSectionVisible(section.key)"
+                            class="text-xs"
+                            @select="(e: Event) => e.preventDefault()"
+                            @update:model-value="(v: boolean) => toggleSectionVisibility(section.key, v)">
+                            {{ section.label }}
+                        </DropdownMenuCheckboxItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <button type="button" @click="toggleCompactMode"
+                    :title="compactMode ? 'Chuyển về chế độ xem đầy đủ' : 'Chuyển sang chế độ xem thu gọn'"
+                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
+                    <component :is="compactMode ? Maximize2 : Minimize2" class="size-3.5" /> {{ compactMode ? 'Xem đầy đủ' : 'Thu gọn' }}
+                </button>
+                <button type="button" @click="exportDashboardCsv"
+                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
+                    <Download class="size-3.5" /> Xuất CSV
+                </button>
+                <button type="button" @click="openPrintableReport"
+                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
+                    <Printer class="size-3.5" /> Xuất báo cáo (PDF)
+                </button>
                 <Link href="/super-admin/restaurants" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
                     <Building2 class="size-3.5" /> Tenants
                 </Link>
@@ -424,24 +756,99 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                     <FileText class="size-3.5" /> Audit Log
                 </Link>
             </div>
-        </div> 
+        </div>
+
+        <!-- D4: Banner cảnh báo ngưỡng SaaS + SystemAlert đang mở -->
+        <div v-if="dashboardAlerts.length" class="grid gap-2.5 sm:grid-cols-2">
+            <div v-for="(alert, idx) in dashboardAlerts" :key="`${alert.source}-${alert.metric_key}-${idx}`"
+                :class="['flex items-start gap-3 rounded-2xl border px-4 py-3', alertSeverityStyle[alert.severity]?.card ?? alertSeverityStyle.warning.card]">
+                <Siren :class="['size-4.5 shrink-0 mt-0.5', alertSeverityStyle[alert.severity]?.icon ?? alertSeverityStyle.warning.icon]" />
+                <div class="min-w-0 space-y-0.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <p class="text-xs font-black text-slate-800 dark:text-slate-100">{{ alert.title }}</p>
+                        <span :class="['rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider', alertSeverityStyle[alert.severity]?.badge ?? alertSeverityStyle.warning.badge]">
+                            {{ alert.source === 'system' ? 'Hệ thống' : 'SaaS' }}
+                        </span>
+                        <span v-if="alert.triggered_at" class="text-[10px] font-semibold text-muted-foreground font-mono">{{ alert.triggered_at }}</span>
+                    </div>
+                    <p class="text-[11px] text-muted-foreground font-medium leading-relaxed">{{ alert.message }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- C2: Bật/tắt báo cáo định kỳ qua email -->
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/50 px-4 py-3">
+            <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <FileText class="size-4.5" />
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">Báo cáo định kỳ qua email</p>
+                    <p class="text-[11px] text-muted-foreground">
+                        Nhận tóm tắt KPI &amp; cảnh báo tự động vào email của bạn
+                        <span v-if="reportSubscription.last_sent_at"> · Lần gửi gần nhất: {{ reportSubscription.last_sent_at }}</span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <Select v-model="reportSubFrequency" :disabled="!reportSubActive || reportSubSaving" @update:modelValue="saveReportSubscription">
+                    <SelectTrigger class="h-8 w-[110px] text-xs">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="weekly">Hàng tuần</SelectItem>
+                        <SelectItem value="monthly">Hàng tháng</SelectItem>
+                    </SelectContent>
+                </Select>
+                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground cursor-pointer select-none">
+                    <Checkbox :checked="reportSubActive" :disabled="reportSubSaving" @update:checked="toggleReportSubscription" />
+                    {{ reportSubActive ? 'Đang bật' : 'Đang tắt' }}
+                </label>
+            </div>
+        </div>
 
         <!-- Main Chart + Health Grid -->
-        <div class="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <div v-if="isSectionVisible('growth_chart')" class="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
             <!-- Tenant Growth & Conversion Chart Card -->
             <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                <CardHeader class="flex-row items-center justify-between gap-4 pb-2 border-b border-border/40">
+                <CardHeader class="flex-row flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40">
                     <div>
                         <CardTitle class="text-base font-bold">Biến động & Chuyển đổi Tenant</CardTitle>
                         <p class="text-xs text-muted-foreground">Đăng ký mới so với tỷ lệ nâng cấp từ Free lên Pro</p>
                     </div>
-                    <Badge variant="secondary" class="gap-1 rounded-lg text-[10px] font-bold px-2 py-0.5 border border-border/80">
-                        <TrendingUp class="size-3" /> {{ tenantGrowth.length }} tháng
-                    </Badge>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <label class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground cursor-pointer select-none">
+                            <Checkbox :checked="compareEnabled" @update:checked="(v: boolean) => { compareEnabled = v; applyGrowthFilters(); }" />
+                            So với kỳ trước
+                        </label>
+                        <Select v-model="selectedRange" @update:modelValue="applyGrowthFilters">
+                            <SelectTrigger class="h-8 w-[120px] text-xs">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem v-for="(label, key) in RANGE_LABELS" :key="key" :value="key">{{ label }}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Badge variant="secondary" class="gap-1 rounded-lg text-[10px] font-bold px-2 py-0.5 border border-border/80">
+                            <TrendingUp class="size-3" /> {{ tenantGrowth.length }} tháng
+                        </Badge>
+                    </div>
                 </CardHeader>
-                <CardContent class="pt-5 space-y-6">
+                <CardContent class="relative pt-5 space-y-6">
+                    <!-- E3: Skeleton overlay khi đang đổi bộ lọc khoảng thời gian / so sánh kỳ trước -->
+                    <div v-if="isNavigating" class="absolute inset-0 z-10 grid gap-4 rounded-b-xl bg-card/80 p-4 backdrop-blur-xs md:grid-cols-2">
+                        <div v-for="i in 2" :key="i" class="space-y-3 rounded-xl border border-border bg-white/50 p-4 dark:bg-slate-950/20">
+                            <div class="flex items-center justify-between">
+                                <Skeleton class="h-3.5 w-32" />
+                                <Skeleton class="h-4 w-20 rounded-full" />
+                            </div>
+                            <Skeleton class="h-36 w-full rounded-xl" />
+                            <Skeleton class="h-3 w-2/3" />
+                        </div>
+                    </div>
+
                     <!-- Twin Custom SVG Charts -->
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div :class="['grid gap-4 md:grid-cols-2', { 'opacity-40 pointer-events-none transition-opacity': isNavigating }]">
                         <!-- Chart 1: New Tenants -->
                         <div class="relative overflow-hidden rounded-xl border border-border bg-white/50 dark:bg-slate-950/20 p-4 transition-all duration-300 hover:border-sky-500/30">
                             <div class="mb-3 flex items-center justify-between text-xs">
@@ -450,74 +857,16 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                                     Tháng này: +{{ tenantGrowth[tenantGrowth.length - 1]?.new_tenants ?? 0 }}
                                 </span>
                             </div>
-                            
+
                             <!-- Interactive Chart Body -->
-                            <div class="relative h-28 w-full select-none cursor-crosshair mt-4" 
-                                @mousemove="handleGrowthMouseMove" 
-                                @mouseleave="hoveredGrowthIdx = null">
-                                
-                                <!-- Dotted Grid Lines -->
-                                <svg class="absolute inset-0 h-full w-full opacity-10" viewBox="0 0 100 44" preserveAspectRatio="none">
-                                    <line x1="0" y1="11" x2="100" y2="11" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                    <line x1="0" y1="22" x2="100" y2="22" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                    <line x1="0" y1="33" x2="100" y2="33" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                </svg>
-
-                                <svg viewBox="0 0 100 44" class="h-full w-full overflow-visible" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.35" />
-                                            <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path :d="growthAreaPath" fill="url(#growthGrad)" />
-                                    <path :d="growthPath" fill="none" class="stroke-sky-500" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-
-                                    <!-- Hover Vertical Guide Line -->
-                                    <line v-if="hoveredGrowthIdx !== null" 
-                                        :x1="growthPoints[hoveredGrowthIdx].x" 
-                                        y1="0" 
-                                        :x2="growthPoints[hoveredGrowthIdx].x" 
-                                        y2="44" 
-                                        stroke="#0ea5e9" 
-                                        stroke-dasharray="1 1" 
-                                        stroke-width="0.5" 
-                                    />
-
-                                    <!-- Hover Dot Indicator -->
-                                    <circle v-if="hoveredGrowthIdx !== null"
-                                        :cx="growthPoints[hoveredGrowthIdx].x"
-                                        :cy="growthPoints[hoveredGrowthIdx].y"
-                                        r="2"
-                                        fill="#0ea5e9"
-                                        stroke="#fff"
-                                        stroke-width="0.5"
-                                        class="animate-ping"
-                                    />
-                                    <circle v-if="hoveredGrowthIdx !== null"
-                                        :cx="growthPoints[hoveredGrowthIdx].x"
-                                        :cy="growthPoints[hoveredGrowthIdx].y"
-                                        r="1.2"
-                                        fill="#0ea5e9"
-                                        stroke="#fff"
-                                        stroke-width="0.5"
-                                    />
-                                </svg>
-
-                                <!-- Floating Custom Tooltip -->
-                                <div v-if="hoveredGrowthIdx !== null" 
-                                    class="absolute z-10 pointer-events-none rounded-lg border border-sky-500/20 bg-background/95 backdrop-blur-xs p-2 shadow-lg text-[10px] font-bold flex flex-col gap-0.5 transition-all duration-75 text-foreground"
-                                    :style="{ 
-                                        left: `${(growthPoints[hoveredGrowthIdx].x)}%`, 
-                                        top: `-20px`,
-                                        transform: `translateX(-50%)`
-                                    }"
-                                >
-                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ growthPoints[hoveredGrowthIdx].label }}</span>
-                                    <span class="font-extrabold text-sky-500">{{ growthPoints[hoveredGrowthIdx].value }} đăng ký mới</span>
-                                    <span class="text-[8px] text-emerald-500 font-semibold font-mono">Chuyển đổi: {{ growthPoints[hoveredGrowthIdx].rate }}%</span>
-                                </div>
-                            </div>
+                            <AreaChart :series="growthSeries" gradient-id="growthGrad" color="#0ea5e9" :compare-series="compareSeries" compare-color="#94a3b8">
+                                <template #tooltip="{ point, comparePoint }">
+                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
+                                    <span class="font-extrabold text-sky-500">{{ point.value }} đăng ký mới</span>
+                                    <span class="text-[8px] text-emerald-500 font-semibold font-mono">Chuyển đổi: {{ point.rate }}%</span>
+                                    <span v-if="comparePoint" class="text-[8px] text-slate-400 font-semibold font-mono">Kỳ trước: {{ comparePoint.value }}</span>
+                                </template>
+                            </AreaChart>
                         </div>
 
                         <!-- Chart 2: Free to Pro conversions -->
@@ -528,73 +877,19 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                                     Tháng này: +{{ tenantGrowth[tenantGrowth.length - 1]?.free_to_pro ?? 0 }}
                                 </span>
                             </div>
-                            
-                            <div class="relative h-28 w-full select-none cursor-crosshair mt-4" 
-                                @mousemove="handleProMouseMove" 
-                                @mouseleave="hoveredProIdx = null">
-                                
-                                <svg class="absolute inset-0 h-full w-full opacity-10" viewBox="0 0 100 44" preserveAspectRatio="none">
-                                    <line x1="0" y1="11" x2="100" y2="11" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                    <line x1="0" y1="22" x2="100" y2="22" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                    <line x1="0" y1="33" x2="100" y2="33" stroke="currentColor" stroke-dasharray="2" stroke-width="0.5" />
-                                </svg>
 
-                                <svg viewBox="0 0 100 44" class="h-full w-full overflow-visible" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="proGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.35" />
-                                            <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.0" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path :d="freeToProAreaPath" fill="url(#proGrad)" />
-                                    <path :d="freeToProPath" fill="none" class="stroke-violet-500" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-
-                                    <line v-if="hoveredProIdx !== null" 
-                                        :x1="freeToProPoints[hoveredProIdx].x" 
-                                        y1="0" 
-                                        :x2="freeToProPoints[hoveredProIdx].x" 
-                                        y2="44" 
-                                        stroke="#8b5cf6" 
-                                        stroke-dasharray="1 1" 
-                                        stroke-width="0.5" 
-                                    />
-
-                                    <circle v-if="hoveredProIdx !== null"
-                                        :cx="freeToProPoints[hoveredProIdx].x"
-                                        :cy="freeToProPoints[hoveredProIdx].y"
-                                        r="2"
-                                        fill="#8b5cf6"
-                                        stroke="#fff"
-                                        stroke-width="0.5"
-                                        class="animate-ping"
-                                    />
-                                    <circle v-if="hoveredProIdx !== null"
-                                        :cx="freeToProPoints[hoveredProIdx].x"
-                                        :cy="freeToProPoints[hoveredProIdx].y"
-                                        r="1.2"
-                                        fill="#8b5cf6"
-                                        stroke="#fff"
-                                        stroke-width="0.5"
-                                    />
-                                </svg>
-
-                                <div v-if="hoveredProIdx !== null" 
-                                    class="absolute z-10 pointer-events-none rounded-lg border border-violet-500/20 bg-background/95 backdrop-blur-xs p-2 shadow-lg text-[10px] font-bold flex flex-col gap-0.5 transition-all duration-75 text-foreground"
-                                    :style="{ 
-                                        left: `${(freeToProPoints[hoveredProIdx].x)}%`, 
-                                        top: `-20px`,
-                                        transform: `translateX(-50%)`
-                                    }"
-                                >
-                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ freeToProPoints[hoveredProIdx].label }}</span>
-                                    <span class="font-extrabold text-violet-500">{{ freeToProPoints[hoveredProIdx].value }} nâng cấp Pro</span>
-                                </div>
-                            </div>
+                            <AreaChart :series="freeToProSeries" gradient-id="proGrad" color="#8b5cf6">
+                                <template #tooltip="{ point }">
+                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
+                                    <span class="font-extrabold text-violet-500">{{ point.value }} nâng cấp Pro</span>
+                                </template>
+                            </AreaChart>
                         </div>
                     </div>
 
                     <!-- Growth Data Table -->
                     <div class="overflow-hidden rounded-xl border border-border bg-white dark:bg-slate-950/20 shadow-2xs">
+                        <div class="overflow-x-auto w-full">
                         <table class="w-full text-xs text-left">
                             <thead class="bg-muted/60 text-muted-foreground font-bold border-b border-border">
                                 <tr>
@@ -615,6 +910,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -650,6 +946,48 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                     </CardContent>
                 </Card>
 
+                <!-- D3: NRR/GRR — Doanh thu giữ lại (Net/Gross Revenue Retention) -->
+                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
+                    <CardHeader class="pb-2 border-b border-border/40">
+                        <CardTitle class="text-base font-bold flex items-center gap-2">
+                            <TrendingUp class="size-4.5 text-cyan-500" /> Doanh thu giữ lại (NRR / GRR)
+                        </CardTitle>
+                        <p class="text-[11px] text-muted-foreground font-medium">So sánh MRR {{ revenueRetention.previous_label }} → {{ revenueRetention.period_label }}</p>
+                    </CardHeader>
+                    <CardContent class="pt-4 space-y-3.5 font-semibold text-xs">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-xl border border-border/40 bg-muted/20 p-3 text-center">
+                                <p class="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">NRR</p>
+                                <p :class="['mt-1 text-xl font-black font-mono', revenueRetention.nrr === null ? 'text-muted-foreground' : revenueRetention.nrr >= 100 ? 'text-emerald-500' : 'text-amber-500']">
+                                    {{ revenueRetention.nrr !== null ? `${revenueRetention.nrr}%` : '—' }}
+                                </p>
+                            </div>
+                            <div class="rounded-xl border border-border/40 bg-muted/20 p-3 text-center">
+                                <p class="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">GRR</p>
+                                <p :class="['mt-1 text-xl font-black font-mono', revenueRetention.grr === null ? 'text-muted-foreground' : revenueRetention.grr >= 90 ? 'text-emerald-500' : 'text-amber-500']">
+                                    {{ revenueRetention.grr !== null ? `${revenueRetention.grr}%` : '—' }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                            <span class="text-muted-foreground">MRR đầu kỳ</span>
+                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ formatCurrency(revenueRetention.starting_mrr) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                            <span class="text-muted-foreground">Mở rộng (Expansion)</span>
+                            <span class="font-bold text-emerald-500 font-mono">+{{ formatCurrency(revenueRetention.expansion) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                            <span class="text-muted-foreground">Co lại (Contraction)</span>
+                            <span class="font-bold text-amber-500 font-mono">-{{ formatCurrency(revenueRetention.contraction) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between pb-0">
+                            <span class="text-muted-foreground">Mất đi (Churned)</span>
+                            <span class="font-bold text-rose-500 font-mono">-{{ formatCurrency(revenueRetention.churned) }}</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <!-- Resource Usage Card -->
                 <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
                     <CardHeader class="pb-2 border-b border-border/40">
@@ -680,7 +1018,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
         </div>
 
         <!-- Restructured Top KPI Section: Left Detail Console & Right 2x3 KPI Grid -->
-        <div class="grid gap-4 lg:grid-cols-[1fr_1.3fr]">
+        <div v-if="isSectionVisible('kpi_console')" class="grid gap-4 lg:grid-cols-[1fr_1.3fr]">
             <!-- LEFT: 1 Big Detailed Card (Terminal Console style) -->
             <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-6 text-slate-200 shadow-2xl flex flex-col justify-between h-auto lg:h-[500px] hover:border-slate-700/60 transition-all duration-300">
                 <!-- Mac style header dots -->
@@ -789,7 +1127,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
         </div>
 
         <!-- AI Insights Section (Glassmorphic Premium) -->
-        <div v-if="hasAiData" class="space-y-4 rounded-3xl border border-violet-500/20 dark:border-violet-500/30 p-6 bg-gradient-to-br from-violet-500/[0.04] via-indigo-500/[0.03] to-sky-500/[0.04] backdrop-blur-xl shadow-xs">
+        <div v-if="hasAiData && isSectionVisible('ai_insights')" class="space-y-4 rounded-3xl border border-violet-500/20 dark:border-violet-500/30 p-6 bg-gradient-to-br from-violet-500/[0.04] via-indigo-500/[0.03] to-sky-500/[0.04] backdrop-blur-xl shadow-xs">
             <!-- Header + Overall Health -->
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-violet-500/10 pb-4">
                 <div class="flex items-center gap-3.5">
@@ -823,12 +1161,12 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
 
             <!-- Segment Indicators -->
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div v-for="seg in segmentCards" :key="seg.label"
-                    :class="['relative overflow-hidden rounded-2xl border p-4.5 bg-gradient-to-br bg-card/40 dark:bg-slate-950/20 backdrop-blur-xs transition-all duration-300 hover:-translate-y-0.5', seg.gradient, seg.border]">
+                <button type="button" v-for="seg in segmentCards" :key="seg.key" @click="showSegmentRestaurants(seg)"
+                    :class="['relative overflow-hidden rounded-2xl border p-4.5 bg-gradient-to-br bg-card/40 dark:bg-slate-950/20 backdrop-blur-xs transition-all duration-300 hover:-translate-y-0.5 text-left cursor-pointer', seg.gradient, seg.border]">
                     <p class="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{{ seg.label }}</p>
                     <p :class="['mt-1.5 text-3xl font-black font-mono tracking-tight', seg.color]">{{ seg.value }}</p>
                     <span class="absolute right-4 top-3 text-2xl opacity-20 select-none">{{ seg.icon }}</span>
-                </div>
+                </button>
             </div>
 
             <div class="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
@@ -853,9 +1191,9 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                             @click="toggleRiskExpand(r.restaurant_id)"
                             class="px-5 py-4 hover:bg-muted/30 dark:hover:bg-slate-900/20 transition-all cursor-pointer select-none">
                             <div class="flex items-center justify-between gap-2">
-                                <p class="font-extrabold text-sm truncate text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                <p class="font-extrabold text-sm truncate text-slate-800 dark:text-slate-200 flex items-center gap-1.5 min-w-0">
                                     <component :is="isRiskExpanded(r.restaurant_id, idx) ? ChevronUp : ChevronDown" class="size-4 text-muted-foreground shrink-0" />
-                                    {{ r.name }}
+                                    <Link :href="`/super-admin/restaurants/${r.restaurant_id}`" class="truncate hover:underline hover:text-rose-500 transition-colors" @click.stop>{{ r.name }}</Link>
                                 </p>
                                 <span :class="['shrink-0 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase border', riskColor[r.risk_level]]">
                                     {{ r.risk_level === 'high' ? '🔴 Khẩn cấp' : r.risk_level === 'medium' ? '🟡 Trung bình' : '🟢 Thấp' }}
@@ -915,7 +1253,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                             <div v-for="(h, idx) in aiInsights.health_scores" :key="h.restaurant_id" class="flex items-center gap-3.5 hover:bg-muted/20 p-1.5 rounded-xl transition-all">
                                 <span class="text-xs font-black text-muted-foreground w-4 text-center font-mono">{{ idx + 1 }}</span>
                                 <div class="flex-1 min-w-0 space-y-0.5">
-                                    <p class="text-xs font-black truncate text-slate-800 dark:text-slate-200">{{ h.name }}</p>
+                                    <Link :href="`/super-admin/restaurants/${h.restaurant_id}`" class="block text-xs font-black truncate text-slate-800 dark:text-slate-200 hover:underline hover:text-emerald-500 transition-colors">{{ h.name }}</Link>
                                     <p class="text-[10px] font-bold text-muted-foreground font-mono">{{ h.order_count_30d }} đơn / 30 ngày</p>
                                 </div>
                                 <div class="flex items-center gap-3 shrink-0">
@@ -975,7 +1313,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
         </div>
 
         <!-- Top Order & Top Storage Capacity Bars -->
-        <div class="grid gap-4 xl:grid-cols-2">
+        <div v-if="isSectionVisible('resource_usage')" class="grid gap-4 xl:grid-cols-2">
             <!-- Top Order Volume with dynamic progress bars -->
             <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
                 <CardHeader class="pb-2 border-b border-border/40">
@@ -986,8 +1324,8 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                 <CardContent class="pt-4 space-y-4">
                     <div v-for="item in resourceInsights.top_order_restaurants" :key="item.restaurant_id" class="space-y-2 hover:bg-muted/10 p-2 rounded-xl transition-all border border-transparent hover:border-border/30">
                         <div class="flex items-center justify-between text-xs font-semibold">
-                            <div>
-                                <p class="font-bold text-slate-800 dark:text-slate-200">{{ item.name }}</p>
+                            <div class="min-w-0">
+                                <Link :href="`/super-admin/restaurants/${item.restaurant_id}`" class="font-bold text-slate-800 dark:text-slate-200 hover:underline hover:text-violet-500 transition-colors">{{ item.name }}</Link>
                                 <p class="text-[10px] text-muted-foreground font-mono uppercase">{{ item.code ?? 'tenant' }}</p>
                             </div>
                             <Badge variant="secondary" class="font-bold font-mono text-[10px] bg-violet-500/10 text-violet-500 hover:bg-violet-500/10 border border-violet-500/25">
@@ -1013,8 +1351,8 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                 <CardContent class="pt-4 space-y-4">
                     <div v-for="item in resourceInsights.top_storage_restaurants" :key="item.restaurant_id" class="space-y-2 hover:bg-muted/10 p-2 rounded-xl transition-all border border-transparent hover:border-border/30">
                         <div class="flex items-center justify-between text-xs font-semibold">
-                            <div>
-                                <p class="font-bold text-slate-800 dark:text-slate-200">{{ item.name }}</p>
+                            <div class="min-w-0">
+                                <Link :href="`/super-admin/restaurants/${item.restaurant_id}`" class="font-bold text-slate-800 dark:text-slate-200 hover:underline hover:text-sky-500 transition-colors">{{ item.name }}</Link>
                                 <p class="text-[10px] text-muted-foreground font-mono">{{ item.files_count ?? 0 }} tệp tin</p>
                             </div>
                             <Badge variant="secondary" class="font-bold font-mono text-[10px] bg-sky-500/10 text-sky-500 hover:bg-sky-500/10 border border-sky-500/25">
@@ -1032,7 +1370,7 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
         </div>
 
         <!-- Recent Restaurants & System signals -->
-        <div class="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <div v-if="isSectionVisible('recent_restaurants')" class="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
             <!-- Recent Restaurants Card Table -->
             <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
                 <CardHeader class="flex-row items-center justify-between pb-3 border-b border-border/40">
@@ -1228,8 +1566,236 @@ const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_stor
                 </Card>
             </div>
         </div>
+
+        <!-- D2 + D5: Doanh thu theo gói & Hiệu suất sử dụng giữa các gói -->
+        <div v-if="isSectionVisible('revenue_plan')" class="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+            <!-- D2: Revenue Breakdown theo gói (stacked bar ngang theo tháng) -->
+            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
+                <CardHeader class="pb-2 border-b border-border/40">
+                    <CardTitle class="text-base font-bold flex items-center gap-2">
+                        <Gauge class="size-4.5 text-cyan-500" /> Doanh thu MRR theo gói (6 tháng gần nhất)
+                    </CardTitle>
+                    <p class="text-[11px] text-muted-foreground font-medium">Tỷ trọng đóng góp doanh thu định kỳ của từng gói dịch vụ theo từng tháng</p>
+                </CardHeader>
+                <CardContent class="pt-4 space-y-3">
+                    <div class="flex flex-wrap items-center gap-3 text-[10px] font-bold text-muted-foreground">
+                        <span v-for="code in revenueBreakdownPlanCodes" :key="code" class="flex items-center gap-1.5">
+                            <span :class="['size-2.5 rounded-full', planColor(code).dot]" /> {{ planDisplayName(code) }}
+                        </span>
+                    </div>
+                    <div class="space-y-2.5">
+                        <div v-for="point in revenueBreakdown" :key="point.month" class="space-y-1">
+                            <div class="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                                <span class="font-mono">{{ point.label }}</span>
+                                <span class="font-mono text-slate-700 dark:text-slate-300">{{ formatCurrency(point.total) }}</span>
+                            </div>
+                            <div class="flex h-3.5 w-full overflow-hidden rounded-full bg-muted/30">
+                                <div v-for="code in revenueBreakdownPlanCodes" :key="code"
+                                    :class="['h-full transition-all duration-700', planColor(code).bar]"
+                                    :style="{ width: `${revenueBreakdownMax > 0 ? ((point.by_plan[code] ?? 0) / revenueBreakdownMax) * 100 : 0}%` }"
+                                    :title="`${planDisplayName(code)}: ${formatCurrency(point.by_plan[code] ?? 0)}`"
+                                />
+                            </div>
+                        </div>
+                        <p v-if="!revenueBreakdown.length" class="text-xs text-muted-foreground font-semibold text-center py-4">Chưa có dữ liệu doanh thu để hiển thị.</p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- D5: Bảng so sánh hiệu suất giữa các gói -->
+            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
+                <CardHeader class="pb-2 border-b border-border/40">
+                    <CardTitle class="text-base font-bold flex items-center gap-2">
+                        <Crown class="size-4.5 text-violet-500" /> Hiệu suất sử dụng theo gói
+                    </CardTitle>
+                    <p class="text-[11px] text-muted-foreground font-medium">Mức độ hoạt động trung bình của tenant theo từng gói (30 ngày qua)</p>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-muted/40 border-b border-border/60 text-muted-foreground font-bold">
+                                <tr>
+                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider">Gói</th>
+                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">Tenant</th>
+                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">Đơn / 30 ngày</th>
+                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">TB đơn/ngày/tenant</th>
+                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider text-right">Tỷ lệ hoạt động</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border/60">
+                                <tr v-for="plan in planPerformance" :key="plan.plan_code" class="hover:bg-muted/30 transition-all font-medium text-slate-700 dark:text-slate-300">
+                                    <td class="px-4 py-2.5">
+                                        <span class="flex items-center gap-1.5 font-bold">
+                                            <span :class="['size-2.5 rounded-full shrink-0', planColor(plan.plan_code).dot]" /> {{ plan.plan_name }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.tenant_count }}</td>
+                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.orders_30d }}</td>
+                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.avg_orders_per_tenant_per_day }}</td>
+                                    <td :class="['px-4 py-2.5 text-right font-mono font-bold', plan.active_tenant_ratio >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400']">
+                                        {{ plan.active_tenant_ratio }}%
+                                    </td>
+                                </tr>
+                                <tr v-if="!planPerformance.length">
+                                    <td colspan="5" class="px-5 py-10 text-center text-muted-foreground font-semibold">Chưa có dữ liệu để so sánh.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- D1: Cohort Analysis Heatmap -->
+        <Card v-if="isSectionVisible('cohort_heatmap')" class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
+            <CardHeader class="pb-2 border-b border-border/40">
+                <CardTitle class="text-base font-bold flex items-center gap-2">
+                    <Users class="size-4.5 text-emerald-500" /> Phân tích Cohort — Tỷ lệ giữ chân theo nhóm đăng ký
+                </CardTitle>
+                <p class="text-[11px] text-muted-foreground font-medium">Tỷ lệ % nhà hàng còn hoạt động (active, có đơn hàng) ở các mốc M+1 / M+3 / M+6 sau khi đăng ký</p>
+            </CardHeader>
+            <CardContent class="pt-4">
+                <div class="overflow-x-auto w-full">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-muted-foreground font-bold">
+                            <tr>
+                                <th class="px-4 py-2 font-bold uppercase tracking-wider">Cohort (tháng đăng ký)</th>
+                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">Số tenant</th>
+                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+1</th>
+                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+3</th>
+                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+6</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in cohortAnalysis" :key="row.month" class="font-semibold text-slate-700 dark:text-slate-300">
+                                <td class="px-4 py-1.5 font-bold font-mono">{{ row.cohort }}</td>
+                                <td class="px-3 py-1.5 text-center font-mono">{{ row.total }}</td>
+                                <td class="px-2 py-1.5 text-center">
+                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m1)]">
+                                        {{ row.m1 !== null ? `${row.m1}%` : '—' }}
+                                    </span>
+                                </td>
+                                <td class="px-2 py-1.5 text-center">
+                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m3)]">
+                                        {{ row.m3 !== null ? `${row.m3}%` : '—' }}
+                                    </span>
+                                </td>
+                                <td class="px-2 py-1.5 text-center">
+                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m6)]">
+                                        {{ row.m6 !== null ? `${row.m6}%` : '—' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr v-if="!cohortAnalysis.length">
+                                <td colspan="5" class="px-5 py-10 text-center text-muted-foreground font-semibold">Chưa có đủ dữ liệu cohort để phân tích.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-3 text-[10px] text-muted-foreground font-semibold flex flex-wrap items-center gap-3">
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-emerald-500/80" /> ≥ 70% — Giữ chân tốt</span>
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-amber-500/70" /> 40–69% — Cần theo dõi</span>
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-rose-500/70" /> &lt; 40% — Nguy cơ rời bỏ cao</span>
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-muted/40 border border-border" /> — Chưa đủ thời gian quan sát</span>
+                </p>
+            </CardContent>
+        </Card>
+
+        <!-- Segment Restaurant Drill-down Dialog (B4) -->
+        <Dialog :open="!!selectedSegment" @update:open="val => { if (!val) selectedSegment = null }">
+            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Nhà hàng thuộc nhóm: {{ selectedSegment?.label }}</DialogTitle>
+                    <DialogDescription>Danh sách nhà hàng được phân loại vào phân khúc này dựa trên dữ liệu hoạt động thực tế.</DialogDescription>
+                </DialogHeader>
+
+                <div class="py-4">
+                    <div v-if="isLoadingSegmentRestaurants" class="space-y-2">
+                        <Skeleton v-for="i in 5" :key="i" class="h-9 w-full rounded-lg" />
+                    </div>
+                    <div v-else-if="segmentRestaurantsList.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                        Không có nhà hàng nào thuộc nhóm này.
+                    </div>
+                    <div v-else class="overflow-x-auto rounded-lg border border-border">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-muted border-b border-border text-muted-foreground uppercase font-semibold">
+                                    <th class="p-3">Tên Nhà Hàng</th>
+                                    <th class="p-3">Mã Code</th>
+                                    <th class="p-3">Chủ sở hữu</th>
+                                    <th class="p-3">Ngày hết hạn</th>
+                                    <th class="p-3 text-right">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="res in segmentRestaurantsList" :key="res.id" class="border-b border-border last:border-0 hover:bg-muted/30">
+                                    <td class="p-3 font-semibold">
+                                        <Link :href="`/super-admin/restaurants/${res.id}`" class="text-primary hover:underline">
+                                            {{ res.name }}
+                                        </Link>
+                                    </td>
+                                    <td class="p-3 font-mono text-[10px]">{{ res.code }}</td>
+                                    <td class="p-3">
+                                        <div>{{ res.owner_name }}</div>
+                                        <div class="text-[10px] text-muted-foreground">{{ res.owner_email }}</div>
+                                    </td>
+                                    <td class="p-3">{{ res.subscription_ends_at }}</td>
+                                    <td class="p-3 text-right">
+                                        <Badge
+                                            :variant="res.status === 'active' ? 'default' : 'secondary'"
+                                            :class="res.status === 'active' ? 'bg-emerald-500 text-white' : ''"
+                                        >
+                                            {{ res.status }}
+                                        </Badge>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
 
-
+<style>
+/* E2: Chế độ xem thu gọn — giảm khoảng cách/đệm của các khối chính trên dashboard
+   để hiển thị nhiều thông tin hơn trong cùng một màn hình. Dùng selector toàn cục
+   (không scoped) vì cần ghi đè các lớp tiện ích Tailwind dùng trong template. */
+.compact-mode.flex.flex-col.gap-6 {
+    gap: 0.875rem;
+}
+.compact-mode .gap-6 {
+    gap: 0.75rem;
+}
+.compact-mode .gap-4 {
+    gap: 0.625rem;
+}
+.compact-mode .gap-2\.5 {
+    gap: 0.5rem;
+}
+.compact-mode .pt-5 {
+    padding-top: 0.75rem;
+}
+.compact-mode .pt-4 {
+    padding-top: 0.625rem;
+}
+.compact-mode .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.875rem;
+}
+.compact-mode .space-y-4 > :not([hidden]) ~ :not([hidden]),
+.compact-mode .space-y-4\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.625rem;
+}
+.compact-mode .space-y-3 > :not([hidden]) ~ :not([hidden]),
+.compact-mode .space-y-3\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem;
+}
+.compact-mode .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.375rem;
+}
+.compact-mode [data-slot="card-header"] {
+    padding-bottom: 0.625rem;
+}
+</style>
 

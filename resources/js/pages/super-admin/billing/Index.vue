@@ -1,7 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ReceiptText, RefreshCcw, WalletCards, Search, Filter } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { Filter, ReceiptText, RefreshCcw, Search, WalletCards } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,12 +13,26 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
+interface PaginatorLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+interface Paginator<T> {
+    data: T[];
+    links: PaginatorLink[];
+    current_page: number;
+    last_page: number;
+    total: number;
+}
+
 const props = defineProps<{
     filters: { restaurant_id?: string; status?: string; type?: string; search?: string };
     restaurants: Array<{ id: number; name: string; code: string }>;
-    invoices: Array<{ id: number; invoice_number: string; restaurant: string; status: string; type: string; total: string; currency: string; due_on: string; sent_at: string }>;
-    webhooks: Array<{ id: number; provider: string; status: string; transaction_code: string; event_type: string; processed_at: string }>;
-    adjustments: Array<{ id: number; restaurant: string; type: string; days: number; discount_amount: string; reason: string; creator: string; created_at: string }>;
+    invoices: Paginator<{ id: number; invoice_number: string; restaurant: string; status: string; type: string; total: string; currency: string; due_on: string; sent_at: string }>;
+    webhooks: Paginator<{ id: number; provider: string; status: string; transaction_code: string; event_type: string; processed_at: string }>;
+    adjustments: Paginator<{ id: number; restaurant: string; type: string; days: number; discount_amount: string; reason: string; creator: string; created_at: string }>;
 }>();
 
 const restaurantId = ref(props.filters.restaurant_id ?? 'all');
@@ -26,6 +41,7 @@ const type = ref(props.filters.type ?? 'all');
 const search = ref(props.filters.search ?? '');
 
 let timer: ReturnType<typeof setTimeout> | undefined;
+
 function applyFilters() {
     router.get('/super-admin/billing', {
         restaurant_id: restaurantId.value === 'all' ? undefined : restaurantId.value,
@@ -40,9 +56,13 @@ watch(search, () => {
     timer = setTimeout(applyFilters, 350);
 });
 
-const invoiceCount = computed(() => props.invoices.length);
-const webhookCount = computed(() => props.webhooks.length);
-const adjustmentCount = computed(() => props.adjustments.length);
+function goToPage(url: string | null) {
+    if (!url) {
+return;
+}
+
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
+}
 
 const stateColor: Record<string, string> = {
     active: 'bg-emerald-100 text-emerald-800',
@@ -58,24 +78,24 @@ const stateColor: Record<string, string> = {
 function resendInvoice(id: number) {
     router.post(`/super-admin/billing/invoices/${id}/resend`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('Đã gửi lại email!'),
-        onError: () => alert('Gửi lại email thất bại!'),
+        onSuccess: () => toast.success('Đã gửi lại email!'),
+        onError: () => toast.error('Gửi lại email thất bại!'),
     });
 }
 
 function regenerateInvoice(id: number) {
     router.post(`/super-admin/billing/invoices/${id}/regenerate`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('Đã tạo lại hóa đơn!'),
-        onError: () => alert('Tạo lại hóa đơn thất bại!'),
+        onSuccess: () => toast.success('Đã tạo lại hóa đơn!'),
+        onError: () => toast.error('Tạo lại hóa đơn thất bại!'),
     });
 }
 
 function retryWebhook(id: number) {
     router.post(`/super-admin/billing/webhooks/${id}/retry`, {}, {
         preserveScroll: true,
-        onSuccess: () => alert('Đã retry webhook!'),
-        onError: () => alert('Retry webhook thất bại!'),
+        onSuccess: () => toast.success('Đã retry webhook!'),
+        onError: () => toast.error('Retry webhook thất bại!'),
     });
 }
 
@@ -100,9 +120,6 @@ function exportCsv() {
                 <Button variant="outline" @click="exportCsv">
                     Export CSV
                 </Button>
-                <Button variant="outline" disabled>
-                    Export PDF
-                </Button>
             </div>
         </div>
 
@@ -110,8 +127,8 @@ function exportCsv() {
             <Card>
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-sm text-muted-foreground">Hoa don hien thi</p>
-                        <p class="text-2xl font-bold">{{ invoiceCount }}</p>
+                        <p class="text-sm text-muted-foreground">Hóa đơn</p>
+                        <p class="text-2xl font-bold">{{ invoices.total }}</p>
                     </div>
                     <ReceiptText class="size-8 text-sky-600" />
                 </CardContent>
@@ -119,8 +136,8 @@ function exportCsv() {
             <Card>
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-sm text-muted-foreground">Webhook hien thi</p>
-                        <p class="text-2xl font-bold">{{ webhookCount }}</p>
+                        <p class="text-sm text-muted-foreground">Webhook</p>
+                        <p class="text-2xl font-bold">{{ webhooks.total }}</p>
                     </div>
                     <RefreshCcw class="size-8 text-violet-600" />
                 </CardContent>
@@ -128,8 +145,8 @@ function exportCsv() {
             <Card>
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-sm text-muted-foreground">Dieu chinh hien thi</p>
-                        <p class="text-2xl font-bold">{{ adjustmentCount }}</p>
+                        <p class="text-sm text-muted-foreground">Điều chỉnh</p>
+                        <p class="text-2xl font-bold">{{ adjustments.total }}</p>
                     </div>
                     <WalletCards class="size-8 text-emerald-600" />
                 </CardContent>
@@ -138,15 +155,15 @@ function exportCsv() {
 
         <Card>
             <CardHeader class="pb-3">
-                <CardTitle class="flex items-center gap-2 text-base"><Filter class="size-4" /> Bo loc</CardTitle>
+                <CardTitle class="flex items-center gap-2 text-base"><Filter class="size-4" /> Bộ lọc</CardTitle>
             </CardHeader>
             <CardContent class="grid gap-4 md:grid-cols-4">
                 <div class="grid gap-1.5">
-                    <Label>Nha hang</Label>
+                    <Label>Nhà hàng</Label>
                     <Select v-model="restaurantId" @update:modelValue="applyFilters">
-                        <SelectTrigger><SelectValue placeholder="Tat ca" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Tat ca</SelectItem>
+                            <SelectItem value="all">Tất cả</SelectItem>
                             <SelectItem v-for="restaurant in restaurants" :key="restaurant.id" :value="String(restaurant.id)">
                                 {{ restaurant.name }}
                             </SelectItem>
@@ -154,11 +171,11 @@ function exportCsv() {
                     </Select>
                 </div>
                 <div class="grid gap-1.5">
-                    <Label>Trang thai</Label>
+                    <Label>Trạng thái</Label>
                     <Select v-model="status" @update:modelValue="applyFilters">
-                        <SelectTrigger><SelectValue placeholder="Tat ca" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Tat ca</SelectItem>
+                            <SelectItem value="all">Tất cả</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="generated">Generated</SelectItem>
                             <SelectItem value="sent">Sent</SelectItem>
@@ -170,11 +187,11 @@ function exportCsv() {
                     </Select>
                 </div>
                 <div class="grid gap-1.5">
-                    <Label>Loai</Label>
+                    <Label>Loại</Label>
                     <Select v-model="type" @update:modelValue="applyFilters">
-                        <SelectTrigger><SelectValue placeholder="Tat ca" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Tat ca</SelectItem>
+                            <SelectItem value="all">Tất cả</SelectItem>
                             <SelectItem value="payment_success">Payment success</SelectItem>
                             <SelectItem value="upcoming_renewal">Upcoming renewal</SelectItem>
                             <SelectItem value="extend">Extend</SelectItem>
@@ -184,10 +201,10 @@ function exportCsv() {
                     </Select>
                 </div>
                 <div class="grid gap-1.5">
-                    <Label>Tim kiem</Label>
+                    <Label>Tìm kiếm</Label>
                     <div class="relative">
                         <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                        <Input v-model="search" placeholder="Ma hoa don, transaction, ly do..." class="pl-9" />
+                        <Input v-model="search" placeholder="Mã hóa đơn, transaction, lý do..." class="pl-9" />
                     </div>
                 </div>
             </CardContent>
@@ -196,10 +213,10 @@ function exportCsv() {
         <div class="grid gap-6 xl:grid-cols-3">
             <Card class="xl:col-span-2">
                 <CardHeader class="pb-3">
-                    <CardTitle>Hoa don gan day</CardTitle>
+                    <CardTitle>Hóa đơn <span class="text-sm font-normal text-muted-foreground">(trang {{ invoices.current_page }}/{{ invoices.last_page }})</span></CardTitle>
                 </CardHeader>
                 <CardContent class="space-y-3">
-                    <div v-for="invoice in invoices" :key="invoice.id" class="rounded-xl border p-4">
+                    <div v-for="invoice in invoices.data" :key="invoice.id" class="rounded-xl border p-4">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="font-medium">{{ invoice.invoice_number }}</p>
@@ -212,7 +229,7 @@ function exportCsv() {
                         <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
                             <span>{{ invoice.type }}</span>
                             <span>{{ invoice.total }} {{ invoice.currency }}</span>
-                            <span>Hạn {{ invoice.due_on || '�' }}</span>
+                            <span>Hạn {{ invoice.due_on || 'Chưa xác định' }}</span>
                             <span>Gửi {{ invoice.sent_at || 'Chưa gửi' }}</span>
                         </div>
                         <div class="mt-2 flex gap-2">
@@ -220,54 +237,102 @@ function exportCsv() {
                             <Button size="sm" variant="outline" @click="regenerateInvoice(invoice.id)">Tạo lại hóa đơn</Button>
                         </div>
                     </div>
-                    <p v-if="!invoices.length" class="py-10 text-center text-sm text-muted-foreground">Khong co hoa don phu hop.</p>
+                    <p v-if="!invoices.data.length" class="py-10 text-center text-sm text-muted-foreground">Không có hóa đơn phù hợp.</p>
+
+                    <!-- Invoices pagination -->
+                    <div v-if="invoices.last_page > 1" class="flex flex-wrap justify-center gap-1 pt-2">
+                        <button
+                            v-for="link in invoices.links"
+                            :key="link.label"
+                            :disabled="!link.url"
+                            :class="[
+                                'rounded px-3 py-1 text-xs transition',
+                                link.active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+                                !link.url ? 'cursor-not-allowed opacity-40' : '',
+                            ]"
+                            @click="goToPage(link.url)"
+                            v-html="link.label"
+                        />
+                    </div>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader class="pb-3">
-                    <CardTitle>Webhook</CardTitle>
+                    <CardTitle>Webhook <span class="text-sm font-normal text-muted-foreground">(trang {{ webhooks.current_page }}/{{ webhooks.last_page }})</span></CardTitle>
                 </CardHeader>
                 <CardContent class="space-y-3">
-                    <div v-for="webhook in webhooks" :key="webhook.id" class="rounded-xl border p-4 text-sm">
+                    <div v-for="webhook in webhooks.data" :key="webhook.id" class="rounded-xl border p-4 text-sm">
                         <div class="flex items-center justify-between gap-2">
                             <span class="font-medium">{{ webhook.provider }}</span>
                             <Badge :class="stateColor[webhook.status] || 'bg-slate-100 text-slate-800'">{{ webhook.status }}</Badge>
                         </div>
-                        <p class="mt-2 text-xs text-muted-foreground">{{ webhook.transaction_code || '�' }}</p>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.event_type || '�' }}</p>
+                        <p class="mt-2 text-xs text-muted-foreground">{{ webhook.transaction_code || 'Không có mã giao dịch' }}</p>
+                        <p class="mt-1 text-xs text-muted-foreground">{{ webhook.event_type || 'Không rõ loại sự kiện' }}</p>
                         <p class="mt-1 text-xs text-muted-foreground">{{ webhook.processed_at || 'Chưa xử lý' }}</p>
                         <div class="mt-2">
                             <Button size="sm" variant="outline" @click="retryWebhook(webhook.id)">Retry webhook</Button>
                         </div>
                     </div>
 
-                    <p v-if="!webhooks.length" class="py-10 text-center text-sm text-muted-foreground">Khong co webhook phu hop.</p>
+                    <p v-if="!webhooks.data.length" class="py-10 text-center text-sm text-muted-foreground">Không có webhook phù hợp.</p>
+
+                    <!-- Webhooks pagination -->
+                    <div v-if="webhooks.last_page > 1" class="flex flex-wrap justify-center gap-1 pt-2">
+                        <button
+                            v-for="link in webhooks.links"
+                            :key="link.label"
+                            :disabled="!link.url"
+                            :class="[
+                                'rounded px-3 py-1 text-xs transition',
+                                link.active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+                                !link.url ? 'cursor-not-allowed opacity-40' : '',
+                            ]"
+                            @click="goToPage(link.url)"
+                            v-html="link.label"
+                        />
+                    </div>
                 </CardContent>
             </Card>
         </div>
 
         <Card>
             <CardHeader class="pb-3">
-                <CardTitle>Dieu chinh billing</CardTitle>
+                <CardTitle>Điều chỉnh billing <span class="text-sm font-normal text-muted-foreground">(trang {{ adjustments.current_page }}/{{ adjustments.last_page }})</span></CardTitle>
             </CardHeader>
             <CardContent class="space-y-3">
-                <div v-for="adjustment in adjustments" :key="adjustment.id" class="rounded-xl border p-4">
+                <div v-for="adjustment in adjustments.data" :key="adjustment.id" class="rounded-xl border p-4">
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p class="font-medium">{{ adjustment.restaurant }}</p>
-                            <p class="text-xs text-muted-foreground">{{ adjustment.reason || 'Khong co ghi chu' }}</p>
+                            <p class="text-xs text-muted-foreground">{{ adjustment.reason || 'Không có ghi chú' }}</p>
                         </div>
                         <Badge class="bg-emerald-100 text-emerald-800">{{ adjustment.type }}</Badge>
                     </div>
                     <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
-                        <span>+{{ adjustment.days }} ngay</span>
-                        <span>Giam {{ adjustment.discount_amount }} VND</span>
+                        <span>+{{ adjustment.days }} ngày</span>
+                        <span>Giảm {{ adjustment.discount_amount }} VND</span>
                         <span>{{ adjustment.creator }}</span>
                         <span>{{ adjustment.created_at }}</span>
                     </div>
                 </div>
-                <p v-if="!adjustments.length" class="py-10 text-center text-sm text-muted-foreground">Khong co dieu chinh nao.</p>
+                <p v-if="!adjustments.data.length" class="py-10 text-center text-sm text-muted-foreground">Không có điều chỉnh nào.</p>
+
+                <!-- Adjustments pagination -->
+                <div v-if="adjustments.last_page > 1" class="flex flex-wrap justify-center gap-1 pt-2">
+                    <button
+                        v-for="link in adjustments.links"
+                        :key="link.label"
+                        :disabled="!link.url"
+                        :class="[
+                            'rounded px-3 py-1 text-xs transition',
+                            link.active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+                            !link.url ? 'cursor-not-allowed opacity-40' : '',
+                        ]"
+                        @click="goToPage(link.url)"
+                        v-html="link.label"
+                    />
+                </div>
             </CardContent>
         </Card>
     </div>

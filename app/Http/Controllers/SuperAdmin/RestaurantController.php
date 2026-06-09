@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\BillingAdjustment;
 use App\Models\BillingInvoice;
 use App\Models\PaymentWebhook;
@@ -235,6 +236,7 @@ class RestaurantController extends Controller
         $this->seedDemoData($restaurant);
 
         \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        DashboardController::forgetCache();
 
         return redirect()->route('superadmin.restaurants.show', $restaurant)
             ->with('success', "Đă t?o nhà hàng \"{$restaurant->name}\" thành công.");
@@ -247,6 +249,7 @@ class RestaurantController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
+        $oldStatus = $restaurant->status;
         $restaurant->update(['status' => $request->status]);
 
         $labels = [
@@ -255,7 +258,23 @@ class RestaurantController extends Controller
             'expired'   => 'h?t h?n',
         ];
 
+        AuditLog::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => 'updated',
+            'action'        => 'restaurant_update_status',
+            'subject_type'  => Restaurant::class,
+            'subject_id'    => $restaurant->id,
+            'old_values'    => ['status' => $oldStatus],
+            'new_values'    => ['status' => $request->status, 'reason' => $request->reason],
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
+        ]);
+
         \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        DashboardController::forgetCache();
 
         return back()->with('success', "Đă {$labels[$request->status]} nhà hàng \"{$restaurant->name}\".");
     }
@@ -266,6 +285,7 @@ class RestaurantController extends Controller
             'plan_id' => 'required|exists:subscription_plans,id',
         ]);
 
+        $oldPlan = $restaurant->plan;
         $plan = SubscriptionPlan::findOrFail($request->plan_id);
         $restaurant->update(['plan_id' => $plan->id]);
 
@@ -279,9 +299,49 @@ class RestaurantController extends Controller
             'price'         => $plan->price,
         ]);
 
+        AuditLog::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => 'updated',
+            'action'        => 'restaurant_update_plan',
+            'subject_type'  => Restaurant::class,
+            'subject_id'    => $restaurant->id,
+            'old_values'    => ['plan_id' => $oldPlan?->id, 'plan_code' => $oldPlan?->code],
+            'new_values'    => ['plan_id' => $plan->id, 'plan_code' => $plan->code],
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
+        ]);
+
         \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        DashboardController::forgetCache();
 
         return back()->with('success', "Đă chuy?n sang gói {$plan->name}.");
+    }
+
+    public function subscriptionsHistory(Restaurant $restaurant): \Illuminate\Http\JsonResponse
+    {
+        $paginator = $restaurant->subscriptions()
+            ->with('plan')
+            ->latest()
+            ->paginate(15);
+
+        $data = $paginator->getCollection()->map(fn ($s) => [
+            'id'         => $s->id,
+            'plan'       => $s->plan?->name,
+            'status'     => $s->status,
+            'started_at' => $s->started_at?->format('d/m/Y'),
+            'ended_at'   => $s->ended_at?->format('d/m/Y'),
+            'price'      => number_format($s->price),
+        ]);
+
+        return response()->json([
+            'data'         => $data,
+            'current_page' => $paginator->currentPage(),
+            'last_page'    => $paginator->lastPage(),
+            'total'        => $paginator->total(),
+        ]);
     }
 
     private function seedDemoData(Restaurant $restaurant): void

@@ -17,6 +17,10 @@ Route::prefix('super-admin')
     ->middleware(['auth', 'verified', 'permission.cache.clear', 'role:super_admin', 'role.superadmin.2fa'])
     ->group(function () {
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('dashboard/segments/{segment}', [DashboardController::class, 'segmentRestaurants'])->name('dashboard.segments');
+        Route::get('dashboard/export/csv', [DashboardController::class, 'exportCsv'])->name('dashboard.export.csv');
+        Route::get('dashboard/export/report', [DashboardController::class, 'exportReport'])->name('dashboard.export.report');
+        Route::post('dashboard/report-subscription', [DashboardController::class, 'updateReportSubscription'])->name('dashboard.report-subscription.update');
         Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
         Route::get('billing/export', [BillingController::class, 'exportCsv'])->name('billing.export');
         Route::post('billing/invoices/{invoice}/resend', [BillingController::class, 'resendInvoice'])->name('billing.invoices.resend');
@@ -26,11 +30,13 @@ Route::prefix('super-admin')
         Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
         Route::post('restaurants', [RestaurantController::class, 'store'])->name('restaurants.store');
         Route::get('restaurants/{restaurant}', [RestaurantController::class, 'show'])->name('restaurants.show');
+        Route::get('restaurants/{restaurant}/subscriptions-history', [RestaurantController::class, 'subscriptionsHistory'])->name('restaurants.subscriptions-history');
         Route::patch('restaurants/{restaurant}/status', [RestaurantController::class, 'updateStatus'])->name('restaurants.status');
         Route::patch('restaurants/{restaurant}/plan', [RestaurantController::class, 'updatePlan'])->name('restaurants.plan');
         Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
 
         Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
+        Route::post('plans', [SubscriptionPlanController::class, 'store'])->name('plans.store');
         Route::patch('plans/{plan}', [SubscriptionPlanController::class, 'update'])->name('plans.update');
         Route::get('plans/{plan}/restaurants', [SubscriptionPlanController::class, 'planRestaurants'])->name('plans.restaurants');
 
@@ -42,16 +48,27 @@ Route::prefix('super-admin')
         Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
         Route::get('support', [SupportPortalController::class, 'index'])->name('support.index');
+        Route::post('support/tickets/bulk', [SupportPortalController::class, 'bulkUpdateTickets'])->name('support.tickets.bulk');
         Route::post('support/tickets', [SupportPortalController::class, 'storeTicket'])->name('support.tickets.store');
         Route::patch('support/tickets/{ticket}', [SupportPortalController::class, 'updateTicket'])->name('support.tickets.update');
+        Route::delete('support/tickets/{ticket}', [SupportPortalController::class, 'destroyTicket'])->name('support.tickets.destroy');
+        Route::post('support/tickets/{ticket}/replies', [SupportPortalController::class, 'storeReply'])->name('support.tickets.replies.store');
+        Route::patch('support/tickets/{ticket}/replies/{reply}', [SupportPortalController::class, 'updateReply'])->name('support.tickets.replies.update');
+        Route::delete('support/tickets/{ticket}/replies/{reply}', [SupportPortalController::class, 'destroyReply'])->name('support.tickets.replies.destroy');
         Route::post('support/announcements', [SupportPortalController::class, 'storeAnnouncement'])->name('support.announcements.store');
+        Route::patch('support/announcements/{announcement}/unpublish', [SupportPortalController::class, 'unpublishAnnouncement'])->name('support.announcements.unpublish');
+        Route::get('support/export', [SupportPortalController::class, 'exportCsv'])->name('support.export');
         Route::post('support/articles', [SupportPortalController::class, 'storeArticle'])->name('support.articles.store');
         Route::post('support/rules', [SupportPortalController::class, 'storeRule'])->name('support.rules.store');
+        Route::patch('support/rules/{rule}', [SupportPortalController::class, 'updateRule'])->name('support.rules.update');
+        Route::delete('support/rules/{rule}', [SupportPortalController::class, 'destroyRule'])->name('support.rules.destroy');
+        Route::patch('support/rules/{rule}/toggle', [SupportPortalController::class, 'toggleRule'])->name('support.rules.toggle');
         Route::post('support/alerts/run', [SupportPortalController::class, 'runAlertCheck'])->name('support.alerts.run');
 
         // Banner Management
         Route::get('banners', [BannerController::class, 'index'])->name('banners.index');
         Route::post('banners', [BannerController::class, 'store'])->name('banners.store');
+        Route::post('banners/reorder', [BannerController::class, 'reorder'])->name('banners.reorder');
         Route::patch('banners/{banner}', [BannerController::class, 'update'])->name('banners.update');
         Route::delete('banners/{banner}', [BannerController::class, 'destroy'])->name('banners.destroy');
 

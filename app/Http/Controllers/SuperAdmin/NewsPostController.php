@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\NewsPost;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,13 +71,15 @@ class NewsPostController extends Controller
             ? $request->file('image')->store('news', 'public')
             : null;
 
-        NewsPost::create([
+        $post = NewsPost::create([
             ...$data,
             'author_id'      => $request->user()?->id,
             'slug'           => NewsPost::generateSlug($data['title']),
             'featured_image' => $path,
             'published_at'   => $data['is_published'] ? ($data['published_at'] ?? now()) : null,
         ]);
+
+        $this->logCmsAction($request, 'created', 'news_post_create', $post, null, $post->only(['title', 'category', 'is_published']));
 
         return back()->with('success', 'Đã tạo bài viết thành công.');
     }
@@ -96,27 +99,38 @@ class NewsPostController extends Controller
             $data['published_at'] = $data['published_at'] ?? now();
         }
 
+        $old = $post->only(['title', 'category', 'is_published', 'is_featured']);
         $post->update($data);
+
+        $this->logCmsAction($request, 'updated', 'news_post_update', $post, $old, $post->only(['title', 'category', 'is_published', 'is_featured']));
 
         return back()->with('success', 'Đã cập nhật bài viết.');
     }
 
-    public function destroy(NewsPost $post): RedirectResponse
+    public function destroy(Request $request, NewsPost $post): RedirectResponse
     {
+        $old = $post->only(['title', 'category', 'is_published']);
+
         if ($post->featured_image) {
             Storage::disk('public')->delete($post->featured_image);
         }
         $post->delete();
 
+        $this->logCmsAction($request, 'deleted', 'news_post_delete', $post, $old, null);
+
         return back()->with('success', 'Đã xóa bài viết.');
     }
 
-    public function togglePublish(NewsPost $post): RedirectResponse
+    public function togglePublish(Request $request, NewsPost $post): RedirectResponse
     {
+        $old = $post->only(['is_published']);
+
         $post->update([
             'is_published' => ! $post->is_published,
             'published_at' => ! $post->is_published ? ($post->published_at ?? now()) : $post->published_at,
         ]);
+
+        $this->logCmsAction($request, 'updated', 'news_post_toggle_publish', $post, $old, $post->only(['is_published']));
 
         return back()->with('success', $post->is_published ? 'Đã đăng bài.' : 'Đã ẩn bài.');
     }
@@ -126,9 +140,13 @@ class NewsPostController extends Controller
         return response()->json(['content' => $post->content, 'tags' => $post->tags ?? []]);
     }
 
-    public function toggleFeatured(NewsPost $post): RedirectResponse
+    public function toggleFeatured(Request $request, NewsPost $post): RedirectResponse
     {
+        $old = $post->only(['is_featured']);
+
         $post->update(['is_featured' => ! $post->is_featured]);
+
+        $this->logCmsAction($request, 'updated', 'news_post_toggle_featured', $post, $old, $post->only(['is_featured']));
 
         return back()->with('success', $post->is_featured ? 'Đã ghim bài nổi bật.' : 'Đã bỏ ghim.');
     }
@@ -146,6 +164,24 @@ class NewsPostController extends Controller
             'is_published' => ['boolean'],
             'is_featured'  => ['boolean'],
             'published_at' => ['nullable', 'date'],
+        ]);
+    }
+
+    private function logCmsAction(Request $request, string $event, string $action, NewsPost $post, ?array $old, ?array $new): void
+    {
+        AuditLog::create([
+            'restaurant_id' => null,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => $event,
+            'action'        => $action,
+            'subject_type'  => NewsPost::class,
+            'subject_id'    => $post->id,
+            'old_values'    => $old,
+            'new_values'    => $new,
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
         ]);
     }
 }

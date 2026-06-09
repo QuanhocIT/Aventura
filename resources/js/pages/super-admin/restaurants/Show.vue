@@ -2,19 +2,22 @@
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import {
     ArrowLeft,
-    Crown,
     Building2,
-    Users,
+    Crown,
+    ExternalLink,
     LayoutGrid,
-    Table2,
     ReceiptText,
-    ShieldAlert,
-    WalletCards,
     RefreshCcw,
+    ShieldAlert,
+    Table2,
     UserCheck,
+    Users,
+    WalletCards,
 } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -73,8 +76,10 @@ function submitOverride() {
 function impersonateUser() {
     if (!props.restaurant.owner?.id) {
         alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+
         return;
     }
+
     if (confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu "${props.restaurant.owner.name}" không?`)) {
         router.post(`/super-admin/impersonate/${props.restaurant.owner.id}`);
     }
@@ -88,6 +93,7 @@ function applyPreset(type: string, days: number, discount: number, reason: strin
     
     // Tự động focus ô mật khẩu
     const pwdInput = document.getElementById('override-password');
+
     if (pwdInput) {
         pwdInput.focus();
     }
@@ -143,6 +149,45 @@ function typeLabel(type: string) {
     };
 
     return labels[type] ?? type;
+}
+
+// ── Subscriptions history dialog ─────────────────────────────
+interface SubsRow {
+    id: number;
+    plan: string;
+    status: string;
+    started_at: string;
+    ended_at: string;
+    price: string;
+}
+
+const showSubsDialog = ref(false);
+const subsHistory = ref<SubsRow[]>([]);
+const subsPage = ref(1);
+const subsLastPage = ref(1);
+const subsTotal = ref(0);
+const subsLoading = ref(false);
+
+async function loadSubsHistory(page = 1) {
+    subsLoading.value = true;
+
+    try {
+        const res = await fetch(`/super-admin/restaurants/${props.restaurant.id}/subscriptions-history?page=${page}`, {
+            headers: { Accept: 'application/json' },
+        });
+        const json = await res.json();
+        subsHistory.value = json.data;
+        subsPage.value = json.current_page;
+        subsLastPage.value = json.last_page;
+        subsTotal.value = json.total;
+    } finally {
+        subsLoading.value = false;
+    }
+}
+
+function openSubsDialog() {
+    showSubsDialog.value = true;
+    loadSubsHistory(1);
 }
 </script>
 
@@ -217,8 +262,11 @@ function typeLabel(type: string) {
                 <div class="grid gap-6 xl:grid-cols-3">
                     <Card class="xl:col-span-2">
                         <CardHeader class="pb-3">
-                            <CardTitle class="flex items-center gap-2 text-base">
-                                <ReceiptText class="size-4 text-sky-600" /> Hoa don gan day
+                            <CardTitle class="flex items-center justify-between gap-2 text-base">
+                                <span class="flex items-center gap-2"><ReceiptText class="size-4 text-sky-600" /> Hoa don gan day</span>
+                                <a :href="`/super-admin/billing?restaurant_id=${restaurant.id}`" class="flex items-center gap-1 text-xs font-normal text-sky-600 hover:underline dark:text-sky-400">
+                                    Xem tất cả <ExternalLink class="size-3" />
+                                </a>
                             </CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
@@ -243,8 +291,11 @@ function typeLabel(type: string) {
 
                     <Card>
                         <CardHeader class="pb-3">
-                            <CardTitle class="flex items-center gap-2 text-base">
-                                <RefreshCcw class="size-4 text-violet-600" /> Webhook log
+                            <CardTitle class="flex items-center justify-between gap-2 text-base">
+                                <span class="flex items-center gap-2"><RefreshCcw class="size-4 text-violet-600" /> Webhook log</span>
+                                <a :href="`/super-admin/billing?restaurant_id=${restaurant.id}`" class="flex items-center gap-1 text-xs font-normal text-violet-600 hover:underline dark:text-violet-400">
+                                    Xem tất cả <ExternalLink class="size-3" />
+                                </a>
                             </CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
@@ -344,8 +395,11 @@ function typeLabel(type: string) {
 
                     <Card>
                         <CardHeader class="pb-3">
-                            <CardTitle class="flex items-center gap-2 text-base">
-                                <WalletCards class="size-4 text-emerald-600" /> Lich su dieu chinh
+                            <CardTitle class="flex items-center justify-between gap-2 text-base">
+                                <span class="flex items-center gap-2"><WalletCards class="size-4 text-emerald-600" /> Lich su dieu chinh</span>
+                                <a :href="`/super-admin/billing?restaurant_id=${restaurant.id}`" class="flex items-center gap-1 text-xs font-normal text-emerald-600 hover:underline dark:text-emerald-400">
+                                    Xem tất cả <ExternalLink class="size-3" />
+                                </a>
                             </CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
@@ -407,7 +461,15 @@ function typeLabel(type: string) {
 
                 <Card>
                     <CardHeader class="pb-3">
-                        <CardTitle class="text-base">Lich su subscription</CardTitle>
+                        <CardTitle class="flex items-center justify-between gap-2 text-base">
+                            <span>Lich su subscription</span>
+                            <button
+                                class="flex items-center gap-1 text-xs font-normal text-amber-600 hover:underline dark:text-amber-400"
+                                @click="openSubsDialog"
+                            >
+                                Xem tất cả <ExternalLink class="size-3" />
+                            </button>
+                        </CardTitle>
                     </CardHeader>
                     <CardContent class="space-y-3">
                         <div v-for="s in subscriptions" :key="s.id" class="rounded-xl border border-border/70 p-3 text-sm">
@@ -417,7 +479,7 @@ function typeLabel(type: string) {
                                     {{ statusLabel[s.status] ?? s.status }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-xs text-muted-foreground">{{ s.started_at }} ? {{ s.ended_at }}</p>
+                            <p class="mt-2 text-xs text-muted-foreground">{{ s.started_at }} → {{ s.ended_at }}</p>
                             <p class="mt-1 font-mono text-xs">{{ s.price }} VND</p>
                         </div>
                         <p v-if="!subscriptions.length" class="py-6 text-center text-sm text-muted-foreground">Chua co lich su subscription.</p>
@@ -426,4 +488,49 @@ function typeLabel(type: string) {
             </div>
         </div>
     </div>
+
+    <!-- Subscriptions History Dialog -->
+    <Dialog :open="showSubsDialog" @update:open="(v) => { if (!v) showSubsDialog = false; }">
+        <DialogContent class="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Lịch sử Subscription · {{ restaurant.name }}</DialogTitle>
+            </DialogHeader>
+
+            <div v-if="subsLoading" class="py-8 text-center text-sm text-muted-foreground">Đang tải...</div>
+
+            <div v-else class="space-y-2 py-2">
+                <p class="text-xs text-muted-foreground">Tổng {{ subsTotal }} bản ghi</p>
+                <div v-for="s in subsHistory" :key="s.id" class="rounded-xl border border-border/70 p-3 text-sm">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-medium">{{ s.plan }}</span>
+                        <span :class="['rounded-full px-2 py-0.5 text-xs font-medium', statusColor[s.status] || 'bg-slate-100 text-slate-800']">
+                            {{ statusLabel[s.status] ?? s.status }}
+                        </span>
+                    </div>
+                    <p class="mt-1.5 text-xs text-muted-foreground">{{ s.started_at }} → {{ s.ended_at }}</p>
+                    <p class="mt-0.5 font-mono text-xs">{{ s.price }} VND</p>
+                </div>
+                <p v-if="!subsHistory.length" class="py-6 text-center text-sm text-muted-foreground">Không có dữ liệu.</p>
+
+                <!-- Pagination -->
+                <div v-if="subsLastPage > 1" class="flex items-center justify-center gap-2 pt-2">
+                    <button
+                        :disabled="subsPage <= 1"
+                        class="rounded px-3 py-1 text-xs hover:bg-muted disabled:opacity-40"
+                        @click="loadSubsHistory(subsPage - 1)"
+                    >
+                        ← Trước
+                    </button>
+                    <span class="text-xs text-muted-foreground">{{ subsPage }} / {{ subsLastPage }}</span>
+                    <button
+                        :disabled="subsPage >= subsLastPage"
+                        class="rounded px-3 py-1 text-xs hover:bg-muted disabled:opacity-40"
+                        @click="loadSubsHistory(subsPage + 1)"
+                    >
+                        Sau →
+                    </button>
+                </div>
+            </div>
+        </DialogContent>
+    </Dialog>
 </template>
