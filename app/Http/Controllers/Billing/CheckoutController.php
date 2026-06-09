@@ -123,6 +123,78 @@ class CheckoutController extends Controller
         ]);
     }
 
+    public function history(Request $request)
+    {
+        $user = $request->user();
+        $restaurant = $user?->restaurant;
+
+        if (! $restaurant) {
+            return redirect('/dashboard')->with('error', 'Tài khoản này chưa liên kết với nhà hàng nào.');
+        }
+
+        $subscriptions = $restaurant->subscriptions()
+            ->with('plan:id,code,name')
+            ->latest()
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'plan_name' => $s->plan?->name,
+                'plan_code' => $s->plan?->code,
+                'status' => $s->status,
+                'billing_cycle' => $s->billing_cycle,
+                'price' => (float) $s->price,
+                'original_price' => (float) $s->original_price,
+                'coupon_code' => $s->coupon_code,
+                'started_at' => $s->started_at?->format('d/m/Y'),
+                'ended_at' => $s->ended_at?->format('d/m/Y'),
+                'transaction_code' => $s->transaction_code,
+            ]);
+
+        $invoices = $restaurant->invoices()
+            ->latest()
+            ->get()
+            ->map(fn ($i) => [
+                'id' => $i->id,
+                'invoice_number' => $i->invoice_number,
+                'type' => $i->type,
+                'status' => $i->status,
+                'currency' => $i->currency,
+                'subtotal' => (float) $i->subtotal,
+                'discount_amount' => (float) $i->discount_amount,
+                'total' => (float) $i->total,
+                'issued_on' => $i->issued_on?->format('d/m/Y'),
+                'due_on' => $i->due_on?->format('d/m/Y'),
+                'sent_at' => $i->sent_at?->format('d/m/Y H:i'),
+            ]);
+
+        $adjustments = $restaurant->billingAdjustments()
+            ->latest()
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'type' => $a->type,
+                'days' => $a->days,
+                'discount_amount' => (float) $a->discount_amount,
+                'coupon_code' => $a->coupon_code,
+                'reason' => $a->reason,
+                'created_at' => $a->created_at?->format('d/m/Y H:i'),
+            ]);
+
+        return \Inertia\Inertia::render('billing/History', [
+            'restaurant' => [
+                'name' => $restaurant->name,
+                'plan_name' => $restaurant->plan?->name,
+                'plan_code' => $restaurant->plan?->code,
+                'status' => $restaurant->status,
+                'subscription_ends_at' => $restaurant->subscription_ends_at?->format('d/m/Y'),
+                'trial_ends_at' => $restaurant->trial_ends_at?->format('d/m/Y'),
+            ],
+            'subscriptions' => $subscriptions,
+            'invoices' => $invoices,
+            'adjustments' => $adjustments,
+        ]);
+    }
+
     public function checkStatus(Request $request, string $code): \Illuminate\Http\JsonResponse
     {
         $user = $request->user();

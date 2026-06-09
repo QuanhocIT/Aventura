@@ -182,6 +182,7 @@ class BillingService
                 'type' => $type,
                 'days' => $days,
                 'discount_amount' => $discountAmount,
+                'coupon_code' => $data['coupon_code'] ?? null,
                 'reason' => $reason,
                 'meta' => $data,
             ]);
