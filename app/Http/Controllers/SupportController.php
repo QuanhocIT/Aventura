@@ -194,6 +194,7 @@ class SupportController extends Controller
     public function storeCategory(Request $request): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -218,6 +219,7 @@ class SupportController extends Controller
     public function storeProduct(Request $request): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
             'category_id' => ['required', 'exists:product_categories,id'],
@@ -1982,6 +1984,7 @@ class SupportController extends Controller
         ]);
 
         $employee = $leave->employee;
+        $employeeUser = $employee?->user;
 
         if ($employee) {
             if ($leave->leave_type === 'resignation') {
@@ -2033,6 +2036,14 @@ class SupportController extends Controller
             }
         }
 
+        if ($employeeUser) {
+            $employeeUser->notify(new \App\Notifications\LeaveRequestNotification(
+                $leave,
+                'approved',
+                'Đơn xin nghỉ của bạn đã được Quản lý/Chủ nhà hàng phê duyệt.'
+            ));
+        }
+
         return back()->with('success', 'Phê duyệt đơn xin nghỉ thành công.');
     }
 
@@ -2055,6 +2066,15 @@ class SupportController extends Controller
             'approved_by' => $user->id,
             'reason' => $leave->reason . "\n[Từ chối: " . $data['rejection_reason'] . "]",
         ]);
+
+        $employeeUser = $leave->employee?->user;
+        if ($employeeUser) {
+            $employeeUser->notify(new \App\Notifications\LeaveRequestNotification(
+                $leave,
+                'rejected',
+                "Đơn xin nghỉ của bạn bị từ chối: {$data['rejection_reason']}"
+            ));
+        }
 
         return back()->with('success', 'Đã từ chối đơn xin nghỉ.');
     }

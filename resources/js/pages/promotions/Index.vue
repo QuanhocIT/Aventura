@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
-    Tag, Plus, Search, Sparkles, ShieldAlert, Check, X, Percent, 
-    ShieldCheck, AlertTriangle, TrendingUp, BarChart3, Brain, 
+    Tag, Plus, Search, Sparkles, ShieldAlert, Check, X, Percent,
+    ShieldCheck, AlertTriangle, TrendingUp, BarChart3, Brain,
     ShoppingBag, Zap, Network, HelpCircle, Calendar, RefreshCw,
-    UserCheck, Trash2
+    UserCheck, Trash2, Pencil
 } from 'lucide-vue-next';
 import { ref, onMounted } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -68,10 +69,17 @@ type ComboRule = {
     co_occurrence: number;
 };
 
+type ProductOption = {
+    id: number;
+    name: string;
+    price: number;
+};
+
 const props = defineProps<{
     promotions: Promotion[];
     fraudAlerts: FraudAlert[];
     voucherLogs: VoucherLog[];
+    products: ProductOption[];
     auth: {
         user: {
             id: number;
@@ -85,6 +93,8 @@ const props = defineProps<{
 const activeTab = ref<'promotions' | 'combo' | 'fraud'>('promotions');
 const showAddModal = ref(false);
 const showQuickComboModal = ref(false);
+const showEditModal = ref(false);
+const editingPromotion = ref<Promotion | null>(null);
 const isAnalyzing = ref(false);
 const analysisResults = ref<{
     total_orders: number;
@@ -108,14 +118,28 @@ const form = useForm({
     end_date: '',
 });
 
+// Promotion Edit Form
+const editForm = useForm({
+    name: '',
+    code: '',
+    type: 'percent' as 'percent' | 'fixed_amount',
+    value: 0,
+    min_order_amount: 0,
+    max_discount_amount: 0,
+    start_date: '',
+    end_date: '',
+});
+
 // Quick Combo Form
 const comboForm = useForm({
     name: '',
+    item_a_id: null as number | null,
+    item_b_id: null as number | null,
     item_a: '',
     item_b: '',
-    original_price_a: 150000, // Giá trị demo
-    original_price_b: 45000,
-    combo_price: 175000,
+    original_price_a: 0,
+    original_price_b: 0,
+    combo_price: 0,
     discount_percent: 10,
     notes: '',
 });
@@ -138,6 +162,45 @@ const approvePromotion = (p: Promotion) => {
     router.post(`/promotions/${p.id}/approve`, {}, { preserveScroll: true });
 };
 
+// Open Edit Promotion Modal
+const openEditPromotion = (p: Promotion) => {
+    editingPromotion.value = p;
+    editForm.clearErrors();
+    editForm.name = p.name;
+    editForm.code = p.code;
+    editForm.type = p.type;
+    editForm.value = p.value;
+    editForm.min_order_amount = p.min_order_amount;
+    editForm.max_discount_amount = p.max_discount_amount;
+    editForm.start_date = p.start_date ?? '';
+    editForm.end_date = p.end_date ?? '';
+    showEditModal.value = true;
+};
+
+const submitEdit = () => {
+    if (!editingPromotion.value) return;
+
+    editForm.put(`/promotions/${editingPromotion.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditModal.value = false;
+            editingPromotion.value = null;
+            toast.success('Đã cập nhật chương trình khuyến mãi.');
+        },
+    });
+};
+
+const confirmDeletePromotion = (p: Promotion) => {
+    if (!confirm(`Xóa chương trình khuyến mãi "${p.name}"? Hành động này không thể hoàn tác.`)) {
+        return;
+    }
+
+    router.delete(`/promotions/${p.id}`, {
+        preserveScroll: true,
+        onSuccess: () => toast.success('Đã xóa chương trình khuyến mãi.'),
+    });
+};
+
 // Run Market Basket Analysis
 const runBasketAnalysis = async () => {
     isAnalyzing.value = true;
@@ -157,32 +220,53 @@ const runBasketAnalysis = async () => {
 
 // Open Quick Combo Creator Modal
 const openQuickCombo = (rule: ComboRule) => {
+    const productA = props.products.find(p => p.name === rule.item_a);
+    const productB = props.products.find(p => p.name === rule.item_b);
+
+    comboForm.reset();
+    comboForm.clearErrors();
     comboForm.name = `Combo Tiết Kiệm: ${rule.item_a} & ${rule.item_b}`;
     comboForm.item_a = rule.item_a;
     comboForm.item_b = rule.item_b;
-    
-    // Giả định giá ngẫu nhiên hợp lý cho món để làm trực quan hóa WOW
-    const priceA = rule.item_a.includes('Lẩu') ? 350000 : (rule.item_a.includes('Nướng') ? 250000 : 85000);
-    const priceB = rule.item_b.includes('Sấu') || rule.item_b.includes('Trà') || rule.item_b.includes('Nước') ? 35000 : 55000;
-    
+    comboForm.item_a_id = productA?.id ?? null;
+    comboForm.item_b_id = productB?.id ?? null;
+
+    const priceA = productA?.price ?? 0;
+    const priceB = productB?.price ?? 0;
+
     comboForm.original_price_a = priceA;
     comboForm.original_price_b = priceB;
-    
+
     const totalOriginal = priceA + priceB;
     const discount = totalOriginal * 0.12; // Mặc định gợi ý giảm 12%
-    
-    comboForm.combo_price = Math.round((totalOriginal - discount) / 1000) * 1000;
+
+    comboForm.combo_price = Math.max(0, Math.round((totalOriginal - discount) / 1000) * 1000);
     comboForm.discount_percent = 12;
     comboForm.notes = `Combo kết hợp khoa học từ phân tích giỏ hàng AI. Món '${rule.item_a}' thường được gọi kèm với '${rule.item_b}'.`;
-    
+
     showQuickComboModal.value = true;
 };
 
-// Submit Quick Combo
+// Submit Quick Combo — tạo món Combo thật trong thực đơn
 const createQuickCombo = () => {
-    // Demo tạo nhanh combo thành công
-    alert(`Đã tạo thành công Combo "${comboForm.name}" trong thực đơn và giảm giá ${comboForm.discount_percent}% cho khách hàng!`);
-    showQuickComboModal.value = false;
+    if (!comboForm.item_a_id || !comboForm.item_b_id) {
+        alert('Không tìm thấy món ăn tương ứng trong thực đơn để tạo combo. Vui lòng kiểm tra lại tên món.');
+        return;
+    }
+
+    comboForm.transform((data: typeof comboForm.data) => ({
+        name: data.name,
+        item_a_id: data.item_a_id,
+        item_b_id: data.item_b_id,
+        combo_price: data.combo_price,
+        notes: data.notes,
+    })).post('/promotions/combos', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showQuickComboModal.value = false;
+            comboForm.reset();
+        },
+    });
 };
 
 const numberFormat = (val: number) => {
@@ -302,6 +386,7 @@ onMounted(() => {
                                     <th class="p-4">Người tạo</th>
                                     <th class="p-4">Trạng thái</th>
                                     <th class="p-4">Phê duyệt</th>
+                                    <th class="p-4">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -367,6 +452,24 @@ onMounted(() => {
                                             <span v-else class="text-amber-500 font-semibold flex items-center gap-1">
                                                 <AlertTriangle class="size-3.5" /> Chờ duyệt
                                             </span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-1.5">
+                                            <button
+                                                @click="openEditPromotion(p)"
+                                                class="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                                                title="Chỉnh sửa"
+                                            >
+                                                <Pencil class="size-3.5" />
+                                            </button>
+                                            <button
+                                                @click="confirmDeletePromotion(p)"
+                                                class="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                                                title="Xóa"
+                                            >
+                                                <Trash2 class="size-3.5" />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -731,6 +834,98 @@ onMounted(() => {
             </Card>
         </div>
 
+        <!-- MODAL: EDIT PROMOTION -->
+        <div v-if="showEditModal && editingPromotion" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
+                    <div>
+                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
+                            <Pencil class="size-5" />
+                            Chỉnh Sửa Chương Trình Khuyến Mãi
+                        </CardTitle>
+                        <CardDescription>Cập nhật thông tin cho "{{ editingPromotion.name }}".</CardDescription>
+                    </div>
+                    <button @click="showEditModal = false" class="p-1 rounded-lg hover:bg-muted text-slate-400 hover:text-slate-700">
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+
+                <CardContent class="pt-4">
+                    <form @submit.prevent="submitEdit" class="space-y-4">
+                        <div class="grid gap-1.5">
+                            <Label for="edit-promo-name">Tên chương trình khuyến mãi <span class="text-rose-500">*</span></Label>
+                            <Input id="edit-promo-name" v-model="editForm.name" placeholder="Chào hè 2026, Tri ân khách hàng..." required />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="grid gap-1.5">
+                                <Label for="edit-promo-code">Mã Voucher (Code) <span class="text-slate-400 text-[10px]">(Có thể trống)</span></Label>
+                                <Input id="edit-promo-code" v-model="editForm.code" placeholder="GIAM20, HE2026..." />
+                            </div>
+
+                            <div class="grid gap-1.5">
+                                <Label for="edit-promo-type">Loại giảm giá <span class="text-rose-500">*</span></Label>
+                                <select
+                                    id="edit-promo-type"
+                                    v-model="editForm.type"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                >
+                                    <option value="percent">Giảm theo phần trăm (%)</option>
+                                    <option value="fixed_amount">Khấu trừ tiền mặt cố định (đ)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label for="edit-promo-val">Giá trị giảm <span class="text-rose-500">*</span></Label>
+                                <Input id="edit-promo-val" type="number" v-model="editForm.value" min="0" required />
+                            </div>
+                            <div class="grid gap-1.5 col-span-2">
+                                <Label for="edit-promo-min">Đơn tối thiểu cần đạt (đ)</Label>
+                                <Input id="edit-promo-min" type="number" v-model="editForm.min_order_amount" min="0" />
+                            </div>
+                        </div>
+
+                        <div class="grid gap-1.5" v-if="editForm.type === 'percent'">
+                            <Label for="edit-promo-max">Số tiền giảm tối đa (đ) <span class="text-slate-400 text-[10px]">(Để trống nếu không giới hạn)</span></Label>
+                            <Input id="edit-promo-max" type="number" v-model="editForm.max_discount_amount" min="0" />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="grid gap-1.5">
+                                <Label for="edit-promo-start">Ngày bắt đầu</Label>
+                                <Input id="edit-promo-start" type="datetime-local" v-model="editForm.start_date" />
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label for="edit-promo-end">Ngày kết thúc</Label>
+                                <Input id="edit-promo-end" type="datetime-local" v-model="editForm.end_date" />
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 rounded-xl flex items-start gap-2 text-[10px] text-amber-700 dark:text-amber-400">
+                            <ShieldCheck class="size-4 shrink-0 text-amber-600 mt-0.5" />
+                            <p>
+                                <strong>Lưu ý quyền hạn:</strong> Nếu là tài khoản **Quản lý (Manager)**, chương trình sau khi sửa sẽ cần **Chủ nhà hàng (Owner)** duyệt lại để chính thức có hiệu lực.
+                            </p>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2 border-t">
+                            <Button type="button" variant="outline" size="sm" @click="showEditModal = false">Hủy</Button>
+                            <Button
+                                type="submit"
+                                size="sm"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                                :disabled="editForm.processing"
+                            >
+                                {{ editForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+
         <!-- MODAL: QUICK COMBO CREATOR -->
         <div v-if="showQuickComboModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
@@ -753,6 +948,10 @@ onMounted(() => {
                             <Label>Tên gói Combo mới <span class="text-rose-500">*</span></Label>
                             <Input v-model="comboForm.name" required />
                         </div>
+
+                        <p v-if="!comboForm.item_a_id || !comboForm.item_b_id" class="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                            Không tìm thấy món tương ứng trong thực đơn hiện tại — không thể tạo combo.
+                        </p>
 
                         <div class="p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 rounded-xl space-y-2">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cấu trúc combo</p>
@@ -795,12 +994,13 @@ onMounted(() => {
 
                         <div class="flex justify-end gap-2 pt-2 border-t">
                             <Button type="button" variant="outline" size="sm" @click="showQuickComboModal = false">Hủy</Button>
-                            <Button 
-                                type="submit" 
-                                size="sm" 
+                            <Button
+                                type="submit"
+                                size="sm"
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1"
+                                :disabled="comboForm.processing"
                             >
-                                <Check class="size-4" /> Kích hoạt Combo này
+                                <Check class="size-4" /> {{ comboForm.processing ? 'Đang tạo...' : 'Tạo Combo vào thực đơn' }}
                             </Button>
                         </div>
                     </form>

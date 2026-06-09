@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Promotion;
 use App\Models\AuditLog;
 use App\Services\FraudDetectionService;
@@ -10,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -62,11 +65,70 @@ class PromotionController extends Controller
             ->values()
             ->toArray();
 
+        // 3. Danh sách món ăn đang bán (để map giá thật khi tạo Combo nhanh từ gợi ý AI)
+        $products = Product::where('restaurant_id', $restaurantId)
+            ->where('is_active', true)
+            ->get(['id', 'name', 'price'])
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'price' => (float) $p->price,
+            ]);
+
         return Inertia::render('promotions/Index', [
             'promotions' => $promotions,
             'fraudAlerts' => $fraudAlerts,
             'voucherLogs' => $voucherLogs,
+            'products' => $products,
         ]);
+    }
+
+    /**
+     * Tạo nhanh một Combo món ăn (sản phẩm ghép) từ gợi ý phân tích giỏ hàng AI.
+     * Combo được lưu thành một món ăn thật trong nhóm "Combo" của thực đơn.
+     */
+    public function storeCombo(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders'), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'item_a_id' => ['required', 'integer', 'exists:products,id'],
+            'item_b_id' => ['required', 'integer', 'different:item_a_id', 'exists:products,id'],
+            'combo_price' => ['required', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $itemA = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_a_id']);
+        $itemB = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_b_id']);
+
+        $comboCategory = ProductCategory::firstOrCreate(
+            ['restaurant_id' => $restaurantId, 'name' => 'Combo'],
+            [
+                'slug' => 'combo-' . Str::lower(Str::random(4)),
+                'description' => 'Các combo món ăn kết hợp được tạo từ gợi ý phân tích giỏ hàng AI.',
+                'display_order' => ProductCategory::where('restaurant_id', $restaurantId)->count() + 1,
+                'status' => 'active',
+            ]
+        );
+
+        Product::create([
+            'restaurant_id' => $restaurantId,
+            'category_id' => $comboCategory->id,
+            'code' => 'COMBO-' . Str::upper(Str::random(6)),
+            'name' => $data['name'],
+            'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'price' => $data['combo_price'],
+            'description' => $data['notes'] ?? "Combo gồm {$itemA->name} và {$itemB->name}.",
+            'is_active' => true,
+            'is_available' => true,
+            'track_inventory' => false,
+        ]);
+
+        return back()->with('success', "Đã tạo Combo \"{$data['name']}\" và thêm vào thực đơn ở nhóm \"Combo\".");
     }
 
     /**
@@ -121,6 +183,73 @@ class PromotionController extends Controller
         ]);
 
         return back()->with('success', $isOwner ? 'Đã tạo và kích hoạt chương trình khuyến mãi.' : 'Đã tạo chương trình khuyến mãi. Vui lòng chờ Chủ nhà hàng phê duyệt.');
+    }
+
+    /**
+     * Cập nhật chương trình khuyến mãi/voucher đã tạo.
+     * Sửa đổi nội dung sẽ yêu cầu phê duyệt lại nếu người sửa không phải Owner.
+     */
+    public function update(Request $request, Promotion $promotion): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders'), 403);
+        abort_if($promotion->restaurant_id !== $user->restaurant_id, 403);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:50'],
+            'type' => ['required', 'in:percent,fixed_amount'],
+            'value' => ['required', 'numeric', 'min:0'],
+            'min_order_amount' => ['nullable', 'numeric', 'min:0'],
+            'max_discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        if (!empty($data['code'])) {
+            $exists = Promotion::where('restaurant_id', $promotion->restaurant_id)
+                ->where('code', strtoupper($data['code']))
+                ->where('id', '!=', $promotion->id)
+                ->exists();
+
+            if ($exists) {
+                return back()->withErrors(['code' => 'Mã khuyến mãi này đã tồn tại trong nhà hàng của bạn.']);
+            }
+        }
+
+        $isOwner = $user->can('approve_requests');
+
+        $promotion->update([
+            'name' => $data['name'],
+            'code' => ($data['code'] ?? null) ? strtoupper($data['code']) : null,
+            'type' => $data['type'],
+            'value' => $data['value'],
+            'min_order_amount' => $data['min_order_amount'] ?? 0,
+            'max_discount_amount' => $data['max_discount_amount'] ?? 0,
+            'start_date' => $data['start_date'] ?? null,
+            'end_date' => $data['end_date'] ?? null,
+            // Manager sửa nội dung thì cần Owner phê duyệt lại; Owner sửa thì giữ trạng thái đã duyệt.
+            'is_approved' => $isOwner ? true : false,
+            'approved_by' => $isOwner ? $user->id : null,
+        ]);
+
+        return back()->with('success', $isOwner
+            ? 'Đã cập nhật chương trình khuyến mãi.'
+            : 'Đã cập nhật chương trình khuyến mãi. Vui lòng chờ Chủ nhà hàng phê duyệt lại.');
+    }
+
+    /**
+     * Xóa chương trình khuyến mãi/voucher.
+     */
+    public function destroy(Request $request, Promotion $promotion): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders'), 403);
+        abort_if($promotion->restaurant_id !== $user->restaurant_id, 403);
+
+        $promotion->delete();
+
+        return back()->with('success', 'Đã xóa chương trình khuyến mãi.');
     }
 
     /**

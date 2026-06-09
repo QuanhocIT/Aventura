@@ -216,7 +216,7 @@ class AuditLogController extends Controller
         $branchId = $user->branch_id;
 
         // Ensure Table exists
-        $table = \App\Models\Table::where('restaurant_id', $restaurantId)->first();
+        $table = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)->first();
         if (!$table) {
             $area = \App\Models\Area::where('restaurant_id', $restaurantId)->first();
             if (!$area) {
@@ -225,7 +225,7 @@ class AuditLogController extends Controller
                     'name' => 'Khu vực chính',
                 ]);
             }
-            $table = \App\Models\Table::create([
+            $table = \App\Models\RestaurantTable::create([
                 'restaurant_id' => $restaurantId,
                 'area_id' => $area->id,
                 'number' => 1,
