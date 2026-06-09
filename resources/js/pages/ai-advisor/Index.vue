@@ -36,9 +36,16 @@ const strategicSuggestions = [
     { text: 'Dự báo doanh thu ngày mai thế nào?', category: 'forecast', icon: Sparkles }
 ];
 
-onMounted(() => {
+onMounted(async () => {
     sessionId.value = getOrCreateSessionId();
-    // Welcome message
+
+    const restored = await loadHistory(sessionId.value);
+    if (restored) {
+        scrollToBottom();
+        return;
+    }
+
+    // Welcome message (chỉ hiển thị khi chưa có lịch sử hội thoại)
     messages.value.push({
         id: 'welcome',
         role: 'bot',
@@ -46,6 +53,29 @@ onMounted(() => {
         timestamp: new Date().toISOString()
     });
 });
+
+async function loadHistory(session: string): Promise<boolean> {
+    try {
+        const res = await fetch(`${route('chatbot.advisor-history')}?session_id=${encodeURIComponent(session)}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!res.ok) return false;
+
+        const data = await res.json();
+        const history = (data.messages ?? []) as Array<{ role: 'user' | 'bot'; content: string; timestamp: string }>;
+        if (history.length === 0) return false;
+
+        messages.value = history.map((m) => ({
+            id: crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            timestamp: m.timestamp,
+        }));
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 function getOrCreateSessionId(): string {
     const key = 'aventura_advisor_session';

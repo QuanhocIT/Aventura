@@ -100,6 +100,24 @@ class ChatbotController extends Controller
         return \Inertia\Inertia::render('ai-advisor/Index');
     }
 
+    public function advisorHistory(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $request->validate([
+            'session_id' => ['required', 'string', 'max:64'],
+        ]);
+
+        $session = ChatbotSession::query()
+            ->where('session_id', $request->string('session_id'))
+            ->where('source', 'advisor')
+            ->first();
+
+        return response()->json([
+            'messages' => $session?->messages ?? [],
+        ]);
+    }
+
     public function advisorMessage(Request $request): JsonResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
