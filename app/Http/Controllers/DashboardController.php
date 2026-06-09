@@ -31,6 +31,7 @@ class DashboardController extends Controller
             $completedHistory = [];
             $weeklySchedules = [];
             $activeShifts = [];
+            $colleagues = [];
 
             if ($restaurant) {
                 // Ensure default 20 tables exist (A1-A10, B1-B10)
@@ -142,6 +143,18 @@ class DashboardController extends Controller
                             ->where('status', 'paid')
                             ->where('paid_at', '>=', $assignment->check_in_at)
                             ->sum('amount');
+
+                        $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
+                            ->where('cashier_user_id', $user->id)
+                            ->where('status', 'completed')
+                            ->where('completed_at', '>=', $assignment->check_in_at);
+
+                        $shiftInfo['total_orders'] = $shiftOrdersQuery->count();
+                        $shiftInfo['channel_breakdown'] = (clone $shiftOrdersQuery)
+                            ->get(['channel', 'total_amount'])
+                            ->groupBy('channel')
+                            ->map(fn ($g) => ['count' => $g->count(), 'revenue' => (float) $g->sum('total_amount')])
+                            ->toArray();
                     }
 
                     // Load weekly schedules
@@ -180,6 +193,27 @@ class DashboardController extends Controller
                         ]),
                     ])->all();
 
+                // Delivery & takeaway orders (external/third-party channels)
+                $externalOrders = Order::where('restaurant_id', $restaurant->id)
+                    ->whereIn('channel', ['delivery', 'takeaway'])
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->with(['table', 'items.product'])
+                    ->latest()
+                    ->get()
+                    ->map(fn ($o) => [
+                        'id'           => $o->id,
+                        'order_number' => $o->order_number,
+                        'channel'      => $o->channel,
+                        'status'       => $o->status,
+                        'table_name'   => $o->table?->name ?? ($o->channel === 'delivery' ? 'Giao hàng' : 'Mang về'),
+                        'total_amount' => (float) $o->total_amount,
+                        'created_at'   => $o->created_at->format('H:i'),
+                        'items'        => $o->items->map(fn ($item) => [
+                            'product_name' => $item->product?->name,
+                            'quantity'     => (float) $item->quantity,
+                        ]),
+                    ])->all();
+
                 // Load cashier completed history
                 $completedHistory = Order::where('restaurant_id', $restaurant->id)
                     ->where('cashier_user_id', $user->id)
@@ -191,6 +225,7 @@ class DashboardController extends Controller
                     ->map(fn ($o) => [
                         'id' => $o->id,
                         'order_number' => $o->order_number,
+                        'channel' => $o->channel,
                         'table_name' => $o->table?->name ?? 'Mang về',
                         'total_amount' => (float) $o->total_amount,
                         'completed_at' => $o->completed_at ? $o->completed_at->format('H:i d/m') : null,
@@ -204,6 +239,35 @@ class DashboardController extends Controller
                         'id' => $s->id,
                         'name' => $s->name,
                     ])->all();
+
+                // Pending/recent leave requests for this employee
+                $pendingLeaves = [];
+                if ($employee) {
+                    $pendingLeaves = \App\Models\LeaveRequest::where('employee_id', $employee->id)
+                        ->latest()
+                        ->take(5)
+                        ->get()
+                        ->map(fn ($lr) => [
+                            'id'         => $lr->id,
+                            'leave_type' => $lr->leave_type,
+                            'start_date' => $lr->start_date ? \Carbon\Carbon::parse($lr->start_date)->format('d/m/Y') : null,
+                            'end_date'   => $lr->end_date ? \Carbon\Carbon::parse($lr->end_date)->format('d/m/Y') : null,
+                            'status'     => $lr->status,
+                            'reason'     => $lr->reason,
+                        ])->all();
+                }
+
+                // Đồng nghiệp cùng nhà hàng (để chọn đối tượng khi gửi khiếu nại ẩn danh)
+                $colleagues = \App\Models\Employee::where('restaurant_id', $restaurant->id)
+                    ->where('status', 'active')
+                    ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
+                    ->orderBy('full_name')
+                    ->get(['id', 'full_name', 'job_title'])
+                    ->map(fn ($e) => [
+                        'id' => $e->id,
+                        'full_name' => $e->full_name,
+                        'job_title' => $e->job_title,
+                    ])->all();
             }
 
             return Inertia::render('cashier/Dashboard', [
@@ -212,9 +276,12 @@ class DashboardController extends Controller
                 'categories' => $categories,
                 'shiftInfo' => $shiftInfo,
                 'qrOrders' => $qrOrders,
+                'externalOrders' => $externalOrders,
                 'completedHistory' => $completedHistory,
                 'weeklySchedules' => $weeklySchedules,
                 'activeShifts' => $activeShifts,
+                'pendingLeaves' => $pendingLeaves,
+                'colleagues' => $colleagues,
                 'employee' => $employee ? [
                     'id' => $employee->id,
                     'full_name' => $employee->full_name,
