@@ -199,28 +199,44 @@ class OrderService
             }
 
             // 3. Tính toán lại subtotal & total_amount cho cả 2 đơn
-            $origSub = $order->items()->sum('line_total');
+            // Phân bổ discount theo tỷ lệ để tránh "Âm tiền"
+            $origSub = (float) $order->items()->sum('line_total');
+            $newSub  = (float) $newOrder->items()->sum('line_total');
+            $totalSub = $origSub + $newSub; // = subtotal ban đầu trước khi tách
+
+            $discountTotal = (float) $order->discount_amount;
+            if ($discountTotal > 0 && $totalSub > 0) {
+                $origDiscountShare = round($discountTotal * ($origSub / $totalSub), 2);
+                $newDiscountShare  = round($discountTotal - $origDiscountShare, 2);
+            } else {
+                $origDiscountShare = 0.0;
+                $newDiscountShare  = 0.0;
+            }
+
             $order->update([
-                'subtotal' => $origSub,
-                'total_amount' => max(0.0, $origSub - $order->discount_amount),
+                'subtotal'        => $origSub,
+                'discount_amount' => $origDiscountShare,
+                'total_amount'    => max(0.0, $origSub - $origDiscountShare),
             ]);
 
-            $newSub = $newOrder->items()->sum('line_total');
             $newOrder->update([
-                'subtotal' => $newSub,
-                'total_amount' => $newSub,
+                'subtotal'        => $newSub,
+                'discount_amount' => $newDiscountShare,
+                'total_amount'    => max(0.0, $newSub - $newDiscountShare),
             ]);
 
             // Ghi Audit Log cho cả 2 đơn
             AuditLog::log('order_split', 'created', $newOrder, null, [
-                'total_amount' => (float) $newOrder->total_amount,
-                'split_from_order_id' => $order->id
+                'total_amount'         => (float) $newOrder->total_amount,
+                'split_from_order_id'  => $order->id,
+                'discount_distributed' => $newDiscountShare,
             ]);
 
             AuditLog::log('order_updated', 'updated', $order, [
                 'total_amount' => $oldAmount
             ], [
-                'total_amount' => (float) $order->total_amount
+                'total_amount'         => (float) $order->total_amount,
+                'discount_distributed' => $origDiscountShare,
             ]);
 
             return $newOrder;

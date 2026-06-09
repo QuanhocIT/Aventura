@@ -18,6 +18,7 @@ Route::middleware('throttle:30,1')->group(function () {
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
+    Route::get('billing/history', [CheckoutController::class, 'history'])->name('billing.history');
     Route::get('billing/pay/{code}', [CheckoutController::class, 'payPage'])->name('billing.pay');
     Route::get('api/billing/check/{code}', [CheckoutController::class, 'checkStatus']);
     Route::post('api/billing/apply-coupon', [CheckoutController::class, 'applyCoupon'])->name('billing.apply-coupon');
@@ -33,6 +34,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware('guest')->group(function () {
     Route::get('auth/google', [GoogleController::class, 'redirectToGoogle'])->name('auth.google');
     Route::get('auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+
+    Route::post('two-factor-challenge/send-email-code', [\App\Http\Controllers\Auth\TwoFactorEmailCodeController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('two-factor.email-code.send');
+});
+
+Route::middleware(['auth'])->group(function () {
+    Route::post('email/verify-code', [\App\Http\Controllers\Auth\VerifyEmailCodeController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('verification.verify-code');
 });
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -126,8 +137,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Thiết lập Khuyến mãi & Chiến lược cấu hình Combo thông minh
     Route::get('promotions', [PromotionController::class, 'index'])->name('promotions.index');
     Route::post('promotions', [PromotionController::class, 'store'])->name('promotions.store');
+    Route::put('promotions/{promotion}', [PromotionController::class, 'update'])->name('promotions.update');
+    Route::delete('promotions/{promotion}', [PromotionController::class, 'destroy'])->name('promotions.destroy');
     Route::patch('promotions/{promotion}/toggle', [PromotionController::class, 'toggleActive'])->name('promotions.toggle');
     Route::post('promotions/{promotion}/approve', [PromotionController::class, 'approve'])->name('promotions.approve');
+    Route::post('promotions/combos', [PromotionController::class, 'storeCombo'])->name('promotions.combos.store');
     Route::post('api/promotions/apply', [PromotionController::class, 'apply'])->name('promotions.apply');
     Route::get('api/promotions/basket-analysis', [PromotionController::class, 'getBasketAnalysis'])->name('promotions.basket-analysis');
     Route::post('api/promotions/upsell-suggestion', [PromotionController::class, 'getUpsellSuggestion'])->name('promotions.upsell-suggestion');
@@ -250,6 +264,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Trợ lý AI Chiến lược (AI Advisor)
     Route::get('ai-advisor', [\App\Http\Controllers\ChatbotController::class, 'advisorIndex'])->name('ai-advisor.index');
     Route::post('api/chatbot/advisor-message', [\App\Http\Controllers\ChatbotController::class, 'advisorMessage'])->name('chatbot.advisor-message');
+    Route::get('api/chatbot/advisor-history', [\App\Http\Controllers\ChatbotController::class, 'advisorHistory'])->name('chatbot.advisor-history');
 });
 
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)

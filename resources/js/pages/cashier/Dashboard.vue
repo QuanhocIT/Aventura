@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { Head, usePage, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Utensils,
     Users,
     Clock,
     Search,
-    Layers,
     Coffee,
     Sparkles,
-    CheckCircle2,
     Calendar,
     User,
     ShoppingCart,
     Lock,
-    Unlock,
     Plus,
     Minus,
     Trash2,
@@ -22,17 +20,14 @@ import {
     X,
     FileText,
     AlertTriangle,
-    ShieldAlert,
-    ChevronRight,
-    TrendingUp,
-    Send
+    CheckCircle2 as CheckIcon,
+    XCircle,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
-import axios from 'axios';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 
 interface OrderItem {
@@ -50,7 +45,7 @@ interface TableItem {
     name: string;
     area: string;
     capacity: number;
-    status: 'available' | 'occupied' | 'reserved' | 'cleaning';
+    status: 'available' | 'occupied' | 'reserved' | 'cleaning' | 'inactive';
     active_order?: {
         id: number;
         order_number: string;
@@ -88,11 +83,16 @@ const props = defineProps<{
             check_in_at: string;
         } | null;
         shift_revenue: number;
+        total_orders?: number;
+        channel_breakdown?: Record<string, { count: number; revenue: number }>;
     };
     qrOrders: any[];
+    externalOrders: any[];
     completedHistory: any[];
     weeklySchedules: any[];
     activeShifts: any[];
+    pendingLeaves: any[];
+    colleagues: Array<{ id: number; full_name: string; job_title: string | null }>;
     employee: {
         id: number;
         full_name: string;
@@ -100,18 +100,50 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-const user = computed(() => (page.props.auth as any)?.user ?? null);
 
 const can = (permission: string) => {
     const authUser = page.props.auth?.user as any;
     const userPermissions = authUser?.permissions ?? [];
+
     return userPermissions.includes(permission);
+};
+
+const restaurantId = computed(() => (page.props.auth?.user as any)?.restaurant_id as number | undefined);
+
+// Toast Notifications
+type ToastType = 'success' | 'error';
+const toasts = ref<Array<{ id: number; message: string; type: ToastType }>>([]);
+let _toastId = 0;
+const toast = (message: string, type: ToastType = 'success') => {
+    const id = ++_toastId;
+    toasts.value.push({ id, message, type });
+    setTimeout(() => {
+ toasts.value = toasts.value.filter(t => t.id !== id); 
+}, 3500);
 };
 
 // State Management
 const activeTab = ref<'tables' | 'qr' | 'history' | 'schedules'>('tables');
 const searchQuery = ref('');
 const selectedArea = ref('all');
+
+// Typed tab config (fixes TS2322 on inline array)
+const mainTabs = [
+    { id: 'tables' as const, label: 'Sơ đồ bàn phục vụ', icon: Utensils },
+    { id: 'qr' as const, label: 'Đơn Ngoài & QR', icon: Sparkles },
+    { id: 'history' as const, label: 'Lịch sử & Bếp', icon: Clock },
+];
+const paymentMethods = [
+    { id: 'cash' as const, label: 'Tiền mặt' },
+    { id: 'bank_transfer' as const, label: 'Chuyển khoản' },
+    { id: 'card' as const, label: 'Thẻ ATM/Visa' },
+    { id: 'ewallet' as const, label: 'Ví điện tử' },
+];
+const selfServiceTabs = [
+    { id: 'schedule' as const, label: 'Đăng ký lịch' },
+    { id: 'leave' as const, label: 'Xin nghỉ phép' },
+    { id: 'complaint' as const, label: 'Khiếu nại ẩn danh' },
+];
 
 // Cart State
 const isCartOpen = ref(false);
@@ -120,6 +152,7 @@ const cartItems = ref<OrderItem[]>([]);
 const cartNote = ref('');
 const voucherCode = ref('');
 const cartBounce = ref(false);
+const selectedCategoryId = ref<number | null>(null);
 const drawerStep = ref<'select' | 'confirm'>('select');
 const isNotified = ref(false);
 const isSubmitting = ref(false);
@@ -128,19 +161,45 @@ const isPaying = ref(false);
 // AI Suggestions State
 const showAiSuggestionModal = ref(false);
 const aiSuggestion = ref('');
+const aiUpsellItem = ref<string>('');
+const confirmingOrderId = ref<number | null>(null);
 
 // Split Order State
 const showSplitModal = ref(false);
 const splitItems = ref<OrderItem[]>([]);
 const splitTableId = ref<number | null>(null);
 
+const splitProjection = computed(() => {
+    const order = activeTable.value?.active_order;
+    if (!order) return null;
+    const orderSub   = order.subtotal as number;
+    const discount   = (order.discount_amount as number) ?? 0;
+    const splitSub   = splitItems.value.filter(i => i.quantity > 0).reduce((s, i) => s + i.price * i.quantity, 0);
+    const origSub    = orderSub - splitSub;
+    const splitDisc  = discount > 0 && orderSub > 0 ? Math.round(discount * (splitSub / orderSub) * 100) / 100 : 0;
+    const origDisc   = discount - splitDisc;
+    return {
+        splitSubtotal:  splitSub,
+        splitDiscount:  splitDisc,
+        splitTotal:     Math.max(0, splitSub - splitDisc),
+        origSubtotal:   origSub,
+        origDiscount:   origDisc,
+        origTotal:      Math.max(0, origSub - origDisc),
+        hasItems:       splitItems.value.some(i => i.quantity > 0),
+    };
+});
+
 // Payment State
 const showPaymentModal = ref(false);
 const paymentMethod = ref<'cash' | 'bank_transfer' | 'card' | 'ewallet'>('cash');
 const cashReceived = ref<number | undefined>(undefined);
 const changeAmount = computed(() => {
-    if (!activeTable.value?.active_order || paymentMethod.value !== 'cash' || !cashReceived.value) return 0;
+    if (!activeTable.value?.active_order || paymentMethod.value !== 'cash' || !cashReceived.value) {
+return 0;
+}
+
     const total = activeTable.value.active_order.total_amount;
+
     return Math.max(0, cashReceived.value - total);
 });
 
@@ -163,12 +222,6 @@ const complaintTargetId = ref<number | null>(null);
 const complaintType = ref('');
 const complaintDescription = ref('');
 
-// Simulated 3rd Party Orders
-const simulated3rdPartyOrders = ref([
-    { id: 1, source: 'GrabFood', order_number: 'GF-8871', items: [{ name: 'Phở Bò Đặc Biệt', qty: 2 }, { name: 'Trà Chanh Sả Mật Ong', qty: 2 }], total: 180000, time: '3 phút trước' },
-    { id: 2, source: 'ShopeeFood', order_number: 'SF-4903', items: [{ name: 'Cơm Sườn Nướng Lu', qty: 1 }], total: 55000, time: '8 phút trước' }
-]);
-
 // Live Clock
 const currentTime = ref('');
 const currentDate = ref('');
@@ -183,28 +236,82 @@ const updateTime = () => {
 onMounted(() => {
     updateTime();
     timerId = setInterval(updateTime, 1000);
+
+    if (restaurantId.value) {
+        window.Echo.channel(`restaurant.${restaurantId.value}`)
+            .listen('.temporary_order.created', (data: any) => {
+                toast(`Bàn ${data.table_name ?? '?'}: Khách vừa gọi đơn QR (${data.items?.length ?? 1} món)!`);
+                router.reload({ only: ['qrOrders', 'tablesData'] });
+            })
+            .listen('.staff.called', (data: any) => {
+                toast(`Bàn ${data.table_name ?? '?'}: ${data.message ?? 'Khách cần hỗ trợ!'}`, 'error');
+            })
+            .listen('.payment.requested', (data: any) => {
+                toast(`Bàn ${data.table_name ?? '?'}: Khách yêu cầu thanh toán!`);
+            })
+            .listen('.temporary_order.escalated', (data: any) => {
+                toast(`Bàn ${data.table_name ?? '?'}: Đơn QR chờ quá lâu — cần xử lý ngay!`, 'error');
+                router.reload({ only: ['qrOrders'] });
+            });
+
+        window.Echo.channel(`kitchen.${restaurantId.value}`)
+            .listen('.kitchen.updated', () => {
+                router.reload({ only: ['tablesData'] });
+            });
+    }
 });
 
 onUnmounted(() => {
     if (timerId) clearInterval(timerId);
+    if (restaurantId.value) {
+        window.Echo.leaveChannel(`restaurant.${restaurantId.value}`);
+        window.Echo.leaveChannel(`kitchen.${restaurantId.value}`);
+    }
 });
 
 // Filters
+const tableStats = computed(() => {
+    const all = props.tablesData ?? [];
+
+    return [
+        { label: 'bàn trống', count: all.filter(t => t.status === 'available').length, colorClass: 'text-emerald-700 border-emerald-200', dotClass: 'bg-emerald-500' },
+        { label: 'có khách', count: all.filter(t => t.status === 'occupied').length, colorClass: 'text-indigo-700 border-indigo-200', dotClass: 'bg-indigo-500' },
+        { label: 'đã đặt', count: all.filter(t => t.status === 'reserved').length, colorClass: 'text-violet-700 border-violet-200', dotClass: 'bg-violet-500' },
+        { label: 'đang dọn', count: all.filter(t => t.status === 'cleaning').length, colorClass: 'text-amber-700 border-amber-200', dotClass: 'bg-amber-500' },
+    ].filter(s => s.count > 0);
+});
+
+const filteredMenuProducts = computed(() => {
+    if (!selectedCategoryId.value) {
+        return props.products;
+    }
+
+    return props.products.filter(p => p.category_id === selectedCategoryId.value);
+});
+
 const uniqueAreas = computed(() => {
     const areas = new Set<string>();
-    props.tablesData?.forEach(t => { if (t.area) areas.add(t.area); });
+    props.tablesData?.forEach(t => {
+ if (t.area) {
+areas.add(t.area);
+} 
+});
+
     return Array.from(areas);
 });
 
 const filteredTables = computed(() => {
     let list = props.tablesData ?? [];
+
     if (selectedArea.value !== 'all') {
         list = list.filter(t => t.area === selectedArea.value);
     }
+
     if (searchQuery.value.trim()) {
         const query = searchQuery.value.toLowerCase();
         list = list.filter(t => t.name.toLowerCase().includes(query));
     }
+
     return [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 });
 
@@ -213,6 +320,7 @@ const openTableOrder = (table: TableItem) => {
     activeTable.value = table;
     cartNote.value = table.active_order?.note ?? '';
     voucherCode.value = '';
+    selectedCategoryId.value = null;
 
     if (table.active_order) {
         // Edit existing order
@@ -225,18 +333,22 @@ const openTableOrder = (table: TableItem) => {
         drawerStep.value = 'select';
         isNotified.value = false;
     }
+
     isCartOpen.value = true;
 };
 
 const triggerCartBounce = () => {
     cartBounce.value = true;
-    setTimeout(() => { cartBounce.value = false; }, 300);
+    setTimeout(() => {
+ cartBounce.value = false; 
+}, 300);
 };
 
 const addToCart = (product: ProductItem) => {
     isNotified.value = false;
     triggerCartBounce();
     const existing = cartItems.value.find(item => item.product_id === product.id && !item.id);
+
     if (existing) {
         existing.quantity += 1;
     } else {
@@ -252,11 +364,13 @@ const addToCart = (product: ProductItem) => {
 
 const getCartItemQty = (productId: number) => {
     const items = cartItems.value.filter(item => item.product_id === productId && !item.id);
+
     return items.reduce((sum, item) => sum + item.quantity, 0);
 };
 
 const handleProductCardClick = (product: ProductItem) => {
     const qty = getCartItemQty(product.id);
+
     if (qty === 0) {
         addToCart(product);
     } else {
@@ -267,10 +381,12 @@ const handleProductCardClick = (product: ProductItem) => {
 const increaseProductQty = (productId: number) => {
     isNotified.value = false;
     const item = cartItems.value.find(item => item.product_id === productId && !item.id);
+
     if (item) {
         item.quantity += 1;
     } else {
         const product = props.products.find(p => p.id === productId);
+
         if (product) {
             addToCart(product);
         }
@@ -280,8 +396,10 @@ const increaseProductQty = (productId: number) => {
 const decreaseProductQty = (productId: number) => {
     isNotified.value = false;
     const itemIndex = cartItems.value.findIndex(i => i.product_id === productId && !i.id);
+
     if (itemIndex !== -1) {
         const item = cartItems.value[itemIndex];
+
         if (item.quantity > 1) {
             item.quantity -= 1;
         } else {
@@ -293,14 +411,18 @@ const decreaseProductQty = (productId: number) => {
 const increaseQty = (item: OrderItem) => {
     isNotified.value = false;
     item.quantity += 1;
+    triggerCartBounce();
 };
 
 const decreaseQty = (item: OrderItem) => {
-    if (activeTable.value?.active_order && activeTable.value.active_order.status !== 'pending' && item.id) {
-        // Locked
+    if (item.id) {
+        toast('Không thể giảm số lượng món đã gửi bếp.', 'error');
+
         return;
     }
+
     isNotified.value = false;
+
     if (item.quantity > 1) {
         item.quantity -= 1;
     } else {
@@ -309,10 +431,12 @@ const decreaseQty = (item: OrderItem) => {
 };
 
 const removeItem = (item: OrderItem) => {
-    if (activeTable.value?.active_order && activeTable.value.active_order.status !== 'pending' && item.id) {
-        // Locked
+    if (item.id) {
+        toast('Không thể xóa món đã gửi bếp.', 'error');
+
         return;
     }
+
     isNotified.value = false;
     cartItems.value = cartItems.value.filter(i => i !== item);
 };
@@ -321,25 +445,27 @@ const totalCartAmount = computed(() => {
     return cartItems.value.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 });
 
+const totalCartQty = computed(() => cartItems.value.reduce((s, i) => s + i.quantity, 0));
+
 // Send Kitchen / Notify
 const submitOrder = () => {
-    if (isSubmitting.value) return;
+    if (isSubmitting.value) {
+return;
+}
+
     isSubmitting.value = true;
-    console.log('✅ submitOrder clicked');
-    console.log('activeTable:', activeTable.value);
-    console.log('cartItems:', cartItems.value);
-    console.log('drawerStep:', drawerStep.value);
-    console.log('isNotified:', isNotified.value);
 
     if (!activeTable.value) {
-        alert('❌ Vui lòng chọn một bàn!');
+        toast('Vui lòng chọn một bàn!', 'error');
         isSubmitting.value = false;
+
         return;
     }
 
     if (cartItems.value.length === 0) {
-        alert('❌ Vui lòng thêm ít nhất một món ăn!');
+        toast('Vui lòng thêm ít nhất một món ăn!', 'error');
         isSubmitting.value = false;
+
         return;
     }
 
@@ -354,59 +480,47 @@ const submitOrder = () => {
         }))
     };
 
-    console.log('📤 Request data:', JSON.stringify(requestData, null, 2));
-
     if (activeTable.value.active_order) {
-        // Update existing order
-        console.log('📨 Updating order ID:', activeTable.value.active_order.id);
         router.patch(`/orders/${activeTable.value.active_order.id}`, requestData, {
             preserveState: true,
-            onSuccess: (page: any) => {
-                console.log('✅ Order updated successfully', page);
+            onSuccess: () => {
                 isNotified.value = true;
                 setTimeout(() => {
                     const updated = props.tablesData.find(t => t.id === activeTable.value!.id);
+
                     if (updated) {
                         activeTable.value = updated;
                         cartItems.value = updated.active_order?.items.map(item => ({ ...item })) ?? [];
                     }
                 }, 200);
-                alert('✅ Đã gửi thông báo bổ sung món xuống nhà bếp thành công!');
+                toast('Đã gửi bổ sung món xuống nhà bếp thành công!');
             },
             onError: (errors: any) => {
-                console.error('❌ Order update error:', errors);
-                const errorMessage = Object.values(errors).flat().join('\n') || 'Có lỗi xảy ra khi cập nhật đơn hàng!';
-                alert('❌ Lỗi cập nhật đơn:\n' + errorMessage);
+                const errorMessage = (Object.values(errors).flat() as string[]).join(', ') || 'Có lỗi xảy ra khi cập nhật đơn hàng!';
+                toast('Lỗi cập nhật đơn: ' + errorMessage, 'error');
             },
             onFinish: () => {
                 isSubmitting.value = false;
             }
         });
     } else {
-        // Create new order
-        const createData = {
-            table_id: activeTable.value.id,
-            ...requestData
-        };
-        console.log('📨 Creating new order:', JSON.stringify(createData, null, 2));
-        router.post('/orders', createData, {
+        router.post('/orders', { table_id: activeTable.value.id, ...requestData }, {
             preserveState: true,
-            onSuccess: (page: any) => {
-                console.log('✅ Order created successfully', page);
+            onSuccess: () => {
                 isNotified.value = true;
                 setTimeout(() => {
                     const updated = props.tablesData.find(t => t.id === activeTable.value!.id);
+
                     if (updated) {
                         activeTable.value = updated;
                         cartItems.value = updated.active_order?.items.map(item => ({ ...item })) ?? [];
                     }
                 }, 200);
-                alert('✅ Đã tạo đơn mới thành công!');
+                toast('Đã tạo đơn mới thành công!');
             },
             onError: (errors: any) => {
-                console.error('❌ Order creation error:', errors);
-                const errorMessage = Object.values(errors).flat().join('\n') || 'Có lỗi xảy ra khi tạo đơn hàng!';
-                alert('❌ Lỗi tạo đơn:\n' + errorMessage);
+                const errorMessage = (Object.values(errors).flat() as string[]).join(', ') || 'Có lỗi xảy ra khi tạo đơn hàng!';
+                toast('Lỗi tạo đơn: ' + errorMessage, 'error');
             },
             onFinish: () => {
                 isSubmitting.value = false;
@@ -417,71 +531,78 @@ const submitOrder = () => {
 
 // Send Order to Kitchen (Locks status from pending to confirmed)
 const sendToKitchen = () => {
-    if (!activeTable.value?.active_order) return;
+    if (!activeTable.value?.active_order) {
+return;
+}
+
     router.patch(`/orders/${activeTable.value.active_order.id}/status`, {
         status: 'confirmed'
     }, {
         onSuccess: () => {
             isCartOpen.value = false;
-            alert('Đơn hàng đã được chính thức đẩy xuống bếp và KHÓA để chống gian lận!');
+            toast('Đơn hàng đã đẩy xuống bếp và khóa thành công!');
         }
+    });
+};
+
+// External (delivery/takeaway) order status management
+const updatingExternalId = ref<number | null>(null);
+const updateExternalOrderStatus = (orderId: number, status: string) => {
+    updatingExternalId.value = orderId;
+    router.patch(`/orders/${orderId}/status`, { status }, {
+        preserveState: true,
+        onSuccess: () => {
+            const label = status === 'confirmed' ? 'Đã nhận đơn!' : status === 'preparing' ? 'Đang chuẩn bị...' : 'Đơn hoàn tất!';
+            toast(label);
+            router.reload({ only: ['externalOrders', 'tablesData', 'completedHistory', 'shiftInfo'] });
+        },
+        onError: () => toast('Không thể cập nhật trạng thái.', 'error'),
+        onFinish: () => { updatingExternalId.value = null; },
     });
 };
 
 // Confirm QR Code Order
 const confirmQrOrder = (orderId: number) => {
+    confirmingOrderId.value = orderId;
     axios.post(`/orders/${orderId}/confirm-qr`).then(res => {
         if (res.data.success) {
-            aiSuggestion.value = res.data.upsell.suggestion || 'Hãy gợi ý khách chọn thêm đồ uống giải nhiệt!';
+            aiSuggestion.value = res.data.upsell?.suggestion || 'Hãy gợi ý khách chọn thêm đồ uống giải nhiệt!';
+            aiUpsellItem.value = res.data.upsell?.recommended_item || '';
             showAiSuggestionModal.value = true;
             router.reload({ only: ['qrOrders', 'tablesData'] });
         }
     }).catch(err => {
-        alert(err.response?.data?.message || 'Có lỗi xảy ra khi xác thực đơn QR.');
-    });
-};
-
-// 3rd Party Order Acceptance
-const accept3rdPartyOrder = (simulatedOrder: any) => {
-    const items = simulatedOrder.items.map((si: any) => {
-        const prod = props.products.find(p => p.name === si.name);
-        return {
-            product_id: prod ? prod.id : props.products[0].id,
-            quantity: si.qty,
-            notes: `Đơn hàng từ ${simulatedOrder.source}`
-        };
-    });
-
-    router.post('/orders', {
-        table_id: null,
-        note: `Tiếp nhận từ ${simulatedOrder.source} (${simulatedOrder.order_number})`,
-        items: items
-    }, {
-        onSuccess: () => {
-            simulated3rdPartyOrders.value = simulated3rdPartyOrders.value.filter(o => o.id !== simulatedOrder.id);
-            alert(`Đã tiếp nhận thành công đơn hàng từ ${simulatedOrder.source}!`);
-        }
+        toast(err.response?.data?.message || 'Có lỗi xảy ra khi xác thực đơn QR.', 'error');
+    }).finally(() => {
+        confirmingOrderId.value = null;
     });
 };
 
 // Apply Voucher Code
 const applyVoucher = () => {
-    if (!activeTable.value?.active_order || !voucherCode.value) return;
+    if (!activeTable.value?.active_order || !voucherCode.value) {
+return;
+}
+
     axios.post('/api/promotions/apply', {
         order_id: activeTable.value.active_order.id,
         code: voucherCode.value
     }).then(res => {
-        alert(res.data.message);
+        toast(res.data.message);
         router.reload({ only: ['tablesData'] });
+
         // Refresh local active order to show updated total
         if (activeTable.value) {
             setTimeout(() => {
                 const updated = props.tablesData.find(t => t.id === activeTable.value!.id);
-                if (updated) openTableOrder(updated);
+
+                if (updated) {
+openTableOrder(updated);
+}
             }, 300);
         }
     }).catch(err => {
-        alert(err.response?.data?.message || 'Mã giảm giá không hợp lệ.');
+        toast(err.response?.data?.message || 'Mã giảm giá không hợp lệ.', 'error');
     });
 };
 
@@ -492,19 +613,22 @@ const openPayment = () => {
 };
 
 const processPayment = () => {
-    if (!activeTable.value?.active_order || isPaying.value) return;
+    if (!activeTable.value?.active_order || isPaying.value) {
+return;
+}
+
     isPaying.value = true;
     axios.post(`/orders/${activeTable.value.active_order.id}/pay`, {
         payment_method: paymentMethod.value,
         cash_received: cashReceived.value,
         change_amount: changeAmount.value
-    }).then(res => {
+    }).then(() => {
         showPaymentModal.value = false;
         isCartOpen.value = false;
-        alert('Đã thanh toán hóa đơn và in biên lai thành công. Bàn đã chuyển sang trạng thái trống.');
+        toast('Đã thanh toán hóa đơn thành công. Bàn đã chuyển sang trạng thái trống.');
         router.reload({ only: ['tablesData', 'shiftInfo', 'completedHistory'] });
     }).catch(err => {
-        alert(err.response?.data?.message || 'Lỗi xử lý thanh toán.');
+        toast(err.response?.data?.message || 'Lỗi xử lý thanh toán.', 'error');
     }).finally(() => {
         isPaying.value = false;
     });
@@ -512,15 +636,19 @@ const processPayment = () => {
 
 // Split Order dialog
 const openSplitOrder = () => {
-    if (!activeTable.value?.active_order) return;
+    if (!activeTable.value?.active_order) {
+return;
+}
+
     splitItems.value = activeTable.value.active_order.items.map(i => ({ ...i, quantity: 1 }));
     splitTableId.value = null;
     showSplitModal.value = true;
 };
 
 const processSplit = () => {
-    if (!activeTable.value?.active_order || !splitTableId.value || isSubmitting.value) return;
-    isSubmitting.value = true;
+    if (!activeTable.value?.active_order || !splitTableId.value || isSubmitting.value) {
+return;
+}
 
     // Build items to split
     const itemsToSplit = splitItems.value
@@ -530,6 +658,13 @@ const processSplit = () => {
             quantity: si.quantity
         }));
 
+    if (itemsToSplit.length === 0) {
+        toast('Vui lòng chọn ít nhất 1 món để tách!', 'error');
+        return;
+    }
+
+    isSubmitting.value = true;
+
     router.post(`/orders/${activeTable.value.active_order.id}/split`, {
         table_id: splitTableId.value,
         items: itemsToSplit
@@ -537,7 +672,7 @@ const processSplit = () => {
         onSuccess: () => {
             showSplitModal.value = false;
             isCartOpen.value = false;
-            alert('Đã tách đơn sang bàn trống thành công. Quản lý và Chủ nhà hàng đã nhận được cảnh báo gian lận realtime!');
+            toast('Đã tách đơn sang bàn trống thành công!');
         },
         onFinish: () => {
             isSubmitting.value = false;
@@ -552,21 +687,28 @@ const openSelfService = (tab: 'schedule' | 'leave' | 'complaint') => {
 };
 
 const handleRegisterSchedule = () => {
-    if (!props.employee) return;
+    if (!props.employee) {
+return;
+}
+
     router.post('/employees/schedules', {
         day: regDay.value,
         employee_name: props.employee.full_name,
         shift_name: regShiftName.value
     }, {
         onSuccess: () => {
-            alert('Đăng ký lịch làm việc thành công!');
+            toast('Đăng ký lịch làm việc thành công!');
+            regShiftName.value = '';
             router.reload({ only: ['weeklySchedules'] });
         }
     });
 };
 
 const handleLeaveRequest = () => {
-    if (!props.employee) return;
+    if (!props.employee) {
+return;
+}
+
     router.post('/employees/leaves', {
         employee_id: props.employee.id,
         leave_type: leaveType.value,
@@ -575,14 +717,17 @@ const handleLeaveRequest = () => {
         reason: leaveReason.value
     }, {
         onSuccess: () => {
-            alert('Nộp đơn xin nghỉ thành công! Chờ cấp trên phê duyệt.');
+            toast('Nộp đơn xin nghỉ thành công! Chờ cấp trên phê duyệt.');
             leaveReason.value = '';
         }
     });
 };
 
 const handleComplaint = () => {
-    if (!complaintTargetId.value || !complaintType.value || !complaintDescription.value) return;
+    if (!complaintTargetId.value || !complaintType.value || !complaintDescription.value) {
+return;
+}
+
     router.post('/violations', {
         employee_id: complaintTargetId.value,
         violation_type: complaintType.value,
@@ -591,7 +736,9 @@ const handleComplaint = () => {
         occurred_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
     }, {
         onSuccess: () => {
-            alert('Gửi khiếu nại ẩn danh thành công! Thông tin của bạn được bảo mật tuyệt đối.');
+            toast('Gửi khiếu nại ẩn danh thành công! Thông tin của bạn được bảo mật tuyệt đối.');
+            complaintTargetId.value = null;
+            complaintType.value = '';
             complaintDescription.value = '';
         }
     });
@@ -599,6 +746,7 @@ const handleComplaint = () => {
 
 const number_format = (value: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
+
     return isNaN(num) ? '0' : num.toLocaleString('vi-VN');
 };
 
@@ -632,6 +780,14 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 dotClass: 'bg-amber-500',
                 cardBorder: 'hover:border-amber-500/50'
             };
+        case 'inactive':
+        default:
+            return {
+                label: 'Ngừng HĐ',
+                class: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-500',
+                dotClass: 'bg-slate-400',
+                cardBorder: 'opacity-50 pointer-events-none'
+            };
     }
 };
 </script>
@@ -657,11 +813,18 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 </p>
             </div>
 
-            <div class="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-2xl">
-                <Clock class="size-4 text-slate-500" />
-                <div class="text-left font-mono">
-                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ currentTime }}</span>
-                    <span class="text-[10px] text-muted-foreground ml-2">{{ currentDate }}</span>
+            <div class="flex items-center gap-3">
+                <Button variant="outline" class="rounded-2xl text-xs font-bold gap-2" @click="openSelfService('schedule')">
+                    <User class="size-4 text-indigo-600" />
+                    Hành chính & Tự phục vụ
+                </Button>
+
+                <div class="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-2xl">
+                    <Clock class="size-4 text-slate-500" />
+                    <div class="text-left font-mono">
+                        <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ currentTime }}</span>
+                        <span class="text-[10px] text-muted-foreground ml-2">{{ currentDate }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -671,11 +834,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
         <!-- ── TAB ĐIỀU HƯỚNG CHÍNH ────────────────────────────────────── -->
         <div class="flex border-b border-slate-200 dark:border-slate-800">
             <button
-                v-for="t in [
-                    { id: 'tables', label: 'Sơ đồ bàn phục vụ', icon: Utensils, count: 0 },
-                    { id: 'qr', label: 'Đơn QR & App thứ 3', icon: Sparkles, count: props.qrOrders.length },
-                    { id: 'history', label: 'Lịch sử & Bếp', icon: Clock, count: 0 }
-                ]"
+                v-for="t in mainTabs"
                 :key="t.id"
                 @click="activeTab = t.id"
                 class="px-6 py-3.5 font-bold text-xs flex items-center gap-2 border-b-2 transition-all relative"
@@ -685,8 +844,8 @@ const getTableStatusInfo = (status: TableItem['status']) => {
             >
                 <component :is="t.icon" class="size-4" />
                 {{ t.label }}
-                <span v-if="t.count" class="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
-                    {{ t.count }}
+                <span v-if="t.id === 'qr' && (props.qrOrders.length + props.externalOrders.length)" class="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
+                    {{ props.qrOrders.length + props.externalOrders.length }}
                 </span>
             </button>
         </div>
@@ -725,6 +884,19 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         placeholder="Tìm tên bàn..."
                         class="pl-9 rounded-xl text-xs"
                     />
+                </div>
+            </div>
+
+            <!-- Thống kê nhanh trạng thái bàn -->
+            <div v-if="tableStats.length" class="flex flex-wrap items-center gap-2">
+                <div
+                    v-for="stat in tableStats"
+                    :key="stat.label"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border text-[10px] font-bold"
+                    :class="stat.colorClass"
+                >
+                    <span class="w-2 h-2 rounded-full shrink-0" :class="stat.dotClass"></span>
+                    {{ stat.count }} {{ stat.label }}
                 </div>
             </div>
 
@@ -775,8 +947,95 @@ const getTableStatusInfo = (status: TableItem['status']) => {
             </div>
         </div>
 
-        <!-- ── TAB 2: ĐƠN QR VÀ BÊN THỨ 3 ─────────────────────────────── -->
-        <div v-if="activeTab === 'qr'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- ── TAB 2: ĐƠN NGOÀI & QR ────────────────────────────────────── -->
+        <div v-if="activeTab === 'qr'" class="grid grid-cols-1 gap-6">
+
+            <!-- Đơn giao hàng & mang về (bên thứ ba) -->
+            <Card v-if="props.externalOrders.length > 0" class="rounded-3xl shadow-sm border-amber-200/60 dark:border-amber-900/40">
+                <CardHeader>
+                    <CardTitle class="text-sm font-black flex items-center gap-2">
+                        <RefreshCw class="size-5 text-amber-600" />
+                        Đơn Giao Hàng & Mang Về (Bên thứ ba)
+                    </CardTitle>
+                    <CardDescription class="text-xs">
+                        Đơn từ ứng dụng đặt hàng hoặc nhận qua điện thoại — xác nhận và theo dõi tiến độ tại đây.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="p-6 pt-0 flex flex-col gap-3">
+                    <div
+                        v-for="order in props.externalOrders"
+                        :key="order.id"
+                        class="p-4 border rounded-2xl flex flex-col gap-2.5"
+                        :class="order.channel === 'delivery'
+                            ? 'bg-amber-50/40 dark:bg-amber-950/10 border-amber-200/70 dark:border-amber-900/40'
+                            : 'bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200/70 dark:border-emerald-900/40'"
+                    >
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span
+                                    class="text-[9px] font-extrabold px-2 py-0.5 rounded-full"
+                                    :class="order.channel === 'delivery'
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'"
+                                >
+                                    {{ order.channel === 'delivery' ? 'Giao hàng' : 'Mang về' }}
+                                </span>
+                                <span class="font-bold text-xs text-slate-700 dark:text-slate-300 font-mono">{{ order.order_number }}</span>
+                            </div>
+                            <span class="text-[10px] text-muted-foreground">{{ order.created_at }}</span>
+                        </div>
+
+                        <div class="text-[11px] text-slate-500 flex flex-col gap-0.5">
+                            <div v-for="(item, idx) in order.items" :key="idx">
+                                - {{ item.product_name }} x{{ item.quantity }}
+                            </div>
+                        </div>
+
+                        <Separator class="my-0.5" />
+
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold font-mono">Tổng: {{ number_format(order.total_amount) }}đ</span>
+                            <div class="flex gap-1.5">
+                                <Button
+                                    v-if="order.status === 'pending'"
+                                    size="sm"
+                                    class="rounded-xl h-8 text-xs bg-amber-500 hover:bg-amber-600 text-white"
+                                    :disabled="updatingExternalId === order.id"
+                                    @click="updateExternalOrderStatus(order.id, 'confirmed')"
+                                >
+                                    <RefreshCw v-if="updatingExternalId === order.id" class="size-3 mr-1 animate-spin" />
+                                    {{ updatingExternalId === order.id ? '...' : 'Nhận đơn' }}
+                                </Button>
+                                <Button
+                                    v-else-if="order.status === 'confirmed'"
+                                    size="sm"
+                                    class="rounded-xl h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
+                                    :disabled="updatingExternalId === order.id"
+                                    @click="updateExternalOrderStatus(order.id, 'preparing')"
+                                >
+                                    <RefreshCw v-if="updatingExternalId === order.id" class="size-3 mr-1 animate-spin" />
+                                    {{ updatingExternalId === order.id ? '...' : 'Đang làm' }}
+                                </Button>
+                                <Button
+                                    v-else-if="order.status === 'preparing'"
+                                    size="sm"
+                                    class="rounded-xl h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                    :disabled="updatingExternalId === order.id"
+                                    @click="updateExternalOrderStatus(order.id, 'completed')"
+                                >
+                                    <RefreshCw v-if="updatingExternalId === order.id" class="size-3 mr-1 animate-spin" />
+                                    {{ updatingExternalId === order.id ? '...' : 'Xong' }}
+                                </Button>
+                                <Badge variant="outline" class="text-[9px] font-bold h-8 px-2.5 capitalize"
+                                    :class="order.status === 'pending' ? 'text-amber-600 border-amber-300' : order.status === 'confirmed' ? 'text-indigo-600 border-indigo-300' : 'text-emerald-600 border-emerald-300'">
+                                    {{ order.status === 'pending' ? 'Chờ nhận' : order.status === 'confirmed' ? 'Đã nhận' : 'Đang làm' }}
+                                </Badge>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             <!-- Danh sách QR Orders -->
             <Card class="rounded-3xl shadow-sm">
                 <CardHeader>
@@ -810,54 +1069,9 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         <Separator class="my-1" />
                         <div class="flex justify-between items-center">
                             <span class="text-xs font-bold font-mono">Tổng: {{ number_format(order.total_amount) }}đ</span>
-                            <Button size="sm" class="rounded-xl h-8 text-xs" @click="confirmQrOrder(order.id)">
-                                Xác nhận tại bàn
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Đơn hàng 3rd Party (Grab, ShopeeFood) -->
-            <Card class="rounded-3xl shadow-sm">
-                <CardHeader>
-                    <CardTitle class="text-sm font-black flex items-center gap-2">
-                        <Users class="size-5 text-emerald-600" />
-                        Đơn đặt từ Đối tác 3rd Party (Simulated Live)
-                    </CardTitle>
-                    <CardDescription class="text-xs font-medium">
-                        Xem và bấm Tiếp nhận để tạo đơn hàng delivery chính thức trên hệ thống.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent class="p-6 pt-0 flex flex-col gap-3">
-                    <div v-if="simulated3rdPartyOrders.length === 0" class="text-center py-8 text-xs text-muted-foreground">
-                        Hết đơn hàng đối tác chưa nhận.
-                    </div>
-                    <div
-                        v-for="order in simulated3rdPartyOrders"
-                        :key="order.id"
-                        class="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl flex flex-col gap-2"
-                    >
-                        <div class="flex justify-between items-center">
-                            <Badge variant="outline" class="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold text-[9px]">
-                                {{ order.source }}
-                            </Badge>
-                            <span class="text-[10px] text-muted-foreground">{{ order.time }}</span>
-                        </div>
-                        <div class="text-xs text-slate-700 dark:text-slate-300 font-bold">
-                            Mã đơn: {{ order.order_number }}
-                        </div>
-                        <div class="text-xs text-slate-500">
-                            <div v-for="item in order.items" :key="item.name" class="flex justify-between">
-                                <span>{{ item.name }}</span>
-                                <span class="font-bold">x{{ item.qty }}</span>
-                            </div>
-                        </div>
-                        <Separator class="my-1" />
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs font-bold font-mono">Tổng: {{ number_format(order.total) }}đ</span>
-                            <Button size="sm" variant="outline" class="rounded-xl border-indigo-200 text-indigo-600 h-8 text-xs hover:bg-indigo-50" @click="accept3rdPartyOrder(order)">
-                                Tiếp nhận đơn
+                            <Button size="sm" class="rounded-xl h-8 text-xs" :disabled="confirmingOrderId === order.id" @click="confirmQrOrder(order.id)">
+                                <RefreshCw v-if="confirmingOrderId === order.id" class="size-3 mr-1 animate-spin" />
+                                {{ confirmingOrderId === order.id ? 'Đang xử lý...' : 'Xác nhận tại bàn' }}
                             </Button>
                         </div>
                     </div>
@@ -866,60 +1080,95 @@ const getTableStatusInfo = (status: TableItem['status']) => {
         </div>
 
         <!-- ── TAB 3: LỊCH SỬ & KITCHEN PROGRESS ────────────────────────── -->
-        <div v-if="activeTab === 'history'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Bếp Progress -->
-            <Card class="rounded-3xl shadow-sm">
-                <CardHeader>
-                    <CardTitle class="text-sm font-black flex items-center gap-2">
-                        <RefreshCw class="size-5 text-amber-600 animate-spin-slow" />
-                        Theo dõi tiến độ làm món của Bếp
-                    </CardTitle>
-                </CardHeader>
-                <CardContent class="p-6 pt-0 flex flex-col gap-3">
-                    <div class="flex flex-col gap-3">
-                        <div v-for="table in props.tablesData.filter(t => t.active_order)" :key="table.id" class="p-3 border rounded-2xl flex flex-col gap-1.5 bg-white dark:bg-slate-900">
-                            <div class="flex justify-between items-center">
-                                <span class="font-black text-xs">Bàn {{ table.name }} ({{ table.active_order?.order_number }})</span>
-                                <Badge variant="outline" class="text-[9px] font-bold uppercase" :class="table.active_order?.status === 'preparing' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'">
-                                    {{ table.active_order?.status }}
-                                </Badge>
-                            </div>
-                            <div class="text-[11px] text-slate-500">
-                                <div v-for="item in table.active_order?.items" :key="item.id" class="flex justify-between">
-                                    <span>{{ item.product_name }} x{{ item.quantity }}</span>
-                                    <span class="font-bold text-slate-700 dark:text-slate-400 capitalize">{{ item.status }}</span>
+        <div v-if="activeTab === 'history'" class="flex flex-col gap-6">
+
+            <!-- Hiệu suất ca làm việc (chỉ hiện khi đang checkin) -->
+            <div v-if="props.shiftInfo?.total_orders !== undefined" class="grid grid-cols-3 gap-3">
+                <div class="bg-white dark:bg-slate-900 border rounded-2xl p-4 flex flex-col gap-1 text-center shadow-sm">
+                    <span class="text-2xl font-black text-indigo-600">{{ props.shiftInfo.total_orders }}</span>
+                    <span class="text-[10px] text-muted-foreground font-semibold">Đơn hoàn thành ca này</span>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border rounded-2xl p-4 flex flex-col gap-1 text-center shadow-sm">
+                    <span class="text-2xl font-black text-emerald-600">{{ number_format(props.shiftInfo.shift_revenue) }}đ</span>
+                    <span class="text-[10px] text-muted-foreground font-semibold">Doanh thu ca này</span>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border rounded-2xl p-4 flex flex-col gap-1 text-center shadow-sm">
+                    <span class="text-2xl font-black text-violet-600">
+                        {{ props.shiftInfo.total_orders > 0 ? number_format(Math.round(props.shiftInfo.shift_revenue / props.shiftInfo.total_orders)) : 0 }}đ
+                    </span>
+                    <span class="text-[10px] text-muted-foreground font-semibold">Trung bình / đơn</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Bếp Progress -->
+                <Card class="rounded-3xl shadow-sm">
+                    <CardHeader>
+                        <CardTitle class="text-sm font-black flex items-center gap-2">
+                            <RefreshCw class="size-5 text-amber-600 animate-spin-slow" />
+                            Theo dõi tiến độ làm món của Bếp
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="p-6 pt-0 flex flex-col gap-3">
+                        <div class="flex flex-col gap-3">
+                            <div v-for="table in props.tablesData.filter(t => t.active_order)" :key="table.id" class="p-3 border rounded-2xl flex flex-col gap-1.5 bg-white dark:bg-slate-900">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-black text-xs">Bàn {{ table.name }} ({{ table.active_order?.order_number }})</span>
+                                    <Badge variant="outline" class="text-[9px] font-bold uppercase" :class="table.active_order?.status === 'preparing' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'">
+                                        {{ table.active_order?.status }}
+                                    </Badge>
+                                </div>
+                                <div class="text-[11px] text-slate-500">
+                                    <div v-for="item in table.active_order?.items" :key="item.id" class="flex justify-between">
+                                        <span>{{ item.product_name }} x{{ item.quantity }}</span>
+                                        <span class="font-bold text-slate-700 dark:text-slate-400 capitalize">{{ item.status }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
 
-            <!-- Lịch sử thanh toán -->
-            <Card class="rounded-3xl shadow-sm">
-                <CardHeader>
-                    <CardTitle class="text-sm font-black flex items-center gap-2">
-                        <FileText class="size-5 text-indigo-600" />
-                        Hóa đơn đã thanh toán gần đây (Ca làm này)
-                    </CardTitle>
-                </CardHeader>
-                <CardContent class="p-6 pt-0 flex flex-col gap-3">
-                    <div v-if="props.completedHistory.length === 0" class="text-center py-8 text-xs text-muted-foreground">
-                        Chưa ghi nhận hóa đơn thanh toán nào trong ca này.
-                    </div>
-                    <div
-                        v-for="h in props.completedHistory"
-                        :key="h.id"
-                        class="p-3.5 bg-slate-50 dark:bg-slate-900 border rounded-2xl flex justify-between items-center"
-                    >
-                        <div class="text-left">
-                            <span class="font-black text-xs text-slate-800 dark:text-slate-200">{{ h.order_number }}</span>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">Bàn: {{ h.table_name }} | Thời gian: {{ h.completed_at }}</p>
+                <!-- Lịch sử thanh toán -->
+                <Card class="rounded-3xl shadow-sm">
+                    <CardHeader>
+                        <CardTitle class="text-sm font-black flex items-center gap-2">
+                            <FileText class="size-5 text-indigo-600" />
+                            Hóa đơn đã thanh toán gần đây (Ca làm này)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="p-6 pt-0 flex flex-col gap-3">
+                        <div v-if="props.completedHistory.length === 0" class="text-center py-8 text-xs text-muted-foreground">
+                            Chưa ghi nhận hóa đơn thanh toán nào trong ca này.
                         </div>
-                        <span class="font-mono font-bold text-xs text-emerald-600">+{{ number_format(h.total_amount) }}đ</span>
-                    </div>
-                </CardContent>
-            </Card>
+                        <div
+                            v-for="h in props.completedHistory"
+                            :key="h.id"
+                            class="p-3.5 bg-slate-50 dark:bg-slate-900 border rounded-2xl flex justify-between items-center"
+                        >
+                            <div class="text-left">
+                                <span class="font-black text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                    {{ h.order_number }}
+                                    <span
+                                        class="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                        :class="h.channel === 'dine_in' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                            : h.channel === 'qr' ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400'
+                                            : h.channel === 'delivery' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                            : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'"
+                                    >
+                                        {{ h.channel === 'dine_in' ? 'Tại bàn' : h.channel === 'qr' ? 'QR' : h.channel === 'delivery' ? 'Giao hàng' : 'Mang về' }}
+                                    </span>
+                                </span>
+                                <p class="text-[10px] text-muted-foreground mt-0.5">{{ h.table_name }} | {{ h.completed_at }}</p>
+                            </div>
+                            <span class="font-mono font-bold text-xs text-emerald-600">+{{ number_format(h.total_amount) }}đ</span>
+                        </div>
+                        <a href="/orders" class="text-[10px] text-indigo-600 font-bold hover:underline text-center block mt-1">
+                            Xem toàn bộ lịch sử →
+                        </a>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
 
         <!-- ── TAB 4: LỊCH TRỰC CÁ NHÂN (FALLBACK DISPLAY) ───────────────── -->
@@ -963,6 +1212,14 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         <Badge variant="outline" class="text-[9px]" :class="activeTable.active_order ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'">
                             {{ activeTable.active_order ? 'Đang có khách' : 'Bàn trống' }}
                         </Badge>
+                        <span
+                            v-if="drawerStep === 'select' && totalCartQty > 0"
+                            :class="{ 'animate-bounce': cartBounce }"
+                            class="inline-flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        >
+                            <ShoppingCart class="size-3" />
+                            {{ totalCartQty }}
+                        </span>
                     </h3>
                     <p class="text-[10px] text-muted-foreground" v-if="activeTable.active_order">
                         Mã đơn: {{ activeTable.active_order.order_number }} ({{ activeTable.active_order.status }})
@@ -971,6 +1228,28 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 <Button variant="ghost" size="icon" class="rounded-xl" @click="isCartOpen = false">
                     <X class="size-5" />
                 </Button>
+            </div>
+
+            <!-- Red-flag Banner — đơn đã bị tách, chờ quản lý phê duyệt -->
+            <div
+                v-if="activeTable.active_order?.is_red_flagged"
+                class="px-5 py-2.5 bg-rose-50 dark:bg-rose-950/20 border-b border-rose-200 dark:border-rose-900/50 flex items-center gap-2"
+            >
+                <AlertTriangle class="size-3.5 text-rose-600 shrink-0" />
+                <span class="text-[10px] font-bold text-rose-700 dark:text-rose-400 leading-tight">
+                    Đơn này đã bị tách — đang chờ quản lý phê duyệt
+                </span>
+            </div>
+
+            <!-- Lock Banner — hiện khi có món đã gửi bếp -->
+            <div
+                v-if="isNotified && cartItems.some(i => i.id)"
+                class="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-2"
+            >
+                <Lock class="size-3.5 text-amber-600 shrink-0" />
+                <span class="text-[10px] font-bold text-amber-700 dark:text-amber-400 leading-tight">
+                    Đơn đã gửi bếp — món cũ bị khóa, chỉ có thể tăng hoặc thêm món mới
+                </span>
             </div>
 
             <!-- Body Drawer -->
@@ -982,13 +1261,25 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         Chưa chọn món nào. Hãy click "Thêm món" để chọn món.
                     </div>
 
-                    <div v-for="item in cartItems" :key="item.id ? 'exist-' + item.id : 'new-' + item.product_id" class="flex justify-between items-center p-3 border rounded-2xl bg-slate-50/50 dark:bg-slate-900/20">
+                    <div
+                        v-for="item in cartItems"
+                        :key="item.id ? 'exist-' + item.id : 'new-' + item.product_id"
+                        class="flex justify-between items-center p-3 border rounded-2xl transition-colors"
+                        :class="item.id
+                            ? 'bg-amber-50/40 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40'
+                            : 'bg-slate-50/50 dark:bg-slate-900/20'"
+                    >
                         <div class="text-left max-w-[60%]">
-                            <span class="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                <Lock v-if="item.id" class="size-3 text-amber-500" />
+                            <span class="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
                                 {{ item.product_name }}
+                                <span v-if="item.id" class="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-md">
+                                    <Lock class="size-2.5" /> Đã gửi
+                                </span>
                             </span>
-                            <p class="text-[10px] text-muted-foreground font-mono mt-0.5">{{ number_format(item.price) }}đ</p>
+                            <p class="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                {{ number_format(item.price) }}đ × {{ item.quantity }}
+                                <span class="text-indigo-600 font-bold">= {{ number_format(item.price * item.quantity) }}đ</span>
+                            </p>
                         </div>
 
                         <!-- Bộ điều khiển số lượng -->
@@ -1007,6 +1298,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                 size="icon"
                                 variant="outline"
                                 class="h-7 w-7 rounded-lg"
+                                :class="item.id ? 'border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30' : ''"
                                 @click="increaseQty(item)"
                             >
                                 <Plus class="size-3" />
@@ -1028,9 +1320,28 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 <div v-if="drawerStep === 'select'" class="flex flex-col gap-4">
                     <h4 class="text-xs font-black uppercase text-slate-400 tracking-wider">Thực đơn nhà hàng</h4>
 
+                    <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                        <button
+                            v-for="cat in [{ id: null, name: 'Tất cả' }, ...props.categories]"
+                            :key="cat.id ?? 'all'"
+                            type="button"
+                            class="shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all"
+                            :class="selectedCategoryId === cat.id
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                            @click="selectedCategoryId = cat.id"
+                        >
+                            {{ cat.name }}
+                        </button>
+                    </div>
+
+                    <div v-if="filteredMenuProducts.length === 0" class="text-center py-10 text-xs text-muted-foreground border-2 border-dashed rounded-2xl">
+                        Không có món nào trong danh mục này.
+                    </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div
-                            v-for="prod in props.products"
+                            v-for="prod in filteredMenuProducts"
                             :key="prod.id"
                             class="p-3 border rounded-2xl bg-white dark:bg-slate-900 shadow-sm transition-all text-left flex flex-col justify-between relative"
                             :class="getCartItemQty(prod.id) > 0 ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'hover:border-indigo-500/50 hover:bg-slate-50/50'"
@@ -1065,6 +1376,13 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                     </div>
                 </div>
 
+                <!-- GHI CHÚ ĐƠN HÀNG MỚI -->
+                <div class="flex flex-col gap-3" v-if="drawerStep === 'confirm' && !activeTable.active_order">
+                    <Separator />
+                    <h4 class="text-xs font-black uppercase text-slate-400 tracking-wider">Ghi chú đơn hàng</h4>
+                    <Input v-model="cartNote" placeholder="Ghi chú cho bếp, dị ứng, yêu cầu đặc biệt..." class="h-9 rounded-xl text-xs" />
+                </div>
+
                 <!-- THÔNG TIN VOUCHER / NOTE -->
                 <div class="flex flex-col gap-3" v-if="drawerStep === 'confirm' && activeTable.active_order">
                     <Separator />
@@ -1078,6 +1396,17 @@ const getTableStatusInfo = (status: TableItem['status']) => {
 
             <!-- Footer Drawer -->
             <div class="p-6 border-t bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-4">
+                <!-- Discount breakdown khi đã áp voucher -->
+                <div v-if="activeTable.active_order && isNotified && activeTable.active_order.discount_amount > 0" class="flex flex-col gap-1">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-muted-foreground">Tạm tính:</span>
+                        <span class="text-xs font-mono text-slate-500">{{ number_format(activeTable.active_order.subtotal) }}đ</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-emerald-600 font-bold">Giảm giá voucher:</span>
+                        <span class="text-xs font-mono font-bold text-emerald-600">-{{ number_format(activeTable.active_order.discount_amount) }}đ</span>
+                    </div>
+                </div>
                 <div class="flex justify-between items-center">
                     <span class="text-xs text-muted-foreground font-bold">Tổng số tiền:</span>
                     <span class="text-xl font-mono font-black text-indigo-600" v-if="activeTable.active_order && isNotified">
@@ -1096,7 +1425,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                     <Button
                         class="flex-1 rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700"
                         :disabled="cartItems.length === 0"
-                        @click="() => { drawerStep = 'confirm'; console.log('✅ Changed to confirm step'); }"
+                        @click="drawerStep = 'confirm'"
                     >
                         Xác nhận đặt món
                     </Button>
@@ -1104,14 +1433,14 @@ const getTableStatusInfo = (status: TableItem['status']) => {
 
                 <!-- Footer buttons for Confirm step -->
                 <div class="flex gap-2" v-if="drawerStep === 'confirm'">
-                    <Button variant="outline" class="flex-1 rounded-xl text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50" @click="() => { drawerStep = 'select'; console.log('✅ Changed to select step'); }">
+                    <Button variant="outline" class="flex-1 rounded-xl text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50" @click="drawerStep = 'select'">
                         Thêm món
                     </Button>
                     <Button
                         v-if="!isNotified"
                         class="flex-1 rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700"
                         :disabled="isSubmitting"
-                        @click="() => { console.log('🎯 Thông báo clicked'); submitOrder(); }"
+                        @click="submitOrder"
                     >
                         {{ isSubmitting ? 'Đang gửi...' : 'Thông báo' }}
                     </Button>
@@ -1163,6 +1492,20 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                             <span class="font-bold">Bàn {{ activeTable?.name }}</span>
                         </div>
                         <Separator class="my-2" />
+                        <!-- Discount breakdown khi đã áp voucher -->
+                        <template v-if="activeTable?.active_order?.discount_amount && activeTable.active_order.discount_amount > 0">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-500">Tạm tính:</span>
+                                <span class="font-mono">{{ number_format(activeTable.active_order.subtotal) }}đ</span>
+                            </div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="text-emerald-600 font-bold flex items-center gap-1">
+                                    <CheckIcon class="size-3" /> Giảm giá voucher:
+                                </span>
+                                <span class="font-mono font-bold text-emerald-600">-{{ number_format(activeTable.active_order.discount_amount) }}đ</span>
+                            </div>
+                            <Separator class="mb-2" />
+                        </template>
                         <div class="flex justify-between items-center">
                             <span class="text-xs font-black">Số tiền cần thanh toán:</span>
                             <span class="text-lg font-mono font-black text-indigo-600">{{ number_format(activeTable?.active_order?.total_amount ?? 0) }}đ</span>
@@ -1174,12 +1517,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         <span class="text-xs font-bold text-slate-500">Phương thức thanh toán:</span>
                         <div class="grid grid-cols-2 gap-2">
                             <Button
-                                v-for="m in [
-                                    { id: 'cash', label: 'Tiền mặt' },
-                                    { id: 'bank_transfer', label: 'Chuyển khoản' },
-                                    { id: 'card', label: 'Thẻ ATM/Visa' },
-                                    { id: 'ewallet', label: 'Ví điện tử' }
-                                ]"
+                                v-for="m in paymentMethods"
                                 :key="m.id"
                                 variant="outline"
                                 class="rounded-xl text-xs h-10"
@@ -1228,6 +1566,16 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 </div>
 
                 <div class="flex flex-col gap-4 text-left">
+                    <!-- Cảnh báo voucher -->
+                    <div v-if="activeTable?.active_order?.discount_amount && activeTable.active_order.discount_amount > 0"
+                         class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                        <AlertTriangle class="size-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <span class="font-bold">Đơn có voucher giảm giá {{ number_format(activeTable.active_order.discount_amount) }}đ.</span>
+                            <br>Giảm giá sẽ được phân bổ tự động theo tỷ lệ giá trị mỗi phần.
+                        </div>
+                    </div>
+
                     <span class="text-xs text-muted-foreground">Chọn bàn trống để chuyển bớt món ăn sang:</span>
 
                     <!-- Bàn trống đích -->
@@ -1257,13 +1605,32 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Dự tính tiền 2 đơn sau tách -->
+                    <template v-if="splitProjection && splitProjection.hasItems">
+                        <Separator />
+                        <div class="grid grid-cols-2 gap-2 text-[10px]">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5">
+                                <div class="font-bold text-slate-600 mb-1.5">Đơn gốc (còn lại)</div>
+                                <div class="flex justify-between"><span class="text-muted-foreground">Tạm tính:</span><span class="font-mono">{{ number_format(splitProjection.origSubtotal) }}đ</span></div>
+                                <div v-if="splitProjection.origDiscount > 0" class="flex justify-between text-emerald-600"><span>Giảm giá:</span><span class="font-mono">-{{ number_format(splitProjection.origDiscount) }}đ</span></div>
+                                <div class="flex justify-between font-black border-t mt-1 pt-1"><span>Tổng:</span><span class="font-mono text-rose-600">{{ number_format(splitProjection.origTotal) }}đ</span></div>
+                            </div>
+                            <div class="rounded-xl border border-rose-200 bg-rose-50/30 p-2.5">
+                                <div class="font-bold text-rose-600 mb-1.5">Đơn tách mới</div>
+                                <div class="flex justify-between"><span class="text-muted-foreground">Tạm tính:</span><span class="font-mono">{{ number_format(splitProjection.splitSubtotal) }}đ</span></div>
+                                <div v-if="splitProjection.splitDiscount > 0" class="flex justify-between text-emerald-600"><span>Giảm giá:</span><span class="font-mono">-{{ number_format(splitProjection.splitDiscount) }}đ</span></div>
+                                <div class="flex justify-between font-black border-t mt-1 pt-1"><span>Tổng:</span><span class="font-mono text-rose-600">{{ number_format(splitProjection.splitTotal) }}đ</span></div>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <div class="flex gap-2">
                     <Button variant="outline" class="flex-1 rounded-xl text-xs" @click="showSplitModal = false">
                         Hủy
                     </Button>
-                    <Button class="flex-1 rounded-xl text-xs bg-rose-600 hover:bg-rose-700" :disabled="!splitTableId || isSubmitting" @click="processSplit">
+                    <Button class="flex-1 rounded-xl text-xs bg-rose-600 hover:bg-rose-700" :disabled="!splitTableId || isSubmitting || !splitProjection?.hasItems" @click="processSplit">
                         {{ isSubmitting ? 'Đang xử lý...' : 'Xác nhận Tách đơn' }}
                     </Button>
                 </div>
@@ -1278,20 +1645,26 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         <Sparkles class="size-5 text-indigo-400 animate-pulse" />
                         Trợ lý Kích Cầu AI gợi ý (Upselling)
                     </h3>
-                    <Button variant="ghost" size="icon" class="rounded-xl text-white/50 hover:text-white" @click="showAiSuggestionModal = false">
+                    <Button variant="ghost" size="icon" class="rounded-xl text-white/50 hover:text-white" @click="showAiSuggestionModal = false; aiUpsellItem = ''">
                         <X class="size-5" />
                     </Button>
                 </div>
 
                 <div class="text-left py-2">
                     <p class="text-xs text-indigo-200/80 uppercase tracking-wider font-semibold">Lời khuyên của trí tuệ nhân tạo BepsoViet:</p>
-                    <div class="mt-3 p-4.5 bg-white/5 border border-indigo-500/20 rounded-2xl text-sm leading-relaxed font-medium">
+                    <div class="mt-3 p-4 bg-white/5 border border-indigo-500/20 rounded-2xl text-sm leading-relaxed font-medium">
                         "{{ aiSuggestion }}"
+                    </div>
+                    <div v-if="aiUpsellItem" class="mt-3 px-4 py-2.5 bg-indigo-600/20 border border-indigo-400/30 rounded-xl flex items-center gap-2">
+                        <Sparkles class="size-4 text-indigo-300 shrink-0" />
+                        <span class="text-xs font-bold text-indigo-100">
+                            Gợi ý ngay: <span class="text-white underline underline-offset-2">{{ aiUpsellItem }}</span>
+                        </span>
                     </div>
                 </div>
 
                 <div class="flex justify-end gap-2">
-                    <Button class="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700" @click="showAiSuggestionModal = false">
+                    <Button class="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700" @click="showAiSuggestionModal = false; aiUpsellItem = ''">
                         Tôi hiểu rồi (Mời khách)
                     </Button>
                 </div>
@@ -1314,10 +1687,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 <!-- Tab hành chính -->
                 <div class="flex gap-2 border-b">
                     <button
-                        v-for="s in [
-                            { id: 'schedule', label: 'Đăng ký ca làm' },
-                            { id: 'leave', label: 'Xin nghỉ phép' }
-                        ]"
+                        v-for="s in selfServiceTabs"
                         :key="s.id"
                         @click="selfServiceTab = s.id"
                         class="px-4 py-2 font-bold text-xs border-b-2 transition-all"
@@ -1329,6 +1699,39 @@ const getTableStatusInfo = (status: TableItem['status']) => {
 
                 <!-- Tab 1: Đăng ký lịch làm -->
                 <div v-if="selfServiceTab === 'schedule'" class="flex flex-col gap-4 text-left">
+                    <!-- Lịch làm tuần này -->
+                    <div>
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Lịch làm tuần này</span>
+                        <div v-if="props.weeklySchedules.length === 0" class="mt-2 text-center py-4 text-[11px] text-muted-foreground border-2 border-dashed rounded-xl">
+                            Chưa có lịch làm trong tuần này.
+                        </div>
+                        <div v-else class="mt-2 flex flex-col gap-1.5">
+                            <div
+                                v-for="sch in props.weeklySchedules"
+                                :key="sch.id"
+                                class="flex items-center justify-between px-3 py-2 rounded-xl border bg-slate-50/60 dark:bg-slate-900/40 text-xs"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-700 dark:text-slate-300 min-w-[60px]">{{ sch.date }}</span>
+                                    <span class="text-slate-600 dark:text-slate-400">{{ sch.shift_name }}</span>
+                                    <span class="text-[10px] text-muted-foreground">{{ sch.shift_time }}</span>
+                                </div>
+                                <span
+                                    class="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                    :class="sch.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : sch.status === 'checked_in' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                        : 'bg-slate-100 text-slate-500'"
+                                >
+                                    {{ sch.status === 'completed' ? 'Hoàn thành' : sch.status === 'checked_in' ? 'Đang làm' : 'Đã đăng ký' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <Separator />
+
+                    <!-- Form đăng ký lịch -->
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Đăng ký ca mới</span>
                     <div class="flex flex-col gap-2">
                         <span class="text-xs font-bold text-slate-500">Chọn thứ trong tuần:</span>
                         <select v-model="regDay" class="border rounded-xl p-2.5 text-xs bg-card">
@@ -1350,6 +1753,9 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                 {{ s.name }}
                             </option>
                         </select>
+                        <span v-if="props.activeShifts.length === 0" class="text-[10px] text-amber-600">
+                            Chưa có ca làm việc nào được tạo — liên hệ quản lý để thêm ca.
+                        </span>
                     </div>
 
                     <Button class="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700" :disabled="!regShiftName" @click="handleRegisterSchedule">
@@ -1359,6 +1765,36 @@ const getTableStatusInfo = (status: TableItem['status']) => {
 
                 <!-- Tab 2: Xin nghỉ phép -->
                 <div v-if="selfServiceTab === 'leave'" class="flex flex-col gap-4 text-left">
+                    <!-- Đơn đã nộp gần đây -->
+                    <div v-if="props.pendingLeaves.length > 0">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Đơn đã nộp gần đây</span>
+                        <div class="mt-2 flex flex-col gap-1.5">
+                            <div
+                                v-for="lv in props.pendingLeaves"
+                                :key="lv.id"
+                                class="flex items-center justify-between px-3 py-2 rounded-xl border text-xs bg-slate-50/60 dark:bg-slate-900/40"
+                            >
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="font-bold text-slate-700 dark:text-slate-300">
+                                        {{ lv.leave_type === 'annual' ? 'Phép năm' : lv.leave_type === 'sick' ? 'Ốm đau' : lv.leave_type === 'unpaid' ? 'Không lương' : lv.leave_type === 'emergency' ? 'Khẩn cấp' : 'Thôi việc' }}
+                                    </span>
+                                    <span class="text-[10px] text-muted-foreground">{{ lv.start_date }} → {{ lv.end_date }}</span>
+                                </div>
+                                <span
+                                    class="text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
+                                    :class="lv.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : lv.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'"
+                                >
+                                    {{ lv.status === 'approved' ? 'Đã duyệt' : lv.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <Separator v-if="props.pendingLeaves.length > 0" />
+
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Nộp đơn mới</span>
                     <div class="flex flex-col gap-2">
                         <span class="text-xs font-bold text-slate-500">Loại đơn:</span>
                         <select v-model="leaveType" class="border rounded-xl p-2.5 text-xs bg-card">
@@ -1391,9 +1827,64 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                     </Button>
                 </div>
 
+                <!-- Tab 3: Khiếu nại ẩn danh -->
+                <div v-if="selfServiceTab === 'complaint'" class="flex flex-col gap-4 text-left">
+                    <p class="text-[11px] text-muted-foreground">
+                        Thông tin của bạn được bảo mật tuyệt đối — quản lý và chủ nhà hàng chỉ thấy nội dung khiếu nại, không thấy người gửi.
+                    </p>
+
+                    <div class="flex flex-col gap-2">
+                        <span class="text-xs font-bold text-slate-500">Đối tượng khiếu nại:</span>
+                        <select v-model="complaintTargetId" class="border rounded-xl p-2.5 text-xs bg-card">
+                            <option :value="null">-- Chọn nhân viên --</option>
+                            <option v-for="c in props.colleagues" :key="c.id" :value="c.id">
+                                {{ c.full_name }}<template v-if="c.job_title"> ({{ c.job_title }})</template>
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <span class="text-xs font-bold text-slate-500">Loại vi phạm:</span>
+                        <select v-model="complaintType" class="border rounded-xl p-2.5 text-xs bg-card">
+                            <option value="">-- Chọn loại vi phạm --</option>
+                            <option value="thai_do">Thái độ làm việc</option>
+                            <option value="gian_lan">Gian lận / thiếu trung thực</option>
+                            <option value="quay_roi">Quấy rối / xúc phạm đồng nghiệp</option>
+                            <option value="vi_pham_quy_dinh">Vi phạm quy định nhà hàng</option>
+                            <option value="khac">Khác</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <span class="text-xs font-bold text-slate-500">Mô tả chi tiết:</span>
+                        <textarea v-model="complaintDescription" placeholder="Vui lòng mô tả sự việc cụ thể, thời gian, địa điểm..." class="border rounded-xl p-2.5 text-xs min-h-20 bg-card"></textarea>
+                    </div>
+
+                    <Button class="rounded-xl text-xs bg-rose-600 hover:bg-rose-700" :disabled="!complaintTargetId || !complaintType || !complaintDescription" @click="handleComplaint">
+                        Gửi Khiếu Nại Ẩn Danh
+                    </Button>
+                </div>
 
             </div>
         </div>
+    </div>
+
+    <!-- ── TOAST NOTIFICATIONS ──────────────────────────────────────────── -->
+    <div class="fixed bottom-6 right-6 z-[70] flex flex-col gap-2 pointer-events-none">
+        <transition-group name="toast">
+            <div
+                v-for="t in toasts"
+                :key="t.id"
+                class="flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold pointer-events-auto min-w-56 max-w-xs animate-fade-in"
+                :class="t.type === 'success'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-rose-600 text-white'"
+            >
+                <CheckIcon v-if="t.type === 'success'" class="size-4 shrink-0" />
+                <XCircle v-else class="size-4 shrink-0" />
+                <span class="leading-tight">{{ t.message }}</span>
+            </div>
+        </transition-group>
     </div>
 </template>
 
@@ -1419,4 +1910,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
 .animate-spin-slow {
     animation: spin-slow 10s linear infinite;
 }
+.toast-enter-active { animation: fade-in 0.2s ease-out; }
+.toast-leave-active { animation: fade-in 0.2s ease-in reverse; }
+.toast-move { transition: transform 0.2s ease; }
 </style>
