@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
+import { ImagePlus, X } from 'lucide-vue-next';
+import { ref } from 'vue';
 import Heading from '@/components/Heading.vue';
 // @ts-ignore
 import InputError from '@/components/InputError.vue';
@@ -15,12 +17,29 @@ type RestaurantData = {
     tax_code: string | null;
     timezone: string;
     currency: string;
+    logo_url: string | null;
 };
 
 defineProps<{
     restaurant: RestaurantData | null;
     status?: string;
 }>();
+
+const logoInput = ref<HTMLInputElement | null>(null);
+const logoPreview = ref<string | null>(null);
+
+function onLogoChange(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (logoPreview.value) URL.revokeObjectURL(logoPreview.value);
+    logoPreview.value = URL.createObjectURL(file);
+}
+
+function clearLogoSelection() {
+    if (logoPreview.value) URL.revokeObjectURL(logoPreview.value);
+    logoPreview.value = null;
+    if (logoInput.value) logoInput.value.value = '';
+}
 
 defineOptions({
     layout: {
@@ -56,6 +75,42 @@ defineOptions({
             v-slot="{ errors, processing }"
             class="space-y-5"
         >
+            <!-- Logo nhà hàng -->
+            <div class="grid gap-1.5">
+                <Label>Logo nhà hàng</Label>
+                <div class="flex items-center gap-4">
+                    <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30">
+                        <img
+                            v-if="logoPreview ?? restaurant.logo_url"
+                            :src="logoPreview ?? restaurant.logo_url ?? ''"
+                            alt="Logo nhà hàng"
+                            class="size-full object-cover"
+                        />
+                        <ImagePlus v-else class="size-6 text-muted-foreground" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <input
+                            ref="logoInput"
+                            type="file"
+                            name="logo"
+                            accept="image/jpg,image/jpeg,image/png,image/webp"
+                            class="hidden"
+                            @change="onLogoChange"
+                        />
+                        <div class="flex items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" @click="logoInput?.click()">
+                                <ImagePlus class="size-4" /> Chọn ảnh
+                            </Button>
+                            <Button v-if="logoPreview" type="button" variant="ghost" size="sm" @click="clearLogoSelection">
+                                <X class="size-4" /> Hủy chọn
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">PNG, JPG hoặc WEBP, tối đa 2MB.</p>
+                        <InputError :message="errors.logo" />
+                    </div>
+                </div>
+            </div>
+
             <!-- Tên nhà hàng -->
             <div class="grid gap-1.5">
                 <Label for="name">Tên nhà hàng <span class="text-rose-500">*</span></Label>

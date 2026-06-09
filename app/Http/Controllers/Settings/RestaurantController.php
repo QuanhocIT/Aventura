@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,6 +25,7 @@ class RestaurantController extends Controller
                 'tax_code' => $restaurant->tax_code,
                 'timezone' => $restaurant->timezone,
                 'currency' => $restaurant->currency,
+                'logo_url' => $restaurant->logo_url,
             ] : null,
             'status' => $request->session()->get('status'),
         ]);
@@ -42,7 +45,18 @@ class RestaurantController extends Controller
             'email'    => ['nullable', 'email', 'max:255'],
             'address'  => ['nullable', 'string', 'max:500'],
             'tax_code' => ['nullable', 'string', 'max:50'],
+            'logo'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
+
+        if ($request->hasFile('logo')) {
+            if ($restaurant->logo_url) {
+                Storage::disk('public')->delete(Str::after($restaurant->logo_url, '/storage/'));
+            }
+
+            $data['logo_url'] = '/storage/' . $request->file('logo')->store('restaurants', 'public');
+        }
+
+        unset($data['logo']);
 
         $restaurant->update($data);
 

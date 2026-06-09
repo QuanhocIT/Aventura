@@ -33,14 +33,6 @@ class TablesController extends Controller
                 ])->toArray();
         });
 
-        // Backward compatibility: ensure all existing tables have a qr_token
-        RestaurantTable::where('restaurant_id', $restaurantId)
-            ->whereNull('qr_token')
-            ->get()
-            ->each(function (RestaurantTable $t) {
-                $t->update(['qr_token' => Str::random(32)]);
-            });
-
         $tables = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_tables", 3600, function () use ($restaurantId) {
             return RestaurantTable::where('restaurant_id', $restaurantId)
                 ->with('area')

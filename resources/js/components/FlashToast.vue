@@ -37,6 +37,10 @@ addToast('success', flash.success);
         if (flash?.error)   {
 addToast('error',   flash.error);
 }
+
+        if (flash?.info)   {
+addToast('info',   flash.info);
+}
     },
     { deep: true }
 );

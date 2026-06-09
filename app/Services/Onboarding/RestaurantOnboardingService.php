@@ -66,15 +66,11 @@ class RestaurantOnboardingService
                 'phone' => $input['phone'] ?? null,
                 'restaurant_id' => $restaurant->id,
                 'status' => 'active',
-                // Thiết kế SaaS Onboarding nhanh: xác minh email tự động ngay khi đăng ký.
-                // Chủ nhà hàng cần vào hệ thống NGAY để trải nghiệm bán hàng trong phút đầu tiên.
-                // Nếu muốn bắt buộc xác minh email, xóa dòng này và implement MustVerifyEmail trên User model.
-                'email_verified_at' => now(),
                 'last_login_at' => now(),
             ]);
 
             $restaurant->forceFill(['owner_user_id' => $user->id])->save();
-            $user->syncRoles(['owner']);
+            $user->assignRole('owner');
 
             RestaurantSubscription::create([
                 'restaurant_id' => $restaurant->id,
