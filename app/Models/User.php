@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -32,10 +34,10 @@ use Spatie\Permission\Traits\HasRoles;
     'onboarding_status',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, HasRoles, MustVerifyEmailTrait, Notifiable, TwoFactorAuthenticatable;
 
     protected string $guard_name = 'web';
 
@@ -94,6 +96,33 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->hasAnyRole(config('auth.super_admin_roles', ['super_admin']));
+    }
+
+    /**
+     * Chỉ tài khoản Super Admin mới bắt buộc xác thực email qua Gmail; các tài khoản
+     * khác được coi như đã xác thực để middleware `verified` không chặn họ.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        if (! $this->isSuperAdmin()) {
+            return true;
+        }
+
+        return ! is_null($this->email_verified_at);
+    }
+
+    /**
+     * Gửi email xác thực qua microservice Brevo (Mail mặc định của Laravel chỉ ghi log,
+     * không gửi được thư thật) thay vì dùng notification "mail" channel có sẵn.
+     * Chỉ gửi cho Super Admin — các tài khoản khác không cần xác thực nên không gửi.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        if (! $this->isSuperAdmin()) {
+            return;
+        }
+
+        app(\App\Services\EmailVerificationService::class)->send($this);
     }
 }
 

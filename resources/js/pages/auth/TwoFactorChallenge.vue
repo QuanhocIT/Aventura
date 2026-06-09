@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore Vue SFC module declaration is provided by the project shim.
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/input-otp';
 import { Spinner } from '@/components/ui/spinner';
 import { home } from '@/routes';
+import { send as sendEmailOtp } from '@/routes/two-factor/email-code';
 import { store } from '@/routes/two-factor/login';
 
 defineOptions({
@@ -34,6 +35,98 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
         ? 'Sử dụng ứng dụng xác thực OTP'
         : 'Sử dụng mã khôi phục dự phòng';
 };
+
+const page = usePage();
+const flash = computed(() => (page.props as any).flash ?? {});
+const emailCodeSuccess = computed<string | undefined>(() => flash.value.success);
+const emailCodeError = computed<string | undefined>(() => flash.value.error);
+const emailCodeNotice = computed<string | undefined>(() => flash.value.info);
+
+// Đếm số lần gửi email OTP thất bại liên tiếp — khi vượt ngưỡng, hiển thị
+// banner gợi ý chuyển sang Authenticator/mã khôi phục thay vì chỉ 1 dòng lỗi nhỏ
+// dễ bị bỏ qua (đúng tình huống người dùng gặp phải khi dịch vụ email gián đoạn).
+const emailFailureStreak = ref<number>(0);
+const showEmailTroubleBanner = computed<boolean>(() => emailFailureStreak.value >= 2);
+
+watch(emailCodeError, (value) => {
+    if (value) {
+emailFailureStreak.value += 1;
+}
+});
+watch(emailCodeSuccess, (value) => {
+    if (value) {
+emailFailureStreak.value = 0;
+}
+});
+
+const switchToRecoveryMode = (): void => {
+    if (showRecoveryInput.value) {
+return;
+}
+
+    showRecoveryInput.value = true;
+    code.value = '';
+    recoveryButtonText.value = 'Sử dụng ứng dụng xác thực OTP';
+};
+
+const emailCodeSending = ref<boolean>(false);
+const emailCodeCooldown = ref<number>(0);
+let cooldownTimer: ReturnType<typeof setInterval> | null = null;
+
+const startCooldown = (seconds: number): void => {
+    emailCodeCooldown.value = seconds;
+
+    if (cooldownTimer) {
+clearInterval(cooldownTimer);
+}
+
+    cooldownTimer = setInterval(() => {
+        if (emailCodeCooldown.value <= 1) {
+            emailCodeCooldown.value = 0;
+
+            if (cooldownTimer) {
+clearInterval(cooldownTimer);
+}
+
+            cooldownTimer = null;
+        } else {
+            emailCodeCooldown.value -= 1;
+        }
+    }, 1000);
+};
+
+const requestEmailCode = (): void => {
+    if (emailCodeSending.value || emailCodeCooldown.value > 0) {
+return;
+}
+
+    emailCodeSending.value = true;
+    router.post(sendEmailOtp.url(), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onFinish: () => {
+            emailCodeSending.value = false;
+
+            // Đồng bộ thời gian đếm ngược với thời gian còn lại thực tế phía server
+            // (vd: trường hợp đã gửi trước đó, server trả về số giây chính xác còn
+            // phải đợi — có thể ngắn hơn mức mặc định 60s).
+            const retryAfter = Number((page.props as any).flash?.retry_after);
+            startCooldown(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60);
+        },
+    });
+};
+
+onBeforeUnmount(() => {
+    if (cooldownTimer) {
+clearInterval(cooldownTimer);
+}
+});
+
+// Tự động gửi mã OTP qua email ngay khi vào trang xác thực, để người dùng
+// không cần thêm thao tác bấm "Gửi mã qua email".
+onMounted(() => {
+    requestEmailCode();
+});
 </script>
 
 <template>
@@ -71,8 +164,51 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
                     
                     <!-- Dynamic Context Instructions (Addresses user's QR code query) -->
                     <p class="mt-4 text-xs text-muted-foreground leading-relaxed bg-zinc-50 dark:bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-100 dark:border-zinc-800/80 font-medium">
-                        💡 <span class="font-bold text-foreground">Lưu ý:</span> Mã QR quét để kích hoạt chỉ hiển thị một lần duy nhất khi thiết lập. Để đăng nhập lúc này, bạn hãy mở ứng dụng <span class="font-bold text-foreground">Google Authenticator</span> hoặc <span class="font-bold text-emerald-600 dark:font-bold dark:text-emerald-400">Microsoft Authenticator</span> trên điện thoại của mình để lấy mã OTP 6 số hiện tại.
+                        💡 <span class="font-bold text-foreground">Lưu ý:</span> Mã QR quét để kích hoạt chỉ hiển thị một lần duy nhất khi thiết lập. Để đăng nhập lúc này, bạn hãy mở ứng dụng <span class="font-bold text-foreground">Google Authenticator</span> hoặc <span class="font-bold text-emerald-600 dark:font-bold dark:text-emerald-400">Microsoft Authenticator</span> trên điện thoại của mình để lấy mã OTP 6 số hiện tại — hoặc chọn gửi mã về email bên dưới nếu không có sẵn ứng dụng.
                     </p>
+
+                    <!-- Email OTP request -->
+                    <div class="mt-3 flex flex-col gap-2 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 p-3.5">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-xs font-semibold text-muted-foreground">Không có ứng dụng Authenticator?</p>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded-lg bg-zinc-900 dark:bg-white px-3.5 py-2 text-[11px] font-black uppercase tracking-wider text-white dark:text-zinc-900 transition-all duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                :disabled="emailCodeSending || emailCodeCooldown > 0"
+                                @click="requestEmailCode"
+                            >
+                                <span v-if="emailCodeSending">Đang gửi...</span>
+                                <span v-else-if="emailCodeCooldown > 0">Gửi lại sau {{ emailCodeCooldown }}s</span>
+                                <span v-else>Gửi mã qua email</span>
+                            </button>
+                        </div>
+                        <p v-if="emailCodeSuccess" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            ✓ {{ emailCodeSuccess }}
+                        </p>
+                        <p v-else-if="emailCodeNotice" class="text-xs font-semibold text-sky-600 dark:text-sky-400">
+                            ℹ {{ emailCodeNotice }}
+                        </p>
+                        <p v-else-if="emailCodeError" class="text-xs font-semibold text-red-500">
+                            ⚠ {{ emailCodeError }}
+                        </p>
+                    </div>
+
+                    <!-- Banner: gửi email OTP thất bại liên tục → gợi ý mạnh chuyển phương án khác -->
+                    <div
+                        v-if="showEmailTroubleBanner && !showRecoveryInput"
+                        class="mt-3 flex flex-col gap-2 rounded-xl border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3.5"
+                    >
+                        <p class="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                            ⚠ Hệ thống gửi email đang gặp sự cố. Vui lòng dùng mã từ ứng dụng Authenticator (đã thiết lập trên điện thoại của bạn) hoặc mã khôi phục dự phòng để đăng nhập ngay.
+                        </p>
+                        <button
+                            type="button"
+                            class="self-start rounded-lg bg-amber-600 px-3.5 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all duration-200 hover:opacity-90 cursor-pointer"
+                            @click="switchToRecoveryMode"
+                        >
+                            Dùng mã khôi phục dự phòng
+                        </button>
+                    </div>
 
                     <!-- Form block for OTP -->
                     <template v-if="!showRecoveryInput">

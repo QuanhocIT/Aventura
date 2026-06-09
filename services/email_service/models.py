@@ -10,6 +10,22 @@ class WelcomeEmailRequest(BaseModel):
     login_url: str
 
 
+class OtpEmailRequest(BaseModel):
+    recipient_email: EmailStr
+    recipient_name: Optional[str] = None
+    code: str
+    expires_in_minutes: int = 5
+
+
+class VerificationEmailRequest(BaseModel):
+    recipient_email: EmailStr
+    recipient_name: Optional[str] = None
+    verification_url: str
+    code: str
+    code_expires_in_minutes: int = 30
+    link_expires_in_minutes: int = 60
+
+
 class InvoiceEmailRequest(BaseModel):
     recipient_email: EmailStr
     invoice_number: str

@@ -3,8 +3,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Any
 
-from models import WelcomeEmailRequest, InvoiceEmailRequest, EmailResponse
-from services.brevo_service import send_welcome_email, send_invoice_email
+from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, VerificationEmailRequest, EmailResponse
+from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email
 from services.ai_service import analyze
 from config import BREVO_API_KEY
 
@@ -54,6 +54,42 @@ def send_welcome(payload: WelcomeEmailRequest):
         return EmailResponse(success=True, message="Welcome email đã được gửi", message_id=message_id)
     except Exception as e:
         logger.error("Error sending welcome email: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/send/otp", response_model=EmailResponse)
+def send_otp(payload: OtpEmailRequest):
+    if not BREVO_API_KEY:
+        raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
+    try:
+        message_id = send_otp_email(
+            recipient_email=payload.recipient_email,
+            code=payload.code,
+            expires_in_minutes=payload.expires_in_minutes,
+            recipient_name=payload.recipient_name,
+        )
+        return EmailResponse(success=True, message="OTP email đã được gửi", message_id=message_id)
+    except Exception as e:
+        logger.error("Error sending OTP email: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/send/verification", response_model=EmailResponse)
+def send_verification(payload: VerificationEmailRequest):
+    if not BREVO_API_KEY:
+        raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
+    try:
+        message_id = send_verification_email(
+            recipient_email=payload.recipient_email,
+            verification_url=payload.verification_url,
+            code=payload.code,
+            code_expires_in_minutes=payload.code_expires_in_minutes,
+            link_expires_in_minutes=payload.link_expires_in_minutes,
+            recipient_name=payload.recipient_name,
+        )
+        return EmailResponse(success=True, message="Email xác thực đã được gửi", message_id=message_id)
+    except Exception as e:
+        logger.error("Error sending verification email: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
 
 

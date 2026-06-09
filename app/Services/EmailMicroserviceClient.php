@@ -24,6 +24,16 @@ class EmailMicroserviceClient
         return $this->post('/send/invoice', $data);
     }
 
+    public function sendOtp(array $data): bool
+    {
+        return $this->post('/send/otp', $data);
+    }
+
+    public function sendVerification(array $data): bool
+    {
+        return $this->post('/send/verification', $data);
+    }
+
     public function sendDailyReport(array $data): bool
     {
         return $this->post('/send/daily-report', [

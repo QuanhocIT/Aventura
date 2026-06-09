@@ -19,7 +19,7 @@ class FortifyServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(\Laravel\Fortify\Http\Requests\TwoFactorLoginRequest::class, \App\Http\Requests\CustomTwoFactorLoginRequest::class);
     }
 
     public function boot(): void
@@ -138,7 +138,10 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('two-factor', function (Request $request) {
-            return Limit::perMinute(5)->by($request->session()->get('login.id'));
+            // Dự phòng: nếu session 'login.id' không tồn tại (phiên hết hạn, hoặc
+            // request không qua luồng đăng nhập hợp lệ), dùng IP làm key thay thế
+            // để tránh các request không liên quan dùng chung 1 "ngăn" rate-limit.
+            return Limit::perMinute(5)->by($request->session()->get('login.id') ?: $request->ip());
         });
 
         RateLimiter::for('login', function (Request $request) {

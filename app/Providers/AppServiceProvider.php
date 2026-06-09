@@ -3,8 +3,11 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -43,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
         \App\Models\ViolationReport::observe(\App\Observers\SalaryRecalculationObserver::class);
         \App\Models\ShiftClosing::observe(\App\Observers\SalaryRecalculationObserver::class);
         \App\Models\InventoryTransaction::observe(\App\Observers\SalaryRecalculationObserver::class);
+
+        // Tự gửi email xác thực ngay sau khi đăng ký (Laravel không tự đăng ký
+        // listener này khi project không có EventServiceProvider riêng).
+        Event::listen(Registered::class, SendEmailVerificationNotification::class);
 
         // Bảo mật trang Pulse: Chỉ cho phép Chủ nhà hàng (owner) hoặc Quản lý (manager) xem
         \Illuminate\Support\Facades\Gate::define('viewPulse', function ($user = null) {

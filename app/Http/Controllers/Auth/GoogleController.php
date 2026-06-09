@@ -121,7 +121,7 @@ class GoogleController extends Controller
             $tempUser->restaurant()->update(['owner_user_id' => $user->id]);
 
             $user->forceFill(['restaurant_id' => $restaurantId])->save();
-            $user->syncRoles(['customer']);
+            $user->assignRole('owner');
 
             // Xóa user tạm
             $tempUser->syncRoles([]);

@@ -38,6 +38,51 @@ def send_welcome_email(name: str, email: str, restaurant_name: str, trial_days: 
     return response.message_id or ""
 
 
+def send_otp_email(recipient_email: str, code: str, expires_in_minutes: int = 5, recipient_name: str | None = None) -> str:
+    html_content = _render("otp.html", {
+        "recipient_name": recipient_name,
+        "code": code,
+        "expires_in_minutes": expires_in_minutes,
+    })
+
+    client = _get_client()
+    response = client.transactional_emails.send_transac_email(
+        to=[brevo.SendTransacEmailRequestToItem(email=recipient_email, name=recipient_name)],
+        sender=brevo.SendTransacEmailRequestSender(email=EMAIL_FROM_ADDRESS, name=EMAIL_FROM_NAME),
+        subject="Mã xác thực đăng nhập (2FA) - Aventura",
+        html_content=html_content,
+    )
+    logger.info("OTP email sent to %s, messageId=%s", recipient_email, response.message_id)
+    return response.message_id or ""
+
+
+def send_verification_email(
+    recipient_email: str,
+    verification_url: str,
+    code: str,
+    code_expires_in_minutes: int = 30,
+    link_expires_in_minutes: int = 60,
+    recipient_name: str | None = None,
+) -> str:
+    html_content = _render("verification.html", {
+        "recipient_name": recipient_name,
+        "verification_url": verification_url,
+        "code": code,
+        "code_expires_in_minutes": code_expires_in_minutes,
+        "link_expires_in_minutes": link_expires_in_minutes,
+    })
+
+    client = _get_client()
+    response = client.transactional_emails.send_transac_email(
+        to=[brevo.SendTransacEmailRequestToItem(email=recipient_email, name=recipient_name)],
+        sender=brevo.SendTransacEmailRequestSender(email=EMAIL_FROM_ADDRESS, name=EMAIL_FROM_NAME),
+        subject="Xác thực địa chỉ email - Aventura",
+        html_content=html_content,
+    )
+    logger.info("Verification email sent to %s, messageId=%s", recipient_email, response.message_id)
+    return response.message_id or ""
+
+
 def send_invoice_email(
     recipient_email: str,
     invoice_number: str,
