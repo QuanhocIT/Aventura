@@ -94,72 +94,92 @@ class DashboardController extends Controller
         $windowStart = $now->copy()->subDays(30);
         $rangeWindowStart = $now->copy()->subMonths($range['months'])->startOfDay();
 
-        $subscriptions = RestaurantSubscription::with(['plan', 'restaurant'])
-            ->orderBy('restaurant_id')
-            ->orderBy('started_at')
-            ->get();
+        // 1. Cache SaaS Metrics to prevent querying all subscriptions on every request
+        $saasMetricsData = Cache::remember('superadmin_dashboard_saas_metrics', self::CACHE_TTL, function () use ($monthStart, $monthEnd) {
+            $activeSubscriptions = RestaurantSubscription::with('plan')
+                ->whereIn('status', ['trial', 'active'])
+                ->get();
+            $mrr = $activeSubscriptions->sum(fn (RestaurantSubscription $subscription) => $this->monthlyRecurringRevenue($subscription));
 
-        $activeSubscriptions = $subscriptions->filter(fn (RestaurantSubscription $subscription) => $subscription->isActive());
-        $mrr = $activeSubscriptions->sum(fn (RestaurantSubscription $subscription) => $this->monthlyRecurringRevenue($subscription));
+            $cancelledThisMonth = RestaurantSubscription::where('status', 'cancelled')
+                ->whereBetween('cancelled_at', [$monthStart, $monthEnd])
+                ->distinct('restaurant_id')
+                ->count('restaurant_id');
 
-        $cancelledThisMonth = $subscriptions
-            ->filter(fn (RestaurantSubscription $subscription) => $subscription->status === 'cancelled'
-                && $subscription->cancelled_at
-                && $subscription->cancelled_at->between($monthStart, $monthEnd))
-            ->pluck('restaurant_id')
-            ->unique()
-            ->count();
+            $activeBase = max(1, Restaurant::count());
 
-        $activeBase = max(1, Restaurant::count());
-        $freeToProConversionsThisMonth = $this->freeToProConversionsForMonth($subscriptions, $monthStart, $monthEnd);
+            return [
+                'mrr' => $mrr,
+                'cancelled_this_month' => $cancelledThisMonth,
+                'active_base' => $activeBase,
+                'active_subscriptions_count' => $activeSubscriptions->pluck('restaurant_id')->unique()->count(),
+                'paid_tenants_count' => $activeSubscriptions
+                    ->filter(fn (RestaurantSubscription $subscription) => $this->monthlyRecurringRevenue($subscription) > 0)
+                    ->pluck('restaurant_id')
+                    ->unique()
+                    ->count(),
+            ];
+        });
 
-        $stats = [
-            'total_restaurants' => Restaurant::count(),
-            'active'            => Restaurant::where('status', 'active')->count(),
-            'suspended'         => Restaurant::where('status', 'suspended')->count(),
-            'expired'           => Restaurant::where('status', 'expired')->count(),
-            'total_users'       => User::count(),
-            'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
-            'flagged_inactive'  => Restaurant::where('is_inactive_flagged', true)->count(),
-        ];
+        $mrr = $saasMetricsData['mrr'];
+        $cancelledThisMonth = $saasMetricsData['cancelled_this_month'];
+        $activeBase = $saasMetricsData['active_base'];
+
+        // 2. Cache general stats
+        $stats = Cache::remember('superadmin_dashboard_general_stats', self::CACHE_TTL, function () {
+            return [
+                'total_restaurants' => Restaurant::count(),
+                'active'            => Restaurant::where('status', 'active')->count(),
+                'suspended'         => Restaurant::where('status', 'suspended')->count(),
+                'expired'           => Restaurant::where('status', 'expired')->count(),
+                'total_users'       => User::count(),
+                'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
+                'flagged_inactive'  => Restaurant::where('is_inactive_flagged', true)->count(),
+            ];
+        });
 
         $tenantGrowthSeries = Cache::remember(
             "superadmin_dashboard_tenant_growth_{$range['key']}",
             self::CACHE_TTL,
-            fn () => $this->tenantGrowthSeries($now, $subscriptions, $range['months'])
+            fn () => $this->tenantGrowthSeries($now, $range['months'])
         );
 
         $tenantGrowthCompare = $compare ? Cache::remember(
             "superadmin_dashboard_tenant_growth_compare_{$range['key']}",
             self::CACHE_TTL,
-            fn () => $this->tenantGrowthSeries($now, $subscriptions, $range['months'], $range['months'])
+            fn () => $this->tenantGrowthSeries($now, $range['months'], $range['months'])
         ) : null;
 
-        $statChanges = $this->statChanges($now, $stats, $mrr, $activeSubscriptions);
+        $statChanges = $this->statChanges($now, $stats, $mrr);
 
-        $orderCounts = Order::query()
-            ->selectRaw('restaurant_id, COUNT(*) as cnt')
-            ->where('created_at', '>=', $windowStart)
-            ->groupBy('restaurant_id')
-            ->pluck('cnt', 'restaurant_id');
+        // 3. Lazy AI Insights: Skip DB query and mapping if cache exists
+        if (Cache::has('superadmin_ai_insights')) {
+            $aiInsights = Cache::get('superadmin_ai_insights');
+        } else {
+            $orderCounts = Order::query()
+                ->selectRaw('restaurant_id, COUNT(*) as cnt')
+                ->where('created_at', '>=', $windowStart)
+                ->groupBy('restaurant_id')
+                ->pluck('cnt', 'restaurant_id');
 
-        $restaurantsData = Restaurant::with(['plan', 'activeSubscription'])
-            ->get()
-            ->map(fn (Restaurant $r) => [
-                'id'                           => $r->id,
-                'name'                         => $r->name,
-                'plan_code'                    => $r->plan?->code ?? 'free',
-                'status'                       => $r->status,
-                'is_trial'                     => $r->activeSubscription?->status === 'trial',
-                'days_since_created'           => (int) $r->created_at->diffInDays($now),
-                'days_until_subscription_ends' => $r->subscription_ends_at
-                    ? (int) $now->diffInDays($r->subscription_ends_at, false)
-                    : -1,
-                'order_count_30d'              => (int) ($orderCounts[$r->id] ?? 0),
-                'subscription_status'          => $r->activeSubscription?->status ?? 'none',
-            ])->toArray();
+            $restaurantsData = Restaurant::with(['plan', 'activeSubscription'])
+                ->get()
+                ->map(fn (Restaurant $r) => [
+                    'id'                           => $r->id,
+                    'name'                         => $r->name,
+                    'plan_code'                    => $r->plan?->code ?? 'free',
+                    'status'                       => $r->status,
+                    'is_trial'                     => $r->activeSubscription?->status === 'trial',
+                    'days_since_created'           => (int) $r->created_at->diffInDays($now),
+                    'days_until_subscription_ends' => $r->subscription_ends_at
+                        ? (int) $now->diffInDays($r->subscription_ends_at, false)
+                        : -1,
+                    'order_count_30d'              => (int) ($orderCounts[$r->id] ?? 0),
+                    'subscription_status'          => $r->activeSubscription?->status ?? 'none',
+                ])->toArray();
 
-        $aiInsights = app(AiInsightsClient::class)->getInsights($restaurantsData, $tenantGrowthSeries);
+            $aiInsights = app(AiInsightsClient::class)->getInsights($restaurantsData, $tenantGrowthSeries);
+        }
 
         $recentRestaurants = Cache::remember('superadmin_dashboard_recent_restaurants', self::CACHE_TTL, fn () => Restaurant::with(['plan', 'owner'])
             ->latest()
@@ -192,13 +212,13 @@ class DashboardController extends Controller
         $revenueBreakdown = Cache::remember(
             'superadmin_dashboard_revenue_breakdown',
             self::CACHE_TTL,
-            fn () => $this->revenueBreakdownByPlan($now, $subscriptions, 6)
+            fn () => $this->revenueBreakdownByPlan($now, 6)
         );
 
         $revenueRetention = Cache::remember(
             'superadmin_dashboard_revenue_retention',
             self::CACHE_TTL,
-            fn () => $this->revenueRetention($now, $subscriptions)
+            fn () => $this->revenueRetention($now)
         );
 
         $planPerformance = Cache::remember(
@@ -220,12 +240,8 @@ class DashboardController extends Controller
                 'arr' => round($mrr * 12),
                 'churn_rate' => round(($cancelledThisMonth / $activeBase) * 100, 2),
                 'churned_this_month' => $cancelledThisMonth,
-                'active_subscriptions' => $activeSubscriptions->pluck('restaurant_id')->unique()->count(),
-                'paid_tenants' => $activeSubscriptions
-                    ->filter(fn (RestaurantSubscription $subscription) => $this->monthlyRecurringRevenue($subscription) > 0)
-                    ->pluck('restaurant_id')
-                    ->unique()
-                    ->count(),
+                'active_subscriptions' => $saasMetricsData['active_subscriptions_count'],
+                'paid_tenants' => $saasMetricsData['paid_tenants_count'],
             ],
             'tenantGrowth' => $tenantGrowthSeries,
             'tenantGrowthCompare' => $tenantGrowthCompare,
@@ -404,21 +420,15 @@ class DashboardController extends Controller
         $monthEnd = $now->copy()->endOfMonth();
         $windowStart = $now->copy()->subDays(30);
 
-        $subscriptions = RestaurantSubscription::with(['plan', 'restaurant'])
-            ->orderBy('restaurant_id')
-            ->orderBy('started_at')
+        $activeSubscriptions = RestaurantSubscription::with('plan')
+            ->whereIn('status', ['trial', 'active'])
             ->get();
-
-        $activeSubscriptions = $subscriptions->filter(fn (RestaurantSubscription $subscription) => $subscription->isActive());
         $mrr = $activeSubscriptions->sum(fn (RestaurantSubscription $subscription) => $this->monthlyRecurringRevenue($subscription));
 
-        $cancelledThisMonth = $subscriptions
-            ->filter(fn (RestaurantSubscription $subscription) => $subscription->status === 'cancelled'
-                && $subscription->cancelled_at
-                && $subscription->cancelled_at->between($monthStart, $monthEnd))
-            ->pluck('restaurant_id')
-            ->unique()
-            ->count();
+        $cancelledThisMonth = RestaurantSubscription::where('status', 'cancelled')
+            ->whereBetween('cancelled_at', [$monthStart, $monthEnd])
+            ->distinct('restaurant_id')
+            ->count('restaurant_id');
 
         $activeBase = max(1, Restaurant::count());
 
@@ -448,7 +458,7 @@ class DashboardController extends Controller
         return [
             'stats' => $stats,
             'saasMetrics' => $saasMetrics,
-            'tenantGrowth' => $this->tenantGrowthSeries($now, $subscriptions, 6),
+            'tenantGrowth' => $this->tenantGrowthSeries($now, 6),
             'planDistribution' => SubscriptionPlan::withCount('restaurants')->get()->map(fn ($plan) => [
                 'name' => $plan->name,
                 'code' => $plan->code,
@@ -456,7 +466,7 @@ class DashboardController extends Controller
             ])->all(),
             'planPerformance' => $this->planPerformance($now),
             'cohortAnalysis' => $this->cohortAnalysis($now),
-            'revenueRetention' => $this->revenueRetention($now, $subscriptions),
+            'revenueRetention' => $this->revenueRetention($now),
             'topOrderRestaurants' => $this->topOrderRestaurants($windowStart),
             'topStorageRestaurants' => $this->topStorageRestaurants(),
             'alerts' => $this->dashboardAlerts($now, $stats, $saasMetrics, []),
@@ -519,12 +529,16 @@ class DashboardController extends Controller
      * So sánh các chỉ số chính với 30 ngày trước, dựa trên dữ liệu thật (created_at / started_at)
      * thay vì các con số tăng trưởng cố định hiển thị trên giao diện trước đây.
      */
-    protected function statChanges(CarbonInterface $now, array $stats, float $mrr, $activeSubscriptions): array
+    protected function statChanges(CarbonInterface $now, array $stats, float $mrr): array
     {
         $cutoff = $now->copy()->subDays(30);
 
         $restaurantsBefore = Restaurant::where('created_at', '<=', $cutoff)->count();
         $usersBefore = User::where('created_at', '<=', $cutoff)->count();
+
+        $activeSubscriptions = RestaurantSubscription::with('plan')
+            ->whereIn('status', ['trial', 'active'])
+            ->get();
 
         $proNewLast30Days = $activeSubscriptions
             ->filter(fn (RestaurantSubscription $s) => strtolower((string) $s->plan?->code) === 'pro'
@@ -605,8 +619,12 @@ class DashboardController extends Controller
             ->count();
     }
 
-    protected function tenantGrowthSeries(CarbonInterface $now, $subscriptions, int $months, int $offsetMonths = 0): array
+    protected function tenantGrowthSeries(CarbonInterface $now, int $months, int $offsetMonths = 0): array
     {
+        $subscriptions = RestaurantSubscription::with(['plan'])
+            ->whereNotNull('started_at')
+            ->get();
+
         return collect(range($months - 1, 0))
             ->map(function (int $offset) use ($now, $subscriptions, $offsetMonths) {
                 $month = $now->copy()->subMonths($offset + $offsetMonths)->startOfMonth();
@@ -615,7 +633,7 @@ class DashboardController extends Controller
 
                 $newTenants = Restaurant::whereBetween('created_at', [$start, $end])->count();
                 $freeToPro = $this->freeToProConversionsForMonth(
-                    $subscriptions->filter(fn (RestaurantSubscription $subscription) => $subscription->started_at),
+                    $subscriptions,
                     $start,
                     $end,
                 );
@@ -727,9 +745,13 @@ class DashboardController extends Controller
      * cho biểu đồ "Revenue breakdown theo gói". Một subscription được tính là "đang hoạt
      * động" trong tháng X nếu started_at <= cuối tháng X và chưa kết thúc/huỷ trước đầu tháng X.
      */
-    protected function revenueBreakdownByPlan(CarbonInterface $now, $subscriptions, int $months = 6): array
+    protected function revenueBreakdownByPlan(CarbonInterface $now, int $months = 6): array
     {
         $planCodes = SubscriptionPlan::query()->pluck('code')->map(fn ($code) => strtolower($code))->unique()->values();
+
+        $subscriptions = RestaurantSubscription::with(['plan'])
+            ->whereNotNull('started_at')
+            ->get();
 
         return collect(range($months - 1, 0))
             ->map(function (int $offset) use ($now, $subscriptions, $planCodes) {
@@ -784,12 +806,16 @@ class DashboardController extends Controller
      * NRR = (MRR đầu kỳ + mở rộng - co lại - mất đi) / MRR đầu kỳ * 100
      * GRR = (MRR đầu kỳ - co lại - mất đi) / MRR đầu kỳ * 100
      */
-    protected function revenueRetention(CarbonInterface $now, $subscriptions): array
+    protected function revenueRetention(CarbonInterface $now): array
     {
         $currentStart = $now->copy()->startOfMonth();
         $currentEnd = $now->copy()->endOfMonth();
         $previousStart = $now->copy()->subMonthNoOverflow()->startOfMonth();
         $previousEnd = $previousStart->copy()->endOfMonth();
+
+        $subscriptions = RestaurantSubscription::with(['plan'])
+            ->whereNotNull('started_at')
+            ->get();
 
         $mrrByRestaurant = function (CarbonInterface $monthStart, CarbonInterface $monthEnd) use ($subscriptions) {
             return $subscriptions
