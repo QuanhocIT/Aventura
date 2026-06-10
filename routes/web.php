@@ -38,6 +38,11 @@ Route::middleware('guest')->group(function () {
     Route::post('two-factor-challenge/send-email-code', [\App\Http\Controllers\Auth\TwoFactorEmailCodeController::class, 'store'])
         ->middleware('throttle:6,1')
         ->name('two-factor.email-code.send');
+
+    // Trả về QR code cho user đang ở trang two-factor-challenge (đã auth bằng password)
+    Route::get('two-factor-challenge/setup-qr', \App\Http\Controllers\Auth\TwoFactorChallengeQrController::class)
+        ->middleware('throttle:10,1')
+        ->name('two-factor.challenge.setup-qr');
 });
 
 Route::middleware(['auth'])->group(function () {

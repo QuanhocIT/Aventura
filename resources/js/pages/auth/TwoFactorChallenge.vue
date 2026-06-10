@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { QrCode, Copy, Check, ChevronDown } from 'lucide-vue-next';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore Vue SFC module declaration is provided by the project shim.
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -127,6 +128,57 @@ clearInterval(cooldownTimer);
 onMounted(() => {
     requestEmailCode();
 });
+
+// ── QR Code setup panel ──────────────────────────────────────────────────────
+// Cho phép user xem lại mã QR thiết lập (khi đã mất app Authenticator)
+// chỉ dành cho user đang trong luồng challenge (đã auth bằng mật khẩu).
+const showQrPanel = ref<boolean>(false);
+const qrSvg = ref<string>('');
+const qrSetupKey = ref<string>('');
+const qrLoading = ref<boolean>(false);
+const qrError = ref<string>('');
+const qrCopied = ref<boolean>(false);
+
+const toggleQrPanel = async (): Promise<void> => {
+    showQrPanel.value = !showQrPanel.value;
+
+    if (showQrPanel.value && !qrSvg.value && !qrLoading.value) {
+        await fetchQrCode();
+    }
+};
+
+const fetchQrCode = async (): Promise<void> => {
+    qrLoading.value = true;
+    qrError.value = '';
+
+    try {
+        const response = await fetch('/two-factor-challenge/setup-qr', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            qrError.value = 'Tài khoản này chưa thiết lập 2FA qua ứng dụng Authenticator.';
+            return;
+        }
+
+        const data = await response.json();
+        qrSvg.value = data.qr_code ?? '';
+        qrSetupKey.value = data.setup_key ?? '';
+    } catch {
+        qrError.value = 'Lỗi kết nối. Vui lòng thử lại.';
+    } finally {
+        qrLoading.value = false;
+    }
+};
+
+const copySetupKey = (): void => {
+    if (!qrSetupKey.value) return;
+    navigator.clipboard.writeText(qrSetupKey.value).then(() => {
+        qrCopied.value = true;
+        setTimeout(() => { qrCopied.value = false; }, 2000);
+    });
+};
 </script>
 
 <template>
@@ -191,6 +243,80 @@ onMounted(() => {
                         <p v-else-if="emailCodeError" class="text-xs font-semibold text-red-500">
                             ⚠ {{ emailCodeError }}
                         </p>
+                    </div>
+
+                    <!-- QR Code setup panel: xem lại mã QR để thêm vào Authenticator app -->
+                    <div class="mt-3 rounded-xl border border-dashed border-blue-200 dark:border-blue-900/60 overflow-hidden">
+                        <!-- Toggle button -->
+                        <button
+                            type="button"
+                            class="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors duration-200 cursor-pointer"
+                            @click="toggleQrPanel"
+                        >
+                            <span class="flex items-center gap-1.5">
+                                <QrCode class="size-3.5 shrink-0" />
+                                Lấy mã QR thiết lập Authenticator
+                            </span>
+                            <ChevronDown
+                                class="size-3.5 shrink-0 transition-transform duration-300"
+                                :class="{ 'rotate-180': showQrPanel }"
+                            />
+                        </button>
+
+                        <!-- Expandable content -->
+                        <Transition
+                            enter-active-class="transition-all duration-300 ease-out"
+                            enter-from-class="opacity-0 max-h-0"
+                            enter-to-class="opacity-100 max-h-[500px]"
+                            leave-active-class="transition-all duration-200 ease-in"
+                            leave-from-class="opacity-100 max-h-[500px]"
+                            leave-to-class="opacity-0 max-h-0"
+                        >
+                            <div v-if="showQrPanel" class="px-3.5 pb-3.5 border-t border-blue-100 dark:border-blue-900/40">
+                                <p class="mt-2.5 text-[11px] text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
+                                    Quét mã QR bên dưới bằng <strong>Google Authenticator</strong> hoặc <strong>Microsoft Authenticator</strong> để thêm tài khoản này vào ứng dụng.
+                                </p>
+
+                                <!-- Loading -->
+                                <div v-if="qrLoading" class="mt-3 flex items-center justify-center h-28">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <div class="size-6 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin" />
+                                        <span class="text-[10px] text-muted-foreground">Đang tải mã QR...</span>
+                                    </div>
+                                </div>
+
+                                <!-- Error -->
+                                <p v-else-if="qrError" class="mt-2 text-[11px] font-semibold text-red-500">⚠ {{ qrError }}</p>
+
+                                <!-- QR Code + Setup Key -->
+                                <template v-else-if="qrSvg">
+                                    <div class="mt-3 flex justify-center">
+                                        <div
+                                            class="rounded-xl overflow-hidden border border-blue-200 dark:border-blue-800/60 p-2 bg-white"
+                                            style="width: 148px; height: 148px;"
+                                            v-html="qrSvg"
+                                        />
+                                    </div>
+
+                                    <!-- Setup key (manual entry) -->
+                                    <div class="mt-2.5 flex items-center gap-1.5">
+                                        <div class="flex-1 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/30 px-2.5 py-1.5 font-mono text-[11px] tracking-widest text-blue-800 dark:text-blue-300 overflow-x-auto whitespace-nowrap">
+                                            {{ qrSetupKey }}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="shrink-0 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-900/30 p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors duration-200 cursor-pointer"
+                                            @click="copySetupKey"
+                                            :title="qrCopied ? 'Đã sao chép!' : 'Sao chép khóa thiết lập'"
+                                        >
+                                            <Check v-if="qrCopied" class="size-3.5 text-emerald-500" />
+                                            <Copy v-else class="size-3.5" />
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-[10px] text-muted-foreground">Hoặc nhập thủ công khóa bên trên vào ứng dụng Authenticator.</p>
+                                </template>
+                            </div>
+                        </Transition>
                     </div>
 
                     <!-- Banner: gửi email OTP thất bại liên tục → gợi ý mạnh chuyển phương án khác -->
