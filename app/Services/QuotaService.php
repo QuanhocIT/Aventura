@@ -94,7 +94,7 @@ class QuotaService
 
         return [
             'plan'      => $restaurant->plan?->name ?? 'Unknown',
-            'plan_code' => $restaurant->plan?->code ?? 'FREE',
+            'plan_code' => $restaurant->plan?->code ?? 'free',
             'resources' => [
                 'branches'  => $format('branches'),
                 'tables'    => $format('tables'),
@@ -102,9 +102,19 @@ class QuotaService
                 'areas'     => $format('areas'),
             ],
             'features' => [
-                'ai_features'        => $this->hasFeature($restaurant, 'ai_features'),
-                'realtime'           => $this->hasFeature($restaurant, 'realtime'),
+                'kitchen_display'    => $this->hasFeature($restaurant, 'kitchen_display'),
+                'qr_ordering'        => $this->hasFeature($restaurant, 'qr_ordering'),
+                'inventory_basic'    => $this->hasFeature($restaurant, 'inventory_basic'),
+                'hr_timekeeping'     => $this->hasFeature($restaurant, 'hr_timekeeping'),
+                'hr_full'            => $this->hasFeature($restaurant, 'hr_full'),
                 'advanced_analytics' => $this->hasFeature($restaurant, 'advanced_analytics'),
+                'realtime'           => $this->hasFeature($restaurant, 'realtime'),
+                'fraud_detection'    => $this->hasFeature($restaurant, 'fraud_detection'),
+                'email_reports'      => $this->hasFeature($restaurant, 'email_reports'),
+                'ai_advisor'         => $this->hasFeature($restaurant, 'ai_advisor'),
+                'supplier_portal'    => $this->hasFeature($restaurant, 'supplier_portal'),
+                'ai_forecasting'     => $this->hasFeature($restaurant, 'ai_forecasting'),
+                'api_access'         => $this->hasFeature($restaurant, 'api_access'),
             ],
             'rate_limit' => $this->getRateLimit($restaurant),
         ];

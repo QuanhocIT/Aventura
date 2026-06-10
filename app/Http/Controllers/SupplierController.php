@@ -45,6 +45,17 @@ class SupplierController extends Controller
 
         $user = $request->user();
 
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'supplier_portal',
+                'feature_label' => 'Cổng Nhà Cung Cấp',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Doanh Nghiệp',
+            ]);
+        }
+
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
             ->withCount(['ingredients', 'purchaseOrders'])
             ->get();

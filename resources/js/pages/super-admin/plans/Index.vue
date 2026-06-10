@@ -33,14 +33,24 @@ const createForm = useForm({
     billing_cycle: 'monthly',
     price: 0,
     max_branches: 1,
-    max_tables: 10,
+    max_tables: 15,
     max_users: 5,
     max_areas: 2,
     max_storage_mb: 500,
-    ai_features: false,
-    realtime: false,
+    api_rate_limit: 30,
+    kitchen_display:    false,
+    qr_ordering:        false,
+    inventory_basic:    false,
+    hr_timekeeping:     false,
+    hr_full:            false,
     advanced_analytics: false,
-    api_rate_limit: 60,
+    realtime:           false,
+    fraud_detection:    false,
+    email_reports:      false,
+    ai_advisor:         false,
+    supplier_portal:    false,
+    ai_forecasting:     false,
+    api_access:         false,
 });
 
 function submitCreate() {
@@ -57,12 +67,28 @@ const restaurants = ref<any[]>([]);
 const isLoadingRestaurants = ref(false);
 
 const form = useForm({
-    name: '', description: '',
+    name: '',
+    description: '',
     price: 0,
-    max_branches: 1, max_tables: 10, max_users: 5,
-    max_areas: 2, max_storage_mb: 500,
-    ai_features: false, realtime: false, advanced_analytics: false,
-    api_rate_limit: 60,
+    max_branches: 1,
+    max_tables: 15,
+    max_users: 5,
+    max_areas: 2,
+    max_storage_mb: 500,
+    api_rate_limit: 30,
+    kitchen_display:    false,
+    qr_ordering:        false,
+    inventory_basic:    false,
+    hr_timekeeping:     false,
+    hr_full:            false,
+    advanced_analytics: false,
+    realtime:           false,
+    fraud_detection:    false,
+    email_reports:      false,
+    ai_advisor:         false,
+    supplier_portal:    false,
+    ai_forecasting:     false,
+    api_access:         false,
 });
 
 const toForm = (v: number | null) => (v === null ? -1 : v);
@@ -78,10 +104,20 @@ function startEdit(plan: Plan) {
     form.max_users          = toForm(plan.max_users);
     form.max_areas          = plan.features?.max_areas ?? 2;
     form.max_storage_mb     = plan.features?.max_storage_mb ?? 500;
-    form.ai_features        = plan.features?.ai_features ?? false;
-    form.realtime           = plan.features?.realtime ?? false;
+    form.api_rate_limit     = plan.features?.api_rate_limit ?? 30;
+    form.kitchen_display    = plan.features?.kitchen_display ?? false;
+    form.qr_ordering        = plan.features?.qr_ordering ?? false;
+    form.inventory_basic    = plan.features?.inventory_basic ?? false;
+    form.hr_timekeeping     = plan.features?.hr_timekeeping ?? false;
+    form.hr_full            = plan.features?.hr_full ?? false;
     form.advanced_analytics = plan.features?.advanced_analytics ?? false;
-    form.api_rate_limit     = plan.features?.api_rate_limit ?? 60;
+    form.realtime           = plan.features?.realtime ?? false;
+    form.fraud_detection    = plan.features?.fraud_detection ?? false;
+    form.email_reports      = plan.features?.email_reports ?? false;
+    form.ai_advisor         = plan.features?.ai_advisor ?? false;
+    form.supplier_portal    = plan.features?.supplier_portal ?? false;
+    form.ai_forecasting     = plan.features?.ai_forecasting ?? false;
+    form.api_access         = plan.features?.api_access ?? false;
 }
 
 function save(planId: number) {
@@ -109,56 +145,47 @@ async function showRestaurants(plan: Plan) {
     }
 }
 
-// Build the customer-facing feature list from plan data (mirrors Khach.vue logic)
+const ALL_FEATURES: { key: string; label: string }[] = [
+    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
+    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
+    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
+    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
+    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
+    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
+    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
+    { key: 'api_access',         label: 'Truy cập API' },
+];
+
 function planFeatures(plan: Plan): string[] {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
-    const mb  = plan.features?.max_storage_mb ?? 500;
-    const rate = plan.features?.api_rate_limit ?? 60;
+    const mb   = plan.features?.max_storage_mb ?? 500;
+    const rate = plan.features?.api_rate_limit ?? 30;
 
     const list = [
         lim(plan.max_branches, 'chi nhánh'),
         lim(plan.max_tables, 'bàn'),
         lim(plan.max_users, 'nhân viên'),
         mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`,
-        `Rate limit: ${new Intl.NumberFormat('vi-VN').format(rate)}/phút`,
+        `API: ${new Intl.NumberFormat('vi-VN').format(rate)} req/phút`,
     ];
 
-    if (plan.features?.ai_features)        {
-list.push('AI dự báo nguyên liệu & tồn kho');
-}
-
-    if (plan.features?.ai_features)        {
-list.push('Thuật toán AI phát hiện gian lận');
-}
-
-    if (plan.features?.realtime)           {
-list.push('Realtime sync & Advanced Analytics');
-}
-
-    if (plan.features?.advanced_analytics) {
-list.push('Hệ thống Audit Log bảo mật');
-}
+    for (const f of ALL_FEATURES) {
+        if (plan.features?.[f.key]) list.push(f.label);
+    }
 
     return list;
 }
 
 function planUnsupported(plan: Plan): string[] {
-    const list: string[] = [];
-
-    if (!plan.features?.ai_features)        {
-list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-}
-
-    if (!plan.features?.realtime)           {
-list.push('Realtime sync & Advanced Analytics');
-}
-
-    if (!plan.features?.advanced_analytics) {
-list.push('Hệ thống Audit Log bảo mật');
-}
-
-    return list;
+    return ALL_FEATURES
+        .filter(f => !plan.features?.[f.key])
+        .map(f => f.label);
 }
 
 function formatVnd(v: number) {
@@ -166,14 +193,14 @@ function formatVnd(v: number) {
 }
 
 const planNotes: Record<string, string> = {
-    free:  'Gói cơ bản trải nghiệm miễn phí.',
-    pro:   'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
-    max:   'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
-    ultra: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
 };
 
 const planIcon: Record<string, any> = {
-    free: Star, pro: Crown, max: Zap, ultra: Users,
+    free: Star, starter: Check, pro: Crown, enterprise: Users,
 };
 </script>
 
@@ -206,7 +233,7 @@ const planIcon: Record<string, any> = {
                     class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md h-full"
                     :class="{
                         'border-2 border-primary shadow-sm': plan.code === 'pro',
-                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'ultra',
+                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'enterprise',
                     }"
                 >
                     <CardHeader>
@@ -215,7 +242,7 @@ const planIcon: Record<string, any> = {
                                 class="flex items-center gap-1.5 text-2xl font-bold"
                                 :class="{
                                     'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'ultra',
+                                    'text-violet-500': plan.code === 'enterprise',
                                 }"
                             >
                                 <component :is="planIcon[plan.code] ?? Star" class="size-5" />
@@ -224,7 +251,7 @@ const planIcon: Record<string, any> = {
                             <div class="flex items-center gap-1">
                                 <Badge v-if="plan.code === 'free'" variant="secondary">Mặc định</Badge>
                                 <Badge v-else-if="plan.code === 'pro'">Khuyến nghị</Badge>
-                                <Badge v-else-if="plan.code === 'ultra'" class="bg-violet-600 text-white">VIP</Badge>
+                                <Badge v-else-if="plan.code === 'enterprise'" class="bg-violet-600 text-white">VIP</Badge>
                                 <Button variant="ghost" size="icon" class="size-7 ml-1" @click="startEdit(plan)">
                                     <Edit2 class="size-3.5 text-muted-foreground" />
                                 </Button>
@@ -236,7 +263,7 @@ const planIcon: Record<string, any> = {
                                 class="text-3xl font-extrabold"
                                 :class="{
                                     'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'ultra',
+                                    'text-violet-500': plan.code === 'enterprise',
                                 }"
                             >
                                 {{ formatVnd(plan.price) }}
@@ -255,7 +282,7 @@ const planIcon: Record<string, any> = {
                                 class="size-4 flex-shrink-0 text-emerald-500"
                                 :class="{
                                     'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'ultra',
+                                    'text-violet-500': plan.code === 'enterprise',
                                 }"
                             />
                             {{ feat }}
@@ -344,20 +371,12 @@ const planIcon: Record<string, any> = {
                         </div>
                     </div>
 
-                    <!-- Feature toggles - styled -->
-                    <div class="rounded-lg border border-border p-3 space-y-2">
-                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng nâng cao</p>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">AI dự báo & phát hiện gian lận</span>
-                            <input type="checkbox" v-model="form.ai_features" class="size-4 rounded accent-primary" />
-                        </label>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">Realtime sync</span>
-                            <input type="checkbox" v-model="form.realtime" class="size-4 rounded accent-primary" />
-                        </label>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">Phân tích nâng cao & Audit Log</span>
-                            <input type="checkbox" v-model="form.advanced_analytics" class="size-4 rounded accent-primary" />
+                    <!-- Feature toggles — 13 flags -->
+                    <div class="rounded-lg border border-border p-3 space-y-1">
+                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng được kích hoạt</p>
+                        <label v-for="f in ALL_FEATURES" :key="f.key" class="flex items-center justify-between gap-2 cursor-pointer py-0.5">
+                            <span class="text-sm">{{ f.label }}</span>
+                            <input type="checkbox" v-model="(form as any)[f.key]" class="size-4 rounded accent-primary" />
                         </label>
                     </div>
 
@@ -444,19 +463,11 @@ const planIcon: Record<string, any> = {
                         </div>
                     </div>
 
-                    <div class="rounded-lg border border-border p-3 space-y-2">
-                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng nâng cao</p>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">AI dự báo & phát hiện gian lận</span>
-                            <input type="checkbox" v-model="createForm.ai_features" class="size-4 rounded accent-primary" />
-                        </label>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">Realtime sync</span>
-                            <input type="checkbox" v-model="createForm.realtime" class="size-4 rounded accent-primary" />
-                        </label>
-                        <label class="flex items-center justify-between gap-2 cursor-pointer">
-                            <span class="text-sm">Phân tích nâng cao & Audit Log</span>
-                            <input type="checkbox" v-model="createForm.advanced_analytics" class="size-4 rounded accent-primary" />
+                    <div class="rounded-lg border border-border p-3 space-y-1">
+                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng được kích hoạt</p>
+                        <label v-for="f in ALL_FEATURES" :key="f.key" class="flex items-center justify-between gap-2 cursor-pointer py-0.5">
+                            <span class="text-sm">{{ f.label }}</span>
+                            <input type="checkbox" v-model="(createForm as any)[f.key]" class="size-4 rounded accent-primary" />
                         </label>
                     </div>
 

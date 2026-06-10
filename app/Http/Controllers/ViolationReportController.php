@@ -24,6 +24,18 @@ class ViolationReportController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('view_violations') || $user->can('report_violations'), 403);
+
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'hr_full',
+                'feature_label' => 'Báo cáo Vi phạm Nội bộ',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Chuyên Nghiệp',
+            ]);
+        }
+
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác

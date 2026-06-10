@@ -24,7 +24,19 @@ class SalaryController extends Controller
     {
         abort_unless($request->user()->can('manage_salary'), 403);
 
-        $user         = $request->user();
+        $user = $request->user();
+
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'hr_full',
+                'feature_label' => 'Quản lý Lương & Nhân sự',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Chuyên Nghiệp',
+            ]);
+        }
+
         $restaurantId = $user->restaurant_id;
 
         $period = $request->input('period', today()->format('Y-m'));

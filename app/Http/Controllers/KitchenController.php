@@ -16,6 +16,18 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
+
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'kitchen_display')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'kitchen_display',
+                'feature_label' => 'Màn hình Bếp (Kitchen Display)',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Cơ Bản',
+            ]);
+        }
+
         $restaurantId = $user->restaurant_id;
 
         // 1. Nhận đơn (Pending/Preparing items in active orders)

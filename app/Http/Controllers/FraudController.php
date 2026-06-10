@@ -24,7 +24,19 @@ class FraudController extends Controller
     {
         abort_unless($request->user()->can('view_fraud_detection'), 403);
 
-        $user         = $request->user();
+        $user = $request->user();
+
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'fraud_detection')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'fraud_detection',
+                'feature_label' => 'Phát hiện Gian lận',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Chuyên Nghiệp',
+            ]);
+        }
+
         $restaurantId = $user->restaurant_id;
         $period       = $request->input('period', today()->format('Y-m'));
         $activeTab    = $request->input('tab', 'ai');

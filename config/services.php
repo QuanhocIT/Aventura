@@ -46,12 +46,9 @@ return [
     'chatbot' => [
         'url' => env('CHATBOT_SERVICE_URL', ''),
     ],
-    'email_microservice' => [
-        'url' => env('EMAIL_SERVICE_URL', ''),
-    ],
 
-    'chatbot' => [
-        'url' => env('CHATBOT_SERVICE_URL', ''),
+    'brevo' => [
+        'api_key' => env('BREVO_API_KEY', ''),
     ],
 
 ];

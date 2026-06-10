@@ -61,36 +61,103 @@ class EmailMicroserviceClient
 
     private function post(string $endpoint, array $payload): bool
     {
-        if (empty($this->baseUrl)) {
-            Log::warning('EmailMicroserviceClient: EMAIL_SERVICE_URL chưa được cấu hình, bỏ qua gửi email.');
+        // Thử Python service trước nếu URL được cấu hình
+        if (!empty($this->baseUrl)) {
+            try {
+                $response = Http::timeout(3)->post($this->baseUrl.$endpoint, $payload);
+
+                if ($response->successful()) {
+                    Log::info('EmailMicroserviceClient: gửi email thành công qua Python service', [
+                        'endpoint' => $endpoint,
+                    ]);
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('EmailMicroserviceClient: Python service không khả dụng, chuyển sang Brevo trực tiếp', [
+                    'endpoint' => $endpoint,
+                ]);
+            }
+        }
+
+        // Fallback: gọi Brevo API trực tiếp từ Laravel
+        return $this->sendViaBrevoDirectly($endpoint, $payload);
+    }
+
+    private function sendViaBrevoDirectly(string $endpoint, array $payload): bool
+    {
+        $apiKey = config('services.brevo.api_key');
+
+        if (empty($apiKey)) {
+            Log::error('EmailMicroserviceClient: BREVO_API_KEY chưa cấu hình.');
+            return false;
+        }
+
+        $fromEmail = config('mail.from.address', 'no-reply@aventura.vn');
+        $fromName  = config('mail.from.name', 'Aventura');
+
+        // Map endpoint → subject + nội dung HTML
+        [$subject, $html] = $this->buildBrevoContent($endpoint, $payload);
+
+        if (!$subject) {
+            Log::error('EmailMicroserviceClient: endpoint không hỗ trợ fallback Brevo', ['endpoint' => $endpoint]);
             return false;
         }
 
         try {
             $response = Http::timeout(10)
-                ->retry(2, 500)
-                ->post($this->baseUrl.$endpoint, $payload);
+                ->withHeaders(['api-key' => $apiKey, 'Content-Type' => 'application/json'])
+                ->post('https://api.brevo.com/v3/smtp/email', [
+                    'sender'     => ['name' => $fromName, 'email' => $fromEmail],
+                    'to'         => [['email' => $payload['recipient_email'] ?? $payload['email'] ?? '']],
+                    'subject'    => $subject,
+                    'htmlContent'=> $html,
+                ]);
 
             if ($response->successful()) {
-                Log::info('EmailMicroserviceClient: gửi email thành công', [
-                    'endpoint' => $endpoint,
-                    'message_id' => $response->json('message_id'),
-                ]);
+                Log::info('EmailMicroserviceClient: gửi email thành công qua Brevo trực tiếp', ['endpoint' => $endpoint]);
                 return true;
             }
 
-            Log::error('EmailMicroserviceClient: phản hồi lỗi từ Python service', [
+            Log::error('EmailMicroserviceClient: Brevo trả lỗi', [
                 'endpoint' => $endpoint,
-                'status' => $response->status(),
-                'body' => $response->body(),
+                'status'   => $response->status(),
+                'body'     => $response->body(),
             ]);
             return false;
         } catch (\Throwable $e) {
-            Log::error('EmailMicroserviceClient: không kết nối được Python service', [
-                'endpoint' => $endpoint,
-                'error' => $e->getMessage(),
-            ]);
+            Log::error('EmailMicroserviceClient: lỗi kết nối Brevo', ['error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    private function buildBrevoContent(string $endpoint, array $payload): array
+    {
+        $name = $payload['recipient_name'] ?? $payload['name'] ?? 'Bạn';
+
+        return match ($endpoint) {
+            '/send/otp' => [
+                'Mã xác thực đăng nhập Aventura',
+                "<div style='font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#fff;border-radius:12px'>
+                    <h2 style='color:#4f46e5'>🔐 Mã xác thực 2 lớp</h2>
+                    <p>Xin chào <strong>{$name}</strong>,</p>
+                    <p>Mã OTP đăng nhập của bạn là:</p>
+                    <div style='font-size:36px;font-weight:bold;letter-spacing:8px;color:#4f46e5;text-align:center;padding:16px;background:#f0f0ff;border-radius:8px'>
+                        {$payload['code']}
+                    </div>
+                    <p style='color:#888;font-size:13px;margin-top:16px'>Mã có hiệu lực trong <strong>{$payload['expires_in_minutes']} phút</strong>. Không chia sẻ mã này với ai.</p>
+                </div>",
+            ],
+            '/send/verification' => [
+                'Xác thực địa chỉ email Aventura',
+                "<div style='font-family:sans-serif;max-width:480px;margin:auto;padding:32px'>
+                    <h2 style='color:#4f46e5'>✉️ Xác thực email</h2>
+                    <p>Xin chào <strong>{$name}</strong>, mã xác thực của bạn là:</p>
+                    <div style='font-size:32px;font-weight:bold;text-align:center;color:#4f46e5;padding:16px;background:#f0f0ff;border-radius:8px'>
+                        {$payload['code']}
+                    </div>
+                </div>",
+            ],
+            default => [null, null],
+        };
     }
 }

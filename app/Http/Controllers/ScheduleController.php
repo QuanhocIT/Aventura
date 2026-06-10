@@ -23,8 +23,19 @@ class ScheduleController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'hr_timekeeping')) {
+            return Inertia::render('FeatureGate', [
+                'feature'       => 'hr_timekeeping',
+                'feature_label' => 'Chấm công & Lịch làm việc',
+                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Cơ Bản',
+            ]);
+        }
+
         $restaurantId = $user->restaurant_id;
-        $restaurant = \App\Models\Restaurant::find($restaurantId);
 
         // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
         if ($user->hasAnyRole(['owner', 'manager'])) {
