@@ -7,6 +7,7 @@ import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import Footer from '@/components/Footer.vue';
 import FlashToast from '@/components/FlashToast.vue';
+import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -344,6 +345,7 @@ const handleLogout = () => {
 
     <ChatbotWidget v-if="showChatbot" source="widget" />
     <FlashToast />
+    <GlobalCampaignListener />
 </template>
 
 <style scoped>

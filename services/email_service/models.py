@@ -38,6 +38,13 @@ class InvoiceEmailRequest(BaseModel):
     pdf_url: Optional[str] = None
 
 
+class CampaignEmailRequest(BaseModel):
+    recipient_email: EmailStr
+    recipient_name: Optional[str] = None
+    title: str
+    content: str
+
+
 class EmailResponse(BaseModel):
     success: bool
     message: str

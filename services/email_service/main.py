@@ -3,8 +3,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Any
 
-from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, VerificationEmailRequest, EmailResponse
-from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email
+from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, VerificationEmailRequest, EmailResponse, CampaignEmailRequest
+from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email, send_campaign_email
 from services.ai_service import analyze
 from config import BREVO_API_KEY
 
@@ -113,3 +113,21 @@ def send_invoice(payload: InvoiceEmailRequest):
     except Exception as e:
         logger.error("Error sending invoice email: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/send/campaign", response_model=EmailResponse)
+def send_campaign(payload: CampaignEmailRequest):
+    if not BREVO_API_KEY:
+        raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
+    try:
+        message_id = send_campaign_email(
+            recipient_email=payload.recipient_email,
+            title=payload.title,
+            content=payload.content,
+            recipient_name=payload.recipient_name,
+        )
+        return EmailResponse(success=True, message="Campaign email đã được gửi", message_id=message_id)
+    except Exception as e:
+        logger.error("Error sending campaign email: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+

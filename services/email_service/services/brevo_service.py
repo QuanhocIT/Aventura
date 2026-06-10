@@ -114,3 +114,22 @@ def send_invoice_email(
     )
     logger.info("Invoice email sent to %s, invoice=%s, messageId=%s", recipient_email, invoice_number, response.message_id)
     return response.message_id or ""
+
+
+def send_campaign_email(recipient_email: str, title: str, content: str, recipient_name: str | None = None) -> str:
+    html_content = _render("campaign.html", {
+        "recipient_name": recipient_name or "Thành viên",
+        "title": title,
+        "content": content,
+    })
+
+    client = _get_client()
+    response = client.transactional_emails.send_transac_email(
+        to=[brevo.SendTransacEmailRequestToItem(email=recipient_email, name=recipient_name)],
+        sender=brevo.SendTransacEmailRequestSender(email=EMAIL_FROM_ADDRESS, name=EMAIL_FROM_NAME),
+        subject=title,
+        html_content=html_content,
+    )
+    logger.info("Campaign email sent to %s, messageId=%s", recipient_email, response.message_id)
+    return response.message_id or ""
+

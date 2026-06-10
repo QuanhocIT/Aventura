@@ -10,6 +10,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('settings/device-token', [ProfileController::class, 'updateDeviceToken'])->name('profile.device-token.update');
 
     Route::get('settings/restaurant', [RestaurantController::class, 'edit'])->name('restaurant.edit');
     Route::patch('settings/restaurant', [RestaurantController::class, 'update'])->name('restaurant.update');

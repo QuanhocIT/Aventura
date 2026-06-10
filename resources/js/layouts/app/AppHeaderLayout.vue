@@ -4,6 +4,7 @@ import AppHeader from '@/components/AppHeader.vue';
 import AppShell from '@/components/AppShell.vue';
 import { Toaster } from '@/components/ui/sonner';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
+import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import type { BreadcrumbItem } from '@/types';
 
 type Props = {
@@ -23,5 +24,6 @@ withDefaults(defineProps<Props>(), {
         </AppContent>
         <Toaster />
         <QROrderAlertCenter />
+        <GlobalCampaignListener />
     </AppShell>
 </template>

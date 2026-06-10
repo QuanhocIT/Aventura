@@ -10,6 +10,7 @@ import FlashToast from '@/components/FlashToast.vue';
 import OnboardingTour from '@/components/OnboardingTour.vue';
 import { Toaster } from '@/components/ui/sonner';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
+import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import type { BreadcrumbItem } from '@/types';
 import { AlertTriangle } from 'lucide-vue-next';
 
@@ -96,6 +97,7 @@ function openUpgradeModal() {
         <Toaster />
         <FlashToast />
         <QROrderAlertCenter />
+        <GlobalCampaignListener />
         <OnboardingTour />
         <ChatbotWidget v-if="showChatbot" source="support" />
     </AppShell>

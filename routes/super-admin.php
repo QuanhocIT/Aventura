@@ -127,6 +127,13 @@ Route::prefix('super-admin')
         Route::get('backup-maintenance/download/{filename}', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'download'])->name('backup-maintenance.download');
         Route::delete('backup-maintenance/delete/{filename}', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'delete'])->name('backup-maintenance.delete');
 
+        // Global Announcement & Notification Campaigns
+        Route::get('campaigns', [\App\Http\Controllers\SuperAdmin\NotificationCampaignController::class, 'index'])->name('campaigns.index');
+        Route::post('campaigns', [\App\Http\Controllers\SuperAdmin\NotificationCampaignController::class, 'store'])->name('campaigns.store');
+        Route::post('campaigns/preview-audience', [\App\Http\Controllers\SuperAdmin\NotificationCampaignController::class, 'previewAudience'])->name('campaigns.preview');
+        Route::delete('campaigns/{campaign}', [\App\Http\Controllers\SuperAdmin\NotificationCampaignController::class, 'destroy'])->name('campaigns.destroy');
+        Route::post('campaigns/{campaign}/send', [\App\Http\Controllers\SuperAdmin\NotificationCampaignController::class, 'send'])->name('campaigns.send');
+
         // Global System Settings
         Route::get('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'index'])->name('settings.index');
         Route::post('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'update'])->name('settings.update');

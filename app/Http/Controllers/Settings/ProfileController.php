@@ -59,4 +59,20 @@ class ProfileController extends Controller
 
         return redirect('/');
     }
+
+    /**
+     * Update the user's mobile device token.
+     */
+    public function updateDeviceToken(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'device_token' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $request->user()->update([
+            'device_token' => $request->input('device_token'),
+        ]);
+
+        return back()->with('success', 'Đã cập nhật token thiết bị.');
+    }
 }

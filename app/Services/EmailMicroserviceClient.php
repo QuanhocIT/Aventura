@@ -34,6 +34,16 @@ class EmailMicroserviceClient
         return $this->post('/send/verification', $data);
     }
 
+    public function sendCampaignEmail(array $data): bool
+    {
+        return $this->post('/send/campaign', [
+            'recipient_email' => $data['email'] ?? $data['recipient_email'] ?? '',
+            'recipient_name'  => $data['name'] ?? $data['recipient_name'] ?? '',
+            'title'            => $data['title'] ?? '',
+            'content'          => $data['content'] ?? '',
+        ]);
+    }
+
     public function sendDailyReport(array $data): bool
     {
         return $this->post('/send/daily-report', [
@@ -155,6 +165,18 @@ class EmailMicroserviceClient
                     <div style='font-size:32px;font-weight:bold;text-align:center;color:#4f46e5;padding:16px;background:#f0f0ff;border-radius:8px'>
                         {$payload['code']}
                     </div>
+                </div>",
+            ],
+            '/send/campaign' => [
+                $payload['title'] ?? 'Thông báo hệ thống Aventura',
+                "<div style='font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:1px solid #e2e8f0'>
+                    <h2 style='color:#4f46e5;margin-bottom:20px;font-size:20px;font-weight:bold;text-align:center'>📢 " . e($payload['title'] ?? 'Thông báo hệ thống') . "</h2>
+                    <p>Xin chào <strong>" . e($name) . "</strong>,</p>
+                    <div style='font-size:16px;line-height:1.6;color:#334155;margin-top:16px;white-space:pre-wrap'>
+                        " . nl2br(e($payload['content'] ?? '')) . "
+                    </div>
+                    <hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0' />
+                    <p style='color:#64748b;font-size:12px;text-align:center'>Email này được gửi từ ban quản trị hệ thống SaaS Aventura.</p>
                 </div>",
             ],
             default => [null, null],

@@ -13,6 +13,7 @@ import {
     FileSearch2,
     Headset,
     UtensilsCrossed,
+    Megaphone,
     ShoppingCart,
     Package,
     ChefHat,
@@ -119,6 +120,7 @@ const superAdminNav: NavItem[] = [
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
     { title: 'Chatbot AI',      href: '/super-admin/chatbot',   icon: Bot },
     { title: 'Tin tức',         href: '/super-admin/news',      icon: Newspaper },
+    { title: 'Chiến dịch Quảng bá', href: '/super-admin/campaigns', icon: Megaphone },
     { title: 'Cấu hình hệ thống', href: '/super-admin/settings', icon: Settings },
 ];
 
