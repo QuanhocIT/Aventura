@@ -227,6 +227,23 @@ const genderColors = {
             </div>
         </div>
 
+        <!-- CDP sub-navigation -->
+        <div class="flex items-center gap-2 border-b pb-2">
+            <button 
+                type="button"
+                class="px-4 py-2 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 focus:outline-none"
+            >
+                👥 Hồ sơ CRM khách hàng
+            </button>
+            <button 
+                type="button"
+                @click="router.visit('/customers/cdp')"
+                class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-350 flex items-center gap-1.5 focus:outline-none"
+            >
+                ✨ Phân tích RFM & Hành vi (CDP)
+            </button>
+        </div>
+
         <!-- KPI STATS CARDS -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Total Customer Profiles -->

@@ -19,6 +19,21 @@ class CustomerController extends Controller
     {
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền truy cập trang quản lý khách hàng.');
 
+        $restaurantId = $request->user()->restaurant_id;
+
+        // Ensure all customers have RFM records calculated at least once
+        $uncalculatedCount = Customer::where('restaurant_id', $restaurantId)
+            ->whereNotExists(function ($query) use ($restaurantId) {
+                $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('customer_rfm_analysis')
+                    ->whereColumn('customer_rfm_analysis.customer_id', 'customers.id')
+                    ->where('customer_rfm_analysis.restaurant_id', $restaurantId);
+            })->count();
+
+        if ($uncalculatedCount > 0) {
+            \App\Services\CdpService::calculateRfmForRestaurant($restaurantId);
+        }
+
         $query = Customer::query();
 
         // Xử lý tìm kiếm động

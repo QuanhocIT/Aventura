@@ -22,5 +22,15 @@ class Customer extends Model
     {
         return CustomerFactory::new();
     }
+
+    public function rfmAnalysis()
+    {
+        return $this->hasOne(CustomerRfmAnalysis::class);
+    }
+
+    public function behaviorLogs()
+    {
+        return $this->hasMany(CustomerBehaviorLog::class);
+    }
 }
 

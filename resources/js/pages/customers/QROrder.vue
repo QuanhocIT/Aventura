@@ -82,6 +82,38 @@ const isOrdering = ref(false);
 const customerName = ref('');
 const customerPhone = ref('');
 
+// Behavior Tracking
+const sessionToken = ref('');
+
+function getOrGenerateSessionToken() {
+    let token = sessionStorage.getItem('cdp_session_token');
+    if (!token) {
+        token = 'sess_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+        sessionStorage.setItem('cdp_session_token', token);
+    }
+    sessionToken.value = token;
+}
+
+async function trackBehavior(eventType: string, productId: number | null = null, quantity: number | null = null, extraMeta: Record<string, any> | null = null) {
+    try {
+        await axios.post('/api/customer/track-behavior', {
+            restaurant_id: props.restaurant.id,
+            session_id: sessionToken.value,
+            event_type: eventType,
+            product_id: productId,
+            quantity: quantity,
+            meta_data: {
+                url: window.location.href,
+                table_name: props.table.name,
+                ...extraMeta
+            },
+            customer_phone: customerPhone.value.trim() || null
+        });
+    } catch (err) {
+        console.error('Tracking failed:', err);
+    }
+}
+
 // Item detail modal (notes & quantity selection)
 const isItemModalOpen = ref(false);
 const modalProduct = ref<Product | null>(null);
@@ -140,6 +172,7 @@ function openItemModal(product: Product) {
     }
     
     isItemModalOpen.value = true;
+    trackBehavior('view_product', product.id);
 }
 
 function addToCart() {
@@ -159,6 +192,7 @@ function addToCart() {
     
     isItemModalOpen.value = false;
     toast.success(`Đã thêm ${modalProduct.value.name} vào giỏ hàng`);
+    trackBehavior('add_to_cart', modalProduct.value.id, modalQuantity.value);
 }
 
 function updateCartQuantity(productId: number, delta: number) {
@@ -168,8 +202,14 @@ function updateCartQuantity(productId: number, delta: number) {
         if (newQty <= 0) {
             cart.value.splice(idx, 1);
             toast.info('Đã xóa món ăn khỏi giỏ hàng');
+            trackBehavior('remove_from_cart', productId, 1);
         } else {
             cart.value[idx].quantity = newQty;
+            if (delta > 0) {
+                trackBehavior('add_to_cart', productId, delta);
+            } else {
+                trackBehavior('remove_from_cart', productId, Math.abs(delta));
+            }
         }
     }
 }
@@ -183,6 +223,7 @@ async function submitOrder() {
         const payload = {
             customer_name: customerName.value.trim() || 'Khách tại bàn',
             customer_phone: customerPhone.value.trim() || null,
+            session_id: sessionToken.value,
             items: cart.value.map(item => ({
                 product_id: item.product.id,
                 quantity: item.quantity,
@@ -219,6 +260,7 @@ async function callStaff() {
             message: 'Khách yêu cầu phục vụ tại bàn'
         });
         toast.success(response.data.message);
+        trackBehavior('call_staff');
     } catch (err) {
         toast.error('Có lỗi xảy ra. Vui lòng gọi trực tiếp nhân viên.');
     } finally {
@@ -235,6 +277,7 @@ async function requestPayment() {
             table_id: props.table.id
         });
         toast.success(response.data.message);
+        trackBehavior('payment_request');
     } catch (err: any) {
         toast.error(err.response?.data?.message || 'Có lỗi xảy ra. Vui lòng gọi trực tiếp nhân viên.');
     } finally {
@@ -316,6 +359,9 @@ function refetchMenuOnly() {
 }
 
 onMounted(() => {
+    getOrGenerateSessionToken();
+    trackBehavior('view_menu');
+
     // Listen to live temporary order status updates
     if (window.Echo) {
         window.Echo.channel(`table.${props.table.id}`)

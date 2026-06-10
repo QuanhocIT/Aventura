@@ -158,6 +158,7 @@ class QROrderController extends Controller
         $data = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:20'],
+            'session_id' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:1'],
@@ -213,6 +214,25 @@ class QROrderController extends Controller
             ];
         }
 
+        $customerId = null;
+        if (!empty($data['customer_phone'])) {
+            $customer = \App\Models\Customer::firstOrCreate(
+                [
+                    'restaurant_id' => $restaurantId,
+                    'phone' => $data['customer_phone']
+                ],
+                [
+                    'full_name' => $data['customer_name'] ?: 'Khách gọi món QR',
+                    'branch_id' => $table->branch_id,
+                ]
+            );
+            $customerId = $customer->id;
+
+            if ($data['customer_name'] && ($customer->full_name === 'Khách gọi món QR' || empty($customer->full_name))) {
+                $customer->update(['full_name' => $data['customer_name']]);
+            }
+        }
+
         // Tạo bản ghi đơn hàng đệm
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $restaurantId,
@@ -224,6 +244,18 @@ class QROrderController extends Controller
             'cart_data' => $cartData,
             'total_amount' => $totalAmount,
         ]);
+
+        // Ghi nhận hành vi gửi đơn hàng và liên kết lịch sử
+        $sessionId = $data['session_id'] ?? 'unknown_session';
+        \App\Services\CdpService::logBehavior(
+            $restaurantId,
+            $sessionId,
+            'submit_order',
+            null,
+            null,
+            ['temporary_order_id' => $tempOrder->id, 'amount' => $totalAmount],
+            $customerId
+        );
 
         // Kích hoạt Event thông báo Realtime (< 500ms) trên màn hình máy POS/Tablet của Staff
         event(new TemporaryOrderCreated($tempOrder));

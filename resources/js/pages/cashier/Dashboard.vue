@@ -203,6 +203,34 @@ return 0;
     return Math.max(0, cashReceived.value - total);
 });
 
+const searchCustomerPhone = ref('');
+const foundCustomer = ref<any>(null);
+const isSearchingCustomer = ref(false);
+
+const searchCustomer = async () => {
+    if (!searchCustomerPhone.value) return;
+    isSearchingCustomer.value = true;
+    foundCustomer.value = null;
+    try {
+        const response = await axios.get(`/api/customers/search?phone=${searchCustomerPhone.value}`);
+        if (response.data.success) {
+            foundCustomer.value = response.data.customer;
+            toast('Đã tìm thấy khách hàng ' + response.data.customer.full_name);
+        } else {
+            toast(response.data.message || 'Không tìm thấy khách hàng.', 'error');
+        }
+    } catch (err: any) {
+        toast('Lỗi tra cứu khách hàng.', 'error');
+    } finally {
+        isSearchingCustomer.value = false;
+    }
+};
+
+const clearCustomerSelection = () => {
+    foundCustomer.value = null;
+    searchCustomerPhone.value = '';
+};
+
 // Self-Service State
 const showSelfServiceModal = ref(false);
 const selfServiceTab = ref<'schedule' | 'leave' | 'complaint'>('schedule');
@@ -609,6 +637,8 @@ openTableOrder(updated);
 // Payment Dialog
 const openPayment = () => {
     cashReceived.value = activeTable.value?.active_order?.total_amount ?? 0;
+    foundCustomer.value = null;
+    searchCustomerPhone.value = '';
     showPaymentModal.value = true;
 };
 
@@ -621,7 +651,8 @@ return;
     axios.post(`/orders/${activeTable.value.active_order.id}/pay`, {
         payment_method: paymentMethod.value,
         cash_received: cashReceived.value,
-        change_amount: changeAmount.value
+        change_amount: changeAmount.value,
+        customer_id: foundCustomer.value ? foundCustomer.value.id : null,
     }).then(() => {
         showPaymentModal.value = false;
         isCartOpen.value = false;
@@ -1509,6 +1540,53 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         <div class="flex justify-between items-center">
                             <span class="text-xs font-black">Số tiền cần thanh toán:</span>
                             <span class="text-lg font-mono font-black text-indigo-600">{{ number_format(activeTable?.active_order?.total_amount ?? 0) }}đ</span>
+                        </div>
+                    </div>
+
+                    <!-- Tra cứu khách hàng tích điểm -->
+                    <div class="flex flex-col gap-2 border-t pt-3 mt-1 text-left">
+                        <span class="text-xs font-bold text-slate-500">Tích điểm thành viên:</span>
+                        <div v-if="!foundCustomer" class="flex gap-2">
+                            <Input 
+                                type="text" 
+                                placeholder="Nhập SĐT khách hàng..." 
+                                v-model="searchCustomerPhone" 
+                                @keyup.enter="searchCustomer"
+                                class="rounded-xl text-xs h-9" 
+                            />
+                            <Button 
+                                type="button"
+                                size="sm" 
+                                variant="outline" 
+                                class="rounded-xl h-9" 
+                                :disabled="isSearchingCustomer"
+                                @click="searchCustomer"
+                            >
+                                <Search class="size-4 shrink-0 mr-1" />
+                                Tìm
+                            </Button>
+                        </div>
+                        <div v-else class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-150 rounded-xl flex items-center justify-between">
+                            <div class="flex flex-col text-xs text-left">
+                                <span class="font-bold text-slate-800 dark:text-slate-200">
+                                    👤 {{ foundCustomer.full_name }}
+                                </span>
+                                <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
+                                    SĐT: {{ foundCustomer.phone }} • Điểm hiện tại: {{ foundCustomer.loyalty_points }} pt
+                                </span>
+                                <span class="text-[9px] text-slate-400 mt-1">
+                                    + Cộng thêm: {{ Math.floor((activeTable?.active_order?.total_amount ?? 0) / 10000) }} pt (10k = 1pt)
+                                </span>
+                            </div>
+                            <Button 
+                                type="button"
+                                size="icon" 
+                                variant="ghost" 
+                                class="h-6 w-6 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                @click="clearCustomerSelection"
+                            >
+                                <X class="size-4" />
+                            </Button>
                         </div>
                     </div>
 

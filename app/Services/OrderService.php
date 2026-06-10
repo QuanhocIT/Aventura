@@ -64,6 +64,7 @@ class OrderService
                 'restaurant_id' => $restaurantId,
                 'branch_id' => $branchId,
                 'table_id' => $data['table_id'] ?? null,
+                'customer_id' => $data['customer_id'] ?? null,
                 'created_by' => $user->id,
                 'order_number' => $orderNumber,
                 'channel' => $data['table_id'] ? 'dine_in' : 'takeaway',
@@ -123,6 +124,14 @@ class OrderService
             if ($newStatus === 'completed' && $oldStatus !== 'completed') {
                 $this->inventoryService->deductInventoryForOrder($order, $user);
                 $order->payment_status = 'paid';
+
+                if ($order->customer_id) {
+                    $customer = \App\Models\Customer::find($order->customer_id);
+                    if ($customer) {
+                        $customer->update(['last_order_at' => now()]);
+                        \App\Services\CdpService::calculateRfmForCustomer($customer);
+                    }
+                }
             }
 
             if ($newStatus === 'cancelled' && $oldStatus !== 'cancelled') {
@@ -424,6 +433,7 @@ class OrderService
                     $customer->increment('loyalty_points', $pointsEarned);
                 }
                 $customer->update(['last_order_at' => now()]);
+                \App\Services\CdpService::calculateRfmForCustomer($customer);
             }
 
             AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);

@@ -59,9 +59,25 @@ class StaffQROrderController extends Controller
         abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
 
         $order = DB::transaction(function () use ($temporaryOrder, $user) {
+            $customerId = null;
+            if ($temporaryOrder->customer_phone) {
+                $customer = \App\Models\Customer::firstOrCreate(
+                    [
+                        'restaurant_id' => $temporaryOrder->restaurant_id,
+                        'phone' => $temporaryOrder->customer_phone
+                    ],
+                    [
+                        'full_name' => $temporaryOrder->customer_name ?: 'Khách gọi món QR',
+                        'branch_id' => $temporaryOrder->branch_id,
+                    ]
+                );
+                $customerId = $customer->id;
+            }
+
             // Chuẩn bị payload cho OrderService
             $orderData = [
                 'table_id' => $temporaryOrder->table_id,
+                'customer_id' => $customerId,
                 'note'     => "Đơn QR-Order [Xác nhận bởi: {$user->name}]",
                 'items'    => collect($temporaryOrder->cart_data)->map(fn($item) => [
                     'product_id' => $item['product_id'],

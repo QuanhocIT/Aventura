@@ -68,6 +68,7 @@ class OrdersController extends Controller
 
          $data = $request->validate([
              'table_id' => ['nullable', 'exists:restaurant_tables,id'],
+             'customer_id' => ['nullable', 'exists:customers,id'],
              'note' => ['nullable', 'string', 'max:500'],
              'items' => ['required', 'array', 'min:1'],
              'items.*.product_id' => ['required', 'exists:products,id'],
@@ -269,7 +270,12 @@ class OrdersController extends Controller
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change_amount' => ['nullable', 'numeric', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
         ]);
+
+        if (isset($data['customer_id']) && $data['customer_id']) {
+            $order->update(['customer_id' => $data['customer_id']]);
+        }
 
         $this->orderService->payOrder($order, $data, $user);
 
