@@ -26,3 +26,7 @@ app(Schedule::class)->call(function () {
 })->everyMinute();
 
 app(Schedule::class)->command('services:check-health')->everyFiveMinutes();
+
+app(Schedule::class)->command('db:backup')->dailyAt('02:00');
+app(Schedule::class)->command('db:optimize')->weeklyOn(0, '03:00');
+

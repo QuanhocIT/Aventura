@@ -120,7 +120,15 @@ Route::prefix('super-admin')
         Route::post('service-monitor/{service}/toggle-maintenance', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
         Route::post('service-monitor/{service}/update-message', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'updateMessage'])->name('service-monitor.update-message');
 
+        // Database Backup & Periodic Optimization
+        Route::get('backup-maintenance', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'index'])->name('backup-maintenance.index');
+        Route::post('backup-maintenance/backup', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'backup'])->name('backup-maintenance.backup');
+        Route::post('backup-maintenance/optimize', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'optimize'])->name('backup-maintenance.optimize');
+        Route::get('backup-maintenance/download/{filename}', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'download'])->name('backup-maintenance.download');
+        Route::delete('backup-maintenance/delete/{filename}', [\App\Http\Controllers\SuperAdmin\BackupMaintenanceController::class, 'delete'])->name('backup-maintenance.delete');
+
         // Global System Settings
         Route::get('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'index'])->name('settings.index');
         Route::post('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'update'])->name('settings.update');
     });
+
