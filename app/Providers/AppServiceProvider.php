@@ -46,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         \App\Models\ViolationReport::observe(\App\Observers\SalaryRecalculationObserver::class);
         \App\Models\ShiftClosing::observe(\App\Observers\SalaryRecalculationObserver::class);
         \App\Models\InventoryTransaction::observe(\App\Observers\SalaryRecalculationObserver::class);
+        \App\Models\MediaAsset::observe(\App\Observers\MediaAssetObserver::class);
 
         // Tự gửi email xác thực ngay sau khi đăng ký (Laravel không tự đăng ký
         // listener này khi project không có EventServiceProvider riêng).

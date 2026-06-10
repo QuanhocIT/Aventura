@@ -35,6 +35,7 @@ class Restaurant extends Model
             'last_active_at'          => 'datetime',
             'inactive_flagged_at'     => 'datetime',
             'is_inactive_flagged'     => 'boolean',
+            'storage_warning_sent_at' => 'datetime',
         ];
     }
 

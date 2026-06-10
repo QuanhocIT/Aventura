@@ -45,7 +45,12 @@ Route::prefix('super-admin')
         Route::patch('restaurants/{restaurant}/status', [RestaurantController::class, 'updateStatus'])->name('restaurants.status');
         Route::patch('restaurants/{restaurant}/plan', [RestaurantController::class, 'updatePlan'])->name('restaurants.plan');
         Route::patch('restaurants/{restaurant}/unflag', [RestaurantController::class, 'unflag'])->name('restaurants.unflag');
+        Route::patch('restaurants/{restaurant}/storage-quota', [RestaurantController::class, 'updateStorageQuota'])->name('restaurants.storage-quota');
         Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
+
+        // Garbage Collector UI
+        Route::get('garbage-collector', [\App\Http\Controllers\SuperAdmin\GarbageCollectorController::class, 'index'])->name('garbage-collector.index');
+        Route::post('garbage-collector/cleanup', [\App\Http\Controllers\SuperAdmin\GarbageCollectorController::class, 'cleanup'])->name('garbage-collector.cleanup');
 
         Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
         Route::post('plans', [SubscriptionPlanController::class, 'store'])->name('plans.store');

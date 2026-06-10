@@ -9,6 +9,10 @@ class QuotaService
     // null = không giới hạn
     public function getLimit(Restaurant $restaurant, string $resource): ?int
     {
+        if ($resource === 'storage_mb' && $restaurant->custom_storage_limit_mb !== null) {
+            return $restaurant->custom_storage_limit_mb;
+        }
+
         $plan = $restaurant->plan;
 
         if (! $plan) {
@@ -32,11 +36,15 @@ class QuotaService
 
     public function getUsage(Restaurant $restaurant): array
     {
+        $storageBytes = \App\Models\MediaAsset::where('restaurant_id', $restaurant->id)->sum('size_bytes');
+        $storageMb = round($storageBytes / (1024 * 1024), 2);
+
         return [
             'branches'  => $restaurant->branches()->count(),
             'tables'    => $restaurant->tables()->count(),
             'employees' => $restaurant->employees()->where('status', 'active')->count(),
             'areas'     => $restaurant->areas()->count(),
+            'storage_mb' => $storageMb,
         ];
     }
 
@@ -100,6 +108,7 @@ class QuotaService
                 'tables'    => $format('tables'),
                 'employees' => $format('employees'),
                 'areas'     => $format('areas'),
+                'storage_mb' => $format('storage_mb'),
             ],
             'features' => [
                 'kitchen_display'    => $this->hasFeature($restaurant, 'kitchen_display'),
@@ -120,7 +129,7 @@ class QuotaService
         ];
     }
 
-    private function percentage(int $used, int $limit): int
+    private function percentage(float $used, int $limit): int
     {
         if ($limit <= 0) {
             return 0;

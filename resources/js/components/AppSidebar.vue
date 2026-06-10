@@ -34,6 +34,7 @@ import {
     Activity,
     Settings,
     Crown,
+    Trash2,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -110,6 +111,7 @@ const superAdminNav: NavItem[] = [
     { title: 'Billing Center', href: '/super-admin/billing',     icon: BadgeDollarSign },
     { title: 'Hoa hồng & Rút tiền', href: '/super-admin/referrals', icon: Crown },
     { title: 'Banner & Slideshow', href: '/super-admin/banners', icon: Image },
+    { title: 'Dọn dẹp rác',    href: '/super-admin/garbage-collector', icon: Trash2 },
     { title: 'Giám sát Dịch vụ', href: '/super-admin/service-monitor', icon: Activity },
     { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },

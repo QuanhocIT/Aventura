@@ -15,6 +15,7 @@ import {
     WalletCards,
     Activity,
     AlertTriangle,
+    HardDrive,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ const props = defineProps<{
         last_active_at?: string;
         is_inactive_flagged?: boolean;
         inactive_flagged_at?: string;
+        custom_storage_limit_mb?: number | null;
         today_activity?: { orders_count: number; dishes_prepared_count: number; revenue: number };
         owner: { id?: number; name: string; email: string };
         plan: { id: number; name: string; code: string };
@@ -60,6 +62,13 @@ function updateStatus() {
 const planForm = useForm({ plan_id: String(props.restaurant.plan.id) });
 function updatePlan() {
     planForm.patch(`/super-admin/restaurants/${props.restaurant.id}/plan`);
+}
+
+const storageForm = useForm({ custom_storage_limit_mb: props.restaurant.custom_storage_limit_mb ?? '' });
+function updateStorageQuota() {
+    storageForm.patch(`/super-admin/restaurants/${props.restaurant.id}/storage-quota`, {
+        preserveScroll: true
+    });
 }
 
 const overrideForm = useForm({
@@ -138,10 +147,10 @@ const statusLabel: Record<string, string> = {
 };
 
 const resourceIcons: Record<string, any> = {
-    branches: Building2, employees: Users, areas: LayoutGrid, tables: Table2,
+    branches: Building2, employees: Users, areas: LayoutGrid, tables: Table2, storage_mb: HardDrive,
 };
 const resourceLabels: Record<string, string> = {
-    branches: 'Chi nhanh', employees: 'Nhan vien', areas: 'Khu vuc', tables: 'Ban an',
+    branches: 'Chi nhánh', employees: 'Nhân viên', areas: 'Khu vực', tables: 'Bàn ăn', storage_mb: 'Dung lượng (MB)',
 };
 
 function barColor(pct: number, canAdd: boolean) {
@@ -522,6 +531,23 @@ function openSubsDialog() {
                             </select>
                             <Button type="submit" :disabled="planForm.processing" size="sm" variant="outline" class="w-full">
                                 {{ planForm.processing ? 'Dang luu...' : 'Cap nhat goi' }}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader class="pb-3">
+                        <CardTitle class="text-base">Hạn ngạch lưu trữ tùy chỉnh</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="updateStorageQuota" class="flex flex-col gap-3">
+                            <div>
+                                <Label for="custom_storage" class="text-xs text-muted-foreground">Giới hạn dung lượng (MB)</Label>
+                                <Input id="custom_storage" type="number" v-model="storageForm.custom_storage_limit_mb" placeholder="Để trống để dùng mặc định" class="mt-1 border-border bg-background text-foreground rounded-xl" />
+                            </div>
+                            <Button type="submit" :disabled="storageForm.processing" size="sm" variant="outline" class="w-full">
+                                {{ storageForm.processing ? 'Đang lưu...' : 'Cập nhật dung lượng' }}
                             </Button>
                         </form>
                     </CardContent>

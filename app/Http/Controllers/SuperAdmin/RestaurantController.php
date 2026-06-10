@@ -176,6 +176,7 @@ class RestaurantController extends Controller
                 'last_active_at' => $restaurant->last_active_at?->format('d/m/Y H:i') ?? '—',
                 'is_inactive_flagged' => (bool) $restaurant->is_inactive_flagged,
                 'inactive_flagged_at' => $restaurant->inactive_flagged_at?->format('d/m/Y H:i') ?? '—',
+                'custom_storage_limit_mb' => $restaurant->custom_storage_limit_mb,
                 'today_activity' => $todayActivity,
                 'owner'        => [
                     'id'    => $restaurant->owner?->id,
@@ -403,5 +404,21 @@ class RestaurantController extends Controller
         DashboardController::forgetCache();
 
         return back()->with('success', "Đã gỡ gắn cờ và đặt lại mốc hoạt động cho nhà hàng \"{$restaurant->name}\".");
+    }
+
+    public function updateStorageQuota(Request $request, Restaurant $restaurant): RedirectResponse
+    {
+        $validated = $request->validate([
+            'custom_storage_limit_mb' => 'nullable|integer|min:0',
+        ]);
+
+        $restaurant->update([
+            'custom_storage_limit_mb' => $validated['custom_storage_limit_mb'] ?? null,
+        ]);
+
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        DashboardController::forgetCache();
+
+        return back()->with('success', "Đã cập nhật hạn ngạch lưu trữ cho nhà hàng \"{$restaurant->name}\".");
     }
 }
