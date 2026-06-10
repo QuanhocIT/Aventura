@@ -27,6 +27,9 @@ class CreateNewUser implements CreatesNewUsers
             'phone' => ['nullable', 'string', 'max:20'],
             'plan_code' => ['nullable', 'string', 'max:50'],
             'password' => $this->passwordRules(),
+            'referral_code' => ['nullable', 'string', 'exists:users,referral_code'],
+        ], [
+            'referral_code.exists' => 'Mã giới thiệu không tồn tại trong hệ thống.',
         ])->validate();
 
         $user = $this->onboarding->onboard($input);

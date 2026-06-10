@@ -28,6 +28,7 @@ const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.loc
 const selectedPlan = ref(urlParams?.get('plan') || 'free');
 
 const passwordValue = ref('');
+const hasReferral = ref(false);
 
 const passwordStrength = computed((): { score: number; label: string; color: string } => {
     const p = passwordValue.value;
@@ -195,6 +196,32 @@ return { score, label: 'Khá', color: 'bg-yellow-400' };
                                 :passwordrules="passwordRules"
                                 class="rounded-xl border-zinc-200 dark:border-zinc-800 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-700 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 shadow-sm" />
                             <InputError :message="errors.password_confirmation" />
+                        </div>
+
+                        <!-- Referral Code Section -->
+                        <div class="space-y-3 p-3.5 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+                            <div class="flex items-center space-x-2.5">
+                                <input
+                                    type="checkbox"
+                                    id="has_referral"
+                                    v-model="hasReferral"
+                                    class="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+                                />
+                                <Label for="has_referral" class="text-xs font-bold text-muted-foreground select-none cursor-pointer">
+                                    Có phải bạn được giới thiệu không?
+                                </Label>
+                            </div>
+                            <div v-if="hasReferral" class="grid gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <Label for="referral_code" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">Mã giới thiệu</Label>
+                                <Input
+                                    id="referral_code"
+                                    type="text"
+                                    name="referral_code"
+                                    placeholder="Ví dụ: AVT12345"
+                                    class="rounded-xl border-zinc-200 dark:border-zinc-800 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-700 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 shadow-sm uppercase font-mono"
+                                />
+                                <InputError :message="errors.referral_code" />
+                            </div>
                         </div>
 
                         <Button type="submit" class="w-full rounded-xl py-6 font-black uppercase tracking-wider text-xs bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white transition-all duration-300 shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_4px_25px_rgba(16,185,129,0.45)] hover:-translate-y-0.5 active:scale-[0.98] border-none mt-2 cursor-pointer" :tabindex="7" :disabled="processing">

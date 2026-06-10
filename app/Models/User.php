@@ -32,6 +32,12 @@ use Spatie\Permission\Traits\HasRoles;
     'avatar_url',
     'status',
     'onboarding_status',
+    'referral_code',
+    'referred_by_id',
+    'commission_balance',
+    'bank_name',
+    'bank_account_number',
+    'bank_account_name',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -91,6 +97,44 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
             ->where('collection', 'user_avatar');
+    }
+
+    protected static function booted()
+    {
+        static::creating(function (User $user) {
+            if (empty($user->referral_code)) {
+                $user->referral_code = static::generateUniqueReferralCode();
+            }
+        });
+    }
+
+    public static function generateUniqueReferralCode(): string
+    {
+        do {
+            $code = 'AVT' . strtoupper(\Illuminate\Support\Str::random(5));
+        } while (static::where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    public function referredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referred_by_id');
+    }
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(User::class, 'referred_by_id');
+    }
+
+    public function withdrawalRequests(): HasMany
+    {
+        return $this->hasMany(WithdrawalRequest::class);
+    }
+
+    public function commissionLogs(): HasMany
+    {
+        return $this->hasMany(CommissionLog::class);
     }
 
     public function isSuperAdmin(): bool

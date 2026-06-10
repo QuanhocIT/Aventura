@@ -11,6 +11,8 @@ use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Models\SystemSetting;
+use App\Models\CommissionLog;
 use App\Notifications\SubscriptionExpiryReminder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -114,6 +116,16 @@ class BillingService
             ]);
 
             $webhook->update(['status' => 'processed', 'processed_at' => now()]);
+
+            try {
+                $this->awardReferralCommission($restaurant, $invoice);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to award referral commission: ' . $e->getMessage(), [
+                    'restaurant_id' => $restaurant->id,
+                    'invoice_id' => $invoice->id,
+                    'exception' => $e
+                ]);
+            }
 
             return [
                 'ok' => true,
@@ -346,5 +358,45 @@ class BillingService
             'quarterly' => 90,
             default => 30,
         };
+    }
+
+    /**
+     * Award referral commission to the referrer of the restaurant owner.
+     */
+    private function awardReferralCommission(Restaurant $restaurant, BillingInvoice $invoice): void
+    {
+        $owner = $restaurant->owner;
+        if (!$owner) {
+            $owner = User::where('id', $restaurant->owner_user_id)->first();
+        }
+
+        if (!$owner || !$owner->referred_by_id) {
+            return;
+        }
+
+        $referrer = User::where('id', $owner->referred_by_id)->first();
+        if (!$referrer) {
+            return;
+        }
+
+        $amount = (float) $invoice->total;
+        if ($amount <= 0) {
+            return;
+        }
+
+        $percentage = (float) SystemSetting::get('referral_commission_percentage', config('referral.commission_percentage', 10));
+        $commissionAmount = $amount * ($percentage / 100);
+
+        CommissionLog::create([
+            'user_id' => $referrer->id,
+            'buyer_id' => $owner->id,
+            'restaurant_id' => $restaurant->id,
+            'billing_invoice_id' => $invoice->id,
+            'amount' => $amount,
+            'commission_percentage' => $percentage,
+            'commission_amount' => $commissionAmount,
+        ]);
+
+        $referrer->increment('commission_balance', $commissionAmount);
     }
 }

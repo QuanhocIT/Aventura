@@ -224,13 +224,13 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 <template>
     <Head title="Quản lý Banner" />
 
-    <div class="min-h-screen bg-gray-950 p-6 text-white">
-        <div class="mx-auto max-w-6xl space-y-6">
+    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+        <div class="space-y-6">
 
             <!-- Header -->
-            <div>
-                <h1 class="text-2xl font-bold text-white">Quản lý Banner & Slideshow</h1>
-                <p class="mt-1 text-sm text-gray-400">Upload ảnh để thay đổi giao diện trang khách hàng mà không cần đụng code.</p>
+            <div class="border-b pb-5 border-border/60">
+                <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">Quản lý Banner & Slideshow</h1>
+                <p class="mt-1 text-sm text-muted-foreground">Upload ảnh để thay đổi giao diện trang khách hàng mà không cần đụng code.</p>
             </div>
 
             <!-- Slot tabs -->
@@ -240,24 +240,24 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                     :key="s.key"
                     @click="selectSlot(s.key)"
                     :class="[
-                        'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all',
+                        'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all border cursor-pointer',
                         activeSlot === s.key
-                            ? `bg-gradient-to-r ${s.color} text-white shadow-lg`
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700',
+                            ? `bg-gradient-to-r ${s.color} border-transparent text-white shadow-lg`
+                            : 'border-border bg-card text-muted-foreground hover:bg-muted/70',
                     ]"
                 >
                     <ImageIcon class="h-4 w-4" />
                     {{ s.label }}
-                    <span class="rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ s.hint }}</span>
+                    <span class="rounded-full bg-muted-foreground/10 px-2 py-0.5 text-xs font-semibold">{{ s.hint }}</span>
                 </button>
             </div>
 
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
                 <!-- Upload form -->
-                <Card class="border-gray-800 bg-gray-900">
+                <Card class="border-border bg-card shadow-xs">
                     <CardHeader>
-                        <CardTitle class="text-base text-white">
+                        <CardTitle class="text-base text-foreground">
                             Thêm {{ currentSlotMeta.label }}
                         </CardTitle>
                     </CardHeader>
@@ -268,13 +268,13 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                             ref="dropzone"
                             @dragover.prevent
                             @drop="onDrop"
-                            class="relative cursor-pointer rounded-xl border-2 border-dashed border-gray-700 transition hover:border-indigo-500"
+                            class="relative cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/20 transition hover:border-indigo-500"
                         >
                             <label class="block cursor-pointer">
                                 <input type="file" accept="image/jpg,image/jpeg,image/png,image/webp" class="hidden" @change="onFileChange" />
-                                <div v-if="!imagePreview" class="flex flex-col items-center justify-center gap-2 py-10 text-gray-500">
+                                <div v-if="!imagePreview" class="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
                                     <Upload class="h-8 w-8" />
-                                    <span class="text-sm">Kéo thả hoặc click để chọn ảnh</span>
+                                    <span class="text-sm font-medium">Kéo thả hoặc click để chọn ảnh</span>
                                     <span class="text-xs">JPG, PNG, WebP · Tối đa 5MB · {{ currentSlotMeta.hint }}</span>
                                 </div>
                                 <div v-else class="relative">
@@ -294,31 +294,31 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                         <!-- Fields -->
                         <div class="space-y-3">
                             <div>
-                                <Label class="text-gray-300">Tiêu đề <span class="text-gray-500">(tùy chọn)</span></Label>
-                                <Input v-model="form.title" placeholder="Ví dụ: Khuyến mãi tháng 6" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                                <Label class="text-foreground">Tiêu đề <span class="text-muted-foreground font-normal">(tùy chọn)</span></Label>
+                                <Input v-model="form.title" placeholder="Ví dụ: Khuyến mãi tháng 6" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                             </div>
                             <div>
-                                <Label class="text-gray-300">Subtitle <span class="text-gray-500">(tùy chọn)</span></Label>
-                                <Input v-model="form.subtitle" placeholder="Mô tả ngắn" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                                <Label class="text-foreground">Subtitle <span class="text-muted-foreground font-normal">(tùy chọn)</span></Label>
+                                <Input v-model="form.subtitle" placeholder="Mô tả ngắn" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                             </div>
                             <div>
-                                <Label class="text-gray-300">URL khi click <span class="text-gray-500">(tùy chọn)</span></Label>
-                                <Input v-model="form.link_url" placeholder="https://..." class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                                <Label class="text-foreground">URL khi click <span class="text-muted-foreground font-normal">(tùy chọn)</span></Label>
+                                <Input v-model="form.link_url" placeholder="https://..." class="mt-1 border-border bg-background text-foreground rounded-xl" />
                                 <p v-if="form.errors.link_url" class="mt-1 text-xs text-red-400">{{ form.errors.link_url }}</p>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label class="text-gray-300">Hiệu lực từ</Label>
-                                    <Input v-model="form.starts_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                                    <Label class="text-foreground">Hiệu lực từ</Label>
+                                    <Input v-model="form.starts_at" type="date" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                                 </div>
                                 <div>
-                                    <Label class="text-gray-300">Hết hạn</Label>
-                                    <Input v-model="form.ends_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                                    <Label class="text-foreground">Hết hạn</Label>
+                                    <Input v-model="form.ends_at" type="date" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
-                                <input id="is_active" v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500" />
-                                <Label for="is_active" class="cursor-pointer text-gray-300">Hiển thị ngay</Label>
+                                <input id="is_active" v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded border-border text-primary cursor-pointer" />
+                                <Label for="is_active" class="cursor-pointer text-muted-foreground select-none">Hiển thị ngay</Label>
                             </div>
                         </div>
 
@@ -334,15 +334,15 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                 </Card>
 
                 <!-- Banner list -->
-                <Card class="border-gray-800 bg-gray-900">
+                <Card class="border-border bg-card shadow-xs">
                     <CardHeader>
-                        <CardTitle class="text-base text-white">
+                        <CardTitle class="text-base text-foreground">
                             Banner hiện tại
-                            <Badge class="ml-2 bg-gray-700 text-gray-300">{{ filteredBanners.length }}</Badge>
+                            <Badge class="ml-2 bg-muted-foreground/15 text-muted-foreground font-bold">{{ filteredBanners.length }}</Badge>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div v-if="filteredBanners.length === 0" class="flex flex-col items-center justify-center py-12 text-gray-600">
+                        <div v-if="filteredBanners.length === 0" class="flex flex-col items-center justify-center py-12 text-muted-foreground/60">
                             <ImageIcon class="h-10 w-10 mb-2" />
                             <p class="text-sm">Chưa có banner nào</p>
                         </div>
@@ -351,7 +351,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                             <div
                                 v-for="(banner, index) in filteredBanners"
                                 :key="banner.id"
-                                class="flex items-start gap-3 rounded-xl border border-gray-800 bg-gray-800/50 p-3 transition hover:border-gray-700"
+                                class="flex items-start gap-3 rounded-xl border border-border bg-card p-3 transition hover:bg-muted/30"
                             >
                                 <!-- Thumbnail -->
                                 <img
@@ -362,24 +362,27 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 
                                 <!-- Info -->
                                 <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm font-medium text-white">
+                                    <p class="truncate text-sm font-bold text-foreground">
                                         {{ banner.title || '(Không có tiêu đề)' }}
                                     </p>
-                                    <p v-if="banner.subtitle" class="truncate text-xs text-gray-400">{{ banner.subtitle }}</p>
+                                    <p v-if="banner.subtitle" class="truncate text-xs text-muted-foreground">{{ banner.subtitle }}</p>
                                     <a
                                         v-if="banner.link_url"
                                         :href="banner.link_url"
                                         target="_blank"
-                                        class="mt-0.5 flex items-center gap-1 truncate text-xs text-indigo-400 hover:underline"
+                                        class="mt-0.5 flex items-center gap-1 truncate text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
                                     >
                                         <ExternalLink class="h-3 w-3" />
                                         {{ banner.link_url }}
                                     </a>
                                     <div class="mt-1 flex items-center gap-2">
-                                        <Badge :class="banner.is_active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'" class="text-xs">
-                                            {{ banner.is_active ? 'Đang hiển thị' : 'Ẩn' }}
-                                        </Badge>
-                                        <span v-if="banner.ends_at" class="text-xs text-gray-500">đến {{ banner.ends_at }}</span>
+                                        <span v-if="banner.is_active" class="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                                            Đang hiển thị
+                                        </span>
+                                        <span v-else class="inline-flex items-center rounded-full bg-zinc-100 dark:bg-zinc-800/80 border px-2 py-0.5 text-[9px] font-black uppercase text-zinc-500">
+                                            Ẩn
+                                        </span>
+                                        <span v-if="banner.ends_at" class="text-xs text-muted-foreground">đến {{ banner.ends_at }}</span>
                                     </div>
                                 </div>
 
@@ -390,7 +393,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                         @click="moveUp(banner)"
                                         :disabled="index === 0"
                                         title="Lên trên"
-                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
                                     >
                                         <ArrowUp class="h-3.5 w-3.5" />
                                     </button>
@@ -398,7 +401,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                         @click="moveDown(banner)"
                                         :disabled="index === filteredBanners.length - 1"
                                         title="Xuống dưới"
-                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
                                     >
                                         <ArrowDown class="h-3.5 w-3.5" />
                                     </button>
@@ -406,7 +409,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                     <button
                                         @click="openEdit(banner)"
                                         title="Sửa banner"
-                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-indigo-900/30 hover:text-indigo-400"
+                                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground cursor-pointer"
                                     >
                                         <Pencil class="h-4 w-4" />
                                     </button>
@@ -414,8 +417,8 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                     <button
                                         @click="toggleActive(banner)"
                                         :title="banner.is_active ? 'Ẩn banner' : 'Hiển thị banner'"
-                                        class="rounded-lg p-1.5 transition"
-                                        :class="banner.is_active ? 'text-green-400 hover:bg-green-900/30' : 'text-gray-500 hover:bg-gray-700'"
+                                        class="rounded-lg p-1.5 transition cursor-pointer"
+                                        :class="banner.is_active ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20' : 'text-muted-foreground hover:bg-muted'"
                                     >
                                         <ToggleRight v-if="banner.is_active" class="h-5 w-5" />
                                         <ToggleLeft v-else class="h-5 w-5" />
@@ -424,7 +427,7 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                                     <button
                                         @click="deleteBanner(banner)"
                                         title="Xóa banner"
-                                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-red-900/30 hover:text-red-400"
+                                        class="rounded-lg p-1.5 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-950/20 cursor-pointer"
                                     >
                                         <Trash2 class="h-4 w-4" />
                                     </button>
@@ -436,9 +439,9 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
             </div>
 
             <!-- Preview note -->
-            <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-4 text-sm text-gray-500">
-                <span class="font-medium text-gray-400">Lưu ý:</span>
-                Banner sẽ hiển thị ngay trên trang <a href="/" target="_blank" class="text-indigo-400 hover:underline">trang chủ</a> sau khi upload.
+            <div class="rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground">
+                <span class="font-bold text-foreground">Lưu ý:</span>
+                Banner sẽ hiển thị ngay trên trang <a href="/" target="_blank" class="text-indigo-650 dark:text-indigo-400 font-semibold hover:underline">trang chủ</a> sau khi upload.
                 Nếu có nhiều banner cùng slot, sẽ tự động chạy slideshow (đổi ảnh mỗi 4 giây).
             </div>
         </div>
@@ -446,19 +449,19 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 
     <!-- Edit Banner Dialog -->
     <Dialog :open="!!editingBanner" @update:open="(v) => { if (!v) closeEdit(); }">
-        <DialogContent class="border-gray-800 bg-gray-900 text-white sm:max-w-md">
+        <DialogContent class="border border-border bg-card text-foreground sm:max-w-md rounded-3xl">
             <DialogHeader>
-                <DialogTitle class="text-white">Sửa Banner</DialogTitle>
+                <DialogTitle class="text-foreground">Sửa Banner</DialogTitle>
             </DialogHeader>
 
             <div class="space-y-4 py-2">
                 <!-- Image replacement -->
                 <div>
-                    <Label class="text-gray-300">Thay ảnh <span class="text-gray-500">(để trống nếu giữ nguyên)</span></Label>
-                    <div class="mt-1 rounded-xl border-2 border-dashed border-gray-700 hover:border-indigo-500 transition">
+                    <Label class="text-foreground">Thay ảnh <span class="text-muted-foreground font-normal">(để trống nếu giữ nguyên)</span></Label>
+                    <div class="mt-1 rounded-xl border-2 border-dashed border-border hover:border-indigo-500 bg-muted/20 transition">
                         <label class="block cursor-pointer">
                             <input type="file" accept="image/jpg,image/jpeg,image/png,image/webp" class="hidden" @change="onEditFileChange" />
-                            <div v-if="!editImagePreview" class="flex flex-col items-center justify-center gap-2 py-6 text-gray-500">
+                            <div v-if="!editImagePreview" class="flex flex-col items-center justify-center gap-2 py-6 text-muted-foreground">
                                 <Upload class="h-6 w-6" />
                                 <span class="text-xs">Click để chọn ảnh mới · JPG, PNG, WebP · Tối đa 5MB</span>
                             </div>
@@ -478,39 +481,39 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
                 </div>
 
                 <div>
-                    <Label class="text-gray-300">Tiêu đề</Label>
-                    <Input v-model="editForm.title" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    <Label class="text-foreground">Tiêu đề</Label>
+                    <Input v-model="editForm.title" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                 </div>
                 <div>
-                    <Label class="text-gray-300">Subtitle</Label>
-                    <Input v-model="editForm.subtitle" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    <Label class="text-foreground">Subtitle</Label>
+                    <Input v-model="editForm.subtitle" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                 </div>
                 <div>
-                    <Label class="text-gray-300">URL khi click</Label>
-                    <Input v-model="editForm.link_url" placeholder="https://..." class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                    <Label class="text-foreground">URL khi click</Label>
+                    <Input v-model="editForm.link_url" placeholder="https://..." class="mt-1 border-border bg-background text-foreground rounded-xl" />
                     <p v-if="editForm.errors.link_url" class="mt-1 text-xs text-red-400">{{ editForm.errors.link_url }}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <Label class="text-gray-300">Hiệu lực từ</Label>
-                        <Input v-model="editForm.starts_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                        <Label class="text-foreground">Hiệu lực từ</Label>
+                        <Input v-model="editForm.starts_at" type="date" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                     </div>
                     <div>
-                        <Label class="text-gray-300">Hết hạn</Label>
-                        <Input v-model="editForm.ends_at" type="date" class="mt-1 border-gray-700 bg-gray-800 text-white" />
+                        <Label class="text-foreground">Hết hạn</Label>
+                        <Input v-model="editForm.ends_at" type="date" class="mt-1 border-border bg-background text-foreground rounded-xl" />
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <input id="edit_is_active" v-model="editForm.is_active" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500" />
-                    <Label for="edit_is_active" class="cursor-pointer text-gray-300">Hiển thị</Label>
+                    <input id="edit_is_active" v-model="editForm.is_active" type="checkbox" class="h-4 w-4 rounded border-border text-primary cursor-pointer" />
+                    <Label for="edit_is_active" class="cursor-pointer text-muted-foreground select-none">Hiển thị</Label>
                 </div>
             </div>
 
             <DialogFooter class="gap-2">
-                <Button variant="ghost" class="text-gray-400 hover:text-white" @click="closeEdit">Huỷ</Button>
+                <Button variant="ghost" class="text-muted-foreground hover:bg-muted rounded-xl" @click="closeEdit">Huỷ</Button>
                 <Button
                     :disabled="editForm.processing"
-                    class="bg-indigo-600 hover:bg-indigo-700"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
                     @click="submitEdit"
                 >
                     {{ editForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}

@@ -24,6 +24,10 @@ const sidebarNavItems: NavItem[] = [
         href: editSecurity(),
     },
     {
+        title: 'Giới thiệu & Nhận thưởng',
+        href: '/settings/referrals',
+    },
+    {
         title: 'Giao diện',
         href: editAppearance(),
     },

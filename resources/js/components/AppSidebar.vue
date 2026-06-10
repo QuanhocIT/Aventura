@@ -30,6 +30,8 @@ import {
     ScrollText,
     ShieldCheck,
     ShieldAlert,
+    Crown,
+    Gift,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -104,6 +106,7 @@ const superAdminNav: NavItem[] = [
     { title: 'Gói dịch vụ',   href: '/super-admin/plans',       icon: BadgeDollarSign },
     { title: 'Tài khoản',      href: '/super-admin/accounts',    icon: Users },
     { title: 'Billing Center', href: '/super-admin/billing',     icon: BadgeDollarSign },
+    { title: 'Hoa hồng & Rút tiền', href: '/super-admin/referrals', icon: Crown },
     { title: 'Banner & Slideshow', href: '/super-admin/banners', icon: Image },
     { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
@@ -127,6 +130,7 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Khách hàng',       href: '/customers',              icon: Users },
         { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
         { title: 'Hóa đơn & Gói cước', href: '/billing/history',      icon: Receipt },
+        { title: 'Giới thiệu & Hoa hồng', href: '/settings/referrals', icon: Gift },
         { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
         { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report' },
         { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },
@@ -165,6 +169,7 @@ const managerNav = computed<NavItem[]>(() => {
         { title: 'Khách hàng',       href: '/customers',              icon: Users },
         { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
         { title: 'Hóa đơn & Gói cước', href: '/billing/history',      icon: Receipt },
+        { title: 'Giới thiệu & Hoa hồng', href: '/settings/referrals', icon: Gift },
         { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
         { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report' },
         { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },

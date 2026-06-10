@@ -752,6 +752,9 @@ function cohortCellStyle(value: number | null): string {
                 <Link href="/super-admin/accounts" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
                     <ShieldCheck class="size-3.5" /> Accounts
                 </Link>
+                <Link href="/super-admin/referrals" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
+                    <Crown class="size-3.5" /> Hoa hồng &amp; Rút tiền
+                </Link>
                 <Link href="/super-admin/audit-logs" class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-md">
                     <FileText class="size-3.5" /> Audit Log
                 </Link>

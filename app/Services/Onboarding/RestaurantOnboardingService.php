@@ -59,6 +59,11 @@ class RestaurantOnboardingService
                 'subscription_ends_at' => now()->addDays(14)->toDateString(),
             ]);
 
+            $referredByUser = null;
+            if (!empty($input['referral_code'])) {
+                $referredByUser = User::where('referral_code', $input['referral_code'])->first();
+            }
+
             $user = User::create([
                 'name' => $userName,
                 'email' => $input['email'],
@@ -67,6 +72,7 @@ class RestaurantOnboardingService
                 'restaurant_id' => $restaurant->id,
                 'status' => 'active',
                 'last_login_at' => now(),
+                'referred_by_id' => $referredByUser?->id,
             ]);
 
             $restaurant->forceFill(['owner_user_id' => $user->id])->save();

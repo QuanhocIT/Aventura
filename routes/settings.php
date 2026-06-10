@@ -13,6 +13,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/restaurant', [RestaurantController::class, 'edit'])->name('restaurant.edit');
     Route::patch('settings/restaurant', [RestaurantController::class, 'update'])->name('restaurant.update');
+
+    Route::get('settings/referrals', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'edit'])->name('settings.referrals.edit');
+    Route::post('settings/referrals/withdraw', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'withdraw'])->name('settings.referrals.withdraw');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

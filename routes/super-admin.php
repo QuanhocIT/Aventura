@@ -90,4 +90,10 @@ Route::prefix('super-admin')
 
         // Impersonation
         Route::post('impersonate/{user}', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'start'])->name('impersonate.start');
+
+        // Referral and Payout Management
+        Route::get('referrals', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'index'])->name('referrals.index');
+        Route::post('referrals/settings', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'updateSettings'])->name('referrals.settings.update');
+        Route::post('referrals/withdrawals/{withdrawal}/approve', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'approveWithdrawal'])->name('referrals.withdrawals.approve');
+        Route::post('referrals/withdrawals/{withdrawal}/reject', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'rejectWithdrawal'])->name('referrals.withdrawals.reject');
     });
