@@ -13,6 +13,8 @@ import {
     UserCheck,
     Users,
     WalletCards,
+    Activity,
+    AlertTriangle,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,10 @@ const props = defineProps<{
         tax_code: string; phone: string; email: string; address: string;
         status: string; timezone: string; currency: string;
         trial_ends_at: string; subscription_ends_at: string; created_at: string;
+        last_active_at?: string;
+        is_inactive_flagged?: boolean;
+        inactive_flagged_at?: string;
+        today_activity?: { orders_count: number; dishes_prepared_count: number; revenue: number };
         owner: { id?: number; name: string; email: string };
         plan: { id: number; name: string; code: string };
     };
@@ -83,6 +89,17 @@ function impersonateUser() {
     if (confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu "${props.restaurant.owner.name}" không?`)) {
         router.post(`/super-admin/impersonate/${props.restaurant.owner.id}`);
     }
+}
+
+const unflagForm = useForm({});
+function unflagRestaurant() {
+    if (confirm('Bạn có chắc chắn muốn gỡ gắn cờ cảnh báo và đặt lại mốc hoạt động cuối của nhà hàng này không?')) {
+        unflagForm.patch(`/super-admin/restaurants/${props.restaurant.id}/unflag`);
+    }
+}
+
+function formatCurrency(val: number) {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 }
 
 function applyPreset(type: string, days: number, discount: number, reason: string) {
@@ -422,6 +439,57 @@ function openSubsDialog() {
             </div>
 
             <div class="flex flex-col gap-6">
+                <!-- Automated Validator Card -->
+                <Card :class="{'border-rose-500/30': restaurant.is_inactive_flagged}">
+                    <CardHeader class="pb-3 flex-row items-center justify-between space-y-0 gap-2">
+                        <CardTitle class="text-base flex items-center gap-2">
+                            <Activity class="size-4.5 text-rose-500 shrink-0" /> Trình Kiểm định
+                        </CardTitle>
+                        <span v-if="restaurant.is_inactive_flagged" class="rounded-full bg-rose-100 dark:bg-rose-950/40 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:text-rose-300 border border-rose-200/50">
+                            🚩 Bị gắn cờ
+                        </span>
+                        <span v-else class="rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-200/50">
+                            Bình thường
+                        </span>
+                    </CardHeader>
+                    <CardContent class="space-y-3 text-xs">
+                        <div class="flex justify-between border-b pb-2">
+                            <span class="text-muted-foreground">Hoạt động cuối:</span>
+                            <span class="font-semibold">{{ restaurant.last_active_at }}</span>
+                        </div>
+                        <div class="flex justify-between border-b pb-2">
+                            <span class="text-muted-foreground">Trạng thái gắn cờ:</span>
+                            <span class="font-semibold">{{ restaurant.is_inactive_flagged ? 'Cần hậu mãi' : 'Không' }}</span>
+                        </div>
+                        <div v-if="restaurant.is_inactive_flagged" class="flex justify-between border-b pb-2">
+                            <span class="text-muted-foreground">Gắn cờ lúc:</span>
+                            <span class="font-semibold">{{ restaurant.inactive_flagged_at }}</span>
+                        </div>
+
+                        <div class="pt-2 space-y-1.5">
+                            <p class="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Chỉ số hôm nay:</p>
+                            <div class="flex justify-between">
+                                <span>Đơn hàng mới:</span>
+                                <span class="font-bold font-mono">{{ restaurant.today_activity?.orders_count ?? 0 }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Món ăn ra bếp:</span>
+                                <span class="font-bold font-mono">{{ restaurant.today_activity?.dishes_prepared_count ?? 0 }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Doanh thu ngày:</span>
+                                <span class="font-bold text-emerald-600 font-mono">{{ formatCurrency(restaurant.today_activity?.revenue ?? 0) }}</span>
+                            </div>
+                        </div>
+
+                        <div v-if="restaurant.is_inactive_flagged" class="pt-2">
+                            <Button @click="unflagRestaurant" :disabled="unflagForm.processing" variant="outline" class="w-full text-xs gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/20">
+                                <AlertTriangle class="size-3.5" /> Đặt lại hoạt động &amp; Gỡ cờ
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader class="pb-3">
                         <CardTitle class="text-base">Quan tri trang thai</CardTitle>

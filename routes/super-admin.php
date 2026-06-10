@@ -33,6 +33,7 @@ Route::prefix('super-admin')
         Route::get('restaurants/{restaurant}/subscriptions-history', [RestaurantController::class, 'subscriptionsHistory'])->name('restaurants.subscriptions-history');
         Route::patch('restaurants/{restaurant}/status', [RestaurantController::class, 'updateStatus'])->name('restaurants.status');
         Route::patch('restaurants/{restaurant}/plan', [RestaurantController::class, 'updatePlan'])->name('restaurants.plan');
+        Route::patch('restaurants/{restaurant}/unflag', [RestaurantController::class, 'unflag'])->name('restaurants.unflag');
         Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
 
         Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');

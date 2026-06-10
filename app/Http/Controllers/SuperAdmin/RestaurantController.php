@@ -37,6 +37,10 @@ class RestaurantController extends Controller
             $query->whereHas('plan', fn ($q) => $q->where('code', $request->plan));
         }
 
+        if ($request->boolean('flagged')) {
+            $query->where('is_inactive_flagged', true);
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(fn ($q) => $q
@@ -53,6 +57,7 @@ class RestaurantController extends Controller
             'active'    => Restaurant::where('status', 'active')->count(),
             'paid'      => Restaurant::whereHas('plan', fn ($q) => $q->where('price', '>', 0))->count(),
             'suspended' => Restaurant::where('status', 'suspended')->count(),
+            'flagged'   => Restaurant::where('is_inactive_flagged', true)->count(),
         ];
 
         return Inertia::render('super-admin/restaurants/Index', [
@@ -73,9 +78,11 @@ class RestaurantController extends Controller
                 'max_tables'      => $r->plan?->max_tables,
                 'max_users'       => $r->plan?->max_users,
                 'created_at'      => $r->created_at->format('d/m/Y'),
+                'is_inactive_flagged' => (bool) $r->is_inactive_flagged,
+                'last_active_at'  => $r->last_active_at?->format('d/m/Y H:i') ?? '—',
             ]),
             'plans'   => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
-            'filters' => $request->only(['status', 'plan', 'search']),
+            'filters' => $request->only(['status', 'plan', 'search', 'flagged']),
             'stats'   => $stats,
         ]);
     }
@@ -143,6 +150,13 @@ class RestaurantController extends Controller
                 'processed_at' => $webhook->processed_at?->format('d/m/Y H:i'),
             ]);
 
+        $today = today();
+        $todayActivity = [
+            'orders_count' => \App\Models\Order::where('restaurant_id', $restaurant->id)->whereDate('created_at', $today)->count(),
+            'dishes_prepared_count' => \App\Models\OrderItem::where('restaurant_id', $restaurant->id)->where(fn($q) => $q->whereDate('prepared_at', $today)->orWhereDate('served_at', $today))->count(),
+            'revenue' => (float) \App\Models\Payment::where('restaurant_id', $restaurant->id)->where('status', 'paid')->whereDate('paid_at', $today)->sum('amount'),
+        ];
+
         return Inertia::render('super-admin/restaurants/Show', [
             'restaurant' => [
                 'id'           => $restaurant->id,
@@ -159,6 +173,10 @@ class RestaurantController extends Controller
                 'trial_ends_at'         => $restaurant->trial_ends_at?->format('d/m/Y'),
                 'subscription_ends_at'  => $restaurant->subscription_ends_at?->format('d/m/Y'),
                 'created_at'   => $restaurant->created_at->format('d/m/Y H:i'),
+                'last_active_at' => $restaurant->last_active_at?->format('d/m/Y H:i') ?? '—',
+                'is_inactive_flagged' => (bool) $restaurant->is_inactive_flagged,
+                'inactive_flagged_at' => $restaurant->inactive_flagged_at?->format('d/m/Y H:i') ?? '—',
+                'today_activity' => $todayActivity,
                 'owner'        => [
                     'id'    => $restaurant->owner?->id,
                     'name'  => $restaurant->owner?->name,
@@ -371,5 +389,19 @@ class RestaurantController extends Controller
                 'status'        => 'active',
             ]);
         }
+    }
+
+    public function unflag(Restaurant $restaurant): RedirectResponse
+    {
+        $restaurant->update([
+            'is_inactive_flagged' => false,
+            'inactive_flagged_at' => null,
+            'last_active_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        DashboardController::forgetCache();
+
+        return back()->with('success', "Đã gỡ gắn cờ và đặt lại mốc hoạt động cho nhà hàng \"{$restaurant->name}\".");
     }
 }

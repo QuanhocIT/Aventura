@@ -12,6 +12,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('billing:send-reminders')->dailyAt('08:00');
         $schedule->command('billing:sync-statuses')->hourly();
         $schedule->command('reports:generate-daily')->dailyAt('23:59');
+        $schedule->command('restaurants:validate-activity')->dailyAt('23:00');
     }
 
     protected function commands(): void

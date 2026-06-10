@@ -32,6 +32,9 @@ class Restaurant extends Model
             'longitude'               => 'float',
             'checkin_radius_meters'   => 'integer',
             'qr_checkin_expires_at'   => 'datetime',
+            'last_active_at'          => 'datetime',
+            'inactive_flagged_at'     => 'datetime',
+            'is_inactive_flagged'     => 'boolean',
         ];
     }
 
@@ -73,6 +76,11 @@ class Restaurant extends Model
     public function subscriptions(): HasMany
     {
         return $this->hasMany(RestaurantSubscription::class);
+    }
+
+    public function dailyChecks(): HasMany
+    {
+        return $this->hasMany(RestaurantDailyCheck::class);
     }
 
     public function invoices(): HasMany

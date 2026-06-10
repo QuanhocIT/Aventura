@@ -73,6 +73,7 @@ const props = defineProps<{
         expired: number;
         total_users: number;
         pro_plan: number;
+        flagged_inactive?: number;
     };
     saasMetrics: {
         mrr: number;
@@ -485,6 +486,19 @@ const kpiDetails = computed(() => [
         ],
         note: aiNotes.value[5],
         color: 'text-indigo-400 border-indigo-500/30 shadow-indigo-500/10'
+    },
+    {
+        step: 'Trình Kiểm định & Hậu mãi (Retention & Flagged Validator)',
+        desc: 'Kiểm soát các cửa hàng không hoạt động trong thời gian dài mặc dù gói dịch vụ vẫn còn hiệu lực để xử lý hậu mãi.',
+        metric1_label: 'Số cửa hàng bị gắn cờ',
+        metric1_value: (props.stats.flagged_inactive ?? 0) + ' cửa hàng',
+        metric2_label: 'Yêu cầu rà soát',
+        metric2_value: 'Cần liên hệ hỗ trợ & chăm sóc đối tác',
+        metric3_label: 'Giới hạn không hoạt động',
+        metric3_value: 'Mặc định 7 ngày',
+        tables: ['Gắn cờ hoạt động: ' + (props.stats.flagged_inactive ?? 0)],
+        note: '💡 Phát hiện cửa hàng không có hoạt động đơn hàng, bếp hay doanh thu trong nhiều ngày liên tục dù vẫn còn hạn gói dịch vụ. Hãy nhấp vào xem danh sách bị gắn cờ và liên hệ để kích hoạt lại/hỗ trợ đối tác sớm nhất.',
+        color: 'text-rose-400 border-rose-500/30 shadow-rose-500/10'
     }
 ]);
 
@@ -536,6 +550,7 @@ const statCards = computed(() => [
     { label: 'Tổng người dùng', value: props.stats.total_users, icon: Users, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', change: props.statChanges.total_users.label, trend: props.statChanges.total_users.trend },
     { label: 'Doanh thu MRR', value: formatCurrency(props.saasMetrics.mrr), icon: TrendingUp, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20', change: props.statChanges.mrr.label, trend: props.statChanges.mrr.trend },
     { label: 'Ước tính ARR', value: formatCurrency(props.saasMetrics.arr), icon: Gauge, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20', change: 'Dự tính trên chu kỳ 12 tháng', trend: 'neutral' },
+    { label: 'Cần hậu mãi (Flagged)', value: props.stats.flagged_inactive ?? 0, icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', change: 'Không hoạt động lâu ngày', trend: 'down' },
 ]);
 
 const riskColor: Record<string, string> = {
@@ -1094,8 +1109,8 @@ function cohortCellStyle(value: number | null): string {
                 </div>
             </div>
 
-            <!-- RIGHT: 6 KPI Cards Grid -->
-            <div class="grid gap-4 sm:grid-cols-2 h-auto lg:h-[500px]">
+            <!-- RIGHT: KPI Cards Grid -->
+            <div class="grid gap-4 sm:grid-cols-2 h-auto lg:h-[500px] overflow-y-auto pr-1">
                 <div v-for="(card, index) in statCards" :key="card.label" 
                     @click="selectedKpiIdx = index"
                     :class="[

@@ -120,6 +120,7 @@ class DashboardController extends Controller
             'expired'           => Restaurant::where('status', 'expired')->count(),
             'total_users'       => User::count(),
             'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
+            'flagged_inactive'  => Restaurant::where('is_inactive_flagged', true)->count(),
         ];
 
         $tenantGrowthSeries = Cache::remember(
@@ -428,6 +429,7 @@ class DashboardController extends Controller
             'expired'           => Restaurant::where('status', 'expired')->count(),
             'total_users'       => User::count(),
             'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
+            'flagged_inactive'  => Restaurant::where('is_inactive_flagged', true)->count(),
         ];
 
         $saasMetrics = [
@@ -873,6 +875,18 @@ class DashboardController extends Controller
     protected function dashboardAlerts(CarbonInterface $now, array $stats, array $saasMetrics, array $aiInsights): array
     {
         $alerts = [];
+
+        $flaggedCount = (int) ($stats['flagged_inactive'] ?? Restaurant::where('is_inactive_flagged', true)->count());
+        if ($flaggedCount > 0) {
+            $alerts[] = [
+                'source' => 'derived',
+                'severity' => 'warning',
+                'metric_key' => 'flagged_inactive_count',
+                'title' => 'Cửa hàng không hoạt động cần lưu ý',
+                'message' => sprintf('Phát hiện %d cửa hàng không có hoạt động trong thời gian gần đây dù gói dịch vụ vẫn còn hạn. Vui lòng rà soát danh sách để có phương án hậu mãi kịp thời.', $flaggedCount),
+                'triggered_at' => $now->format('d/m/Y H:i'),
+            ];
+        }
 
         $churnRate = (float) ($saasMetrics['churn_rate'] ?? 0);
         if ($churnRate > 5) {

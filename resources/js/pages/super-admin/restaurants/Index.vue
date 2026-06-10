@@ -20,17 +20,20 @@ const props = defineProps<{
             branches_count: number; employees_count: number; tables_count: number;
             max_branches: number | null; max_tables: number | null; max_users: number | null;
             created_at: string;
+            is_inactive_flagged?: boolean;
+            last_active_at?: string;
         }>;
         links: any[]; meta: any;
     };
     plans: Array<{ id: number; code: string; name: string }>;
-    filters: { status?: string; plan?: string; search?: string };
-    stats: { total: number; active: number; paid: number; suspended: number };
+    filters: { status?: string; plan?: string; search?: string; flagged?: string };
+    stats: { total: number; active: number; paid: number; suspended: number; flagged?: number };
 }>();
 
 const search   = ref(props.filters.search ?? '');
 const status   = ref(props.filters.status ?? '');
 const planFilter = ref(props.filters.plan ?? '');
+const flaggedFilter = ref(props.filters.flagged ?? '');
 
 let searchTimer: ReturnType<typeof setTimeout>;
 watch(search, () => {
@@ -43,6 +46,7 @@ function applyFilter() {
         search: search.value || undefined,
         status: status.value || undefined,
         plan:   planFilter.value || undefined,
+        flagged: flaggedFilter.value || undefined,
     }, { preserveState: true, replace: true });
 }
 
@@ -134,7 +138,7 @@ const statusLabel: Record<string, string> = {
         </div>
 
         <!-- Thống kê tổng quan -->
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card class="overflow-hidden border-border bg-card shadow-sm">
                 <CardContent class="flex items-center gap-4 p-4">
                     <div class="rounded-lg bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
@@ -179,6 +183,17 @@ const statusLabel: Record<string, string> = {
                     </div>
                 </CardContent>
             </Card>
+            <Card class="overflow-hidden border-border bg-card shadow-sm cursor-pointer hover:bg-muted/40 transition-colors" @click="() => { flaggedFilter = flaggedFilter === '1' ? '' : '1'; applyFilter(); }">
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-rose-50 p-2.5 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                        <Ban class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Gắn cờ (Hậu mãi)</span>
+                        <span class="text-xl font-bold tracking-tight text-rose-600 dark:text-rose-400 font-mono">{{ stats?.flagged ?? 0 }}</span>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
 
         <!-- Bộ lọc -->
@@ -206,6 +221,14 @@ const statusLabel: Record<string, string> = {
                     <option value="">Tất cả gói</option>
                     <option v-for="p in plans" :key="p.code" :value="p.code">{{ p.name }}</option>
                 </select>
+                <select
+                    v-model="flaggedFilter"
+                    @change="applyFilter"
+                    class="h-9 rounded-md border bg-background px-3 text-sm"
+                >
+                    <option value="">Tất cả hoạt động</option>
+                    <option value="1">🚩 Chỉ bị gắn cờ (Cần hậu mãi)</option>
+                </select>
             </CardContent>
         </Card>
 
@@ -230,9 +253,15 @@ const statusLabel: Record<string, string> = {
                             class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                         >
                             <td class="px-6 py-4">
-                                <p class="font-medium">{{ r.name }}</p>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <p class="font-medium">{{ r.name }}</p>
+                                    <span v-if="r.is_inactive_flagged" class="inline-flex items-center gap-1 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                                        🚩 Cần hậu mãi
+                                    </span>
+                                </div>
                                 <p class="text-xs text-muted-foreground">{{ r.owner_email }}</p>
                                 <p class="text-xs text-muted-foreground font-mono">{{ r.code }}</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Hoạt động cuối: {{ r.last_active_at }}</p>
                             </td>
                             <td class="px-4 py-4">
                                 <span :class="['flex items-center gap-1 font-medium text-xs', r.plan_code === 'PRO' ? 'text-purple-600' : 'text-muted-foreground']">
