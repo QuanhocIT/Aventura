@@ -163,6 +163,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])->name('kitchen.index');
     Route::post('kitchen/items/{item}/prepare', [\App\Http\Controllers\KitchenController::class, 'prepare'])->name('kitchen.prepare');
     Route::post('kitchen/items/{item}/serve', [\App\Http\Controllers\KitchenController::class, 'serve'])->name('kitchen.serve');
+    Route::post('kitchen/products/{product}/pause', [\App\Http\Controllers\KitchenController::class, 'pause'])->name('kitchen.products.pause');
+    Route::post('kitchen/products/{product}/out-of-stock', [\App\Http\Controllers\KitchenController::class, 'markOutOfStock'])->name('kitchen.products.out-of-stock');
+    Route::post('kitchen/products/{product}/resume', [\App\Http\Controllers\KitchenController::class, 'resume'])->name('kitchen.products.resume');
 
     // Orders management
     Route::get('orders/create', [\App\Http\Controllers\OrdersController::class, 'create'])->name('orders.create');

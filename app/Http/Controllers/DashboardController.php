@@ -111,6 +111,10 @@ class DashboardController extends Controller
                         'name' => $p->name,
                         'price' => (float) $p->price,
                         'category_id' => $p->category_id,
+                        'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                        'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                        'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
+                        'is_out_of_stock' => $p->out_of_stock_until && $p->out_of_stock_until->isFuture(),
                     ])->all();
 
                 // Load active categories

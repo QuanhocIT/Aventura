@@ -37,7 +37,7 @@ class BillingOverrideController extends Controller
             'branch_id'     => null,
             'user_id'       => $request->user()->id,
             'user_role'     => 'admin',
-            'event'         => 'billing_override',
+            'event'         => 'updated',
             'action'        => 'billing_manual_override',
             'subject_type'  => Restaurant::class,
             'subject_id'    => $restaurant->id,

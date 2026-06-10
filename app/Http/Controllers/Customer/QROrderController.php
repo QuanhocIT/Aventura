@@ -78,6 +78,9 @@ class QROrderController extends Controller
                 }
             }
 
+            $isKitchenPaused = $p->paused_until && $p->paused_until->isFuture();
+            $isKitchenOutOfStock = $p->out_of_stock_until && $p->out_of_stock_until->isFuture();
+
             return [
                 'id' => $p->id,
                 'name' => $p->name,
@@ -86,7 +89,11 @@ class QROrderController extends Controller
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,
                 'category_id' => $p->category_id,
-                'in_stock' => $inStock,
+                'in_stock' => $inStock && $p->is_available && !$isKitchenPaused && !$isKitchenOutOfStock,
+                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                'is_kitchen_paused' => $isKitchenPaused,
+                'is_kitchen_out_of_stock' => $isKitchenOutOfStock,
             ];
         });
 
@@ -185,6 +192,13 @@ class QROrderController extends Controller
             $product = $products->get($item['product_id']);
             if (!$product || !$product->is_active || !$product->is_available) {
                 return response()->json(['message' => "Món ăn {$product?->name} không còn phục vụ."], 422);
+            }
+
+            $isKitchenPaused = $product->paused_until && $product->paused_until->isFuture();
+            $isKitchenOutOfStock = $product->out_of_stock_until && $product->out_of_stock_until->isFuture();
+
+            if ($isKitchenPaused || $isKitchenOutOfStock) {
+                return response()->json(['message' => "Món ăn {$product->name} tạm thời ngừng phục vụ."], 422);
             }
 
             // Kiểm tra tồn kho của nguyên liệu

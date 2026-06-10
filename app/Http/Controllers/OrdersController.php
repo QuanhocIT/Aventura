@@ -31,7 +31,8 @@ class OrdersController extends Controller
             ]);
 
         $products = \App\Models\Product::where('restaurant_id', $restaurantId)
-            ->where('status', 'active')
+            ->where('is_active', true)
+            ->where('is_available', true)
             ->with(['category'])
             ->get()
             ->map(fn ($p) => [
@@ -41,6 +42,10 @@ class OrdersController extends Controller
                 'sku' => $p->sku ?? '—',
                 'category_id' => $p->category_id,
                 'category_name' => $p->category?->name,
+                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
+                'is_out_of_stock' => $p->out_of_stock_until && $p->out_of_stock_until->isFuture(),
             ]);
 
         $tables = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)
@@ -75,6 +80,19 @@ class OrdersController extends Controller
              'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
              'items.*.notes' => ['nullable', 'string', 'max:255'],
          ]);
+
+         // Check kitchen availability status for products
+         if (isset($data['items'])) {
+             $productIds = collect($data['items'])->pluck('product_id')->toArray();
+             $products = \App\Models\Product::whereIn('id', $productIds)->get();
+             foreach ($products as $product) {
+                 $isKitchenPaused = $product->paused_until && $product->paused_until->isFuture();
+                 $isKitchenOutOfStock = $product->out_of_stock_until && $product->out_of_stock_until->isFuture();
+                 if (!$product->is_active || !$product->is_available || $isKitchenPaused || $isKitchenOutOfStock) {
+                     return back()->withErrors(['items' => "Món ăn {$product->name} tạm thời ngừng phục vụ."]);
+                 }
+             }
+         }
 
          $this->orderService->createOrder($data, $user);
 

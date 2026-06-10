@@ -73,9 +73,25 @@ class KitchenController extends Controller
                 'table_name' => $item->order->table?->name ?? 'Mang về',
             ]);
 
+        $products = \App\Models\Product::where('restaurant_id', $restaurantId)
+            ->where('is_active', true)
+            ->with('category')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'price' => (float) $p->price,
+                'category_name' => $p->category?->name ?? 'Món khác',
+                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                'is_paused' => (bool) ($p->paused_until && $p->paused_until->isFuture()),
+                'is_out_of_stock' => (bool) ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
+            ])->all();
+
         return Inertia::render('kitchen/Dashboard', [
             'pendingItems' => $pendingItems,
             'completedItems' => $completedItems,
+            'products' => $products,
         ]);
     }
 
@@ -109,5 +125,61 @@ class KitchenController extends Controller
         event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
 
         return back()->with('success', 'Món ăn đã được phục vụ lấy đi!');
+    }
+
+    public function pause(Request $request, \App\Models\Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+
+        $validated = $request->validate([
+            'minutes' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $product->update([
+            'paused_until' => now()->addMinutes($validated['minutes']),
+            'out_of_stock_until' => null,
+        ]);
+
+        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+
+        return back()->with('success', "Đã tạm dừng phục vụ món {$product->name} trong {$validated['minutes']} phút!");
+    }
+
+    public function markOutOfStock(Request $request, \App\Models\Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+
+        $validated = $request->validate([
+            'minutes' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $product->update([
+            'out_of_stock_until' => now()->addMinutes($validated['minutes']),
+            'paused_until' => null,
+        ]);
+
+        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+
+        return back()->with('success', "Đã báo hết món {$product->name} trong {$validated['minutes']} phút!");
+    }
+
+    public function resume(Request $request, \App\Models\Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+
+        $product->update([
+            'paused_until' => null,
+            'out_of_stock_until' => null,
+        ]);
+
+        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+
+        return back()->with('success', "Đã mở lại bán món {$product->name}!");
     }
 }

@@ -65,6 +65,10 @@ interface ProductItem {
     name: string;
     price: number;
     category_id: number;
+    paused_until?: string | null;
+    out_of_stock_until?: string | null;
+    is_paused?: boolean;
+    is_out_of_stock?: boolean;
 }
 
 interface CategoryItem {
@@ -280,6 +284,10 @@ onMounted(() => {
             .listen('.temporary_order.escalated', (data: any) => {
                 toast(`Bàn ${data.table_name ?? '?'}: Đơn QR chờ quá lâu — cần xử lý ngay!`, 'error');
                 router.reload({ only: ['qrOrders'] });
+            })
+            .listen('.product.stock_updated', () => {
+                toast('Trạng thái món ăn trên thực đơn vừa thay đổi!');
+                router.reload({ only: ['products'] });
             });
 
         window.Echo.channel(`kitchen.${restaurantId.value}`)
@@ -1375,19 +1383,26 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                             v-for="prod in filteredMenuProducts"
                             :key="prod.id"
                             class="p-3 border rounded-2xl bg-white dark:bg-slate-900 shadow-sm transition-all text-left flex flex-col justify-between relative"
-                            :class="getCartItemQty(prod.id) > 0 ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'hover:border-indigo-500/50 hover:bg-slate-50/50'"
+                            :class="[
+                                getCartItemQty(prod.id) > 0 ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'hover:border-indigo-500/50 hover:bg-slate-50/50',
+                                (prod.is_paused || prod.is_out_of_stock) ? 'opacity-50 border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50' : ''
+                            ]"
                         >
                             <!-- Click card to select/add -->
-                            <div class="flex flex-col gap-1 cursor-pointer w-full" @click="handleProductCardClick(prod)">
-                                <span class="font-bold text-xs truncate">{{ prod.name }}</span>
+                            <div class="flex flex-col gap-1 w-full" :class="(prod.is_paused || prod.is_out_of_stock) ? 'pointer-events-none' : 'cursor-pointer'" @click="(prod.is_paused || prod.is_out_of_stock) ? null : handleProductCardClick(prod)">
+                                <div class="flex justify-between items-start gap-1">
+                                    <span class="font-bold text-xs truncate flex-1">{{ prod.name }}</span>
+                                    <span v-if="prod.is_paused" class="bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1 rounded shrink-0">Tạm Dừng</span>
+                                    <span v-else-if="prod.is_out_of_stock" class="bg-orange-100 text-orange-700 text-[8px] font-black uppercase px-1 rounded shrink-0">Hết Món</span>
+                                </div>
                                 <span class="text-[10px] font-mono text-indigo-600 font-bold mt-2">{{ number_format(prod.price) }}đ</span>
                             </div>
 
                             <!-- Quantity Controls -->
-                            <div v-if="getCartItemQty(prod.id) > 0" class="flex items-center justify-between mt-3 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl w-full">
+                            <div v-if="getCartItemQty(prod.id) > 0 && !prod.is_paused && !prod.is_out_of_stock" class="flex items-center justify-between mt-3 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl w-full">
                                 <button
                                     type="button"
-                                    class="text-slate-500 hover:text-slate-800 dark:hover:text-white p-0.5"
+                                    class="text-slate-550 hover:text-slate-800 dark:hover:text-white p-0.5"
                                     @click.stop="decreaseProductQty(prod.id)"
                                 >
                                     <Minus class="size-3" />
@@ -1397,7 +1412,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                 </span>
                                 <button
                                     type="button"
-                                    class="text-slate-500 hover:text-slate-800 dark:hover:text-white p-0.5"
+                                    class="text-slate-550 hover:text-slate-800 dark:hover:text-white p-0.5"
                                     @click.stop="increaseProductQty(prod.id)"
                                 >
                                     <Plus class="size-3" />

@@ -32,6 +32,10 @@ interface Product {
     sku: string;
     category_id: number;
     in_stock: boolean;
+    paused_until: string | null;
+    out_of_stock_until: string | null;
+    is_kitchen_paused: boolean;
+    is_kitchen_out_of_stock: boolean;
 }
 
 interface Category {
@@ -358,9 +362,50 @@ function refetchMenuOnly() {
     router.reload({ only: ['products'] });
 }
 
+const now = ref(new Date());
+let countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+function getProductRemainingSeconds(untilTimeStr: string | null) {
+    if (!untilTimeStr) return 0;
+    const diffMs = new Date(untilTimeStr).getTime() - now.value.getTime();
+    return Math.max(0, Math.floor(diffMs / 1000));
+}
+
+function formatProductCountdown(untilTimeStr: string | null) {
+    const totalSecs = getProductRemainingSeconds(untilTimeStr);
+    if (totalSecs <= 0) return '00:00';
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const seconds = totalSecs % 60;
+    
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    if (hours > 0) {
+        return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    }
+    return `${pad(minutes)}:${pad(seconds)}`;
+}
+
 onMounted(() => {
     getOrGenerateSessionToken();
     trackBehavior('view_menu');
+
+    countdownInterval = setInterval(() => {
+        now.value = new Date();
+        
+        let expired = false;
+        props.products.forEach(p => {
+            const timeStr = p.paused_until || p.out_of_stock_until;
+            if (timeStr) {
+                const diff = new Date(timeStr).getTime() - now.value.getTime();
+                if (diff <= 0 && (p.is_kitchen_paused || p.is_kitchen_out_of_stock)) {
+                    expired = true;
+                }
+            }
+        });
+        if (expired) {
+            refetchMenuOnly();
+        }
+    }, 1000);
 
     // Listen to live temporary order status updates
     if (window.Echo) {
@@ -386,6 +431,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    if (countdownInterval) clearInterval(countdownInterval);
     if (window.Echo) {
         window.Echo.leaveChannel(`table.${props.table.id}`);
         window.Echo.leaveChannel(`restaurant.${props.restaurant.id}`);
@@ -559,8 +605,10 @@ onUnmounted(() => {
                             <Utensils v-else class="size-6 text-slate-800" />
                             
                             <!-- Out of Stock Overlay -->
-                            <div v-if="!product.in_stock" class="absolute inset-0 bg-slate-950/80 backdrop-blur-xxs flex items-center justify-center">
-                                <span class="text-[10px] font-extrabold text-red-500 uppercase border border-red-500/50 px-1 rounded">Hết hàng</span>
+                            <div v-if="!product.in_stock" class="absolute inset-0 bg-slate-950/80 backdrop-blur-xxs flex flex-col items-center justify-center text-center p-1">
+                                <span v-if="product.is_kitchen_paused" class="text-[9px] font-black text-amber-500 uppercase border border-amber-500/50 px-1 rounded leading-tight">Tạm Dừng</span>
+                                <span v-else-if="product.is_kitchen_out_of_stock" class="text-[9px] font-black text-orange-500 uppercase border border-orange-500/50 px-1 rounded leading-tight">Hết Món</span>
+                                <span v-else class="text-[9px] font-black text-red-500 uppercase border border-red-500/50 px-1.5 py-0.5 rounded leading-tight">Hết Hàng</span>
                             </div>
                         </div>
 
@@ -569,6 +617,12 @@ onUnmounted(() => {
                             <div>
                                 <h3 class="text-xs font-bold text-slate-200 line-clamp-1">{{ product.name }}</h3>
                                 <p class="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{{ product.description || 'Chưa cập nhật mô tả nguyên liệu & hương vị của món ăn này.' }}</p>
+                                
+                                <!-- Kitchen pause/out of stock countdown banner -->
+                                <div v-if="product.is_kitchen_paused || product.is_kitchen_out_of_stock" class="mt-1.5 inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded-lg text-[9px] font-bold">
+                                    <Clock class="size-2.5 animate-pulse text-amber-550" />
+                                    <span>Bán lại sau: {{ formatProductCountdown(product.paused_until || product.out_of_stock_until) }}</span>
+                                </div>
                             </div>
                             
                             <div class="flex items-end justify-between mt-2">

@@ -22,6 +22,16 @@ class Product extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'paused_until' => 'datetime',
+            'out_of_stock_until' => 'datetime',
+            'is_active' => 'boolean',
+            'is_available' => 'boolean',
+        ];
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(ProductCategory::class, 'category_id');

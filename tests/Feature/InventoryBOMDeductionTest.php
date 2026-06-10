@@ -29,6 +29,7 @@ class InventoryBOMDeductionTest extends TestCase
         $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
         $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id, 'manager_user_id' => $owner->id]);
         $owner->forceFill(['restaurant_id' => $restaurant->id, 'branch_id' => $branch->id])->save();
+        $owner->assignRole('owner');
 
         $category = ProductCategory::create([
             'restaurant_id' => $restaurant->id,

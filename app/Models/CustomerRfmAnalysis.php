@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CustomerRfmAnalysis extends Model
 {
+    use BelongsToRestaurant;
     protected $table = 'customer_rfm_analysis';
 
     protected $guarded = [];
