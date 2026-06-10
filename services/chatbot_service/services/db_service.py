@@ -72,3 +72,18 @@ def record_feedback(knowledge_id: int, helpful: bool) -> None:
         logger.warning("record_feedback failed: %s", e)
     finally:
         conn.close()
+
+
+def get_system_setting(key: str, default: str) -> str:
+    """Get a system setting value by key, fallback to a default."""
+    conn = _get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT value FROM system_settings WHERE `key` = %s", (key,))
+            row = cursor.fetchone()
+            return row["value"] if row and row["value"] is not None else default
+    except Exception as e:
+        logger.error("DB get_system_setting error: %s", e)
+        return default
+    finally:
+        conn.close()

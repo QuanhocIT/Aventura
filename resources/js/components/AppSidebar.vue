@@ -30,9 +30,10 @@ import {
     ScrollText,
     ShieldCheck,
     ShieldAlert,
-    Crown,
     Gift,
     Activity,
+    Settings,
+    Crown,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -114,6 +115,7 @@ const superAdminNav: NavItem[] = [
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
     { title: 'Chatbot AI',      href: '/super-admin/chatbot',   icon: Bot },
     { title: 'Tin tức',         href: '/super-admin/news',      icon: Newspaper },
+    { title: 'Cấu hình hệ thống', href: '/super-admin/settings', icon: Settings },
 ];
 
 // ─── OWNER MENU ───────────────────────────────────────────────────────────────

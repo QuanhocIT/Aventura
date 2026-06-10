@@ -57,6 +57,54 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureDefaults();
+        $this->loadDynamicSettings();
+    }
+
+    /**
+     * Load dynamic configurations from the database and override the default Laravel config.
+     */
+    protected function loadDynamicSettings(): void
+    {
+        try {
+            $mailDriver = \App\Models\SystemSetting::get('mail_driver');
+            if ($mailDriver) {
+                config(['mail.default' => $mailDriver]);
+
+                if ($mailDriver === 'smtp') {
+                    config([
+                        'mail.mailers.smtp.host' => \App\Models\SystemSetting::get('mail_smtp_host', config('mail.mailers.smtp.host')),
+                        'mail.mailers.smtp.port' => (int) \App\Models\SystemSetting::get('mail_smtp_port', config('mail.mailers.smtp.port', 587)),
+                        'mail.mailers.smtp.username' => \App\Models\SystemSetting::get('mail_smtp_username', config('mail.mailers.smtp.username')),
+                        'mail.mailers.smtp.password' => \App\Models\SystemSetting::get('mail_smtp_password', config('mail.mailers.smtp.password')),
+                        'mail.mailers.smtp.encryption' => \App\Models\SystemSetting::get('mail_smtp_encryption', config('mail.mailers.smtp.encryption', 'tls')),
+                    ]);
+                } elseif ($mailDriver === 'ses') {
+                    config([
+                        'services.ses.key' => \App\Models\SystemSetting::get('mail_ses_key', config('services.ses.key')),
+                        'services.ses.secret' => \App\Models\SystemSetting::get('mail_ses_secret', config('services.ses.secret')),
+                        'services.ses.region' => \App\Models\SystemSetting::get('mail_ses_region', config('services.ses.region', 'us-east-1')),
+                    ]);
+                } elseif ($mailDriver === 'mailgun') {
+                    config([
+                        'services.mailgun.domain' => \App\Models\SystemSetting::get('mail_mailgun_domain', config('services.mailgun.domain')),
+                        'services.mailgun.secret' => \App\Models\SystemSetting::get('mail_mailgun_secret', config('services.mailgun.secret')),
+                        'services.mailgun.endpoint' => \App\Models\SystemSetting::get('mail_mailgun_endpoint', config('services.mailgun.endpoint', 'api.mailgun.net')),
+                    ]);
+                }
+
+                $fromAddress = \App\Models\SystemSetting::get('mail_from_address');
+                if ($fromAddress) {
+                    config(['mail.from.address' => $fromAddress]);
+                }
+
+                $fromName = \App\Models\SystemSetting::get('mail_from_name');
+                if ($fromName) {
+                    config(['mail.from.name' => $fromName]);
+                }
+            }
+        } catch (\Throwable $e) {
+            // DB connection or table not ready during migrations/setup, ignore
+        }
     }
 
     /**

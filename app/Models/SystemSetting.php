@@ -13,8 +13,10 @@ class SystemSetting extends Model
      */
     public static function get(string $key, mixed $default = null): mixed
     {
-        $setting = static::where('key', $key)->first();
-        return $setting ? $setting->value : $default;
+        return \Illuminate\Support\Facades\Cache::rememberForever("system_setting:{$key}", function () use ($key, $default) {
+            $setting = static::where('key', $key)->first();
+            return $setting ? $setting->value : $default;
+        });
     }
 
     /**
@@ -22,6 +24,8 @@ class SystemSetting extends Model
      */
     public static function set(string $key, mixed $value): self
     {
-        return static::updateOrCreate(['key' => $key], ['value' => $value]);
+        $setting = static::updateOrCreate(['key' => $key], ['value' => $value]);
+        \Illuminate\Support\Facades\Cache::forget("system_setting:{$key}");
+        return $setting;
     }
 }

@@ -54,29 +54,33 @@ const isSavingMessage = ref(false);
 
 async function checkLiveStatuses() {
     isPinging.value = true;
+    const promise = fetch('/super-admin/service-monitor/ping', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content || '',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(async (res) => {
+        if (!res.ok) throw new Error('Yêu cầu thất bại');
+        const data = await res.json();
+        if (data.success) {
+            localServices.value = data.services;
+            return 'Đã kiểm tra xong trạng thái các dịch vụ';
+        }
+        throw new Error(data.message || 'Lỗi không xác định');
+    });
+
     toast.promise(
-        fetch('/super-admin/service-monitor/ping', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        }).then(async (res) => {
-            if (!res.ok) throw new Error('Yêu cầu thất bại');
-            const data = await res.json();
-            if (data.success) {
-                localServices.value = data.services;
-                return 'Đã kiểm tra xong trạng thái các dịch vụ';
-            }
-            throw new Error(data.message || 'Lỗi không xác định');
-        }),
+        promise,
         {
             loading: 'Đang gửi ping đến các cổng dịch vụ...',
-            success: (msg) => msg,
-            error: (err) => `Lỗi: ${err.message}`
+            success: (msg: any) => msg,
+            error: (err: any) => `Lỗi: ${err.message || err}`
         }
-    ).finally(() => {
+    );
+
+    promise.finally(() => {
         isPinging.value = false;
     });
 }

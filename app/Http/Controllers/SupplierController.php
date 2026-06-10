@@ -280,12 +280,13 @@ class SupplierController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
+        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
             'items' => ['required', 'array'],
             'items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
             'items.*.quantity_received' => ['required', 'numeric', 'min:0'],
             'items.*.invoice_price' => ['required', 'numeric', 'min:0'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:4096'],
+            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
             'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'rating_notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -677,9 +678,10 @@ class SupplierController extends Controller
         $user = $request->user();
         abort_unless($user->hasRole('supplier') && $user->supplier_id === $purchaseOrder->supplier_id, 403);
 
+        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
             'status' => ['required', 'in:preparing,shipping,delivered'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:4096'],
+            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
         ]);
 
         $status = $request->input('status');

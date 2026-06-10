@@ -114,4 +114,8 @@ Route::prefix('super-admin')
         Route::post('service-monitor/ping', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'pingAll'])->name('service-monitor.ping');
         Route::post('service-monitor/{service}/toggle-maintenance', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
         Route::post('service-monitor/{service}/update-message', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'updateMessage'])->name('service-monitor.update-message');
+
+        // Global System Settings
+        Route::get('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'index'])->name('settings.index');
+        Route::post('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'update'])->name('settings.update');
     });

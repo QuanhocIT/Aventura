@@ -126,13 +126,13 @@ function submitForm() {
         router.patch(`/super-admin/coupons/${editingCoupon.value.id}`, data, {
             preserveScroll: true,
             onSuccess: () => { toast.success('Đã cập nhật coupon!'); closeForm(); },
-            onError: (e) => toast.error(Object.values(e)[0] as string),
+            onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     } else {
         router.post('/super-admin/coupons', data, {
             preserveScroll: true,
             onSuccess: () => { toast.success('Đã tạo coupon!'); closeForm(); },
-            onError: (e) => toast.error(Object.values(e)[0] as string),
+            onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     }
 }

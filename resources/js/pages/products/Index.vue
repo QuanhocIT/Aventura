@@ -15,7 +15,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 defineOptions({ layout: AppLayout });
 
 type Category = { id: number; name: string; description: string | null };
-type Product   = { id: number; code: string; name: string; price: number; description: string | null; category: Category | null; is_available: boolean };
+type Product   = { id: number; code: string; name: string; price: number; description: string | null; category: Category | null; is_available: boolean; image_url: string | null };
 
 const props = defineProps<{
     categories: Category[];
@@ -71,11 +71,11 @@ const categoryForm = useForm({ name: '', description: '' });
 
 const productForm = useForm({
     category_id: props.categories[0]?.id ? String(props.categories[0].id) : '',
-    name: '', price: '', description: ''
+    name: '', price: '', description: '', image: null as File | null
 });
 
 const editForm = useForm({
-    name: '', price: '', category_id: '', description: ''
+    name: '', price: '', category_id: '', description: '', image: null as File | null
 });
 
 // ── Computed ───────────────────────────────────────────────────────────────────
@@ -151,13 +151,22 @@ const openEditModal = (p: Product) => {
 
 const submitEdit = () => {
     if (!editingProduct.value) {
-return;
-}
+        return;
+    }
 
-    editForm.patch(`/products/${editingProduct.value.id}`, {
+    // Use post with _method: PATCH to support file upload in multipart/form-data
+    router.post(`/products/${editingProduct.value.id}`, {
+        _method: 'PATCH',
+        name: editForm.name,
+        price: editForm.price,
+        category_id: editForm.category_id,
+        description: editForm.description,
+        image: editForm.image,
+    }, {
         onSuccess: () => {
- editingProduct.value = null; editForm.reset(); 
-}
+            editingProduct.value = null;
+            editForm.reset();
+        }
     });
 };
 
@@ -514,6 +523,10 @@ const toggleAvailability = (p: Product) => {
                             <Input id="prod-price" type="number" v-model="productForm.price" placeholder="Ví dụ: 45000" required />
                         </div>
                         <div class="grid gap-1.5">
+                            <Label for="prod-image">Ảnh món ăn (Menu Image)</Label>
+                            <Input id="prod-image" type="file" accept="image/*" @change="(e: any) => productForm.image = e.target.files[0]" />
+                        </div>
+                        <div class="grid gap-1.5">
                             <div class="flex items-center justify-between">
                                 <Label for="prod-desc" class="font-semibold text-slate-700 dark:text-slate-300">
                                     Đặc điểm & Hương vị món ăn <span class="text-rose-500 font-bold">*</span>
@@ -565,6 +578,15 @@ const toggleAvailability = (p: Product) => {
                         <div class="grid gap-1.5">
                             <Label>Giá bán (VND) <span class="text-rose-500">*</span></Label>
                             <Input type="number" v-model="editForm.price" required />
+                        </div>
+                        <div class="grid gap-1.5">
+                            <Label for="edit-image">Thay đổi ảnh món ăn</Label>
+                            <div class="flex items-center gap-3">
+                                <div v-if="editingProduct?.image_url" class="size-12 rounded-lg overflow-hidden border bg-muted shrink-0">
+                                    <img :src="editingProduct.image_url" class="h-full w-full object-cover" />
+                                </div>
+                                <Input id="edit-image" type="file" accept="image/*" @change="(e: any) => editForm.image = e.target.files[0]" class="flex-1" />
+                            </div>
                         </div>
                         <div class="grid gap-1.5">
                             <div class="flex items-center justify-between">
@@ -687,8 +709,9 @@ const toggleAvailability = (p: Product) => {
                                 class="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors group"
                             >
                                 <div class="flex items-start gap-3">
-                                    <div class="size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-500">
-                                        {{ p.name.substring(0,2).toUpperCase() }}
+                                    <div class="size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-500 overflow-hidden shrink-0">
+                                        <img v-if="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
+                                        <span v-else>{{ p.name.substring(0,2).toUpperCase() }}</span>
                                     </div>
                                     <div>
                                         <div class="flex items-center gap-2">

@@ -221,12 +221,20 @@ class SupportController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
 
+        $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
             'category_id' => ['required', 'exists:product_categories,id'],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'description' => ['required', 'string', 'min:5'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
         ]);
+
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('products', 'public');
+            $imageUrl = '/storage/' . $path;
+        }
 
         Product::create([
             'restaurant_id' => $user->restaurant_id,
@@ -236,6 +244,7 @@ class SupportController extends Controller
             'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
             'price' => $data['price'],
             'description' => $data['description'] ?? null,
+            'image_url' => $imageUrl,
             'is_active' => true,
             'is_available' => true,
             'track_inventory' => true,
@@ -1317,13 +1326,23 @@ class SupportController extends Controller
         $user = $request->user();
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
+        $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
             'name'         => ['sometimes', 'string', 'max:255'],
             'price'        => ['sometimes', 'numeric', 'min:0'],
             'category_id'  => ['nullable', 'exists:product_categories,id'],
             'description'  => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
+            'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
         ]);
+
+        if ($request->hasFile('image')) {
+            if ($product->image_url && str_starts_with($product->image_url, '/storage/')) {
+                \Storage::disk('public')->delete(str_replace('/storage/', '', $product->image_url));
+            }
+            $path = $request->file('image')->store('products', 'public');
+            $data['image_url'] = '/storage/' . $path;
+        }
 
         $product->update($data);
 
@@ -1390,6 +1409,7 @@ class SupportController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
+        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
         $data = $request->validate([
             'ingredient_id' => ['required', 'exists:ingredients,id'],
             'quantity'      => ['required', 'numeric', 'min:0.001'],
@@ -1397,7 +1417,7 @@ class SupportController extends Controller
             'supplier_id'   => ['nullable', 'exists:suppliers,id'],
             'notes'         => ['nullable', 'string', 'max:500'],
             'occurred_at'   => ['nullable', 'date'],
-            'invoice_file'  => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:2048'],
+            'invoice_file'  => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:' . $maxSize],
         ]);
 
         $user = $request->user();

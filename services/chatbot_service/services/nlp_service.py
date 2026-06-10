@@ -29,7 +29,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from config import CACHE_TTL_SECONDS, MAX_SUGGESTIONS, SIMILARITY_THRESHOLD
-from services.db_service import fetch_active_knowledge, _get_connection
+from services.db_service import fetch_active_knowledge, _get_connection, get_system_setting
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
@@ -160,7 +160,11 @@ def _build_cache() -> None:
 
 
 def _ensure_cache() -> None:
-    if time.time() - _cache_time > CACHE_TTL_SECONDS or not _knowledge_rows:
+    try:
+        ttl = int(get_system_setting("chatbot_cache_ttl", str(CACHE_TTL_SECONDS)))
+    except Exception:
+        ttl = CACHE_TTL_SECONDS
+    if time.time() - _cache_time > ttl or not _knowledge_rows:
         _build_cache()
 
 
@@ -221,9 +225,13 @@ def match_question(user_input: str) -> dict:
     best_score = float(final_scores[best_idx])
 
     # Dynamic threshold: lower bar nếu BM25 khá chắc hoặc keyword hit rõ
-    threshold = SIMILARITY_THRESHOLD
+    threshold_str = get_system_setting("chatbot_similarity_threshold", str(SIMILARITY_THRESHOLD))
+    try:
+        threshold = float(threshold_str)
+    except Exception:
+        threshold = SIMILARITY_THRESHOLD
     if bm25_norm[best_idx] > 0.6 or kw_scores[best_idx] > 0.5:
-        threshold = max(SIMILARITY_THRESHOLD - 0.05, 0.18)
+        threshold = max(threshold - 0.05, 0.18)
 
     if best_score < threshold:
         return _fallback_response()
@@ -244,8 +252,13 @@ def match_question(user_input: str) -> dict:
     }
 
 
-def get_popular_suggestions(category: Optional[str] = None, limit: int = MAX_SUGGESTIONS) -> list[dict]:
+def get_popular_suggestions(category: Optional[str] = None, limit: int = None) -> list[dict]:
     _ensure_cache()
+    if limit is None:
+        try:
+            limit = int(get_system_setting("chatbot_max_suggestions", str(MAX_SUGGESTIONS)))
+        except Exception:
+            limit = MAX_SUGGESTIONS
     rows = _knowledge_rows
     if category:
         rows = [r for r in rows if r["category"] == category]
@@ -265,7 +278,11 @@ def reload_cache() -> None:
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _fallback_response() -> dict:
-    popular = get_popular_suggestions(limit=MAX_SUGGESTIONS)
+    try:
+        max_sug = int(get_system_setting("chatbot_max_suggestions", str(MAX_SUGGESTIONS)))
+    except Exception:
+        max_sug = MAX_SUGGESTIONS
+    popular = get_popular_suggestions(limit=max_sug)
     return {
         "found": False,
         "knowledge_id": None,
@@ -281,15 +298,19 @@ def _fallback_response() -> dict:
 
 
 def _get_suggestions(current_id: int, row: dict) -> list[str]:
+    try:
+        max_sug = int(get_system_setting("chatbot_max_suggestions", str(MAX_SUGGESTIONS)))
+    except Exception:
+        max_sug = MAX_SUGGESTIONS
     defined = _parse_json_field(row.get("suggested_questions"))
     if defined:
-        return defined[:MAX_SUGGESTIONS]
+        return defined[:max_sug]
     same_cat = [
         r["question"]
         for r in _knowledge_rows
         if r["category"] == row["category"] and r["id"] != current_id
     ]
-    return same_cat[:MAX_SUGGESTIONS]
+    return same_cat[:max_sug]
 
 
 def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
