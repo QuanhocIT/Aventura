@@ -113,6 +113,7 @@ class HandleInertiaRequests extends Middleware
                 'error'        => $request->session()->get('error'),
                 'temp_password' => $request->session()->get('temp_password'),
             ],
+            'service_maintenance' => json_decode(@file_get_contents(storage_path('framework/service-maintenance.json')), true) ?: [],
         ];
     }
 }

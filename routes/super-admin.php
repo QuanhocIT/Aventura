@@ -108,4 +108,10 @@ Route::prefix('super-admin')
         Route::post('referrals/settings', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'updateSettings'])->name('referrals.settings.update');
         Route::post('referrals/withdrawals/{withdrawal}/approve', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'approveWithdrawal'])->name('referrals.withdrawals.approve');
         Route::post('referrals/withdrawals/{withdrawal}/reject', [\App\Http\Controllers\SuperAdmin\ReferralController::class, 'rejectWithdrawal'])->name('referrals.withdrawals.reject');
+
+        // Service Monitor & Maintenance Mode
+        Route::get('service-monitor', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'index'])->name('service-monitor.index');
+        Route::post('service-monitor/ping', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'pingAll'])->name('service-monitor.ping');
+        Route::post('service-monitor/{service}/toggle-maintenance', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
+        Route::post('service-monitor/{service}/update-message', [\App\Http\Controllers\SuperAdmin\ServiceMonitorController::class, 'updateMessage'])->name('service-monitor.update-message');
     });

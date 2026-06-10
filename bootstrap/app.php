@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            \App\Http\Middleware\CheckServiceMaintenance::class,
             \App\Http\Middleware\CompressResponse::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,

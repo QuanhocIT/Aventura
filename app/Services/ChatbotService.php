@@ -16,6 +16,21 @@ class ChatbotService
 
     public function sendMessage(string $sessionId, string $message, string $source = 'widget'): array
     {
+        if (app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
+            $msg = app(\App\Services\ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service') 
+                ?: 'Trợ lý ảo AI Chatbot hiện đang bảo trì nâng cấp. Vui lòng quay lại sau.';
+            return [
+                'found' => false,
+                'answer' => $msg,
+                'knowledge_id' => null,
+                'matched_question' => null,
+                'category' => null,
+                'confidence' => 0.0,
+                'suggestions' => [],
+                'under_maintenance' => true,
+            ];
+        }
+
         if (empty($this->baseUrl)) {
             return $this->unavailableResponse();
         }
@@ -50,7 +65,7 @@ class ChatbotService
 
     public function getSuggestions(?string $category = null, int $limit = 5): array
     {
-        if (empty($this->baseUrl)) {
+        if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
             return [];
         }
 
@@ -91,6 +106,21 @@ class ChatbotService
 
     public function sendAdvisorMessage(string $sessionId, string $message, int $restaurantId): array
     {
+        if (app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
+            $msg = app(\App\Services\ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service') 
+                ?: 'Trợ lý ảo AI Chatbot hiện đang bảo trì nâng cấp. Vui lòng quay lại sau.';
+            return [
+                'found' => false,
+                'answer' => $msg,
+                'knowledge_id' => null,
+                'matched_question' => null,
+                'category' => null,
+                'confidence' => 0.0,
+                'suggestions' => [],
+                'under_maintenance' => true,
+            ];
+        }
+
         if (empty($this->baseUrl)) {
             return $this->unavailableResponse();
         }

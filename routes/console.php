@@ -24,3 +24,5 @@ app(Schedule::class)->command('news:publish-scheduled')->everyFiveMinutes();
 app(Schedule::class)->call(function () {
     app(\App\Services\SupportPortalService::class)->evaluateAlerts();
 })->everyMinute();
+
+app(Schedule::class)->command('services:check-health')->everyFiveMinutes();

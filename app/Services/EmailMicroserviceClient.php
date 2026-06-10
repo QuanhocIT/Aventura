@@ -61,8 +61,8 @@ class EmailMicroserviceClient
 
     private function post(string $endpoint, array $payload): bool
     {
-        // Thử Python service trước nếu URL được cấu hình
-        if (!empty($this->baseUrl)) {
+        // Thử Python service trước nếu URL được cấu hình và không ở chế độ bảo trì
+        if (!empty($this->baseUrl) && !app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
             try {
                 $response = Http::timeout(3)->post($this->baseUrl.$endpoint, $payload);
 

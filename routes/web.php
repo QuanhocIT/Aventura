@@ -301,5 +301,9 @@ Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee
     ->name('employees.verify')
     ->middleware('signed');
 
+// Public System Status Page
+Route::get('status', [\App\Http\Controllers\PublicStatusController::class, 'index'])->name('public.status');
+Route::get('api/status-data', [\App\Http\Controllers\PublicStatusController::class, 'getStatusData'])->name('public.status.data');
+
 require __DIR__.'/settings.php';
 

@@ -33,6 +33,12 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                             </Link>
                         </li>
                         <li>
+                            <Link href="/status" class="group flex items-center hover:text-white transition-colors">
+                                <span class="text-zinc-500 mr-2 group-hover:text-amber-400 transition-colors">&gt;</span>
+                                <span>Trạng thái hệ thống</span>
+                            </Link>
+                        </li>
+                        <li>
                             <a href="#features" class="group flex items-center hover:text-white transition-colors">
                                 <span class="text-zinc-500 mr-2 group-hover:text-amber-400 transition-colors">&gt;</span>
                                 <span>Tour nổi bật</span>
