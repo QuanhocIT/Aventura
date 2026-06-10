@@ -13,10 +13,12 @@ use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Models\SystemSetting;
 use App\Models\CommissionLog;
+use App\Notifications\DunningNotification;
 use App\Notifications\SubscriptionExpiryReminder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class BillingService
@@ -266,59 +268,271 @@ class BillingService
             ->update(['status' => 'expired']);
     }
 
+    /**
+     * Gửi cảnh báo gia hạn đa giai đoạn (Dunning System).
+     *
+     * Stage D-7 : Nhắc nhở 7 ngày trước
+     * Stage D-3 : Cảnh báo 3 ngày trước
+     * Stage D0  : Hết hạn hôm nay (bước vào grace period)
+     * Stage D+3 : Quá grace period, tài khoản bị khóa
+     */
     public function sendExpiryReminders(): int
     {
-        $now = now();
-        $threshold = $now->copy()->addDays((int) config('billing.upcoming_due_days', 7))->endOfDay();
+        $now  = now();
         $sent = 0;
+
+        // D-7: Hết hạn trong 6–7 ngày
+        $sent += $this->sendDunningStage(
+            fromDays: 6, toDays: 7, stage: 'd7', statusIn: ['trial', 'active'], now: $now
+        );
+
+        // D-3: Hết hạn trong 2–3 ngày
+        $sent += $this->sendDunningStage(
+            fromDays: 2, toDays: 3, stage: 'd3', statusIn: ['trial', 'active'], now: $now
+        );
+
+        // D0: Hết hạn hôm nay
+        $sent += $this->sendDunningStage(
+            fromDays: 0, toDays: 0, stage: 'd0', statusIn: ['trial', 'active'], now: $now
+        );
+
+        // D+3: Đã hết hạn 3+ ngày (overdue)
+        $sent += $this->sendOverdueDunning($now);
+
+        return $sent;
+    }
+
+    private function sendDunningStage(int $fromDays, int $toDays, string $stage, array $statusIn, Carbon $now): int
+    {
+        $windowStart = $now->copy()->addDays($fromDays)->startOfDay();
+        $windowEnd   = $now->copy()->addDays($toDays)->endOfDay();
+        $sent        = 0;
 
         RestaurantSubscription::query()
             ->with(['restaurant.owner'])
-            ->whereIn('status', ['trial', 'active'])
+            ->whereIn('status', $statusIn)
             ->whereNotNull('ended_at')
-            ->whereBetween('ended_at', [$now, $threshold])
-            ->where(function ($query) use ($now) {
-                $query->whereNull('last_notified_at')
-                    ->orWhereDate('last_notified_at', '<', $now->toDateString());
+            ->whereBetween('ended_at', [$windowStart, $windowEnd])
+            ->where(function ($q) use ($now, $stage) {
+                // Không gửi lại nếu đã gửi stage này hôm nay
+                $q->whereNull('last_notified_at')
+                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(billing_meta, '$.dunning_stage')) != ?", [$stage])
+                  ->orWhereDate('last_notified_at', '<', now()->toDateString());
             })
-            ->chunkById(100, function ($subscriptions) use (&$sent) {
+            ->chunkById(100, function ($subscriptions) use (&$sent, $now, $stage) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (! $restaurant || ! $restaurant->owner) {
+                    if (!$restaurant || !$restaurant->owner) {
                         continue;
                     }
 
-                    $invoice = BillingInvoice::query()->firstOrCreate([
-                        'restaurant_id' => $restaurant->id,
-                        'restaurant_subscription_id' => $subscription->id,
-                        'type' => 'upcoming_renewal',
-                    ], [
-                        'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.strtoupper(substr(md5((string) $subscription->id), 0, 4)),
-                        'status' => 'pending',
-                        'currency' => $restaurant->currency ?? 'VND',
-                        'subtotal' => (float) $subscription->price,
-                        'discount_amount' => 0,
-                        'total' => (float) $subscription->price,
-                        'issued_on' => now()->toDateString(),
-                        'due_on' => $subscription->ended_at?->toDateString(),
-                        'recipient_email' => $restaurant->owner->email,
-                    ]);
+                    $daysLeft = (int) $now->diffInDays($subscription->ended_at, false);
+                    $renewalUrl = route('billing.checkout') . '?plan=' . ($subscription->plan?->code ?? '');
 
-                    $this->queueInvoiceRegeneration($invoice);
-                    $this->queueInvoiceEmail($invoice);
-
-                    $restaurant->owner->notify(new SubscriptionExpiryReminder(
-                        $restaurant->name,
-                        optional($subscription->ended_at)->format('d/m/Y'),
-                        'upcoming'
+                    $restaurant->owner->notify(new DunningNotification(
+                        restaurantName: $restaurant->name,
+                        expiresAt: optional($subscription->ended_at)->format('d/m/Y') ?? '',
+                        daysLeft: $daysLeft,
+                        renewalUrl: $renewalUrl,
+                        stage: $stage,
                     ));
 
-                    $subscription->update(['last_notified_at' => now()]);
+                    $subscription->update([
+                        'last_notified_at' => now(),
+                        'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                            'dunning_stage' => $stage,
+                            'dunning_sent_at' => now()->toIso8601String(),
+                        ]),
+                    ]);
+
                     $sent++;
                 }
             });
 
         return $sent;
+    }
+
+    private function sendOverdueDunning(Carbon $now): int
+    {
+        $graceDays   = (int) config('billing.grace_period_days', 30);
+        // Đưa ra cảnh báo khi quá hạn từ 1–3 ngày (trong grace period)
+        $graceCutoff = $now->copy()->subDays(3)->startOfDay();
+        $sent        = 0;
+
+        RestaurantSubscription::query()
+            ->with(['restaurant.owner'])
+            ->whereIn('status', ['expired'])
+            ->whereNotNull('ended_at')
+            ->whereBetween('ended_at', [$graceCutoff, $now->copy()->subDay()->endOfDay()])
+            ->where(function ($q) use ($now) {
+                $q->whereNull('last_notified_at')
+                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(billing_meta, '$.dunning_stage')) != 'overdue'")
+                  ->orWhereDate('last_notified_at', '<', now()->toDateString());
+            })
+            ->chunkById(100, function ($subscriptions) use (&$sent, $now) {
+                foreach ($subscriptions as $subscription) {
+                    $restaurant = $subscription->restaurant;
+                    if (!$restaurant || !$restaurant->owner) {
+                        continue;
+                    }
+
+                    $renewalUrl = route('billing.checkout') . '?plan=' . ($subscription->plan?->code ?? '');
+
+                    $restaurant->owner->notify(new DunningNotification(
+                        restaurantName: $restaurant->name,
+                        expiresAt: optional($subscription->ended_at)->format('d/m/Y') ?? '',
+                        daysLeft: (int) $now->diffInDays($subscription->ended_at, false),
+                        renewalUrl: $renewalUrl,
+                        stage: 'overdue',
+                    ));
+
+                    $subscription->update([
+                        'last_notified_at' => now(),
+                        'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                            'dunning_stage' => 'overdue',
+                            'dunning_sent_at' => now()->toIso8601String(),
+                        ]),
+                    ]);
+
+                    $sent++;
+                }
+            });
+
+        return $sent;
+    }
+
+    /**
+     * Tính proration credit cho việc nâng cấp gói.
+     * Credit chỉ được ghi nhận thông qua BillingAdjustment (tracking only),
+     * không trừ trực tiếp vì SePay là manual bank transfer.
+     */
+    public function calculateProration(RestaurantSubscription $currentSubscription): array
+    {
+        if (!$currentSubscription->ended_at || $currentSubscription->ended_at->isPast()) {
+            return ['credit_amount' => 0, 'remaining_days' => 0, 'daily_rate' => 0];
+        }
+
+        $remainingDays = (int) now()->diffInDays($currentSubscription->ended_at, false);
+        if ($remainingDays <= 0) {
+            return ['credit_amount' => 0, 'remaining_days' => 0, 'daily_rate' => 0];
+        }
+
+        $cycleDays  = $this->billingCycleDays($currentSubscription);
+        $dailyRate  = (float) $currentSubscription->price / max($cycleDays, 1);
+        $creditAmount = round($dailyRate * $remainingDays);
+
+        return [
+            'credit_amount'  => $creditAmount,
+            'remaining_days' => $remainingDays,
+            'daily_rate'     => round($dailyRate),
+            'cycle_days'     => $cycleDays,
+        ];
+    }
+
+    /**
+     * Ghi nhận proration credit khi upgrade gói.
+     * Tạo BillingAdjustment tracking cho mục đích số liệu.
+     */
+    public function recordProrationCredit(
+        RestaurantSubscription $oldSub,
+        RestaurantSubscription $newSub,
+        float $creditAmount,
+        ?User $actor = null
+    ): BillingAdjustment {
+        return BillingAdjustment::create([
+            'restaurant_id'             => $oldSub->restaurant_id,
+            'restaurant_subscription_id' => $newSub->id,
+            'created_by'                => $actor?->id,
+            'type'                      => 'proration_credit',
+            'days'                      => 0,
+            'discount_amount'           => $creditAmount,
+            'reason'                    => "Credit từ gói cũ (#{$oldSub->id}) — nâng cấp lên gói mới",
+            'meta'                      => [
+                'old_subscription_id' => $oldSub->id,
+                'new_subscription_id' => $newSub->id,
+                'old_plan_id'         => $oldSub->plan_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Tự động tạo giao dịch gia hạn mới cho các subscription bật auto_renewal.
+     * Được gọi khi subscription sắp hết hạn (D-7) để có mã sẵn cho khách chuyển khoản.
+     */
+    public function generateRenewalTransactions(): int
+    {
+        $now       = now();
+        $threshold = $now->copy()->addDays(7)->endOfDay();
+        $created   = 0;
+
+        RestaurantSubscription::query()
+            ->with(['restaurant', 'plan'])
+            ->where('status', 'active')
+            ->where('auto_renewal_enabled', true)
+            ->whereNotNull('ended_at')
+            ->whereBetween('ended_at', [$now, $threshold])
+            // Không có pending renewal transaction rồi
+            ->whereDoesntHave('restaurant.subscriptions', function ($q) use ($now) {
+                $q->where('status', 'expired')
+                  ->whereJsonContains('meta->pending_payment', true)
+                  ->where('started_at', '>=', $now->copy()->subDays(7));
+            })
+            ->chunkById(100, function ($subscriptions) use (&$created) {
+                foreach ($subscriptions as $subscription) {
+                    $restaurant = $subscription->restaurant;
+                    $plan = $subscription->plan;
+                    if (!$restaurant || !$plan) continue;
+
+                    try {
+                        $transactionCode = $this->generateTransactionCode($restaurant->id);
+                        $endsAt = $subscription->ended_at->copy()->addDays(
+                            $this->billingCycleDays($subscription)
+                        );
+
+                        RestaurantSubscription::create([
+                            'restaurant_id'      => $restaurant->id,
+                            'plan_id'            => $plan->id,
+                            'status'             => 'expired',
+                            'started_at'         => $subscription->ended_at,
+                            'ended_at'           => $endsAt,
+                            'renewal_at'         => $endsAt,
+                            'original_price'     => $subscription->price,
+                            'price'              => $subscription->price,
+                            'billing_cycle'      => $subscription->billing_cycle,
+                            'auto_renewal_enabled' => true,
+                            'transaction_code'   => $transactionCode,
+                            'meta'               => [
+                                'source'         => 'auto_renewal',
+                                'parent_sub_id'  => $subscription->id,
+                                'plan_code'      => $plan->code,
+                                'pending_payment' => true,
+                            ],
+                            'billing_meta'       => [
+                                'provider'               => 'sepay',
+                                'renewal_generated_at'  => now()->toIso8601String(),
+                            ],
+                        ]);
+
+                        $created++;
+                    } catch (\Throwable $e) {
+                        Log::error('Auto-renewal transaction generation failed', [
+                            'subscription_id' => $subscription->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            });
+
+        return $created;
+    }
+
+    private function generateTransactionCode(int $restaurantId): string
+    {
+        do {
+            $code = 'AVT' . str_pad((string) $restaurantId, 4, '0', STR_PAD_LEFT) . Str::upper(Str::random(8));
+        } while (RestaurantSubscription::query()->where('transaction_code', $code)->exists());
+
+        return $code;
     }
 
     private function extractTransactionCode(array $payload): ?string

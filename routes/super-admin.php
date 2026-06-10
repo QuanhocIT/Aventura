@@ -2,15 +2,17 @@
 
 use App\Http\Controllers\SuperAdmin\AccountController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
-use App\Http\Controllers\SuperAdmin\DashboardController;
-use App\Http\Controllers\SuperAdmin\RestaurantController;
-use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
-use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use App\Http\Controllers\SuperAdmin\BannerController;
 use App\Http\Controllers\SuperAdmin\BillingController;
 use App\Http\Controllers\SuperAdmin\BillingOverrideController;
 use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
+use App\Http\Controllers\SuperAdmin\CouponController;
+use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\NewsPostController;
+use App\Http\Controllers\SuperAdmin\RestaurantController;
+use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
+use App\Http\Controllers\SuperAdmin\SupportPortalController;
+
 
 Route::prefix('super-admin')
     ->name('superadmin.')
@@ -22,10 +24,19 @@ Route::prefix('super-admin')
         Route::get('dashboard/export/report', [DashboardController::class, 'exportReport'])->name('dashboard.export.report');
         Route::post('dashboard/report-subscription', [DashboardController::class, 'updateReportSubscription'])->name('dashboard.report-subscription.update');
         Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
+        Route::get('billing/analytics', [BillingController::class, 'analytics'])->name('billing.analytics');
         Route::get('billing/export', [BillingController::class, 'exportCsv'])->name('billing.export');
+        Route::get('billing/invoices/{invoice}/download', [BillingController::class, 'downloadInvoice'])->name('billing.invoices.download');
         Route::post('billing/invoices/{invoice}/resend', [BillingController::class, 'resendInvoice'])->name('billing.invoices.resend');
         Route::post('billing/invoices/{invoice}/regenerate', [BillingController::class, 'regenerateInvoice'])->name('billing.invoices.regenerate');
         Route::post('billing/webhooks/{webhook}/retry', [BillingController::class, 'retryWebhook'])->name('billing.webhooks.retry');
+
+        Route::get('coupons', [CouponController::class, 'index'])->name('coupons.index');
+        Route::post('coupons', [CouponController::class, 'store'])->name('coupons.store');
+        Route::patch('coupons/{coupon}', [CouponController::class, 'update'])->name('coupons.update');
+        Route::delete('coupons/{coupon}', [CouponController::class, 'destroy'])->name('coupons.destroy');
+        Route::patch('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
+
 
         Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
         Route::post('restaurants', [RestaurantController::class, 'store'])->name('restaurants.store');

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
-import { Filter, ReceiptText, RefreshCcw, Search, WalletCards } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { BarChart2, Download, Filter, ReceiptText, RefreshCcw, Search, WalletCards } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -114,6 +114,11 @@ function exportCsv() {
                 <p class="text-sm text-muted-foreground">Theo dõi hóa đơn, webhook và điều chỉnh billing toàn hệ thống.</p>
             </div>
             <div class="flex gap-2">
+                <Link href="/super-admin/billing/analytics">
+                    <Button variant="outline">
+                        <BarChart2 class="mr-2 size-4" /> Analytics
+                    </Button>
+                </Link>
                 <Button variant="outline" @click="applyFilters">
                     <RefreshCcw class="mr-2 size-4" /> Làm mới
                 </Button>
@@ -235,6 +240,11 @@ function exportCsv() {
                         <div class="mt-2 flex gap-2">
                             <Button size="sm" variant="outline" @click="resendInvoice(invoice.id)">Gửi lại email</Button>
                             <Button size="sm" variant="outline" @click="regenerateInvoice(invoice.id)">Tạo lại hóa đơn</Button>
+                            <a :href="`/super-admin/billing/invoices/${invoice.id}/download`" target="_blank">
+                                <Button size="sm" variant="outline">
+                                    <Download class="mr-1.5 size-3.5" /> Tải PDF
+                                </Button>
+                            </a>
                         </div>
                     </div>
                     <p v-if="!invoices.data.length" class="py-10 text-center text-sm text-muted-foreground">Không có hóa đơn phù hợp.</p>

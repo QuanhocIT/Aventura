@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Coupon extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $guarded = [];
 
@@ -20,6 +22,14 @@ class Coupon extends Model
             'max_uses' => 'integer',
             'uses_count' => 'integer',
         ];
+    }
+
+    /**
+     * Các lần sử dụng coupon này (từ billing_adjustments).
+     */
+    public function usages(): HasMany
+    {
+        return $this->hasMany(BillingAdjustment::class, 'coupon_code', 'code');
     }
 
     /**
