@@ -30,6 +30,8 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'manage_restaurant_settings',
+            'manage_supplier_catalog',
+            'view_supplier_price_history',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -97,10 +99,20 @@ class PermissionsSeeder extends Seeder
             'report_violations',
         ]);
 
+        // 7. Role supplier_admin (Đại diện nhà cung cấp)
+        $supplierAdminRole = Role::firstOrCreate([
+            'name' => 'supplier_admin',
+            'guard_name' => 'web',
+        ]);
+        $supplierAdminRole->syncPermissions([
+            'manage_supplier_catalog',
+            'view_supplier_price_history',
+        ]);
+
         // Xóa cache permission để đảm bảo cập nhật ngay lập tức
         try {
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // Bỏ qua nếu có lỗi cache
         }
     }

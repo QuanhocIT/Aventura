@@ -56,6 +56,10 @@ class CustomLoginResponse implements LoginResponseContract
             return redirect('/super-admin/dashboard');
         }
 
+        if ($user->hasRole('supplier_admin')) {
+            return redirect('/supplier-portal/dashboard');
+        }
+
         if ($user->roles()->exists()) {
             return redirect()->intended('/dashboard');
         }

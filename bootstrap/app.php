@@ -11,13 +11,15 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
+        web: __DIR__ . '/../routes/web.php',
+        commands: __DIR__ . '/../routes/console.php',
+        channels: __DIR__ . '/../routes/channels.php',
         health: '/up',
         then: function () {
             \Illuminate\Support\Facades\Route::middleware('web')
                 ->group(base_path('routes/super-admin.php'));
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->group(base_path('routes/supplier-portal.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -44,9 +46,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role.superadmin.2fa'  => \App\Http\Middleware\RequireSuperAdminTwoFactor::class,
             'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
+            'supplier.portal'        => \App\Http\Middleware\EnsureSupplierPortalAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
-

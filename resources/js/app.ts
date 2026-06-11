@@ -10,6 +10,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 import BareLayout from '@/layouts/BareLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
+import SupplierLayout from '@/layouts/SupplierLayout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 import { createPinia } from 'pinia';
 
@@ -60,6 +61,9 @@ createInertiaApp({
                         break;
                     case name.startsWith('settings/'):
                         page.layout = [AppLayout, SettingsLayout];
+                        break;
+                    case name.startsWith('supplier-portal/'):
+                        page.layout = SupplierLayout;
                         break;
                     default:
                         page.layout = AppLayout;

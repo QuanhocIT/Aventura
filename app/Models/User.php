@@ -25,6 +25,7 @@ use Spatie\Permission\Traits\HasRoles;
     'last_login_at',
     'restaurant_id',
     'branch_id',
+    'supplier_id',
     'phone',
     'avatar_url',
     'status',
@@ -83,6 +84,16 @@ class User extends Authenticatable
     {
         return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
             ->where('collection', 'user_avatar');
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function isSupplierAdmin(): bool
+    {
+        return $this->hasRole('supplier_admin');
     }
 
     public function isSuperAdmin(): bool
