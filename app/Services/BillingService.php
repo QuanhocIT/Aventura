@@ -281,6 +281,33 @@ class BillingService
         $now  = now();
         $sent = 0;
 
+        // Generate upcoming renewal invoices if within the upcoming due window
+        $upcomingDays = (int) config('billing.upcoming_due_days', 7);
+        $upcomingThreshold = $now->copy()->addDays($upcomingDays)->endOfDay();
+        
+        RestaurantSubscription::query()
+            ->with(['restaurant'])
+            ->whereIn('status', ['trial', 'active'])
+            ->whereNotNull('ended_at')
+            ->whereBetween('ended_at', [$now, $upcomingThreshold])
+            ->chunkById(100, function ($subscriptions) {
+                foreach ($subscriptions as $subscription) {
+                    $restaurant = $subscription->restaurant;
+                    if (!$restaurant) continue;
+
+                    $invoiceExists = \App\Models\BillingInvoice::query()
+                        ->where('restaurant_subscription_id', $subscription->id)
+                        ->where('type', 'upcoming_renewal')
+                        ->exists();
+
+                    if (!$invoiceExists) {
+                        $invoice = $this->createUpcomingInvoice($restaurant, $subscription);
+                        $this->queueInvoiceRegeneration($invoice);
+                        $this->queueInvoiceEmail($invoice);
+                    }
+                }
+            });
+
         // D-7: Hết hạn trong 6–7 ngày
         $sent += $this->sendDunningStage(
             fromDays: 6, toDays: 7, stage: 'd7', statusIn: ['trial', 'active'], now: $now
@@ -302,7 +329,7 @@ class BillingService
         return $sent;
     }
 
-    private function sendDunningStage(int $fromDays, int $toDays, string $stage, array $statusIn, Carbon $now): int
+    private function sendDunningStage(int $fromDays, int $toDays, string $stage, array $statusIn, \Carbon\CarbonInterface $now): int
     {
         $windowStart = $now->copy()->addDays($fromDays)->startOfDay();
         $windowEnd   = $now->copy()->addDays($toDays)->endOfDay();
@@ -316,7 +343,7 @@ class BillingService
             ->where(function ($q) use ($now, $stage) {
                 // Không gửi lại nếu đã gửi stage này hôm nay
                 $q->whereNull('last_notified_at')
-                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(billing_meta, '$.dunning_stage')) != ?", [$stage])
+                  ->orWhere('billing_meta->dunning_stage', '!=', $stage)
                   ->orWhereDate('last_notified_at', '<', now()->toDateString());
             })
             ->chunkById(100, function ($subscriptions) use (&$sent, $now, $stage) {
@@ -352,7 +379,7 @@ class BillingService
         return $sent;
     }
 
-    private function sendOverdueDunning(Carbon $now): int
+    private function sendOverdueDunning(\Carbon\CarbonInterface $now): int
     {
         $graceDays   = (int) config('billing.grace_period_days', 30);
         // Đưa ra cảnh báo khi quá hạn từ 1–3 ngày (trong grace period)
@@ -366,7 +393,7 @@ class BillingService
             ->whereBetween('ended_at', [$graceCutoff, $now->copy()->subDay()->endOfDay()])
             ->where(function ($q) use ($now) {
                 $q->whereNull('last_notified_at')
-                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(billing_meta, '$.dunning_stage')) != 'overdue'")
+                  ->orWhere('billing_meta->dunning_stage', '!=', 'overdue')
                   ->orWhereDate('last_notified_at', '<', now()->toDateString());
             })
             ->chunkById(100, function ($subscriptions) use (&$sent, $now) {

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatbotUnansweredQuery extends Model
 {
+    use BelongsToRestaurant;
+
     protected $fillable = [
         'query',
         'query_hash',

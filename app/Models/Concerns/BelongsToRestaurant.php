@@ -13,7 +13,17 @@ trait BelongsToRestaurant
             $restaurantId = app(TenantContext::class)->restaurantId();
 
             if ($restaurantId !== null) {
-                $builder->where($builder->getModel()->getTable().'.restaurant_id', $restaurantId);
+                $model = $builder->getModel();
+                $table = $model->getTable();
+
+                if (method_exists($model, 'shouldIncludeSystemShared') && $model->shouldIncludeSystemShared()) {
+                    $builder->where(function (Builder $query) use ($table, $restaurantId): void {
+                        $query->whereNull($table.'.restaurant_id')
+                            ->orWhere($table.'.restaurant_id', $restaurantId);
+                    });
+                } else {
+                    $builder->where($table.'.restaurant_id', $restaurantId);
+                }
             }
         });
 

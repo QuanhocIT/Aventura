@@ -38,6 +38,9 @@ class SepayCheckoutTest extends TestCase
 
         $subscription = RestaurantSubscription::query()->where('plan_id', $pro->id)->latest('id')->first();
 
+        if (!$subscription) {
+            dump($response->status(), $response->getSession()->get('error'));
+        }
         $this->assertNotNull($subscription);
         $this->assertSame('expired', $subscription->status);
         $this->assertNotNull($subscription->transaction_code);

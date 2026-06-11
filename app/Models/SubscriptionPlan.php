@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Database\Factories\Tenant\SubscriptionPlanFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -11,8 +12,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SubscriptionPlan extends Model
 {
     use HasFactory;
+    use BelongsToRestaurant;
 
     protected $guarded = [];
+
+    public function shouldIncludeSystemShared(): bool
+    {
+        return true;
+    }
 
     protected function casts(): array
     {

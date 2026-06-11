@@ -45,6 +45,12 @@ class AdvancedOperationsTest extends TestCase
         $this->owner->assignRole($ownerRole);
 
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
+        $this->restaurant->plan->update([
+            'features' => array_merge($this->restaurant->plan->features ?? [], [
+                'supplier_portal' => true,
+                'hr_full' => true,
+            ])
+        ]);
         
         $this->branchA = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,

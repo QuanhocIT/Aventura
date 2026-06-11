@@ -103,7 +103,7 @@ class BillingConsoleCommandsTest extends TestCase
 
         $subscription->refresh();
 
-        Notification::assertSentTo($owner, SubscriptionExpiryReminder::class, 1);
+        Notification::assertSentTo($owner, \App\Notifications\DunningNotification::class, 1);
         Queue::assertPushed(GenerateInvoiceDocuments::class, 1);
         Queue::assertPushed(SendBillingInvoiceEmail::class, 1);
         $this->assertNotNull($subscription->last_notified_at);
@@ -116,7 +116,7 @@ class BillingConsoleCommandsTest extends TestCase
 
         Artisan::call('billing:send-reminders');
 
-        Notification::assertSentToTimes($owner, SubscriptionExpiryReminder::class, 1);
+        Notification::assertSentToTimes($owner, \App\Notifications\DunningNotification::class, 1);
         Queue::assertPushed(GenerateInvoiceDocuments::class, 1);
         Queue::assertPushed(SendBillingInvoiceEmail::class, 1);
         $this->assertDatabaseCount('billing_invoices', 1);
