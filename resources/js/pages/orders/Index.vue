@@ -11,10 +11,21 @@ import {
     CalendarDays,
     RefreshCw,
     AlertCircle,
+    Sparkles,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import axios from 'axios';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -31,6 +42,7 @@ type Order = {
     items_count: number;
     created_at: string;
     completed_at: string | null;
+    items?: { id: number; product_name: string; quantity: number; notes: string | null }[];
 };
 
 type Summary = {
@@ -131,6 +143,47 @@ const formatCurrency = (v: number) =>
         style: 'currency',
         currency: 'VND',
     }).format(v);
+
+const isAiModalOpen = ref(false);
+const aiSuggestionText = ref('');
+const aiRecommendedItem = ref('');
+const aiSource = ref('');
+const isFetchingAi = ref(false);
+const currentVerifyingOrder = ref<Order | null>(null);
+
+const confirmQrOrder = async (order: Order) => {
+    currentVerifyingOrder.value = order;
+    isFetchingAi.value = true;
+    
+    try {
+        await axios.patch(`/orders/${order.id}/status`, { status: 'confirmed' });
+        
+        const itemNames = order.items ? order.items.map(i => i.product_name).filter(Boolean) : [];
+        const response = await axios.post('/api/promotions/upsell-suggestion', {
+            items: itemNames
+        });
+        
+        aiSuggestionText.value = response.data.suggestion || 'Hãy chọn thêm các món ăn đặc sắc từ thực đơn.';
+        aiRecommendedItem.value = response.data.recommended_item || '';
+        aiSource.value = response.data.source || 'Hệ thống';
+        
+        isAiModalOpen.value = true;
+    } catch (e: any) {
+        console.error(e);
+        toast.error('Có lỗi xảy ra khi xác nhận đơn hàng đệm.');
+    } finally {
+        isFetchingAi.value = false;
+        router.reload({ only: ['orders', 'summary'] });
+    }
+};
+
+const handleStatusUpdate = (order: Order, newStatus: string) => {
+    if (order.channel === 'qr' && newStatus === 'confirmed') {
+        confirmQrOrder(order);
+    } else {
+        updateOrderStatus(order, newStatus);
+    }
+};
 
 const nextStatus: Record<string, string | null> = {
     pending: 'confirmed',
@@ -355,7 +408,7 @@ const nextStatus: Record<string, string | null> = {
                             <button
                                 v-if="nextStatus[o.status]"
                                 @click="
-                                    updateOrderStatus(o, nextStatus[o.status]!)
+                                    handleStatusUpdate(o, nextStatus[o.status]!)
                                 "
                                 class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700"
                             >
@@ -392,5 +445,75 @@ const nextStatus: Record<string, string | null> = {
                 </div>
             </CardContent>
         </Card>
+
+        <!-- AI Upselling Dialog -->
+        <Dialog v-model:open="isAiModalOpen">
+            <DialogContent class="sm:max-w-[480px] rounded-2xl border border-violet-100 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 shadow-2xl">
+                <DialogHeader class="pb-3 flex flex-col items-center text-center">
+                    <div class="h-14 w-14 rounded-2xl bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400 flex items-center justify-center mb-3 shadow-inner border border-violet-100/50 animate-pulse">
+                        <Sparkles class="size-7" />
+                    </div>
+                    <DialogTitle class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                        Trợ Lý AI Kích Cầu (Upselling)
+                    </DialogTitle>
+                    <DialogDescription class="text-xs text-slate-500 mt-1 dark:text-slate-400">
+                        Gợi ý tư vấn thêm đồ uống/món ăn kèm cho khách hàng dựa trên phân tích giỏ hàng.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="py-4 space-y-4">
+                    <!-- Info box -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">ĐƠN HÀNG XÁC NHẬN</p>
+                        <p class="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">
+                            Bàn {{ currentVerifyingOrder?.table_name || '—' }} ({{ currentVerifyingOrder?.order_number }})
+                        </p>
+                        
+                        <div class="h-px bg-slate-200 dark:bg-slate-800 my-2.5"></div>
+                        
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">MÓN ĐÃ GỌI</p>
+                        <div class="flex flex-wrap gap-1.5 mt-1">
+                            <span 
+                                v-for="item in currentVerifyingOrder?.items" 
+                                :key="item.id"
+                                class="inline-block px-2.5 py-1 bg-white border border-slate-200 text-xs rounded-lg text-slate-700 font-medium dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300"
+                            >
+                                {{ item.product_name }} x{{ item.quantity }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Suggestion content -->
+                    <div class="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white p-5 shadow-md relative overflow-hidden">
+                        <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full blur-lg"></div>
+                        
+                        <div class="flex items-start gap-3.5">
+                            <div class="shrink-0 p-2 bg-white/20 rounded-xl mt-0.5">
+                                <Sparkles class="size-5 text-white" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <p class="text-[10px] text-white/70 font-bold tracking-wider uppercase">GỢI Ý TỪ AI</p>
+                                <p class="text-sm font-semibold leading-relaxed tracking-wide italic">
+                                    "{{ aiSuggestionText }}"
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-[10px] text-right text-slate-400">
+                        Thuật toán: <span class="font-semibold text-slate-500 dark:text-slate-300">{{ aiSource }}</span>
+                    </div>
+                </div>
+
+                <DialogFooter class="sm:justify-end gap-2">
+                    <Button 
+                        @click="isAiModalOpen = false"
+                        class="rounded-xl px-5 bg-slate-900 hover:bg-slate-800 text-white font-semibold dark:bg-slate-800 dark:hover:bg-slate-750"
+                    >
+                        Đóng gợi ý
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>

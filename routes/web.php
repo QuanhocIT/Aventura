@@ -178,6 +178,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
 Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
 Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
+// Trải nghiệm gọi món qua QR dành cho Khách hàng tại bàn
+Route::get('order/{restaurant}/{table_token}', [\App\Http\Controllers\QrOrderController::class, 'showMenu'])->name('qr.order.show');
+Route::post('order/{restaurant}/{table_token}', [\App\Http\Controllers\QrOrderController::class, 'submitOrder'])->name('qr.order.submit');
+
+
 // Xác thực lời mời nhận việc của nhân viên mới
 Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])
     ->name('employees.verify')

@@ -11,3 +11,7 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('support.announcements', function ($user) {
     return (bool) $user;
 });
+
+Broadcast::channel('restaurant.{restaurantId}', function ($user, $restaurantId) {
+    return (int) $user->restaurant_id === (int) $restaurantId;
+});

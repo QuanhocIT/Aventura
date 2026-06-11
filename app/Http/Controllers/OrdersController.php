@@ -179,7 +179,7 @@ class OrdersController extends Controller
         $dateFilter   = $request->get('date', today()->toDateString());
 
         $query = Order::where('restaurant_id', $restaurantId)
-            ->with(['table.area', 'items'])
+            ->with(['table.area', 'items.product'])
             ->whereDate('created_at', $dateFilter)
             ->latest();
 
@@ -199,6 +199,12 @@ class OrdersController extends Controller
             'items_count'    => $o->items->count(),
             'created_at'     => $o->created_at->format('H:i'),
             'completed_at'   => $o->completed_at?->format('H:i'),
+            'items'          => $o->items->map(fn ($item) => [
+                'id' => $item->id,
+                'product_name' => $item->product?->name,
+                'quantity' => (float) $item->quantity,
+                'notes' => $item->notes,
+            ])->toArray(),
         ]);
 
         $summary = [
