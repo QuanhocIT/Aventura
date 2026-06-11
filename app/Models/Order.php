@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use Laravel\Scout\Searchable;
 
 use Database\Factories\Restaurant\OrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,8 +18,29 @@ class Order extends Model
     use BelongsToRestaurant;
     use HasFactory;
     use SoftDeletes;
+    use Searchable;
 
     protected $guarded = [];
+
+    /**
+     * Get the indexable data array for the model.
+     *
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (int) $this->id,
+            'order_number' => $this->order_number,
+            'restaurant_id' => (int) $this->restaurant_id,
+            'table_id' => (int) $this->table_id,
+            'status' => $this->status,
+            'payment_status' => $this->payment_status,
+            'total_amount' => (float) $this->total_amount,
+            'notes' => $this->note,
+            'created_at' => $this->created_at?->timestamp,
+        ];
+    }
 
     protected function casts(): array
     {

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\Tenant\RestaurantFactory;
+use Laravel\Scout\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,8 +18,30 @@ class Restaurant extends Model
 {
     use HasFactory;
     use SoftDeletes;
+    use Searchable;
 
     protected $guarded = [];
+
+    /**
+     * Get the indexable data array for the model.
+     *
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (int) $this->id,
+            'name' => $this->name,
+            'code' => $this->code,
+            'slug' => $this->slug,
+            'status' => $this->status,
+            'address' => $this->address,
+            'phone' => $this->phone,
+            'email' => $this->email,
+            'tax_code' => $this->tax_code,
+            'created_at' => $this->created_at?->timestamp,
+        ];
+    }
 
     protected function casts(): array
     {

@@ -1,0 +1,570 @@
+<script setup lang="ts">
+import { Head, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
+import {
+    Search,
+    Database,
+    Activity,
+    RotateCw,
+    Play,
+    Trash2,
+    Clock,
+    AlertCircle,
+    CheckCircle,
+    XCircle,
+    Sliders,
+    Sparkles,
+    TrendingUp,
+    ExternalLink,
+    Grid,
+    HelpCircle
+} from 'lucide-vue-next';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+// Layout config
+defineOptions({ layout: AppLayout });
+
+interface IndexSyncStatus {
+    status: 'idle' | 'pending' | 'processing' | 'success' | 'failed';
+    action: 'import' | 'flush' | null;
+    completed_at: string | null;
+    failed_at: string | null;
+    error: string | null;
+}
+
+interface IndexStat {
+    index_name: string;
+    label: string;
+    model: string;
+    documents_count: number;
+    db_records_count: number;
+    is_indexing: boolean;
+    sync_status: IndexSyncStatus;
+    out_of_sync: boolean;
+}
+
+interface ConnectionInfo {
+    online: boolean;
+    host: string;
+    driver: string;
+    database_size: number;
+    error: string | null;
+}
+
+interface LatencyStat {
+    index_name: string;
+    avg_latency: number;
+    total_count: number;
+}
+
+interface KeywordStat {
+    rank: number;
+    keyword: string;
+    index_name: string;
+    search_count: number;
+    avg_latency: number;
+}
+
+interface RecentSearch {
+    keyword: string;
+    index_name: string;
+    latency_ms: number;
+    created_at: string;
+}
+
+interface StatisticsInfo {
+    total_searches: number;
+    average_latency: number;
+    latency_by_index: LatencyStat[];
+    top_keywords: KeywordStat[];
+    latest_searches: RecentSearch[];
+}
+
+const props = defineProps<{
+    connection: ConnectionInfo;
+    indexes: IndexStat[];
+    statistics: StatisticsInfo;
+}>();
+
+const localIndexes = ref<IndexStat[]>([...props.indexes]);
+const isSyncing = ref<Record<string, boolean>>({});
+const isClearingStats = ref(false);
+
+function formatBytes(bytes: number, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+async function triggerSync(indexName: string, action: 'import' | 'flush') {
+    const key = `${indexName}_${action}`;
+    isSyncing.value[key] = true;
+
+    const promise = fetch('/super-admin/meilisearch-console/sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content || '',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ index_name: indexName, action })
+    }).then(async (res) => {
+        if (!res.ok) throw new Error('Yêu cầu thất bại');
+        const data = await res.json();
+        if (data.success) {
+            // Update local state sync status to pending
+            const targetIndex = localIndexes.value.find(idx => idx.index_name === indexName);
+            if (targetIndex) {
+                targetIndex.sync_status = data.sync_status;
+            }
+            return data.message || 'Lệnh đồng bộ chỉ mục đã được đưa vào hàng đợi';
+        }
+        throw new Error(data.message || 'Lỗi không xác định');
+    });
+
+    toast.promise(promise, {
+        loading: `Đang gửi lệnh ${action === 'import' ? 'Đồng bộ' : 'Xóa sạch'} đến hàng đợi...`,
+        success: (msg: any) => msg,
+        error: (err: any) => `Lỗi: ${err.message || err}`
+    });
+
+    promise.finally(() => {
+        isSyncing.value[key] = false;
+        // Reload page data in background after 2 seconds to get processing status
+        setTimeout(() => {
+            router.reload({ only: ['indexes'] });
+        }, 1500);
+    });
+}
+
+function clearSearchStatistics() {
+    if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử và số liệu thống kê tìm kiếm?')) {
+        return;
+    }
+    
+    isClearingStats.value = true;
+    router.post('/super-admin/meilisearch-console/clear-stats', {}, {
+        onSuccess: () => {
+            toast.success('Đã xóa dữ liệu thống kê thành công.');
+            isClearingStats.value = false;
+        },
+        onError: () => {
+            toast.error('Không thể xóa dữ liệu thống kê.');
+            isClearingStats.value = false;
+        }
+    });
+}
+
+function getSyncBadgeClass(status: string) {
+    switch (status) {
+        case 'pending':
+            return 'bg-zinc-800 text-zinc-400 border-zinc-700 animate-pulse';
+        case 'processing':
+            return 'bg-indigo-950 text-indigo-400 border-indigo-900/50 animate-pulse';
+        case 'success':
+            return 'bg-emerald-950/40 text-emerald-400 border-emerald-900/30';
+        case 'failed':
+            return 'bg-rose-950/40 text-rose-500 border-rose-900/30';
+        default:
+            return 'bg-zinc-900 text-zinc-500 border-zinc-800';
+    }
+}
+
+function getSyncStatusLabel(status: string) {
+    switch (status) {
+        case 'pending': return 'Đang chờ';
+        case 'processing': return 'Đang xử lý';
+        case 'success': return 'Thành công';
+        case 'failed': return 'Thất bại';
+        default: return 'Sẵn sàng';
+    }
+}
+
+function getIndexVisualPercentage(idx: IndexStat) {
+    if (idx.db_records_count === 0 && idx.documents_count === 0) return 100;
+    if (idx.db_records_count === 0) return 0;
+    const ratio = (idx.documents_count / idx.db_records_count) * 100;
+    return Math.min(Math.round(ratio), 100);
+}
+</script>
+
+<template>
+    <Head title="DevOps - Bảng điều khiển Meilisearch" />
+
+    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full font-sans text-zinc-100">
+        <!-- Header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b pb-5 border-zinc-800">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2.5">
+                    <Database class="size-8 text-violet-500" />
+                    Bảng điều khiển Meilisearch &amp; Chỉ mục Tìm kiếm
+                </h1>
+                <p class="text-sm text-zinc-400 flex items-center gap-1.5 mt-1.5">
+                    <Sparkles class="size-4 text-violet-500" />
+                    Quản lý các chỉ mục Laravel Scout, theo dõi độ trễ tìm kiếm và thống kê hiệu năng.
+                </p>
+            </div>
+
+            <div class="flex gap-2">
+                <Button 
+                    @click="router.reload()" 
+                    class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 gap-2 rounded-xl transition-all shadow-lg active:scale-[0.98]"
+                >
+                    <RotateCw class="size-4" />
+                    Làm mới dữ liệu
+                </Button>
+            </div>
+        </div>
+
+        <!-- Connection State & Summary Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Connection Status -->
+            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardTitle class="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Kết nối máy chủ</CardTitle>
+                    <span :class="['relative flex h-2 w-2', props.connection.online ? 'text-emerald-500' : 'text-rose-500']">
+                        <span :class="['animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', props.connection.online ? 'bg-emerald-400' : 'bg-rose-400']"></span>
+                        <span :class="['relative inline-flex rounded-full h-2 w-2', props.connection.online ? 'bg-emerald-500' : 'bg-rose-500']"></span>
+                    </span>
+                </CardHeader>
+                <CardContent>
+                    <div class="text-xl font-black flex items-center gap-1.5">
+                        {{ props.connection.online ? 'ONLINE' : 'OFFLINE' }}
+                    </div>
+                    <div class="text-[11px] text-zinc-500 font-mono truncate mt-1">
+                        {{ props.connection.host }}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Database Size -->
+            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardTitle class="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Kích thước DB</CardTitle>
+                    <Database class="size-4 text-indigo-400" />
+                </CardHeader>
+                <CardContent>
+                    <div class="text-xl font-black">
+                        {{ formatBytes(props.connection.database_size) }}
+                    </div>
+                    <p class="text-[11px] text-zinc-500 mt-1">
+                        Dung lượng bộ nhớ đệm LMDB
+                    </p>
+                </CardContent>
+            </Card>
+
+            <!-- Search Volume -->
+            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardTitle class="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Tổng số lượt truy vấn</CardTitle>
+                    <Search class="size-4 text-violet-400" />
+                </CardHeader>
+                <CardContent>
+                    <div class="text-xl font-black text-violet-400">
+                        {{ props.statistics.total_searches }}
+                        <span class="text-xs font-normal text-zinc-500">truy vấn ghi nhận</span>
+                    </div>
+                    <p class="text-[11px] text-zinc-500 mt-1">
+                        Lượt tìm kiếm trên hệ thống
+                    </p>
+                </CardContent>
+            </Card>
+
+            <!-- Response Latency -->
+            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardTitle class="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Độ trễ trung bình</CardTitle>
+                    <Clock class="size-4 text-cyan-400" />
+                </CardHeader>
+                <CardContent>
+                    <div class="text-xl font-black text-cyan-400">
+                        {{ props.statistics.average_latency }}ms
+                    </div>
+                    <p class="text-[11px] text-zinc-500 mt-1">
+                        Thời gian phản hồi bình quân
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Connection Error Alert if Offline -->
+        <div 
+            v-if="!props.connection.online && props.connection.error" 
+            class="bg-rose-950/10 border border-rose-900/30 rounded-2xl p-4 flex gap-3 text-sm text-rose-300"
+        >
+            <AlertCircle class="size-5 text-rose-500 shrink-0 mt-0.5" />
+            <div class="space-y-1">
+                <span class="font-bold">Lỗi kết nối tới Meilisearch</span>
+                <p class="text-xs text-rose-300/80 font-mono break-all">{{ props.connection.error }}</p>
+                <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    Vui lòng kiểm tra lại dịch vụ Meilisearch trên cổng `7700` hoặc cập nhật biến môi trường `MEILISEARCH_HOST` trong file `.env`.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 1: Index Status Dashboard & Sync tool -->
+        <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
+            <CardHeader class="border-b border-zinc-900 pb-4 flex flex-row flex-wrap items-center justify-between gap-4">
+                <div>
+                    <CardTitle class="text-lg font-bold flex items-center gap-2">
+                        <Sliders class="size-5 text-violet-500" />
+                        Danh sách và Đồng bộ chỉ mục (Index Sync Tool)
+                    </CardTitle>
+                    <CardDescription class="text-xs text-zinc-400">
+                        Kiểm tra chênh lệch số lượng bản ghi giữa cơ sở dữ liệu gốc và chỉ mục tìm kiếm Meilisearch, thực hiện đồng bộ lại chỉ mục.
+                    </CardDescription>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-zinc-500">Driver Scout hiện tại:</span>
+                    <span class="bg-zinc-900 border border-zinc-800 text-indigo-400 font-mono px-2 py-0.5 text-xs rounded-md font-bold uppercase">
+                        {{ props.connection.driver }}
+                    </span>
+                </div>
+            </CardHeader>
+            <CardContent class="p-0">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="border-b border-zinc-900/60 bg-zinc-950/50 text-[11px] uppercase tracking-wider font-bold text-zinc-500">
+                                <th class="p-4 pl-6">Chỉ mục (Index)</th>
+                                <th class="p-4">Model tương ứng</th>
+                                <th class="p-4 text-center">Bản ghi trong DB</th>
+                                <th class="p-4 text-center">Bản ghi trong Index</th>
+                                <th class="p-4 text-center">Tỷ lệ đồng bộ</th>
+                                <th class="p-4 text-center">Trạng thái cuối</th>
+                                <th class="p-4 text-right pr-6">Thao tác đồng bộ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-900/55">
+                            <tr 
+                                v-for="idx in localIndexes" 
+                                :key="idx.index_name" 
+                                class="hover:bg-zinc-900/10 transition-colors"
+                            >
+                                <td class="p-4 pl-6">
+                                    <div class="font-bold text-zinc-200 flex items-center gap-2">
+                                        {{ idx.label }}
+                                        <span class="bg-zinc-900 border border-zinc-800 text-zinc-500 font-mono text-[10px] rounded px-1 py-0.5">
+                                            {{ idx.index_name }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="p-4 font-mono text-xs text-zinc-500">
+                                    {{ idx.model }}
+                                </td>
+                                <td class="p-4 text-center font-bold font-mono">
+                                    {{ idx.db_records_count }}
+                                </td>
+                                <td class="p-4 text-center font-bold font-mono">
+                                    <span :class="{'text-amber-500': idx.out_of_sync}">
+                                        {{ idx.documents_count }}
+                                    </span>
+                                </td>
+                                <td class="p-4">
+                                    <div class="flex flex-col gap-1 items-center max-w-[120px] mx-auto">
+                                        <div class="w-full bg-zinc-900 rounded-full h-1.5 border border-zinc-800/80 overflow-hidden">
+                                            <div 
+                                                :class="['h-full rounded-full transition-all duration-500', idx.out_of_sync ? 'bg-amber-500' : 'bg-emerald-500']" 
+                                                :style="{ width: `${getIndexVisualPercentage(idx)}%` }"
+                                            ></div>
+                                        </div>
+                                        <span class="text-[10px] text-zinc-500 font-mono">{{ getIndexVisualPercentage(idx) }}% khớp</span>
+                                    </div>
+                                </td>
+                                <td class="p-4 text-center">
+                                    <div class="flex flex-col items-center gap-0.5">
+                                        <span :class="['inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border', getSyncBadgeClass(idx.sync_status.status)]">
+                                            {{ getSyncStatusLabel(idx.sync_status.status) }}
+                                        </span>
+                                        <span v-if="idx.sync_status.completed_at" class="text-[9px] text-zinc-600">
+                                            {{ idx.sync_status.action === 'import' ? 'Đồng bộ lúc' : 'Xóa lúc' }} 
+                                            {{ idx.sync_status.completed_at.split(' ')[1] }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="p-4 text-right pr-6">
+                                    <div class="flex justify-end gap-2">
+                                        <!-- Flush Button -->
+                                        <Button
+                                            @click="triggerSync(idx.index_name, 'flush')"
+                                            :disabled="isSyncing[`${idx.index_name}_flush`] || isSyncing[`${idx.index_name}_import`] || idx.is_indexing || !props.connection.online"
+                                            variant="ghost"
+                                            size="sm"
+                                            class="h-8 text-xs text-rose-500 hover:text-rose-400 hover:bg-rose-950/20 border border-transparent hover:border-rose-900/30 rounded-xl"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                            Xóa (Flush)
+                                        </Button>
+
+                                        <!-- Import Button -->
+                                        <Button
+                                            @click="triggerSync(idx.index_name, 'import')"
+                                            :disabled="isSyncing[`${idx.index_name}_import`] || isSyncing[`${idx.index_name}_flush`] || idx.is_indexing || !props.connection.online"
+                                            size="sm"
+                                            class="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl gap-1"
+                                        >
+                                            <Play class="size-3" />
+                                            Đồng bộ (Import)
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="localIndexes.length === 0">
+                                <td colspan="7" class="p-8 text-center text-zinc-500 italic">
+                                    Không cấu hình bất kỳ chỉ mục tìm kiếm nào trên Scout.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
+
+        <!-- Search Performance & Metrics section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Latency by Index & Recent Queries -->
+            <div class="flex flex-col gap-6">
+                <!-- Latency chart -->
+                <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md flex-1">
+                    <CardHeader class="pb-3 border-b border-zinc-900">
+                        <CardTitle class="text-sm font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                            <TrendingUp class="size-4 text-cyan-400" />
+                            Độ trễ trung bình của các chỉ mục (Latency ms)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="pt-5 space-y-4">
+                        <div v-for="lat in props.statistics.latency_by_index" :key="lat.index_name" class="space-y-1.5">
+                            <div class="flex justify-between text-xs font-semibold">
+                                <span class="text-zinc-300 font-mono">{{ lat.index_name }} ({{ lat.total_count }} lượt)</span>
+                                <span class="text-cyan-400 font-mono font-bold">{{ lat.avg_latency }}ms</span>
+                            </div>
+                            <div class="w-full bg-zinc-900 rounded-full h-3 border border-zinc-800 overflow-hidden flex">
+                                <!-- Draw bar indicator based on latency (max visual 300ms) -->
+                                <div 
+                                    :class="['h-full rounded-full transition-all duration-700', lat.avg_latency < 30 ? 'bg-cyan-500' : (lat.avg_latency < 100 ? 'bg-amber-500' : 'bg-rose-500')]" 
+                                    :style="{ width: `${Math.min((lat.avg_latency / 300) * 100, 100)}%` }"
+                                ></div>
+                            </div>
+                        </div>
+                        <div v-if="props.statistics.latency_by_index.length === 0" class="text-zinc-500 text-xs italic text-center py-6">
+                            Chưa ghi nhận dữ liệu đo lường hiệu năng tìm kiếm nào...
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Recent Searches log -->
+                <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md flex-1">
+                    <CardHeader class="pb-3 border-b border-zinc-900">
+                        <CardTitle class="text-sm font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                            <Clock class="size-4 text-zinc-400" />
+                            Nhật ký lượt truy vấn mới nhất
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div class="overflow-x-auto max-h-[300px] overflow-y-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="border-b border-zinc-900/50 bg-zinc-950/20 text-[10px] uppercase font-bold text-zinc-500">
+                                        <th class="p-3 pl-5">Từ khóa</th>
+                                        <th class="p-3">Phân mục</th>
+                                        <th class="p-3 text-center">Độ trễ</th>
+                                        <th class="p-3 text-right pr-5">Thời gian</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-900/50 text-zinc-300 font-mono">
+                                    <tr v-for="search in props.statistics.latest_searches" :key="search.created_at">
+                                        <td class="p-3 pl-5 font-semibold text-zinc-200">"{{ search.keyword }}"</td>
+                                        <td class="p-3 text-zinc-500">{{ search.index_name }}</td>
+                                        <td class="p-3 text-center">
+                                            <span :class="search.latency_ms < 30 ? 'text-cyan-400' : 'text-amber-500'">
+                                                {{ search.latency_ms }}ms
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-right pr-5 text-zinc-600 text-[10px]">{{ search.created_at }}</td>
+                                    </tr>
+                                    <tr v-if="props.statistics.latest_searches.length === 0">
+                                        <td colspan="4" class="p-6 text-center text-zinc-500 italic font-sans">
+                                            Không có nhật ký tìm kiếm gần đây.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <!-- Top Search Keywords statistics -->
+            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md flex flex-col justify-between">
+                <div>
+                    <CardHeader class="pb-3 border-b border-zinc-900 flex flex-row items-center justify-between flex-wrap gap-2">
+                        <div>
+                            <CardTitle class="text-sm font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                                <TrendingUp class="size-4 text-violet-400" />
+                                Từ khóa được tìm kiếm nhiều nhất
+                            </CardTitle>
+                        </div>
+                        
+                        <Button
+                            v-if="props.statistics.total_searches > 0"
+                            @click="clearSearchStatistics"
+                            :disabled="isClearingStats"
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 text-[10px] text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded-lg border border-zinc-900"
+                        >
+                            <Trash2 class="size-3 mr-1" />
+                            Xóa số liệu
+                        </Button>
+                    </CardHeader>
+                    
+                    <CardContent class="p-0">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="border-b border-zinc-900/50 bg-zinc-950/20 text-[10px] uppercase font-bold text-zinc-500">
+                                        <th class="p-3 pl-5 text-center w-12">Hạng</th>
+                                        <th class="p-3">Từ khóa (Keyword)</th>
+                                        <th class="p-3">Chỉ mục</th>
+                                        <th class="p-3 text-center">Số lượt</th>
+                                        <th class="p-3 text-right pr-5">Độ trễ trung bình</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-900/50 text-zinc-300 font-mono">
+                                    <tr v-for="kw in props.statistics.top_keywords" :key="kw.rank" class="hover:bg-zinc-900/5">
+                                        <td class="p-3 pl-5 text-center font-bold text-zinc-500">
+                                            <span v-if="kw.rank === 1" class="text-amber-500">🥇 1</span>
+                                            <span v-else-if="kw.rank === 2" class="text-zinc-400">🥈 2</span>
+                                            <span v-else-if="kw.rank === 3" class="text-amber-700">🥉 3</span>
+                                            <span v-else>{{ kw.rank }}</span>
+                                        </td>
+                                        <td class="p-3 font-semibold text-zinc-100">"{{ kw.keyword }}"</td>
+                                        <td class="p-3 text-zinc-500">{{ kw.index_name }}</td>
+                                        <td class="p-3 text-center font-bold text-violet-400">{{ kw.search_count }}</td>
+                                        <td class="p-3 text-right pr-5 text-cyan-400 font-bold">{{ kw.avg_latency }}ms</td>
+                                    </tr>
+                                    <tr v-if="props.statistics.top_keywords.length === 0">
+                                        <td colspan="5" class="p-10 text-center text-zinc-500 italic font-sans">
+                                            Chưa ghi nhận từ khóa tìm kiếm phổ biến nào...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </div>
+                
+                <div class="p-4 border-t border-zinc-900 bg-zinc-950/30 text-xs text-zinc-500 leading-relaxed rounded-b-2xl font-sans">
+                    💡 <span class="font-bold text-zinc-400">Gợi ý tối ưu:</span> Đối với những từ khóa tìm kiếm phổ biến có thời gian phản hồi cao (> 100ms), bạn có thể tối ưu hóa bằng cách cấu hình `searchableAttributes` và `filterableAttributes` tinh gọn trên cài đặt chỉ mục của Meilisearch.
+                </div>
+            </Card>
+        </div>
+    </div>
+</template>
