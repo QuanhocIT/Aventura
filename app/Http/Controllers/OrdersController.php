@@ -24,7 +24,8 @@ class OrdersController extends Controller
             ]);
 
         $products = \App\Models\Product::where('restaurant_id', $restaurantId)
-            ->where('status', 'active')
+            ->where('is_active', true)
+            ->where('is_available', true)
             ->with(['category'])
             ->get()
             ->map(fn ($p) => [
@@ -177,32 +178,54 @@ class OrdersController extends Controller
 
         $statusFilter = $request->get('status', 'all');
         $dateFilter   = $request->get('date', today()->toDateString());
+        $search       = $request->get('search');
+        $isHistory    = $request->get('history') === 'true';
 
         $query = Order::where('restaurant_id', $restaurantId)
             ->with(['table.area', 'items.product'])
-            ->whereDate('created_at', $dateFilter)
             ->latest();
+
+        if ($isHistory) {
+            // Lịch sử: không giới hạn ngày, lấy tối đa 150 đơn hàng gần đây
+            $query->take(150);
+        } elseif ($search) {
+            // Tìm kiếm theo số đơn hàng, tên bàn, hoặc đối tác giao hàng bên thứ ba
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                  ->orWhere('third_party_source', 'like', "%{$search}%")
+                  ->orWhereHas('table', function ($sq) use ($search) {
+                      $sq->where('name', 'like', "%{$search}%");
+                  });
+            });
+            if ($request->has('date')) {
+                $query->whereDate('created_at', $request->get('date'));
+            }
+        } else {
+            $query->whereDate('created_at', $dateFilter);
+        }
 
         if ($statusFilter !== 'all') {
             $query->where('status', $statusFilter);
         }
 
         $orders = $query->get()->map(fn ($o) => [
-            'id'             => $o->id,
-            'order_number'   => $o->order_number,
-            'status'         => $o->status,
-            'payment_status' => $o->payment_status,
-            'channel'        => $o->channel,
-            'table_name'     => $o->table?->name,
-            'area_name'      => $o->table?->area?->name,
-            'total_amount'   => (float) $o->total_amount,
-            'items_count'    => $o->items->count(),
-            'created_at'     => $o->created_at->format('H:i'),
-            'completed_at'   => $o->completed_at?->format('H:i'),
-            'items'          => $o->items->map(fn ($item) => [
+            'id'                 => $o->id,
+            'order_number'       => $o->order_number,
+            'status'             => $o->status,
+            'payment_status'     => $o->payment_status,
+            'channel'            => $o->channel,
+            'third_party_source' => $o->third_party_source,
+            'table_name'         => $o->table?->name,
+            'area_name'          => $o->table?->area?->name,
+            'total_amount'       => (float) $o->total_amount,
+            'items_count'        => $o->items->count(),
+            'created_at'         => $o->created_at->format('H:i'),
+            'completed_at'       => $o->completed_at?->format('H:i'),
+            'items'              => $o->items->map(fn ($item) => [
                 'id' => $item->id,
                 'product_name' => $item->product?->name,
                 'quantity' => (float) $item->quantity,
+                'status' => $item->status,
                 'notes' => $item->notes,
             ])->toArray(),
         ]);
@@ -216,10 +239,63 @@ class OrdersController extends Controller
             'revenue'   => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'completed')->sum('total_amount'),
         ];
 
+        // Tính toán doanh thu hiệu suất trong ca của nhân viên hiện tại
+        $activeShiftStats = null;
+        $employee = $user->employee;
+        if ($employee) {
+            $activeAssignment = \App\Models\ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('status', 'checked_in')
+                ->with('shift')
+                ->first();
+
+            if ($activeAssignment && $activeAssignment->shift) {
+                $shift = $activeAssignment->shift;
+                $dateStr = $activeAssignment->scheduled_date instanceof \Carbon\Carbon
+                    ? $activeAssignment->scheduled_date->toDateString()
+                    : \Carbon\Carbon::parse($activeAssignment->scheduled_date)->toDateString();
+
+                $startDt = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
+                $endDt = $shift->is_overnight
+                    ? \Carbon\Carbon::parse(\Carbon\Carbon::parse($dateStr)->addDay()->toDateString() . ' ' . $shift->end_time)
+                    : \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+
+                $shiftOrders = Order::where('restaurant_id', $restaurantId)
+                    ->where('status', 'completed')
+                    ->whereBetween('completed_at', [$startDt, $endDt]);
+
+                $totalOrders = (clone $shiftOrders)->count();
+                $totalRevenue = (clone $shiftOrders)->sum('total_amount');
+
+                $orderIds = (clone $shiftOrders)->pluck('id');
+                $payments = \App\Models\Payment::where('restaurant_id', $restaurantId)
+                    ->where('status', 'paid')
+                    ->whereIn('order_id', $orderIds->all())
+                    ->get(['payment_method', 'amount']);
+
+                $cashRevenue = (float) $payments->where('payment_method', 'cash')->sum('amount');
+                $transferRevenue = (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount');
+
+                $activeShiftStats = [
+                    'shift_name'       => $shift->name,
+                    'check_in_at'      => $activeAssignment->check_in_at ? \Carbon\Carbon::parse($activeAssignment->check_in_at)->format('H:i') : '—',
+                    'total_orders'     => $totalOrders,
+                    'total_revenue'    => (float) $totalRevenue,
+                    'cash_revenue'     => $cashRevenue,
+                    'transfer_revenue' => $transferRevenue,
+                ];
+            }
+        }
+
         return Inertia::render('orders/Index', [
-            'orders'        => $orders,
-            'summary'       => $summary,
-            'filters'       => ['status' => $statusFilter, 'date' => $dateFilter],
+            'orders'            => $orders,
+            'summary'           => $summary,
+            'filters'           => [
+                'status'  => $statusFilter,
+                'date'    => $dateFilter,
+                'search'  => $search,
+                'history' => $isHistory
+            ],
+            'activeShiftStats'  => $activeShiftStats,
         ]);
     }
 
@@ -543,5 +619,127 @@ class OrdersController extends Controller
         }
 
         return back()->with('success', 'Đã cập nhật thông tin đơn hàng và ghi nhận nhật ký kiểm toán.');
+    }
+
+    /**
+     * Cập nhật trạng thái chuẩn bị món ăn cho từng món trong đơn.
+     */
+    public function updateItemStatus(Request $request, \App\Models\OrderItem $item): \Illuminate\Http\JsonResponse
+    {
+        abort_if($item->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $data = $request->validate([
+            'status' => ['required', 'in:pending,sent,preparing,served,cancelled'],
+        ]);
+
+        $status = $data['status'];
+        $updateData = ['status' => $status];
+
+        if ($status === 'sent') {
+            $updateData['sent_to_kitchen_at'] = now();
+        } elseif ($status === 'preparing') {
+            if (!$item->sent_to_kitchen_at) {
+                $updateData['sent_to_kitchen_at'] = now();
+            }
+            $updateData['prepared_at'] = now();
+        } elseif ($status === 'served') {
+            if (!$item->sent_to_kitchen_at) {
+                $updateData['sent_to_kitchen_at'] = now();
+            }
+            if (!$item->prepared_at) {
+                $updateData['prepared_at'] = now();
+            }
+            $updateData['served_at'] = now();
+        }
+
+        $item->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã cập nhật trạng thái món ăn thành công.',
+            'item' => [
+                'id' => $item->id,
+                'status' => $item->status,
+            ]
+        ]);
+    }
+
+    /**
+     * Mô phỏng đơn hàng từ ứng dụng bên thứ ba (GrabFood, ShopeeFood).
+     */
+    public function simulateThirdPartyOrder(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+        $branchId = $user->branch_id;
+
+        $source = $request->input('source', 'GrabFood');
+
+        $order = \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $source) {
+            $orderNumber = 'ORD-' . strtoupper(substr($source, 0, 4)) . '-' . strtoupper(uniqid());
+
+            $product = \App\Models\Product::where('restaurant_id', $restaurantId)
+                ->where('is_active', true)
+                ->where('is_available', true)
+                ->inRandomOrder()
+                ->first();
+
+            if (!$product) {
+                abort(422, 'Không có món ăn hoạt động nào để mô phỏng.');
+            }
+
+            $qty = rand(1, 3);
+            $lineTotal = (float) $product->price * $qty;
+
+            $order = Order::create([
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $branchId,
+                'table_id' => null,
+                'order_number' => $orderNumber,
+                'channel' => 'delivery',
+                'third_party_source' => $source,
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'subtotal' => $lineTotal,
+                'discount_amount' => 0,
+                'total_amount' => $lineTotal,
+                'note' => 'Đơn hàng tự động mô phỏng từ ' . $source,
+                'created_by' => null,
+            ]);
+
+            \App\Models\OrderItem::create([
+                'restaurant_id' => $restaurantId,
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'quantity' => $qty,
+                'unit_price' => (float) $product->price,
+                'discount_amount' => 0,
+                'line_total' => $lineTotal,
+                'status' => 'pending',
+                'notes' => 'Giao hàng nhanh',
+            ]);
+
+            \App\Models\AuditLog::log('order_created', 'created', $order, null, [
+                'total_amount' => (float) $order->total_amount,
+                'items_count' => 1,
+                'channel' => 'delivery',
+                'third_party' => $source,
+            ]);
+
+            return $order;
+        });
+
+        // Phát tín hiệu Real-time cho máy POS/Tablet của nhân viên
+        event(new \App\Events\QrOrderPlaced($order));
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã mô phỏng đơn hàng mới từ đối tác {$source}!",
+            'order' => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'third_party_source' => $source,
+            ]
+        ]);
     }
 }

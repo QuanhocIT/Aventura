@@ -64,7 +64,12 @@ onMounted(() => {
             .listen('.qr-order.placed', (e: any) => {
                 playNotificationSound();
                 
-                toast.warning(`Khách tại bàn ${e.order.table_name || '—'} vừa gọi món qua QR!`, {
+                const isThirdParty = !!e.order.third_party_source;
+                const toastTitle = isThirdParty 
+                    ? `Đơn hàng mới từ đối tác ${e.order.third_party_source}!`
+                    : `Khách tại bàn ${e.order.table_name || '—'} vừa gọi món qua QR!`;
+
+                toast.warning(toastTitle, {
                     description: `Mã đơn: ${e.order.order_number} - Số tiền: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(e.order.total_amount)}`,
                     action: {
                         label: 'Xem đơn',

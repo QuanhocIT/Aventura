@@ -12,6 +12,8 @@ import {
     RefreshCw,
     AlertCircle,
     Sparkles,
+    Search,
+    Layers,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import axios from 'axios';
@@ -36,13 +38,14 @@ type Order = {
     status: string;
     payment_status: string;
     channel: string;
+    third_party_source: string | null;
     table_name: string | null;
     area_name: string | null;
     total_amount: number;
     items_count: number;
     created_at: string;
     completed_at: string | null;
-    items?: { id: number; product_name: string; quantity: number; notes: string | null }[];
+    items?: { id: number; product_name: string; quantity: number; status: string; notes: string | null }[];
 };
 
 type Summary = {
@@ -57,27 +60,83 @@ type Summary = {
 const props = defineProps<{
     orders: Order[];
     summary: Summary;
-    filters: { status: string; date: string };
+    filters: { status: string; date: string; search?: string; history?: boolean };
+    activeShiftStats?: {
+        shift_name: string;
+        check_in_at: string;
+        total_orders: number;
+        total_revenue: number;
+        cash_revenue: number;
+        transfer_revenue: number;
+    } | null;
 }>();
 
 const dateInput = ref(props.filters.date);
 const activeStatus = ref(props.filters.status);
+const searchQuery = ref(props.filters.search || '');
+const viewMode = ref(props.filters.history ? 'history' : 'today');
+const expandedOrderId = ref<number | null>(null);
+const isSimulating = ref(false);
+const updatingItemStatus = ref<number | null>(null);
 
 const applyFilters = () => {
     router.get(
         '/orders',
-        { status: activeStatus.value, date: dateInput.value },
+        {
+            status: activeStatus.value,
+            date: dateInput.value,
+            search: searchQuery.value,
+            history: viewMode.value === 'history' ? 'true' : 'false',
+        },
         { preserveScroll: true },
     );
 };
 
 const setStatus = (s: string) => {
     activeStatus.value = s;
-    router.get(
-        '/orders',
-        { status: s, date: dateInput.value },
-        { preserveScroll: true },
-    );
+    applyFilters();
+};
+
+const toggleViewMode = (mode: 'today' | 'history') => {
+    viewMode.value = mode;
+    applyFilters();
+};
+
+const clearSearch = () => {
+    searchQuery.value = '';
+    applyFilters();
+};
+
+const simulateThirdParty = async (source: 'GrabFood' | 'ShopeeFood') => {
+    isSimulating.value = true;
+    try {
+        const response = await axios.post('/api/orders/third-party/simulate', { source });
+        if (response.data.success) {
+            toast.success(response.data.message);
+            router.reload({ only: ['orders', 'summary'] });
+        }
+    } catch (e: any) {
+        console.error(e);
+        toast.error('Không thể mô phỏng đơn hàng.');
+    } finally {
+        isSimulating.value = false;
+    }
+};
+
+const updateOrderItemStatus = async (item: any, newStatus: string) => {
+    updatingItemStatus.value = item.id;
+    try {
+        const response = await axios.patch(`/orders/items/${item.id}/status`, { status: newStatus });
+        if (response.data.success) {
+            toast.success(response.data.message);
+            router.reload({ only: ['orders'] });
+        }
+    } catch (e: any) {
+        console.error(e);
+        toast.error('Có lỗi xảy ra khi cập nhật trạng thái món ăn.');
+    } finally {
+        updatingItemStatus.value = null;
+    }
 };
 
 const updateOrderStatus = (order: Order, newStatus: string) => {
@@ -136,6 +195,14 @@ const channelLabel: Record<string, string> = {
     takeaway: 'Mang về',
     delivery: 'Giao hàng',
     qr: 'QR Scan',
+};
+
+const itemStatusConfig: Record<string, { label: string; class: string }> = {
+    pending: { label: 'Chờ chế biến', class: 'bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400' },
+    sent: { label: 'Đã gửi bếp', class: 'bg-sky-50 text-sky-700 border-sky-200/50 dark:bg-sky-950/20 dark:text-sky-400' },
+    preparing: { label: 'Đang nấu', class: 'bg-violet-50 text-violet-750 border-violet-200/50 dark:bg-violet-950/20 dark:text-violet-400' },
+    served: { label: 'Đã phục vụ', class: 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400' },
+    cancelled: { label: 'Đã hủy', class: 'bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400' },
 };
 
 const formatCurrency = (v: number) =>
@@ -242,6 +309,99 @@ const nextStatus: Record<string, string | null> = {
             </div>
         </div>
 
+        <!-- Developer Sandbox / Simulator & Shift Performance Widget -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Shift Performance Widget -->
+            <Card class="md:col-span-2 rounded-2xl border border-violet-100/50 bg-white/60 dark:border-slate-800 dark:bg-slate-900/40 shadow-xs relative overflow-hidden backdrop-blur-md">
+                <CardHeader class="pb-3 flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <Sparkles class="size-4 text-violet-600 animate-pulse" />
+                            Hiệu Suất Ca Làm Việc
+                        </CardTitle>
+                        <CardDescription class="text-[10px] text-slate-400">
+                            Số liệu doanh thu và năng suất làm việc của bạn trong ca trực hiện tại.
+                        </CardDescription>
+                    </div>
+                    <span 
+                        v-if="activeShiftStats"
+                        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        Ca: {{ activeShiftStats.shift_name }}
+                    </span>
+                </CardHeader>
+                <CardContent class="pb-4">
+                    <div v-if="activeShiftStats" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Đã Check-in</p>
+                            <p class="text-base font-black text-slate-800 dark:text-slate-200 mt-1 font-mono">
+                                {{ activeShiftStats.check_in_at }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Đơn Hoàn Thành</p>
+                            <p class="text-base font-black text-slate-800 dark:text-slate-200 mt-1 font-mono">
+                                {{ activeShiftStats.total_orders }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tiền Mặt</p>
+                            <p class="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+                                {{ formatCurrency(activeShiftStats.cash_revenue) }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chuyển Khoản</p>
+                            <p class="text-xs font-bold text-violet-600 dark:text-violet-400 mt-1.5 font-mono">
+                                {{ formatCurrency(activeShiftStats.transfer_revenue) }}
+                            </p>
+                        </div>
+                    </div>
+                    <div v-else class="flex flex-col items-center justify-center py-4 text-center">
+                        <AlertCircle class="size-6 text-slate-300 dark:text-slate-700" />
+                        <p class="text-xs font-semibold text-slate-500 mt-1 dark:text-slate-400">Bạn chưa check-in ca trực hôm nay.</p>
+                        <p class="text-[10px] text-slate-400">Chuyển sang tab Lịch biểu/Chấm công để check-in và bắt đầu theo dõi doanh thu.</p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Developer Sandbox / Simulator -->
+            <Card class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/20 p-4 dark:border-slate-800 dark:bg-slate-950/5 flex flex-col justify-between shadow-xs">
+                <div>
+                    <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers class="size-3.5 text-violet-500" />
+                        Simulator Sandbox
+                    </h3>
+                    <p class="text-[9px] text-slate-400 mt-1 leading-relaxed">
+                        Mô phỏng đơn hàng từ ứng dụng bên thứ ba (GrabFood, ShopeeFood) được gửi đến hệ thống để nhân viên tiếp nhận.
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-4">
+                    <Button 
+                        size="sm" 
+                        variant="outline" 
+                        :disabled="isSimulating"
+                        @click="simulateThirdParty('GrabFood')"
+                        class="rounded-xl text-[10px] py-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50/20 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-900/40 dark:text-emerald-400"
+                    >
+                        + GrabFood
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        variant="outline" 
+                        :disabled="isSimulating"
+                        @click="simulateThirdParty('ShopeeFood')"
+                        class="rounded-xl text-[10px] py-1.5 font-bold border-orange-200 text-orange-700 bg-orange-50/20 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/40 dark:text-orange-400"
+                    >
+                        + ShopeeFood
+                    </Button>
+                </div>
+            </Card>
+
+        </div>
+
         <!-- Summary KPIs -->
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <div
@@ -305,6 +465,46 @@ const nextStatus: Record<string, string | null> = {
             </div>
         </div>
 
+        <!-- Filter bar for Search and History -->
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-card border border-border p-4 rounded-xl shadow-sm">
+            <div class="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :class="viewMode === 'today' ? 'bg-violet-50 text-violet-750 border-violet-200/50 hover:bg-violet-100 hover:text-violet-850 dark:bg-violet-950/20 dark:text-violet-400' : ''"
+                    @click="toggleViewMode('today')"
+                >
+                    Đơn Hôm Nay
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :class="viewMode === 'history' ? 'bg-violet-50 text-violet-750 border-violet-200/50 hover:bg-violet-100 hover:text-violet-850 dark:bg-violet-950/20 dark:text-violet-400' : ''"
+                    @click="toggleViewMode('history')"
+                >
+                    Lịch Sử Đơn Hàng
+                </Button>
+            </div>
+            
+            <div class="relative flex-1 max-w-sm">
+                <Search class="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <input
+                    type="text"
+                    v-model="searchQuery"
+                    placeholder="Tìm theo mã đơn, bàn, đối tác..."
+                    @keyup.enter="applyFilters"
+                    class="h-10 w-full rounded-md border border-input bg-background pl-9 pr-8 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+                <button
+                    v-if="searchQuery"
+                    @click="clearSearch"
+                    class="absolute right-3 top-3 text-muted-foreground hover:text-foreground text-xs font-semibold"
+                >
+                    Xóa
+                </button>
+            </div>
+        </div>
+
         <!-- Status filter chips -->
         <div class="flex flex-wrap gap-2">
             <button
@@ -347,81 +547,157 @@ const nextStatus: Record<string, string | null> = {
                     <div
                         v-for="o in orders"
                         :key="o.id"
-                        class="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                        class="border-b border-slate-100 dark:border-slate-800 last:border-0"
                     >
-                        <!-- Order info -->
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span
+                        <!-- Order Main Row -->
+                        <div
+                            @click="expandedOrderId = expandedOrderId === o.id ? null : o.id"
+                            class="flex cursor-pointer items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                        >
+                            <!-- Order info -->
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span
+                                        class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
+                                        >{{ o.order_number }}</span
+                                    >
+                                    <span
+                                        v-if="o.third_party_source"
+                                        class="rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-400"
+                                    >
+                                        {{ o.third_party_source }}
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="rounded-md border bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                                    >
+                                        {{ channelLabel[o.channel] ?? o.channel }}
+                                    </span>
+                                    <span
+                                        v-if="o.table_name"
+                                        class="text-[10px] text-slate-400"
+                                    >
+                                        {{ o.table_name
+                                        }}{{
+                                            o.area_name ? ` · ${o.area_name}` : ''
+                                        }}
+                                    </span>
+                                </div>
+                                <div
+                                    class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                                >
+                                    <span>{{ o.created_at }}</span>
+                                    <span>{{ o.items_count }} món</span>
+                                    <span v-if="o.completed_at"
+                                        >Xong: {{ o.completed_at }}</span
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Amount + payment -->
+                            <div class="shrink-0 text-right">
+                                <p
                                     class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
-                                    >{{ o.order_number }}</span
                                 >
+                                    {{ formatCurrency(o.total_amount) }}
+                                </p>
                                 <span
-                                    class="rounded-md border bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                                    class="text-[10px] font-semibold"
+                                    :class="paymentConfig[o.payment_status]?.color"
                                 >
-                                    {{ channelLabel[o.channel] ?? o.channel }}
+                                    {{ paymentConfig[o.payment_status]?.label }}
                                 </span>
+                            </div>
+
+                            <!-- Status + next action -->
+                            <div class="flex shrink-0 items-center gap-2" @click.stop>
                                 <span
-                                    v-if="o.table_name"
-                                    class="text-[10px] text-slate-400"
+                                    class="rounded-full px-2 py-1 text-[10px] font-semibold"
+                                    :class="statusConfig[o.status]?.bg"
                                 >
-                                    {{ o.table_name
-                                    }}{{
-                                        o.area_name ? ` · ${o.area_name}` : ''
+                                    {{ statusConfig[o.status]?.label }}
+                                </span>
+                                <button
+                                    v-if="nextStatus[o.status]"
+                                    @click="
+                                        handleStatusUpdate(o, nextStatus[o.status]!)
+                                    "
+                                    class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700"
+                                >
+                                    {{
+                                        nextStatus[o.status] === 'confirmed'
+                                            ? 'Xác nhận'
+                                            : nextStatus[o.status] === 'preparing'
+                                              ? 'Chuyển bếp'
+                                              : nextStatus[o.status] === 'completed'
+                                                ? 'Hoàn thành'
+                                                : ''
                                     }}
-                                </span>
+                                </button>
                             </div>
-                            <div
-                                class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
-                            >
-                                <span>{{ o.created_at }}</span>
-                                <span>{{ o.items_count }} món</span>
-                                <span v-if="o.completed_at"
-                                    >Xong: {{ o.completed_at }}</span
+                        </div>
+
+                        <!-- Expanded Items List -->
+                        <div
+                            v-if="expandedOrderId === o.id"
+                            class="bg-slate-50/40 p-4 border-t border-slate-100 dark:bg-slate-900/10 dark:border-slate-800"
+                        >
+                            <h4 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Chi tiết món ăn</h4>
+                            <div class="space-y-2">
+                                <div
+                                    v-for="item in o.items"
+                                    :key="item.id"
+                                    class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-xs"
                                 >
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            {{ item.product_name }}
+                                        </span>
+                                        <span class="text-xs text-slate-500 font-mono">
+                                            x{{ item.quantity }}
+                                        </span>
+                                        <span
+                                            v-if="item.notes"
+                                            class="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md dark:text-amber-400 dark:bg-amber-950/20"
+                                        >
+                                            Ghi chú: {{ item.notes }}
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <!-- Item Status Badge -->
+                                        <span
+                                            class="text-[9px] font-bold px-2 py-0.5 rounded-full border"
+                                            :class="itemStatusConfig[item.status]?.class || 'bg-slate-50 text-slate-700'"
+                                        >
+                                            {{ itemStatusConfig[item.status]?.label || item.status }}
+                                        </span>
+                                        
+                                        <!-- Item Status Actions -->
+                                        <div class="flex gap-1" v-if="item.status !== 'served' && item.status !== 'cancelled' && o.status !== 'cancelled' && o.status !== 'completed'">
+                                            <Button
+                                                v-if="item.status === 'pending' || item.status === 'sent'"
+                                                size="sm"
+                                                variant="outline"
+                                                :disabled="updatingItemStatus === item.id"
+                                                @click="updateOrderItemStatus(item, 'preparing')"
+                                                class="h-6 rounded-lg text-[9px] px-2 font-semibold border-violet-200 text-violet-750 hover:bg-violet-50 dark:border-violet-900/45 dark:text-violet-400"
+                                            >
+                                                Chế biến
+                                            </Button>
+                                            <Button
+                                                v-if="item.status === 'preparing'"
+                                                size="sm"
+                                                variant="outline"
+                                                :disabled="updatingItemStatus === item.id"
+                                                @click="updateOrderItemStatus(item, 'served')"
+                                                class="h-6 rounded-lg text-[9px] px-2 font-semibold border-emerald-250 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/45 dark:text-emerald-400"
+                                            >
+                                                Phục vụ
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <!-- Amount + payment -->
-                        <div class="shrink-0 text-right">
-                            <p
-                                class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
-                            >
-                                {{ formatCurrency(o.total_amount) }}
-                            </p>
-                            <span
-                                class="text-[10px] font-semibold"
-                                :class="paymentConfig[o.payment_status]?.color"
-                            >
-                                {{ paymentConfig[o.payment_status]?.label }}
-                            </span>
-                        </div>
-
-                        <!-- Status + next action -->
-                        <div class="flex shrink-0 items-center gap-2">
-                            <span
-                                class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                                :class="statusConfig[o.status]?.bg"
-                            >
-                                {{ statusConfig[o.status]?.label }}
-                            </span>
-                            <button
-                                v-if="nextStatus[o.status]"
-                                @click="
-                                    handleStatusUpdate(o, nextStatus[o.status]!)
-                                "
-                                class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700"
-                            >
-                                {{
-                                    nextStatus[o.status] === 'confirmed'
-                                        ? 'Xác nhận'
-                                        : nextStatus[o.status] === 'preparing'
-                                          ? 'Chuyển bếp'
-                                          : nextStatus[o.status] === 'completed'
-                                            ? 'Hoàn thành'
-                                            : ''
-                                }}
-                            </button>
                         </div>
                     </div>
                 </div>
