@@ -19,7 +19,7 @@ class CompressResponse
         $response = $next($request);
 
         // Check if compression is enabled (defaults to true in production, false in local)
-        $enabled = env('COMPRESS_RESPONSES', !app()->isLocal());
+        $enabled = config('app.compress_responses', !app()->isLocal());
         if (!$enabled || !extension_loaded('zlib')) {
             return $response;
         }

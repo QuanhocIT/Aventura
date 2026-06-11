@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Response Compression
+    |--------------------------------------------------------------------------
+    |
+    | Controls whether the CompressResponse middleware gzips responses.
+    | Defaults to false in local and true in production.
+    |
+    */
+
+    'compress_responses' => env('COMPRESS_RESPONSES', null),
+
 ];

@@ -14,6 +14,15 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks(id) {
+                    if (id.includes('node_modules/vue') || id.includes('node_modules/@vue')) {
+                        return 'vue-core';
+                    }
+                    if (id.includes('node_modules/@inertiajs')) {
+                        return 'inertia';
+                    }
+                    if (id.includes('node_modules/lucide')) {
+                        return 'icons';
+                    }
                     if (id.includes('node_modules')) {
                         return 'vendor';
                     }

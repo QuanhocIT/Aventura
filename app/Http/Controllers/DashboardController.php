@@ -6,6 +6,7 @@ use App\Models\NewsPost;
 use App\Models\Order;
 use App\Models\RestaurantRevenueSummary;
 use App\Services\ForecastService;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,28 +35,32 @@ class DashboardController extends Controller
             $colleagues = [];
 
             if ($restaurant) {
-                // Ensure default 20 tables exist (A1-A10, B1-B10)
-                $areaA = \App\Models\Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-A'],
-                    ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
-                );
-                $areaB = \App\Models\Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-B'],
-                    ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
-                );
+                // Ensure default 20 tables exist (A1-A10, B1-B10) — chỉ chạy 1 lần
+                $cacheKey = "restaurant_{$restaurant->id}_tables_initialized";
+                if (!Cache::has($cacheKey)) {
+                    $areaA = \App\Models\Area::firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'code' => 'SANH-A'],
+                        ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
+                    );
+                    $areaB = \App\Models\Area::firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'code' => 'SANH-B'],
+                        ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
+                    );
 
-                $tableCount = \App\Models\RestaurantTable::where('restaurant_id', $restaurant->id)->count();
-                if ($tableCount < 20) {
-                    for ($i = 1; $i <= 10; $i++) {
-                        \App\Models\RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'name' => "A{$i}"],
-                            ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
-                        );
-                        \App\Models\RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'name' => "B{$i}"],
-                            ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
-                        );
+                    $tableCount = \App\Models\RestaurantTable::where('restaurant_id', $restaurant->id)->count();
+                    if ($tableCount < 20) {
+                        for ($i = 1; $i <= 10; $i++) {
+                            \App\Models\RestaurantTable::firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'name' => "A{$i}"],
+                                ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
+                            );
+                            \App\Models\RestaurantTable::firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'name' => "B{$i}"],
+                                ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
+                            );
+                        }
                     }
+                    Cache::put($cacheKey, true, 86400); // 24 giờ
                 }
 
                 // Query tables along with their active unpaid orders (eager load activeOrder relationship)
@@ -342,21 +347,27 @@ class DashboardController extends Controller
                 ? round($completedToday / $totalToday * 100, 1)
                 : 0.0;
 
-            $stats = [
-                'products_count'    => $restaurant->products()->count(),
-                'employees_count'   => $restaurant->employees()->where('status', 'active')->count(),
-                'branches_count'    => $restaurant->branches()->count(),
-                'tables_count'      => $restaurant->tables()->count(),
+            // Cache resource counts (thay đổi ít, không cần query mỗi request)
+            $resourceCounts = Cache::remember("dashboard_counts:{$rid}", 300, function () use ($restaurant) {
+                return [
+                    'products_count'  => $restaurant->products()->count(),
+                    'employees_count' => $restaurant->employees()->where('status', 'active')->count(),
+                    'branches_count'  => $restaurant->branches()->count(),
+                    'tables_count'    => $restaurant->tables()->count(),
+                ];
+            });
+
+            $stats = array_merge($resourceCounts, [
                 'orders_today'      => $totalToday,
                 'revenue_today'     => $revenueToday,
                 'orders_completed'  => $completedToday,
                 'orders_cancelled'  => $cancelledToday,
-                // Mới: xu hướng + chỉ số bổ sung
+                // Xu hướng + chỉ số bổ sung
                 'revenue_trend'     => $revTrend,
                 'order_trend'       => $orderTrend,
                 'profit_margin_today' => $profitMargin,
                 'completion_rate'   => $completionRate,
-            ];
+            ]);
 
             // ── Business Health Score (0–100) ────────────────────────────────
             $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;

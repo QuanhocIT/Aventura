@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -39,14 +40,8 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
-        // Clear Spatie permission cache để đảm bảo roles luôn mới nhất
-        if ($user) {
-            try {
-                app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            } catch (\Throwable $e) {
-                // Ignore
-            }
-        }
+        // Spatie tự động invalidate cache khi roles/permissions thay đổi
+        // Không cần forgetCachedPermissions() trên mỗi request
 
         $roles = $user?->getRoleNames() ?? [];
 
@@ -68,27 +63,33 @@ class HandleInertiaRequests extends Middleware
                         'max_users'    => $restaurant->plan->max_users,
                         'features'     => $restaurant->plan->features,
                     ] : null,
-                    'quota_summary' => app(\App\Services\QuotaService::class)->getSummary($restaurant),
+                    'quota_summary' => Cache::remember(
+                        "quota_summary:{$restaurant->id}",
+                        120, // 2 phút
+                        fn () => app(\App\Services\QuotaService::class)->getSummary($restaurant)
+                    ),
                 ];
             }
         }
 
-        $availablePlans = SubscriptionPlan::where('status', 'active')
-            ->orderBy('price')
-            ->get()
-            ->map(fn (SubscriptionPlan $p) => [
-                'id'            => $p->id,
-                'code'          => $p->code,
-                'name'          => $p->name,
-                'price'         => (int) $p->price,
-                'billing_cycle' => $p->billing_cycle,
-                'max_branches'  => $p->max_branches,
-                'max_tables'    => $p->max_tables,
-                'max_users'     => $p->max_users,
-                'features'      => $p->features ?? [],
-            ])
-            ->values()
-            ->all();
+        $availablePlans = Cache::remember('subscription_plans_active', 3600, function () {
+            return SubscriptionPlan::where('status', 'active')
+                ->orderBy('price')
+                ->get()
+                ->map(fn (SubscriptionPlan $p) => [
+                    'id'            => $p->id,
+                    'code'          => $p->code,
+                    'name'          => $p->name,
+                    'price'         => (int) $p->price,
+                    'billing_cycle' => $p->billing_cycle,
+                    'max_branches'  => $p->max_branches,
+                    'max_tables'    => $p->max_tables,
+                    'max_users'     => $p->max_users,
+                    'features'      => $p->features ?? [],
+                ])
+                ->values()
+                ->all();
+        });
 
         // Không gán trực tiếp roles vào user để tránh lỗi update DB
         return [
@@ -104,7 +105,11 @@ class HandleInertiaRequests extends Middleware
             'tenant'          => $tenant,
             'available_plans' => $availablePlans,
             'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
-                ? ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
+                ? Cache::remember(
+                    "pending_approvals:{$user->restaurant_id}",
+                    60, // 1 phút
+                    fn () => ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
+                )
                 : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
