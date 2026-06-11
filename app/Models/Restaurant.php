@@ -36,6 +36,8 @@ class Restaurant extends Model
             'inactive_flagged_at'     => 'datetime',
             'is_inactive_flagged'     => 'boolean',
             'storage_warning_sent_at' => 'datetime',
+            'sandbox_mode'            => 'boolean',
+            'sandbox_seeded_at'       => 'datetime',
         ];
     }
 

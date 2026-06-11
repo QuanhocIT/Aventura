@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\RestaurantController;
 use App\Http\Controllers\Settings\SecurityController;
@@ -17,6 +18,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/referrals', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'edit'])->name('settings.referrals.edit');
     Route::post('settings/referrals/withdraw', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'withdraw'])->name('settings.referrals.withdraw');
+
+    // Sandbox & Demo Data
+    Route::get('settings/sandbox', [OnboardingController::class, 'sandboxPage'])->name('settings.sandbox');
+    Route::post('settings/sandbox/toggle', [OnboardingController::class, 'toggleSandbox'])->name('sandbox.toggle');
+    Route::post('settings/sandbox/seed', [OnboardingController::class, 'seedDemo'])->name('sandbox.seed');
+    Route::post('settings/sandbox/reset', [OnboardingController::class, 'resetDemo'])->name('sandbox.reset');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
