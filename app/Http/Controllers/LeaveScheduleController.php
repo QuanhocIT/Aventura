@@ -328,23 +328,26 @@ class LeaveScheduleController extends Controller
                 ->where('status', 'active')
                 ->get();
 
+            // Fetch scheduled and registered employee IDs for this date/shift in bulk
+            $scheduledEmployeeIds = ScheduleAssignment::whereDate('scheduled_date', $dateStr)
+                ->whereIn('status', ['scheduled', 'checked_in'])
+                ->pluck('employee_id')
+                ->toArray();
+
+            $registeredEmployeeIds = ScheduleRegistration::whereDate('scheduled_date', $dateStr)
+                ->where('shift_id', $shift->id)
+                ->pluck('employee_id')
+                ->toArray();
+
             $suggestions = [];
             foreach ($candidates as $cand) {
                 // Kiểm tra xem ứng viên này đã có lịch trực nào vào ngày đó chưa
-                $isScheduled = ScheduleAssignment::where('employee_id', $cand->id)
-                    ->whereDate('scheduled_date', $dateStr)
-                    ->whereIn('status', ['scheduled', 'checked_in'])
-                    ->exists();
-
-                if ($isScheduled) {
+                if (in_array($cand->id, $scheduledEmployeeIds)) {
                     continue;
                 }
 
                 // Kiểm tra đăng ký rảnh (ScheduleRegistration)
-                $isRegistered = ScheduleRegistration::where('employee_id', $cand->id)
-                    ->whereDate('scheduled_date', $dateStr)
-                    ->where('shift_id', $shift->id)
-                    ->exists();
+                $isRegistered = in_array($cand->id, $registeredEmployeeIds);
 
                 $suggestions[] = [
                     'id' => $cand->id,

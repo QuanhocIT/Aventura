@@ -989,35 +989,25 @@ class DashboardController extends Controller
         $now = now();
         $windowStart = $now->copy()->subDays(30);
 
-        $orderCounts = Order::query()
-            ->selectRaw('restaurant_id, COUNT(*) as cnt')
-            ->where('created_at', '>=', $windowStart)
-            ->groupBy('restaurant_id')
-            ->pluck('cnt', 'restaurant_id');
+        $query = Restaurant::query()
+            ->where('status', 'active')
+            ->with(['plan', 'owner', 'activeSubscription']);
 
-        $matches = function (Restaurant $r) use ($segment, $orderCounts, $now): bool {
-            $plan = strtolower($r->plan?->code ?? 'free');
-            $status = strtolower($r->status);
-            $isTrial = $r->activeSubscription?->status === 'trial';
-            $orders30d = (int) ($orderCounts[$r->id] ?? 0);
+        if ($segment === 'active_pro') {
+            $query->whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']));
+        } elseif ($segment === 'trial_active') {
+            $query->whereHas('activeSubscription', fn ($q) => $q->where('status', 'trial'));
+        } elseif ($segment === 'free_inactive') {
+            $query->where(fn ($q) => $q->whereHas('plan', fn ($p) => $p->whereRaw('LOWER(code) = ?', ['free']))->orWhereNull('plan_id'))
+                ->whereHas('orders', fn ($q) => $q->where('created_at', '>=', $windowStart), '<', 5);
+        } elseif ($segment === 'at_risk') {
+            $query->whereDoesntHave('orders', fn ($q) => $q->where('created_at', '>=', $windowStart));
+        } else {
+            return response()->json(['restaurants' => []]);
+        }
 
-            if ($status !== 'active') {
-                return false;
-            }
-
-            return match ($segment) {
-                'active_pro' => $plan === 'pro',
-                'trial_active' => $isTrial,
-                'free_inactive' => $plan === 'free' && $orders30d < 5,
-                'at_risk' => $orders30d === 0,
-                default => false,
-            };
-        };
-
-        $restaurants = Restaurant::with(['plan', 'owner', 'activeSubscription'])
+        $restaurants = $query->take(50)
             ->get()
-            ->filter($matches)
-            ->take(50)
             ->map(fn (Restaurant $r) => [
                 'id' => $r->id,
                 'name' => $r->name,

@@ -25,7 +25,7 @@ class EmployeeManagementController extends Controller
         $user = $request->user();
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
-            ->with(['user'])
+            ->with(['user.roles'])
             ->get()
             ->map(fn ($e) => [
                 'id'                   => $e->id,
@@ -35,7 +35,7 @@ class EmployeeManagementController extends Controller
                 'phone'                => $e->phone,
                 'job_title'            => $e->job_title,
                 'status'               => $e->status,
-                'role'                 => $e->user ? $e->user->roles()->pluck('name')->first() : 'Staff',
+                'role'                 => $e->user && $e->user->roles->isNotEmpty() ? $e->user->roles->first()->name : 'Staff',
                 'date_of_birth'        => $e->date_of_birth ? $e->date_of_birth->toDateString() : '',
                 'address'              => $e->address,
                 'citizen_id_number'    => $e->citizen_id_number,

@@ -44,27 +44,42 @@ class ValidateRestaurantsActivity extends Command
             ->whereIn('status', ['active', 'suspended'])
             ->get();
 
+        // 1. Nhóm số lượng đơn hàng theo nhà hàng
+        $ordersCountByRestaurant = Order::whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+            ->groupBy('restaurant_id')
+            ->pluck('count', 'restaurant_id')
+            ->toArray();
+
+        // 2. Nhóm số món ăn được chuẩn bị/phục vụ theo nhà hàng
+        $dishesCountByRestaurant = OrderItem::where(function ($q) use ($startOfDay, $endOfDay) {
+                $q->whereBetween('prepared_at', [$startOfDay, $endOfDay])
+                  ->orWhereBetween('served_at', [$startOfDay, $endOfDay]);
+            })
+            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+            ->groupBy('restaurant_id')
+            ->pluck('count', 'restaurant_id')
+            ->toArray();
+
+        // 3. Nhóm doanh thu thực nhận theo nhà hàng
+        $revenueByRestaurant = Payment::where('status', 'paid')
+            ->whereBetween('paid_at', [$startOfDay, $endOfDay])
+            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('sum(amount) as total'))
+            ->groupBy('restaurant_id')
+            ->pluck('total', 'restaurant_id')
+            ->toArray();
+
         foreach ($restaurants as $restaurant) {
             $totalChecked++;
 
             // 1. Kiểm tra đơn hàng mới
-            $ordersCount = Order::where('restaurant_id', $restaurant->id)
-                ->whereBetween('created_at', [$startOfDay, $endOfDay])
-                ->count();
+            $ordersCount = $ordersCountByRestaurant[$restaurant->id] ?? 0;
 
             // 2. Kiểm tra bếp ra món
-            $dishesPreparedCount = OrderItem::where('restaurant_id', $restaurant->id)
-                ->where(function ($q) use ($startOfDay, $endOfDay) {
-                    $q->whereBetween('prepared_at', [$startOfDay, $endOfDay])
-                      ->orWhereBetween('served_at', [$startOfDay, $endOfDay]);
-                })
-                ->count();
+            $dishesPreparedCount = $dishesCountByRestaurant[$restaurant->id] ?? 0;
 
             // 3. Kiểm tra doanh thu
-            $revenue = (float) Payment::where('restaurant_id', $restaurant->id)
-                ->where('status', 'paid')
-                ->whereBetween('paid_at', [$startOfDay, $endOfDay])
-                ->sum('amount');
+            $revenue = (float) ($revenueByRestaurant[$restaurant->id] ?? 0.0);
 
             $hadActivity = ($ordersCount > 0 || $dishesPreparedCount > 0 || $revenue > 0);
 
@@ -152,7 +167,7 @@ class ValidateRestaurantsActivity extends Command
             'total_flagged' => $totalFlagged,
         ];
 
-        $superAdmins = User::all()->filter(fn($u) => $u->isSuperAdmin());
+        $superAdmins = User::role(config('auth.super_admin_roles', ['super_admin']))->get();
 
         if ($superAdmins->isNotEmpty()) {
             foreach ($superAdmins as $admin) {

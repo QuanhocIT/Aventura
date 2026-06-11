@@ -41,13 +41,18 @@ class RecalculateAverageCostJob implements ShouldQueue
 
         // Recalculate product cost_price for all products that use this ingredient in their recipe
         $recipes = \App\Models\ProductRecipe::where('ingredient_id', $this->ingredientId)->get();
-        foreach ($recipes as $recipe) {
-            $product = \App\Models\Product::find($recipe->product_id);
-            if ($product) {
+        $productIds = $recipes->pluck('product_id')->unique()->all();
+
+        if (!empty($productIds)) {
+            $products = \App\Models\Product::whereIn('id', $productIds)->get();
+            $productRecipesGrouped = \App\Models\ProductRecipe::whereIn('product_id', $productIds)
+                ->with('ingredient')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($products as $product) {
                 $totalCost = 0.0;
-                $productRecipes = \App\Models\ProductRecipe::where('product_id', $product->id)
-                    ->with('ingredient')
-                    ->get();
+                $productRecipes = $productRecipesGrouped->get($product->id) ?? collect();
                 foreach ($productRecipes as $pr) {
                     $ingCost = $pr->ingredient ? (float) $pr->ingredient->average_cost : 0.0;
                     $prQty = (float) $pr->quantity;

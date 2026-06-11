@@ -62,11 +62,10 @@ class ForecastService
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
                 ->where('summary_date', '<', today())
-                ->get()
-                ->filter(fn ($r) => Carbon::parse($r->summary_date)->dayOfWeek === $dayOfWeek)
-                ->sortByDesc('summary_date')
+                ->whereRaw('DAYOFWEEK(summary_date) = ?', [$dayOfWeek + 1])
+                ->orderByDesc('summary_date')
                 ->take(8)
-                ->values();
+                ->get();
 
             if ($weeklyHist->isEmpty()) {
                 return [
@@ -105,11 +104,10 @@ class ForecastService
                     ->where('restaurant_id', $restaurantId)
                     ->where('summary_type', 'daily')
                     ->where('summary_date', '<', today())
-                    ->get()
-                    ->filter(fn ($r) => Carbon::parse($r->summary_date)->dayOfWeek === $targetDayOfWeek)
-                    ->sortByDesc('summary_date')
+                    ->whereRaw('DAYOFWEEK(summary_date) = ?', [$targetDayOfWeek + 1])
+                    ->orderByDesc('summary_date')
                     ->take(4)
-                    ->values();
+                    ->get();
 
                 $avg = $dayHist->isEmpty() ? 0 : $dayHist->avg(fn ($r) => (float) $r->net_revenue);
                 $next7Days[] = [
