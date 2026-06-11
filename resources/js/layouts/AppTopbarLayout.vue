@@ -34,7 +34,7 @@ const props = withDefaults(
     }>(),
     {
         transparent: false,
-    }
+    },
 );
 
 const flash = computed(() => (page.props as any).flash ?? {});
@@ -56,12 +56,12 @@ const authNavItems = [
     { label: 'Hỗ trợ', href: '/support' },
 ];
 
-const navItems = computed(() => user.value ? authNavItems : publicNavItems);
+const navItems = computed(() => (user.value ? authNavItems : publicNavItems));
 
 function isActiveNav(href: string): boolean {
     if (href.startsWith('#')) {
-return false;
-}
+        return false;
+    }
 
     return page.url.startsWith(href);
 }
@@ -76,22 +76,27 @@ const handleLogout = () => {
         },
     );
 };
-
 </script>
 
 <template>
     <header
         class="z-40 transition-all duration-300"
-        :class="transparent
-            ? 'absolute top-0 left-0 right-0 bg-transparent border-b border-white/10 text-white'
-            : 'sticky top-0 border-b border-border bg-background/95 backdrop-blur text-foreground'"
+        :class="
+            transparent
+                ? 'absolute top-0 right-0 left-0 border-b border-white/10 bg-transparent text-white'
+                : 'sticky top-0 border-b border-border bg-background/95 text-foreground backdrop-blur'
+        "
     >
         <div
             class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8"
         >
-            <Link href="/" class="flex items-center gap-2 font-semibold" :class="transparent ? 'text-white' : 'text-foreground'">
+            <Link
+                href="/"
+                class="flex items-center gap-2 font-semibold"
+                :class="transparent ? 'text-white' : 'text-foreground'"
+            >
                 <span
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground font-sans font-bold"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary font-sans text-sm font-bold text-primary-foreground"
                     >A</span
                 >
                 <div class="flex flex-col leading-none">
@@ -99,8 +104,13 @@ const handleLogout = () => {
                     <span
                         v-if="user && tenant?.name"
                         class="mt-0.5 text-xs font-normal"
-                        :class="transparent ? 'text-zinc-300' : 'text-muted-foreground'"
-                    >{{ tenant.name }}</span>
+                        :class="
+                            transparent
+                                ? 'text-zinc-300'
+                                : 'text-muted-foreground'
+                        "
+                        >{{ tenant.name }}</span
+                    >
                 </div>
             </Link>
 
@@ -111,13 +121,15 @@ const handleLogout = () => {
                     :is="item.href.startsWith('#') ? 'a' : Link"
                     :href="item.href"
                     class="rounded-md px-3 py-2 text-sm transition-colors"
-                    :class="transparent
-                        ? (isActiveNav(item.href)
-                            ? 'bg-white/15 text-white font-medium shadow-sm'
-                            : 'text-zinc-200 hover:bg-white/10 hover:text-white')
-                        : (isActiveNav(item.href)
-                            ? 'bg-muted text-foreground font-medium'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground')"
+                    :class="
+                        transparent
+                            ? isActiveNav(item.href)
+                                ? 'bg-white/15 font-medium text-white shadow-sm'
+                                : 'text-zinc-200 hover:bg-white/10 hover:text-white'
+                            : isActiveNav(item.href)
+                              ? 'bg-muted font-medium text-foreground'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
                 >
                     {{ item.label }}
                 </component>
@@ -130,13 +142,17 @@ const handleLogout = () => {
                 <button
                     v-if="user"
                     class="relative rounded-md p-2 hover:bg-muted"
-                    :class="transparent ? 'text-white hover:bg-white/10' : 'text-muted-foreground hover:text-foreground'"
+                    :class="
+                        transparent
+                            ? 'text-white hover:bg-white/10'
+                            : 'text-muted-foreground hover:text-foreground'
+                    "
                     aria-label="Thông báo"
                 >
                     <Bell class="size-4" />
                     <span
                         v-if="hasFlash"
-                        class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
+                        class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
                     />
                 </button>
 
@@ -146,9 +162,11 @@ const handleLogout = () => {
                         variant="outline"
                         size="sm"
                         class="transition-all"
-                        :class="transparent
-                            ? 'border-white/20 bg-white/5 text-white hover:bg-white/15 hover:text-white'
-                            : ''"
+                        :class="
+                            transparent
+                                ? 'border-white/20 bg-white/5 text-white hover:bg-white/15 hover:text-white'
+                                : ''
+                        "
                     >
                         <Link href="/login">Đăng nhập</Link>
                     </Button>
@@ -156,9 +174,11 @@ const handleLogout = () => {
                         as-child
                         size="sm"
                         class="transition-all"
-                        :class="transparent
-                            ? 'bg-amber-500 text-zinc-950 font-bold hover:bg-amber-600 border-none'
-                            : ''"
+                        :class="
+                            transparent
+                                ? 'border-none bg-amber-500 font-bold text-zinc-950 hover:bg-amber-600'
+                                : ''
+                        "
                     >
                         <Link href="/register">Dùng miễn phí</Link>
                     </Button>
@@ -169,7 +189,14 @@ const handleLogout = () => {
                         <button
                             class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                            <Avatar class="h-9 w-9 cursor-pointer border" :class="transparent ? 'border-white/15' : 'border-border'">
+                            <Avatar
+                                class="h-9 w-9 cursor-pointer border"
+                                :class="
+                                    transparent
+                                        ? 'border-white/15'
+                                        : 'border-border'
+                                "
+                            >
                                 <AvatarImage
                                     v-if="user.avatar"
                                     :src="user.avatar"
@@ -261,9 +288,11 @@ const handleLogout = () => {
                 variant="outline"
                 size="icon"
                 class="ml-auto md:hidden"
-                :class="transparent
-                    ? 'border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white'
-                    : ''"
+                :class="
+                    transparent
+                        ? 'border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white'
+                        : ''
+                "
                 @click="isMobileOpen = !isMobileOpen"
             >
                 <X v-if="isMobileOpen" class="size-4" />
@@ -274,10 +303,12 @@ const handleLogout = () => {
 
         <div
             v-if="isMobileOpen"
-            class="px-4 py-3 md:hidden border-t"
-            :class="transparent
-                ? 'bg-zinc-950/95 border-white/10'
-                : 'bg-background border-border'"
+            class="border-t px-4 py-3 md:hidden"
+            :class="
+                transparent
+                    ? 'border-white/10 bg-zinc-950/95'
+                    : 'border-border bg-background'
+            "
         >
             <nav class="flex flex-col gap-1">
                 <component
@@ -286,13 +317,15 @@ const handleLogout = () => {
                     :is="item.href.startsWith('#') ? 'a' : Link"
                     :href="item.href"
                     class="rounded-md px-3 py-2 text-sm transition-colors"
-                    :class="transparent
-                        ? (isActiveNav(item.href)
-                            ? 'bg-white/10 text-white font-medium'
-                            : 'text-zinc-200 hover:bg-white/5 hover:text-white')
-                        : (isActiveNav(item.href)
-                            ? 'bg-muted text-foreground font-medium'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground')"
+                    :class="
+                        transparent
+                            ? isActiveNav(item.href)
+                                ? 'bg-white/10 font-medium text-white'
+                                : 'text-zinc-200 hover:bg-white/5 hover:text-white'
+                            : isActiveNav(item.href)
+                              ? 'bg-muted font-medium text-foreground'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
                     @click="isMobileOpen = false"
                 >
                     {{ item.label }}
@@ -306,7 +339,11 @@ const handleLogout = () => {
                         variant="outline"
                         size="sm"
                         class="flex-1"
-                        :class="transparent ? 'border-white/20 bg-white/5 text-white hover:bg-white/10' : ''"
+                        :class="
+                            transparent
+                                ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
+                                : ''
+                        "
                     >
                         <Link href="/login">Đăng nhập</Link>
                     </Button>
@@ -314,7 +351,11 @@ const handleLogout = () => {
                         as-child
                         size="sm"
                         class="flex-1"
-                        :class="transparent ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold border-none' : ''"
+                        :class="
+                            transparent
+                                ? 'border-none bg-amber-500 font-bold text-zinc-950 hover:bg-amber-600'
+                                : ''
+                        "
                     >
                         <Link href="/register">Dùng miễn phí</Link>
                     </Button>

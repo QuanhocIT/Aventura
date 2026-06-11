@@ -45,7 +45,7 @@ const page = usePage();
 
 const handleSuccess = () => {
     isOpen.value = false;
-    
+
     const roles = page.props.roles ?? [];
     const isSuperAdmin = Array.isArray(roles)
         ? roles.includes('super_admin')

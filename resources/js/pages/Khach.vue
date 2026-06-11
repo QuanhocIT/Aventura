@@ -100,42 +100,48 @@ const defaultSlides = [
     {
         subtitle: 'VẬN HÀNH THÔNG MINH – CHỐNG THẤT THOÁT TUYỆT ĐỐI',
         title: 'Vận hành nhà hàng <br /><span class="text-amber-400">vượt trội</span> cùng Aventura',
-        description: 'Hệ thống quản trị SaaS tối ưu cho mọi mô hình: từ nhà hàng, quán cà phê đến chuỗi kinh doanh. Tự động hóa QR order, định lượng nguyên vật liệu kho, giám sát doanh thu tức thì và báo cáo vận hành thông minh bằng AI.',
+        description:
+            'Hệ thống quản trị SaaS tối ưu cho mọi mô hình: từ nhà hàng, quán cà phê đến chuỗi kinh doanh. Tự động hóa QR order, định lượng nguyên vật liệu kho, giám sát doanh thu tức thì và báo cáo vận hành thông minh bằng AI.',
         badges: [
             { icon: '✨', label: 'AI thông minh' },
             { icon: '⚡', label: 'Đồng bộ Realtime' },
             { icon: '🔒', label: 'Bảo mật Audit' },
-            { icon: '🎁', label: 'Dùng miễn phí' }
+            { icon: '🎁', label: 'Dùng miễn phí' },
         ],
         image: '/restaurant_hero_bg_1.jpg',
-        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.93) 0%, rgba(15, 20, 30, 0.82) 50%, rgba(8, 10, 15, 0.91) 100%)'
+        gradient:
+            'linear-gradient(135deg, rgba(8, 10, 15, 0.93) 0%, rgba(15, 20, 30, 0.82) 50%, rgba(8, 10, 15, 0.91) 100%)',
     },
     {
         subtitle: 'QR ORDER TẠI BÀN – TỐI ƯU TRẢI NGHIỆM KHÁCH HÀNG',
         title: 'Đột phá doanh thu <br />với <span class="text-amber-400">QR Order</span> tại bàn',
-        description: 'Khách tự quét mã QR gọi món và thanh toán trực tiếp trên di động. Bếp nhận đơn tức thì, đồng bộ thời gian thực qua màn hình KDS. Giảm 50% chi phí nhân sự và loại bỏ hoàn toàn sai sót phục vụ.',
+        description:
+            'Khách tự quét mã QR gọi món và thanh toán trực tiếp trên di động. Bếp nhận đơn tức thì, đồng bộ thời gian thực qua màn hình KDS. Giảm 50% chi phí nhân sự và loại bỏ hoàn toàn sai sót phục vụ.',
         badges: [
             { icon: '📱', label: 'Gọi món không chạm' },
             { icon: '🍳', label: 'Bếp KDS Realtime' },
             { icon: '🚀', label: 'Tăng tốc phục vụ' },
-            { icon: '📈', label: 'Tối ưu doanh số' }
+            { icon: '📈', label: 'Tối ưu doanh số' },
         ],
         image: '/restaurant_hero_bg_2.jpg',
-        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(12, 28, 24, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)'
+        gradient:
+            'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(12, 28, 24, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)',
     },
     {
         subtitle: 'QUẢN LÝ KHO THÔNG MINH – ĐỊNH LƯỢNG CHÍNH XÁC',
         title: 'Kiểm soát nguyên liệu <br /><span class="text-amber-400">tự động trừ kho</span>',
-        description: 'Tự động khấu hao nguyên vật liệu trong kho ngay khi hóa đơn được thanh toán dựa trên công thức định lượng (recipe). Cảnh báo tồn kho thấp dưới định mức để chuẩn bị nguồn cung kịp thời.',
+        description:
+            'Tự động khấu hao nguyên vật liệu trong kho ngay khi hóa đơn được thanh toán dựa trên công thức định lượng (recipe). Cảnh báo tồn kho thấp dưới định mức để chuẩn bị nguồn cung kịp thời.',
         badges: [
             { icon: '📦', label: 'Tự động trừ kho' },
             { icon: '⚖️', label: 'Định lượng chuẩn' },
             { icon: '⚠️', label: 'Cảnh báo tồn thấp' },
-            { icon: '📉', label: 'Chống thất thoát' }
+            { icon: '📉', label: 'Chống thất thoát' },
         ],
         image: '/restaurant_hero_bg_1.jpg',
-        gradient: 'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(30, 18, 12, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)'
-    }
+        gradient:
+            'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(30, 18, 12, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)',
+    },
 ];
 
 const activeSlides = computed(() => {
@@ -145,17 +151,18 @@ const activeSlides = computed(() => {
     }
     return dbBanners.map((db, idx) => {
         const fallback = defaultSlides[idx % defaultSlides.length];
-        const hasRealImage = db.image_url && 
-                             !db.image_url.endsWith('.svg') && 
-                             !db.image_url.includes('hero-dashboard') && 
-                             !db.image_url.includes('hero-analytics');
+        const hasRealImage =
+            db.image_url &&
+            !db.image_url.endsWith('.svg') &&
+            !db.image_url.includes('hero-dashboard') &&
+            !db.image_url.includes('hero-analytics');
         return {
             subtitle: db.subtitle || fallback.subtitle,
             title: db.title ? db.title : fallback.title,
             description: fallback.description,
             badges: fallback.badges,
             image: hasRealImage ? db.image_url : fallback.image,
-            gradient: fallback.gradient
+            gradient: fallback.gradient,
         };
     });
 });
@@ -176,14 +183,20 @@ function submitDemoRequest() {
         toast.error('Vui lòng nhập số điện thoại liên hệ.');
         return;
     }
-    
+
     // Simulate server side request and toast success
-    toast.success(`Đăng ký dùng thử thành công! Đội ngũ kỹ thuật Aventura sẽ liên hệ tư vấn mô hình ${
-        demoRestaurantType.value === 'restaurant' ? 'Nhà hàng / Quán ăn' : 
-        demoRestaurantType.value === 'cafe' ? 'Cà phê / Trà sữa' : 
-        demoRestaurantType.value === 'bar' ? 'Bar / Pub / Beer club' : 'Chuỗi nhiều chi nhánh'
-    } với quy mô ${demoTablesCount.value || 10} bàn cho quý khách qua số điện thoại ${demoPhoneNumber.value} trong vòng 5 phút.`);
-    
+    toast.success(
+        `Đăng ký dùng thử thành công! Đội ngũ kỹ thuật Aventura sẽ liên hệ tư vấn mô hình ${
+            demoRestaurantType.value === 'restaurant'
+                ? 'Nhà hàng / Quán ăn'
+                : demoRestaurantType.value === 'cafe'
+                  ? 'Cà phê / Trà sữa'
+                  : demoRestaurantType.value === 'bar'
+                    ? 'Bar / Pub / Beer club'
+                    : 'Chuỗi nhiều chi nhánh'
+        } với quy mô ${demoTablesCount.value || 10} bàn cho quý khách qua số điện thoại ${demoPhoneNumber.value} trong vòng 5 phút.`,
+    );
+
     // Reset Form
     demoRestaurantName.value = '';
     demoRestaurantType.value = 'restaurant';
@@ -202,16 +215,17 @@ function startHero() {
 function stopHero() {
     if (heroTimer) {
         clearInterval(heroTimer);
-        heroTimer = null; 
+        heroTimer = null;
     }
 }
 
 function advanceHero(dir: 'next' | 'prev') {
     heroDir.value = dir;
     const len = activeSlides.value.length;
-    heroIndex.value = dir === 'next'
-        ? (heroIndex.value + 1) % len
-        : (heroIndex.value - 1 + len) % len;
+    heroIndex.value =
+        dir === 'next'
+            ? (heroIndex.value + 1) % len
+            : (heroIndex.value - 1 + len) % len;
 }
 
 function goHero(idx: number) {
@@ -322,9 +336,9 @@ const staticPlans = [
 const latestNewsList = computed(() => props.latestNews ?? []);
 
 const planNotes: Record<string, string> = {
-    free:  'Gói cơ bản trải nghiệm miễn phí.',
-    pro:   'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
-    max:   'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
+    free: 'Gói cơ bản trải nghiệm miễn phí.',
+    pro: 'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
+    max: 'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
     ultra: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
 };
 
@@ -332,8 +346,11 @@ function buildDisplayPlan(db: DbPlan) {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
 
-    const mb  = (db.features.max_storage_mb as number) ?? 500;
-    const storage = mb >= 1024 ? `${mb / 1024} GB dung lượng lưu trữ` : `${mb} MB dung lượng lưu trữ`;
+    const mb = (db.features.max_storage_mb as number) ?? 500;
+    const storage =
+        mb >= 1024
+            ? `${mb / 1024} GB dung lượng lưu trữ`
+            : `${mb} MB dung lượng lưu trữ`;
     const rate = (db.features.api_rate_limit as number) ?? 60;
 
     const always = [
@@ -345,10 +362,10 @@ function buildDisplayPlan(db: DbPlan) {
     ];
 
     const conditionals = [
-        { key: 'ai_features',         label: 'AI dự báo nguyên liệu & tồn kho' },
-        { key: 'ai_features',         label: 'Thuật toán AI phát hiện gian lận' },
-        { key: 'realtime',            label: 'Realtime sync & Advanced Analytics' },
-        { key: 'advanced_analytics',  label: 'Hệ thống Audit Log bảo mật' },
+        { key: 'ai_features', label: 'AI dự báo nguyên liệu & tồn kho' },
+        { key: 'ai_features', label: 'Thuật toán AI phát hiện gian lận' },
+        { key: 'realtime', label: 'Realtime sync & Advanced Analytics' },
+        { key: 'advanced_analytics', label: 'Hệ thống Audit Log bảo mật' },
     ];
 
     const features: string[] = [...always];
@@ -357,27 +374,30 @@ function buildDisplayPlan(db: DbPlan) {
 
     for (const { key, label } of conditionals) {
         if (seen.has(label)) {
-continue;
-}
+            continue;
+        }
 
         seen.add(label);
 
         if (db.features[key]) {
-features.push(label);
-} else {
-unsupportedFeatures.push(label);
-}
+            features.push(label);
+        } else {
+            unsupportedFeatures.push(label);
+        }
     }
 
     return {
-        code:               db.code,
-        name:               db.name,
-        price:              db.price === 0 ? '0đ' : db.price.toLocaleString('vi-VN') + 'đ',
-        cycle:              db.billing_cycle === 'monthly' ? '/tháng' : '/năm',
-        note:               (db.features.description as string | undefined) || planNotes[db.code] || '',
+        code: db.code,
+        name: db.name,
+        price: db.price === 0 ? '0đ' : db.price.toLocaleString('vi-VN') + 'đ',
+        cycle: db.billing_cycle === 'monthly' ? '/tháng' : '/năm',
+        note:
+            (db.features.description as string | undefined) ||
+            planNotes[db.code] ||
+            '',
         features,
         unsupportedFeatures,
-        isRecommended:      db.code === 'pro',
+        isRecommended: db.code === 'pro',
     };
 }
 
@@ -385,20 +405,22 @@ unsupportedFeatures.push(label);
 const billingCycle = ref<'monthly' | 'yearly'>('monthly');
 
 const displayPlans = computed(() => {
-    const plans = props.plans?.length ? props.plans.map(buildDisplayPlan) : staticPlans;
+    const plans = props.plans?.length
+        ? props.plans.map(buildDisplayPlan)
+        : staticPlans;
 
     if (billingCycle.value === 'yearly') {
-        return plans.map(p => {
+        return plans.map((p) => {
             if (p.price === '0đ') {
-return p;
-}
+                return p;
+            }
 
             // Strip existing price, compute 20% discount
-            const dbPlan = props.plans?.find(d => d.code === p.code);
+            const dbPlan = props.plans?.find((d) => d.code === p.code);
 
             if (!dbPlan || dbPlan.price === 0) {
-return p;
-}
+                return p;
+            }
 
             const yearlyMonthly = Math.round(dbPlan.price * 0.8);
 
@@ -414,35 +436,39 @@ return p;
 });
 
 // Count-up animation for stats section
-const statsVisible   = ref(false);
+const statsVisible = ref(false);
 const countRestaurants = ref(0);
-const countOrders      = ref(0);
-const countUptime      = ref(0);
+const countOrders = ref(0);
+const countUptime = ref(0);
 let statsObserver: IntersectionObserver | null = null;
 
-function animateCount(target: number, setter: (v: number) => void, duration = 1800) {
-    const start     = performance.now();
+function animateCount(
+    target: number,
+    setter: (v: number) => void,
+    duration = 1800,
+) {
+    const start = performance.now();
     const step = (now: number) => {
         const progress = Math.min((now - start) / duration, 1);
-        const eased    = 1 - Math.pow(1 - progress, 3);
+        const eased = 1 - Math.pow(1 - progress, 3);
         setter(Math.round(target * eased));
 
         if (progress < 1) {
-requestAnimationFrame(step);
-}
+            requestAnimationFrame(step);
+        }
     };
     requestAnimationFrame(step);
 }
 
 function startCountUp() {
     if (statsVisible.value) {
-return;
-}
+        return;
+    }
 
     statsVisible.value = true;
-    animateCount(500,  v => countRestaurants.value = v);
-    animateCount(3000, v => countOrders.value      = v);
-    animateCount(999,  v => countUptime.value      = v);
+    animateCount(500, (v) => (countRestaurants.value = v));
+    animateCount(3000, (v) => (countOrders.value = v));
+    animateCount(999, (v) => (countUptime.value = v));
 }
 
 const featureMap = [
@@ -612,8 +638,8 @@ const activeFeatureTitle = ref<string>('QR order');
 
 const filteredFeatureMap = computed(() => {
     if (activeCategory.value === 'all') {
-return featureMap;
-}
+        return featureMap;
+    }
 
     return featureMap.filter((item) => item.category === activeCategory.value);
 });
@@ -693,37 +719,39 @@ const toggleAutoPlay = () => {
 };
 
 onMounted(() => {
-    promoDismissed.value = localStorage.getItem('aventura_promo_dismissed') === '1';
-    stickyCtaDismissed.value = localStorage.getItem('aventura_sticky_cta_dismissed') === '1';
+    promoDismissed.value =
+        localStorage.getItem('aventura_promo_dismissed') === '1';
+    stickyCtaDismissed.value =
+        localStorage.getItem('aventura_sticky_cta_dismissed') === '1';
     startAutoPlay();
     startHero();
 
     heroObserver = new IntersectionObserver(
         ([entry]) => {
- showStickyCta.value = !entry.isIntersecting; 
-},
-        { threshold: 0.1 }
+            showStickyCta.value = !entry.isIntersecting;
+        },
+        { threshold: 0.1 },
     );
     const heroEl = document.getElementById('hero-section');
 
     if (heroEl) {
-heroObserver.observe(heroEl);
-}
+        heroObserver.observe(heroEl);
+    }
 
     // Count-up stats observer
     statsObserver = new IntersectionObserver(
         ([entry]) => {
- if (entry.isIntersecting) {
-startCountUp();
-} 
-},
-        { threshold: 0.3 }
+            if (entry.isIntersecting) {
+                startCountUp();
+            }
+        },
+        { threshold: 0.3 },
     );
     const statsEl = document.getElementById('stats-section');
 
     if (statsEl) {
-statsObserver.observe(statsEl);
-}
+        statsObserver.observe(statsEl);
+    }
 
     // Scroll Reveal Observer
     revealObserver = new IntersectionObserver(
@@ -735,7 +763,7 @@ statsObserver.observe(statsEl);
                 }
             });
         },
-        { threshold: 0.1 }
+        { threshold: 0.1 },
     );
     document.querySelectorAll('.reveal-on-scroll').forEach((el) => {
         revealObserver?.observe(el);
@@ -788,19 +816,22 @@ const howItWorksSteps = [
         step: 1,
         icon: UserPlus,
         title: 'Đăng ký tài khoản',
-        description: '30 giây, không cần thẻ tín dụng. Gói Free hoạt động ngay lập tức.',
+        description:
+            '30 giây, không cần thẻ tín dụng. Gói Free hoạt động ngay lập tức.',
     },
     {
         step: 2,
         icon: Settings,
         title: 'Thiết lập nhà hàng',
-        description: 'Chatbot hướng dẫn từng bước: menu → bàn → nhân viên → in bill.',
+        description:
+            'Chatbot hướng dẫn từng bước: menu → bàn → nhân viên → in bill.',
     },
     {
         step: 3,
         icon: Zap,
         title: 'Vận hành ngay hôm nay',
-        description: 'QR order, quản lý bếp, kiểm kho — chạy thật trong 30 phút đầu.',
+        description:
+            'QR order, quản lý bếp, kiểm kho — chạy thật trong 30 phút đầu.',
     },
 ];
 
@@ -855,11 +886,14 @@ const stopTestimonialAutoplay = () => {
 };
 
 const nextTestimonial = () => {
-    activeTestimonialIdx.value = (activeTestimonialIdx.value + 1) % testimonials.length;
+    activeTestimonialIdx.value =
+        (activeTestimonialIdx.value + 1) % testimonials.length;
 };
 
 const prevTestimonial = () => {
-    activeTestimonialIdx.value = (activeTestimonialIdx.value - 1 + testimonials.length) % testimonials.length;
+    activeTestimonialIdx.value =
+        (activeTestimonialIdx.value - 1 + testimonials.length) %
+        testimonials.length;
 };
 
 const resetTestimonialAutoplay = () => {
@@ -957,16 +991,26 @@ const demoState = computed(() => {
                 v-if="firstPromoBanner && !promoDismissed"
                 class="border-y border-green-500/20 bg-gradient-to-r from-green-500/10 via-emerald-400/8 to-green-500/10"
             >
-                <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8">
+                <div
+                    class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8"
+                >
                     <!-- Badge -->
-                    <span class="hidden shrink-0 items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 sm:inline-flex dark:text-green-300">
+                    <span
+                        class="hidden shrink-0 items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 sm:inline-flex dark:text-green-300"
+                    >
                         🎉 {{ firstPromoBanner.title ?? 'Khuyến mãi' }}
                     </span>
 
                     <!-- Middle text -->
-                    <p class="flex-1 text-center text-sm text-green-800 dark:text-green-200">
-                        <span class="font-semibold sm:hidden">{{ firstPromoBanner.title }} </span>
-                        <span class="opacity-80">{{ firstPromoBanner.subtitle }}</span>
+                    <p
+                        class="flex-1 text-center text-sm text-green-800 dark:text-green-200"
+                    >
+                        <span class="font-semibold sm:hidden"
+                            >{{ firstPromoBanner.title }}
+                        </span>
+                        <span class="opacity-80">{{
+                            firstPromoBanner.subtitle
+                        }}</span>
                     </p>
 
                     <!-- CTA -->
@@ -996,55 +1040,76 @@ const demoState = computed(() => {
             class="relative overflow-hidden px-4 pt-24 pb-16 lg:px-8 lg:pt-28 lg:pb-20"
         >
             <!-- Ambient Backgrounds with smooth transitions -->
-            <div class="absolute inset-0 z-0 select-none pointer-events-none">
+            <div class="pointer-events-none absolute inset-0 z-0 select-none">
                 <Transition name="fade-bg">
-                    <div 
+                    <div
                         :key="heroIndex"
                         class="absolute inset-0 bg-cover bg-center transition-all duration-1000"
                         :style="{
-                            backgroundImage: activeSlides[heroIndex].gradient + ', url(' + activeSlides[heroIndex].image + ')'
+                            backgroundImage:
+                                activeSlides[heroIndex].gradient +
+                                ', url(' +
+                                activeSlides[heroIndex].image +
+                                ')',
                         }"
                     />
                 </Transition>
             </div>
 
-            <div class="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center relative z-10">
-                
+            <div
+                class="relative z-10 mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
+            >
                 <!-- Left Column: Premium Value Proposition & Feature Badges -->
-                <div class="relative min-h-[480px] sm:min-h-[420px] lg:min-h-[450px] flex flex-col justify-center">
+                <div
+                    class="relative flex min-h-[480px] flex-col justify-center sm:min-h-[420px] lg:min-h-[450px]"
+                >
                     <Transition :name="`slide-${heroDir}`">
-                        <div :key="heroIndex" class="absolute inset-0 flex flex-col justify-center w-full">
+                        <div
+                            :key="heroIndex"
+                            class="absolute inset-0 flex w-full flex-col justify-center"
+                        >
                             <!-- Amber Subtitle -->
-                            <span class="text-amber-400 font-extrabold tracking-wider mb-4 text-xs sm:text-sm uppercase block">
+                            <span
+                                class="mb-4 block text-xs font-extrabold tracking-wider text-amber-400 uppercase sm:text-sm"
+                            >
                                 {{ activeSlides[heroIndex].subtitle }}
                             </span>
-                            
+
                             <!-- Massive Headline -->
-                            <h1 class="max-w-2xl text-4xl font-extrabold tracking-tight lg:text-6xl text-white font-sans leading-[1.12]" v-html="activeSlides[heroIndex].title">
-                            </h1>
-                            
+                            <h1
+                                class="max-w-2xl font-sans text-4xl leading-[1.12] font-extrabold tracking-tight text-white lg:text-6xl"
+                                v-html="activeSlides[heroIndex].title"
+                            ></h1>
+
                             <!-- Description -->
-                            <p class="mt-6 max-w-xl text-base leading-relaxed text-zinc-300 lg:text-lg">
+                            <p
+                                class="mt-6 max-w-xl text-base leading-relaxed text-zinc-300 lg:text-lg"
+                            >
                                 {{ activeSlides[heroIndex].description }}
                             </p>
-                            
+
                             <!-- Glassmorphic Tag Badges in Travel layout style -->
                             <div class="mt-10 flex flex-wrap gap-3.5">
-                                <div 
-                                    v-for="(badge, idx) in activeSlides[heroIndex].badges"
+                                <div
+                                    v-for="(badge, idx) in activeSlides[
+                                        heroIndex
+                                    ].badges"
                                     :key="idx"
-                                    class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-lg hover:bg-white/10 transition-all duration-300"
+                                    class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-white/10 sm:text-sm"
                                 >
-                                    <span class="text-amber-400 text-sm">{{ badge.icon }}</span> {{ badge.label }}
+                                    <span class="text-sm text-amber-400">{{
+                                        badge.icon
+                                    }}</span>
+                                    {{ badge.label }}
                                 </div>
                             </div>
 
                             <!-- Slideshow Navigation Controls (Arrows & Dots) -->
                             <div class="mt-10 flex items-center gap-3.5">
                                 <!-- Prev button -->
-                                <button 
+                                <button
                                     @click="navHero('prev')"
-                                    class="flex items-center justify-center size-9 rounded-xl border border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/15 transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-sm"
+                                    class="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-400 backdrop-blur-sm transition-all duration-300 hover:bg-white/15 hover:text-white active:scale-95"
                                     aria-label="Previous Slide"
                                 >
                                     <ChevronLeft class="size-4" />
@@ -1056,16 +1121,20 @@ const demoState = computed(() => {
                                         v-for="(slide, idx) in activeSlides"
                                         :key="idx"
                                         @click="goHero(idx)"
-                                        class="h-2 rounded-full transition-all duration-300 cursor-pointer"
-                                        :class="heroIndex === idx ? 'w-7 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/50'"
+                                        class="h-2 cursor-pointer rounded-full transition-all duration-300"
+                                        :class="
+                                            heroIndex === idx
+                                                ? 'w-7 bg-amber-400'
+                                                : 'w-2 bg-white/30 hover:bg-white/50'
+                                        "
                                         :aria-label="`Go to slide ${idx + 1}`"
                                     />
                                 </div>
 
                                 <!-- Next button -->
-                                <button 
+                                <button
                                     @click="navHero('next')"
-                                    class="flex items-center justify-center size-9 rounded-xl border border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/15 transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-sm"
+                                    class="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-400 backdrop-blur-sm transition-all duration-300 hover:bg-white/15 hover:text-white active:scale-95"
                                     aria-label="Next Slide"
                                 >
                                     <ChevronRight class="size-4" />
@@ -1076,35 +1145,50 @@ const demoState = computed(() => {
                 </div>
 
                 <!-- Right Column: Interactive Live Demo widget styled in travel-glassmorphism -->
-                <div class="relative w-full max-w-lg mx-auto lg:ml-auto rounded-2xl border border-white/10 bg-zinc-950/75 backdrop-blur-xl shadow-2xl p-6 sm:p-8 transition-all duration-500 hover:border-amber-500/25">
-                    
+                <div
+                    class="relative mx-auto w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950/75 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:border-amber-500/25 sm:p-8 lg:ml-auto"
+                >
                     <!-- Header with Live Demo tag -->
-                    <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
+                    <div
+                        class="mb-5 flex items-center justify-between border-b border-white/10 pb-4"
+                    >
                         <div>
-                            <span class="text-xs text-amber-400 font-extrabold tracking-widest uppercase block mb-1">
+                            <span
+                                class="mb-1 block text-xs font-extrabold tracking-widest text-amber-400 uppercase"
+                            >
                                 Live demo
                             </span>
-                            <h2 class="text-2xl font-bold text-white tracking-tight">
+                            <h2
+                                class="text-2xl font-bold tracking-tight text-white"
+                            >
                                 {{ demoState.title }}
                             </h2>
                         </div>
-                        
+
                         <!-- Glowing Badge -->
-                        <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-bold text-amber-400 uppercase tracking-wider animate-pulse">
-                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                        <span
+                            class="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-bold tracking-wider text-amber-400 uppercase"
+                        >
+                            <span
+                                class="h-1.5 w-1.5 rounded-full bg-amber-500"
+                            ></span>
                             Interactive
                         </span>
                     </div>
-                    
+
                     <!-- Navigation Tab triggers -->
-                    <div class="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
+                    <div
+                        class="flex gap-2 rounded-xl border border-white/10 bg-white/5 p-1.5"
+                    >
                         <button
                             v-for="tab in demoTabs"
                             :key="tab.key"
                             class="flex-1 cursor-pointer rounded-lg py-2.5 text-xs font-bold transition-all duration-300"
-                            :class="activeDemo === tab.key
-                                ? 'bg-amber-500 text-zinc-950 shadow-lg font-extrabold scale-[1.02]'
-                                : 'text-zinc-300 hover:bg-white/10 hover:text-white'"
+                            :class="
+                                activeDemo === tab.key
+                                    ? 'scale-[1.02] bg-amber-500 font-extrabold text-zinc-950 shadow-lg'
+                                    : 'text-zinc-300 hover:bg-white/10 hover:text-white'
+                            "
                             @click="activeDemo = tab.key"
                         >
                             {{ tab.label }}
@@ -1112,163 +1196,340 @@ const demoState = computed(() => {
                     </div>
 
                     <!-- Flow Realtime Visual Dashboard Panel -->
-                    <div class="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 shadow-inner">
+                    <div
+                        class="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 shadow-inner"
+                    >
                         <!-- Panel header -->
-                        <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                        <div
+                            class="mb-4 flex items-center justify-between border-b border-white/10 pb-3"
+                        >
                             <div class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
-                                <span class="text-xs font-bold text-white uppercase tracking-wider">
-                                    {{ activeDemo === 'pos' ? 'POS Checkout' : activeDemo === 'kds' ? 'Màn hình Bếp KDS' : 'Báo cáo thông minh' }}
+                                <span
+                                    class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
+                                ></span>
+                                <span
+                                    class="text-xs font-bold tracking-wider text-white uppercase"
+                                >
+                                    {{
+                                        activeDemo === 'pos'
+                                            ? 'POS Checkout'
+                                            : activeDemo === 'kds'
+                                              ? 'Màn hình Bếp KDS'
+                                              : 'Báo cáo thông minh'
+                                    }}
                                 </span>
                             </div>
-                            <span class="text-[10px] font-bold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/10">
+                            <span
+                                class="rounded border border-amber-500/10 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold tracking-widest text-amber-400 uppercase"
+                            >
                                 Realtime
                             </span>
                         </div>
-                        
+
                         <!-- TAB 1: POS Checkout Visual Mockup -->
-                        <div v-if="activeDemo === 'pos'" class="grid gap-3 sm:grid-cols-2">
+                        <div
+                            v-if="activeDemo === 'pos'"
+                            class="grid gap-3 sm:grid-cols-2"
+                        >
                             <!-- POS Bill summary -->
-                            <div class="relative space-y-3.5 rounded-xl bg-zinc-950/40 border border-white/10 p-4 text-xs flex flex-col justify-between h-[125px] sm:h-[145px]">
+                            <div
+                                class="relative flex h-[125px] flex-col justify-between space-y-3.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
+                            >
                                 <div class="space-y-2">
-                                    <div class="flex items-center justify-between text-zinc-400">
+                                    <div
+                                        class="flex items-center justify-between text-zinc-400"
+                                    >
                                         <span>Bàn phục vụ:</span>
-                                        <span class="font-bold text-white bg-white/10 px-2 py-0.5 rounded text-[10px]">Bàn 12</span>
+                                        <span
+                                            class="rounded bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white"
+                                            >Bàn 12</span
+                                        >
                                     </div>
-                                    <div class="flex items-center justify-between text-zinc-400">
+                                    <div
+                                        class="flex items-center justify-between text-zinc-400"
+                                    >
                                         <span>Số lượng món:</span>
-                                        <span class="font-bold text-white">03 món</span>
+                                        <span class="font-bold text-white"
+                                            >03 món</span
+                                        >
                                     </div>
                                 </div>
-                                
+
                                 <!-- Receipt decorative dots line -->
-                                <div class="border-t border-dashed border-white/20 my-1"></div>
-                                
+                                <div
+                                    class="my-1 border-t border-dashed border-white/20"
+                                ></div>
+
                                 <div class="flex items-center justify-between">
-                                    <span class="text-zinc-400 font-medium">Tổng tiền:</span>
-                                    <span class="text-lg font-extrabold text-amber-400 tracking-tight">168.000đ</span>
+                                    <span class="font-medium text-zinc-400"
+                                        >Tổng tiền:</span
+                                    >
+                                    <span
+                                        class="text-lg font-extrabold tracking-tight text-amber-400"
+                                        >168.000đ</span
+                                    >
                                 </div>
                             </div>
-                            
+
                             <!-- POS Order list details -->
-                            <div class="space-y-2.5 rounded-xl bg-zinc-950/40 border border-white/10 p-4 text-xs h-[125px] sm:h-[145px] flex flex-col justify-between">
+                            <div
+                                class="flex h-[125px] flex-col justify-between space-y-2.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
+                            >
                                 <div class="space-y-2">
-                                    <div class="flex items-center justify-between text-zinc-200 py-1 border-b border-white/5">
-                                        <span class="flex items-center gap-1.5"><span class="text-amber-400">🍜</span> Phở bò tái</span>
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/10">x2</span>
+                                    <div
+                                        class="flex items-center justify-between border-b border-white/5 py-1 text-zinc-200"
+                                    >
+                                        <span class="flex items-center gap-1.5"
+                                            ><span class="text-amber-400"
+                                                >🍜</span
+                                            >
+                                            Phở bò tái</span
+                                        >
+                                        <span
+                                            class="rounded border border-indigo-500/10 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400"
+                                            >x2</span
+                                        >
                                     </div>
-                                    <div class="flex items-center justify-between text-zinc-200 py-1 border-b border-white/5">
-                                        <span class="flex items-center gap-1.5"><span class="text-amber-400">🍋</span> Trà chanh</span>
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/10">x1</span>
+                                    <div
+                                        class="flex items-center justify-between border-b border-white/5 py-1 text-zinc-200"
+                                    >
+                                        <span class="flex items-center gap-1.5"
+                                            ><span class="text-amber-400"
+                                                >🍋</span
+                                            >
+                                            Trà chanh</span
+                                        >
+                                        <span
+                                            class="rounded border border-indigo-500/10 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400"
+                                            >x1</span
+                                        >
                                     </div>
                                 </div>
-                                <div class="flex items-center justify-between pt-1">
-                                    <span class="font-semibold text-zinc-400">Thanh toán</span>
-                                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 tracking-wide uppercase">Hoàn tất</span>
+                                <div
+                                    class="flex items-center justify-between pt-1"
+                                >
+                                    <span class="font-semibold text-zinc-400"
+                                        >Thanh toán</span
+                                    >
+                                    <span
+                                        class="rounded-full border border-emerald-500/25 bg-emerald-500/20 px-2.5 py-0.5 text-[9px] font-extrabold tracking-wide text-emerald-400 uppercase"
+                                        >Hoàn tất</span
+                                    >
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- TAB 2: KDS Kitchen Board Visual Mockup -->
-                        <div v-else-if="activeDemo === 'kds'" class="grid gap-3 sm:grid-cols-2">
+                        <div
+                            v-else-if="activeDemo === 'kds'"
+                            class="grid gap-3 sm:grid-cols-2"
+                        >
                             <!-- KDS stats metrics card -->
-                            <div class="space-y-3 rounded-xl bg-zinc-950/40 border border-white/10 p-4 text-xs h-[125px] sm:h-[145px] flex flex-col justify-between">
-                                <div class="flex items-center justify-between py-1 border-b border-white/5">
-                                    <span class="text-zinc-400 font-medium">Order chờ chế biến:</span>
-                                    <span class="font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded text-[10px] animate-pulse">2 đơn</span>
+                            <div
+                                class="flex h-[125px] flex-col justify-between space-y-3 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
+                            >
+                                <div
+                                    class="flex items-center justify-between border-b border-white/5 py-1"
+                                >
+                                    <span class="font-medium text-zinc-400"
+                                        >Order chờ chế biến:</span
+                                    >
+                                    <span
+                                        class="animate-pulse rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-500"
+                                        >2 đơn</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between py-1 border-b border-white/5">
-                                    <span class="text-zinc-400 font-medium">Đang chế biến:</span>
-                                    <span class="font-bold text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded text-[10px]">1 đơn</span>
+                                <div
+                                    class="flex items-center justify-between border-b border-white/5 py-1"
+                                >
+                                    <span class="font-medium text-zinc-400"
+                                        >Đang chế biến:</span
+                                    >
+                                    <span
+                                        class="rounded bg-sky-400/10 px-2 py-0.5 text-[10px] font-bold text-sky-400"
+                                        >1 đơn</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between pt-1">
-                                    <span class="text-zinc-400 font-medium">Trễ thời gian (SLA):</span>
-                                    <span class="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px]">0 đơn</span>
+                                <div
+                                    class="flex items-center justify-between pt-1"
+                                >
+                                    <span class="font-medium text-zinc-400"
+                                        >Trễ thời gian (SLA):</span
+                                    >
+                                    <span
+                                        class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400"
+                                        >0 đơn</span
+                                    >
                                 </div>
                             </div>
-                            
+
                             <!-- KDS cooking ticket list -->
-                            <div class="space-y-2 rounded-xl bg-zinc-950/40 border border-white/10 p-3 text-[11px] leading-normal h-[125px] sm:h-[145px] flex flex-col justify-between">
-                                <div class="flex items-center justify-between p-1.5 rounded bg-white/5 border border-white/5">
-                                    <span class="text-white font-bold">1. Bún bò Huế</span>
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">Đang làm</span>
+                            <div
+                                class="flex h-[125px] flex-col justify-between space-y-2 rounded-xl border border-white/10 bg-zinc-950/40 p-3 text-[11px] leading-normal sm:h-[145px]"
+                            >
+                                <div
+                                    class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
+                                >
+                                    <span class="font-bold text-white"
+                                        >1. Bún bò Huế</span
+                                    >
+                                    <span
+                                        class="rounded border border-amber-500/20 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-400"
+                                        >Đang làm</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between p-1.5 rounded bg-white/5 border border-white/5">
-                                    <span class="text-white font-bold">2. Cơm gà chiên</span>
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/25">Sẵn sàng</span>
+                                <div
+                                    class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
+                                >
+                                    <span class="font-bold text-white"
+                                        >2. Cơm gà chiên</span
+                                    >
+                                    <span
+                                        class="rounded border border-emerald-500/25 bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-400"
+                                        >Sẵn sàng</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between p-1.5 rounded bg-white/5 border border-white/5">
-                                    <span class="text-zinc-300 font-bold">3. Trà đào cam sả</span>
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-white/10 text-zinc-300 border border-white/10">In bill</span>
+                                <div
+                                    class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
+                                >
+                                    <span class="font-bold text-zinc-300"
+                                        >3. Trà đào cam sả</span
+                                    >
+                                    <span
+                                        class="rounded border border-white/10 bg-white/10 px-2 py-0.5 text-[9px] font-bold text-zinc-300"
+                                        >In bill</span
+                                    >
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- TAB 3: Executive Analytics Report Visual Mockup -->
-                        <div v-else-if="activeDemo === 'report'" class="grid gap-3 sm:grid-cols-2">
+                        <div
+                            v-else-if="activeDemo === 'report'"
+                            class="grid gap-3 sm:grid-cols-2"
+                        >
                             <!-- Report metrics KPI -->
-                            <div class="space-y-3.5 rounded-xl bg-zinc-950/40 border border-white/10 p-4 text-xs h-[125px] sm:h-[145px] flex flex-col justify-between">
+                            <div
+                                class="flex h-[125px] flex-col justify-between space-y-3.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
+                            >
                                 <div class="flex items-center gap-2">
-                                    <span class="text-amber-400 text-sm">💰</span>
+                                    <span class="text-sm text-amber-400"
+                                        >💰</span
+                                    >
                                     <div class="flex flex-col">
-                                        <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Doanh thu trong ngày</span>
-                                        <span class="text-base font-extrabold text-white">12,8M VNĐ</span>
+                                        <span
+                                            class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
+                                            >Doanh thu trong ngày</span
+                                        >
+                                        <span
+                                            class="text-base font-extrabold text-white"
+                                            >12,8M VNĐ</span
+                                        >
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2 border-t border-white/5 pt-2">
-                                    <span class="text-emerald-400 text-sm">📈</span>
+                                <div
+                                    class="flex items-center gap-2 border-t border-white/5 pt-2"
+                                >
+                                    <span class="text-sm text-emerald-400"
+                                        >📈</span
+                                    >
                                     <div class="flex flex-col">
-                                        <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Hoàn thành order</span>
-                                        <span class="text-xs font-bold text-white">98% (SLA tốt)</span>
+                                        <span
+                                            class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
+                                            >Hoàn thành order</span
+                                        >
+                                        <span
+                                            class="text-xs font-bold text-white"
+                                            >98% (SLA tốt)</span
+                                        >
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2 border-t border-white/5 pt-2">
-                                    <span class="text-rose-400 text-sm">🏆</span>
+                                <div
+                                    class="flex items-center gap-2 border-t border-white/5 pt-2"
+                                >
+                                    <span class="text-sm text-rose-400"
+                                        >🏆</span
+                                    >
                                     <div class="flex flex-col">
-                                        <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Món bán chạy nhất</span>
-                                        <span class="text-xs font-bold text-amber-400">Phở bò tái nạm</span>
+                                        <span
+                                            class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
+                                            >Món bán chạy nhất</span
+                                        >
+                                        <span
+                                            class="text-xs font-bold text-amber-400"
+                                            >Phở bò tái nạm</span
+                                        >
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- AI and Audit Signals -->
-                            <div class="space-y-2 rounded-xl bg-zinc-950/40 border border-white/10 p-3 text-xs leading-normal h-[125px] sm:h-[145px] flex flex-col justify-between">
-                                <div class="flex items-center justify-between p-1.5 border-b border-white/5 text-zinc-200">
-                                    <span class="flex items-center gap-1.5">⚡ Cao điểm</span>
-                                    <span class="font-bold text-sky-400">11:30 - 13:30</span>
+                            <div
+                                class="flex h-[125px] flex-col justify-between space-y-2 rounded-xl border border-white/10 bg-zinc-950/40 p-3 text-xs leading-normal sm:h-[145px]"
+                            >
+                                <div
+                                    class="flex items-center justify-between border-b border-white/5 p-1.5 text-zinc-200"
+                                >
+                                    <span class="flex items-center gap-1.5"
+                                        >⚡ Cao điểm</span
+                                    >
+                                    <span class="font-bold text-sky-400"
+                                        >11:30 - 13:30</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between p-1.5 border-b border-white/5 text-zinc-200">
-                                    <span class="flex items-center gap-1.5">⚠️ Kho tồn</span>
-                                    <span class="font-bold text-rose-400">2 nguyên liệu thấp</span>
+                                <div
+                                    class="flex items-center justify-between border-b border-white/5 p-1.5 text-zinc-200"
+                                >
+                                    <span class="flex items-center gap-1.5"
+                                        >⚠️ Kho tồn</span
+                                    >
+                                    <span class="font-bold text-rose-400"
+                                        >2 nguyên liệu thấp</span
+                                    >
                                 </div>
-                                <div class="flex items-center justify-between p-1.5 text-zinc-200">
-                                    <span class="flex items-center gap-1.5">🔒 Tra soát</span>
-                                    <span class="font-bold text-amber-400">1 thay đổi giá</span>
+                                <div
+                                    class="flex items-center justify-between p-1.5 text-zinc-200"
+                                >
+                                    <span class="flex items-center gap-1.5"
+                                        >🔒 Tra soát</span
+                                    >
+                                    <span class="font-bold text-amber-400"
+                                        >1 thay đổi giá</span
+                                    >
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- CTA button at the bottom of the widget -->
-                    <div class="mt-6 pt-2 border-t border-white/10">
-                        <Button as-child size="lg" class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-zinc-950 font-extrabold py-4 text-xs tracking-wider uppercase shadow-lg shadow-amber-500/20 active:scale-95 transition-all duration-300">
-                            <Link :href="register()">Đăng ký dùng thử miễn phí</Link>
+                    <div class="mt-6 border-t border-white/10 pt-2">
+                        <Button
+                            as-child
+                            size="lg"
+                            class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 py-4 text-xs font-extrabold tracking-wider text-zinc-950 uppercase shadow-lg shadow-amber-500/20 transition-all duration-300 hover:from-amber-600 hover:to-yellow-700 active:scale-95"
+                        >
+                            <Link :href="register()"
+                                >Đăng ký dùng thử miễn phí</Link
+                            >
                         </Button>
                     </div>
-
                 </div>
-                
             </div>
         </section>
 
         <!-- ── Cách hoạt động ─────────────────────────────────── -->
-        <section class="px-4 py-10 lg:py-12 lg:px-8">
+        <section class="px-4 py-10 lg:px-8 lg:py-12">
             <div class="mx-auto max-w-7xl">
                 <div class="text-center">
-                    <Badge variant="outline" class="mb-3">3 bước đơn giản</Badge>
-                    <h2 class="text-3xl font-semibold">Bắt đầu trong 30 phút</h2>
+                    <Badge variant="outline" class="mb-3"
+                        >3 bước đơn giản</Badge
+                    >
+                    <h2 class="text-3xl font-semibold">
+                        Bắt đầu trong 30 phút
+                    </h2>
                     <p class="mx-auto mt-3 max-w-xl text-muted-foreground">
-                        Không cần cài đặt phức tạp. Từ đăng ký đến vận hành thật chỉ với 3 bước.
+                        Không cần cài đặt phức tạp. Từ đăng ký đến vận hành thật
+                        chỉ với 3 bước.
                     </p>
                 </div>
                 <div class="relative mt-10 grid gap-4 md:grid-cols-3">
@@ -1281,16 +1542,29 @@ const demoState = computed(() => {
                         <!-- Connector arrow -->
                         <div
                             v-if="i < 2"
-                            class="absolute -right-2.5 top-1/2 z-10 hidden -translate-y-1/2 md:block"
+                            class="absolute top-1/2 -right-2.5 z-10 hidden -translate-y-1/2 md:block"
                         >
-                            <ChevronRight class="size-5 text-muted-foreground" />
+                            <ChevronRight
+                                class="size-5 text-muted-foreground"
+                            />
                         </div>
-                        <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
+                        <div
+                            class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105"
+                        >
                             <component :is="step.icon" class="size-7" />
                         </div>
-                        <span class="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bước {{ step.step }}</span>
-                        <h3 class="mb-2 text-base font-semibold">{{ step.title }}</h3>
-                        <p class="text-sm leading-relaxed text-muted-foreground">{{ step.description }}</p>
+                        <span
+                            class="mb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                            >Bước {{ step.step }}</span
+                        >
+                        <h3 class="mb-2 text-base font-semibold">
+                            {{ step.title }}
+                        </h3>
+                        <p
+                            class="text-sm leading-relaxed text-muted-foreground"
+                        >
+                            {{ step.description }}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -1298,7 +1572,7 @@ const demoState = computed(() => {
 
         <section
             id="features"
-            class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-10 lg:py-12 lg:px-8"
+            class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-10 lg:px-8 lg:py-12"
         >
             <!-- Decorative subtle background grids or glows -->
             <div
@@ -1904,17 +2178,31 @@ const demoState = computed(() => {
         </section>
 
         <!-- ── Tin tức mới nhất ──────────────────────────────────────── -->
-        <section v-if="latestNewsList.length > 0" id="news" class="px-4 py-10 lg:py-12 lg:px-8">
+        <section
+            v-if="latestNewsList.length > 0"
+            id="news"
+            class="px-4 py-10 lg:px-8 lg:py-12"
+        >
             <div class="mx-auto max-w-7xl">
                 <div class="flex items-end justify-between">
                     <div class="max-w-2xl">
-                        <Badge variant="outline" class="mb-3 border-primary/30 bg-primary/5 text-primary">Tin tức</Badge>
-                        <h2 class="text-3xl font-semibold">Tin tức & Cập nhật</h2>
+                        <Badge
+                            variant="outline"
+                            class="mb-3 border-primary/30 bg-primary/5 text-primary"
+                            >Tin tức</Badge
+                        >
+                        <h2 class="text-3xl font-semibold">
+                            Tin tức & Cập nhật
+                        </h2>
                         <p class="mt-3 text-muted-foreground">
-                            Những bài viết mới nhất về Aventura, nhà hàng và ngành dịch vụ ăn uống.
+                            Những bài viết mới nhất về Aventura, nhà hàng và
+                            ngành dịch vụ ăn uống.
                         </p>
                     </div>
-                    <Link href="/tin-tuc" class="hidden shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline sm:flex">
+                    <Link
+                        href="/tin-tuc"
+                        class="hidden shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline sm:flex"
+                    >
                         Xem tất cả <ChevronRight class="size-4" />
                     </Link>
                 </div>
@@ -1939,29 +2227,49 @@ const demoState = computed(() => {
             </div>
         </section>
 
-        <section id="pricing" class="px-4 py-10 lg:py-12 lg:px-8">
+        <section id="pricing" class="px-4 py-10 lg:px-8 lg:py-12">
             <div class="mx-auto max-w-7xl">
-                <div class="reveal-on-scroll flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-full">
+                <div
+                    class="reveal-on-scroll flex max-w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+                >
                     <div class="max-w-2xl">
-                        <h2 class="text-3xl font-semibold">Gói dịch vụ linh hoạt</h2>
+                        <h2 class="text-3xl font-semibold">
+                            Gói dịch vụ linh hoạt
+                        </h2>
                         <p class="mt-3 text-muted-foreground">
-                            Từ quán nhỏ đến chuỗi lớn — chọn gói phù hợp và nâng cấp bất kỳ lúc nào mà không mất dữ liệu.
+                            Từ quán nhỏ đến chuỗi lớn — chọn gói phù hợp và nâng
+                            cấp bất kỳ lúc nào mà không mất dữ liệu.
                         </p>
                     </div>
                     <!-- Billing toggle -->
-                    <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 text-sm shrink-0 self-start sm:self-auto">
+                    <div
+                        class="flex shrink-0 items-center gap-1 self-start rounded-xl border border-border bg-muted p-1 text-sm sm:self-auto"
+                    >
                         <button
                             @click="billingCycle = 'monthly'"
                             class="rounded-lg px-4 py-1.5 font-medium transition-all"
-                            :class="billingCycle === 'monthly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
-                        >Tháng</button>
+                            :class="
+                                billingCycle === 'monthly'
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            "
+                        >
+                            Tháng
+                        </button>
                         <button
                             @click="billingCycle = 'yearly'"
-                            class="rounded-lg px-4 py-1.5 font-medium transition-all flex items-center gap-1.5"
-                            :class="billingCycle === 'yearly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                            class="flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-medium transition-all"
+                            :class="
+                                billingCycle === 'yearly'
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            "
                         >
                             Năm
-                            <span class="text-[10px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+                            <span
+                                class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                >-20%</span
+                            >
                         </button>
                     </div>
                 </div>
@@ -2006,13 +2314,17 @@ const demoState = computed(() => {
                                     >VIP</Badge
                                 >
                             </div>
-                            <div class="mt-2 flex items-end gap-1 min-h-[40px]">
+                            <div class="mt-2 flex min-h-[40px] items-end gap-1">
                                 <Transition name="pricing-fade" mode="out-in">
-                                    <div :key="plan.price" class="flex items-end gap-1">
+                                    <div
+                                        :key="plan.price"
+                                        class="flex items-end gap-1"
+                                    >
                                         <span
                                             class="text-3xl font-extrabold text-foreground"
                                             :class="{
-                                                'text-primary': plan.isRecommended,
+                                                'text-primary':
+                                                    plan.isRecommended,
                                                 'text-violet-500':
                                                     plan.code === 'ultra',
                                             }"
@@ -2083,74 +2395,137 @@ const demoState = computed(() => {
         </section>
 
         <!-- ── Testimonials (Premium Redesign) ──────────────────────────────────────── -->
-        <section class="relative overflow-hidden border-y border-border/80 bg-gradient-to-b from-muted/10 via-muted/30 to-muted/10 px-4 py-8 lg:py-10 lg:px-8">
+        <section
+            class="relative overflow-hidden border-y border-border/80 bg-gradient-to-b from-muted/10 via-muted/30 to-muted/10 px-4 py-8 lg:px-8 lg:py-10"
+        >
             <!-- Hiệu ứng ánh sáng nền (Glow Effect) -->
-            <div class="pointer-events-none absolute top-1/2 left-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/5 blur-[140px]"></div>
-            <div class="pointer-events-none absolute top-1/2 right-1/4 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[140px]"></div>
+            <div
+                class="pointer-events-none absolute top-1/2 left-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/5 blur-[140px]"
+            ></div>
+            <div
+                class="pointer-events-none absolute top-1/2 right-1/4 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[140px]"
+            ></div>
 
-            <div class="mx-auto max-w-7xl relative z-10">
-                <div class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-                    
+            <div class="relative z-10 mx-auto max-w-7xl">
+                <div
+                    class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center"
+                >
                     <!-- CỘT TRÁI: Tiêu đề & Đánh giá tổng quan -->
                     <div class="space-y-8">
                         <div class="space-y-4">
-                            <Badge variant="outline" class="border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
+                            <Badge
+                                variant="outline"
+                                class="border-amber-500/30 bg-amber-500/5 px-3 py-1 text-xs font-semibold tracking-wider text-amber-600 uppercase dark:text-amber-400"
+                            >
                                 Khách hàng nói gì
                             </Badge>
-                            <h2 class="text-4xl font-extrabold tracking-tight lg:text-5xl leading-[1.1] text-zinc-950 dark:text-zinc-50">
+                            <h2
+                                class="text-4xl leading-[1.1] font-extrabold tracking-tight text-zinc-950 lg:text-5xl dark:text-zinc-50"
+                            >
                                 Được tin dùng bởi <br />
                                 chủ quán thực tế
                             </h2>
-                            <p class="text-base text-muted-foreground leading-relaxed max-w-md">
-                                Xem các câu chuyện thành công từ những nhà hàng đang tối ưu vận hành và đột phá doanh thu mỗi ngày cùng Aventura.
+                            <p
+                                class="max-w-md text-base leading-relaxed text-muted-foreground"
+                            >
+                                Xem các câu chuyện thành công từ những nhà hàng
+                                đang tối ưu vận hành và đột phá doanh thu mỗi
+                                ngày cùng Aventura.
                             </p>
                         </div>
 
                         <!-- Thẻ đánh giá tổng hợp (Social Proof) -->
-                        <div class="flex items-center gap-5 rounded-3xl border border-white/20 dark:border-zinc-800/40 bg-white/40 dark:bg-zinc-950/40 backdrop-blur-md p-5 shadow-xl w-fit transition-all duration-300 hover:shadow-2xl">
-                            <div class="bg-amber-500/10 text-amber-500 rounded-2xl p-3 flex flex-col items-center justify-center min-w-[75px] shadow-sm">
-                                <span class="text-3xl font-extrabold tracking-tight">4.9</span>
-                                <div class="flex gap-0.5 mt-1">
-                                    <Star class="size-3 fill-amber-500 text-amber-500" v-for="i in 5" :key="i" />
+                        <div
+                            class="flex w-fit items-center gap-5 rounded-3xl border border-white/20 bg-white/40 p-5 shadow-xl backdrop-blur-md transition-all duration-300 hover:shadow-2xl dark:border-zinc-800/40 dark:bg-zinc-950/40"
+                        >
+                            <div
+                                class="flex min-w-[75px] flex-col items-center justify-center rounded-2xl bg-amber-500/10 p-3 text-amber-500 shadow-sm"
+                            >
+                                <span
+                                    class="text-3xl font-extrabold tracking-tight"
+                                    >4.9</span
+                                >
+                                <div class="mt-1 flex gap-0.5">
+                                    <Star
+                                        class="size-3 fill-amber-500 text-amber-500"
+                                        v-for="i in 5"
+                                        :key="i"
+                                    />
                                 </div>
                             </div>
                             <div class="space-y-1.5">
                                 <div class="flex -space-x-3">
-                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-indigo-500 to-purple-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">TH</div>
-                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-emerald-400 to-teal-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">NH</div>
-                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-gradient-to-br from-amber-400 to-orange-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">QB</div>
-                                    <div class="size-8 rounded-full border-2 border-white dark:border-zinc-900 bg-zinc-800 text-[9px] font-bold text-zinc-400 flex items-center justify-center shadow-sm">+200</div>
+                                    <div
+                                        class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-indigo-500 to-purple-600 text-[10px] font-bold text-white shadow-sm dark:border-zinc-900"
+                                    >
+                                        TH
+                                    </div>
+                                    <div
+                                        class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-emerald-400 to-teal-600 text-[10px] font-bold text-white shadow-sm dark:border-zinc-900"
+                                    >
+                                        NH
+                                    </div>
+                                    <div
+                                        class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-400 to-orange-600 text-[10px] font-bold text-white shadow-sm dark:border-zinc-900"
+                                    >
+                                        QB
+                                    </div>
+                                    <div
+                                        class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-zinc-800 text-[9px] font-bold text-zinc-400 shadow-sm dark:border-zinc-900"
+                                    >
+                                        +200
+                                    </div>
                                 </div>
-                                <p class="text-xs text-muted-foreground font-semibold flex items-center gap-1">
-                                    Hơn <span class="text-zinc-950 dark:text-zinc-200 font-extrabold">200+ chủ quán</span> tin cậy vận hành
+                                <p
+                                    class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                                >
+                                    Hơn
+                                    <span
+                                        class="font-extrabold text-zinc-950 dark:text-zinc-200"
+                                        >200+ chủ quán</span
+                                    >
+                                    tin cậy vận hành
                                 </p>
                             </div>
                         </div>
 
                         <!-- Điều hướng (Prev / Next Buttons) -->
                         <div class="flex items-center gap-4 pt-2">
-                            <button 
-                                @click="prevTestimonial(); resetTestimonialAutoplay();"
-                                class="flex size-11 items-center justify-center rounded-full border border-border bg-card hover:bg-zinc-950 hover:text-white dark:hover:bg-white dark:hover:text-zinc-950 transition-all duration-300 active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
+                            <button
+                                @click="
+                                    prevTestimonial();
+                                    resetTestimonialAutoplay();
+                                "
+                                class="flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-card shadow-md transition-all duration-300 hover:bg-zinc-950 hover:text-white hover:shadow-lg active:scale-95 dark:hover:bg-white dark:hover:text-zinc-950"
                                 aria-label="Trước"
                             >
                                 <ChevronLeft class="size-5" />
                             </button>
-                            
+
                             <!-- Dấu chấm tròn (Indicator dots) -->
-                            <div class="flex gap-2 mx-1">
+                            <div class="mx-1 flex gap-2">
                                 <button
                                     v-for="(t, idx) in testimonials"
                                     :key="idx"
-                                    @click="activeTestimonialIdx = idx; resetTestimonialAutoplay();"
-                                    class="h-2.5 rounded-full transition-all duration-300 cursor-pointer"
-                                    :class="activeTestimonialIdx === idx ? 'w-8 bg-amber-500' : 'w-2.5 bg-zinc-300 dark:bg-zinc-800 hover:bg-zinc-400 dark:hover:bg-zinc-700'"
+                                    @click="
+                                        activeTestimonialIdx = idx;
+                                        resetTestimonialAutoplay();
+                                    "
+                                    class="h-2.5 cursor-pointer rounded-full transition-all duration-300"
+                                    :class="
+                                        activeTestimonialIdx === idx
+                                            ? 'w-8 bg-amber-500'
+                                            : 'w-2.5 bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                                    "
                                 />
                             </div>
 
-                            <button 
-                                @click="nextTestimonial(); resetTestimonialAutoplay();"
-                                class="flex size-11 items-center justify-center rounded-full border border-border bg-card hover:bg-zinc-950 hover:text-white dark:hover:bg-white dark:hover:text-zinc-950 transition-all duration-300 active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
+                            <button
+                                @click="
+                                    nextTestimonial();
+                                    resetTestimonialAutoplay();
+                                "
+                                class="flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-card shadow-md transition-all duration-300 hover:bg-zinc-950 hover:text-white hover:shadow-lg active:scale-95 dark:hover:bg-white dark:hover:text-zinc-950"
                                 aria-label="Sau"
                             >
                                 <ChevronRight class="size-5" />
@@ -2159,52 +2534,100 @@ const demoState = computed(() => {
                     </div>
 
                     <!-- CỘT PHẢI: Thẻ bình luận tâm điểm có chuyển động -->
-                    <div class="relative min-h-[320px] sm:min-h-[260px] flex items-center">
+                    <div
+                        class="relative flex min-h-[320px] items-center sm:min-h-[260px]"
+                    >
                         <Transition name="testimonial-fade" mode="out-in">
-                            <div 
+                            <div
                                 :key="activeTestimonialIdx"
                                 @mouseenter="stopTestimonialAutoplay"
                                 @mouseleave="startTestimonialAutoplay"
-                                class="group relative w-full rounded-3xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-8 sm:p-10 shadow-2xl transition-all duration-500 hover:border-amber-500/20 hover:shadow-amber-500/5"
+                                class="group relative w-full rounded-3xl border border-zinc-200/80 bg-white p-8 shadow-2xl transition-all duration-500 hover:border-amber-500/20 hover:shadow-amber-500/5 sm:p-10 dark:border-zinc-800/80 dark:bg-zinc-950"
                             >
                                 <!-- Ký tự dấu nháy kép lớn ẩn phía sau -->
-                                <span class="absolute top-4 right-8 font-serif text-[150px] leading-none text-zinc-200/40 dark:text-zinc-800/20 select-none pointer-events-none group-hover:text-amber-500/5 transition-colors">“</span>
+                                <span
+                                    class="pointer-events-none absolute top-4 right-8 font-serif text-[150px] leading-none text-zinc-200/40 transition-colors select-none group-hover:text-amber-500/5 dark:text-zinc-800/20"
+                                    >“</span
+                                >
 
-                                <div class="relative z-10 flex flex-col h-full justify-between gap-6">
+                                <div
+                                    class="relative z-10 flex h-full flex-col justify-between gap-6"
+                                >
                                     <!-- Đánh giá Star & Nhãn Verified -->
-                                    <div class="flex items-center justify-between flex-wrap gap-2 pb-2">
+                                    <div
+                                        class="flex flex-wrap items-center justify-between gap-2 pb-2"
+                                    >
                                         <div class="flex gap-1">
-                                            <Star 
-                                                v-for="s in testimonials[activeTestimonialIdx].stars" 
-                                                :key="s" 
-                                                class="size-5 fill-amber-400 text-amber-400" 
+                                            <Star
+                                                v-for="s in testimonials[
+                                                    activeTestimonialIdx
+                                                ].stars"
+                                                :key="s"
+                                                class="size-5 fill-amber-400 text-amber-400"
                                             />
                                         </div>
-                                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide shadow-sm">
-                                            <ShieldCheck class="size-3.5 text-emerald-500" />
+                                        <span
+                                            class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold tracking-wide text-emerald-600 uppercase shadow-sm dark:text-emerald-400"
+                                        >
+                                            <ShieldCheck
+                                                class="size-3.5 text-emerald-500"
+                                            />
                                             Chủ quán đã xác thực
                                         </span>
                                     </div>
 
                                     <!-- Nội dung phản hồi -->
-                                    <p class="text-xl sm:text-2xl font-bold leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-100 font-sans">
-                                        “{{ testimonials[activeTestimonialIdx].text }}”
+                                    <p
+                                        class="font-sans text-xl leading-relaxed font-bold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100"
+                                    >
+                                        “{{
+                                            testimonials[activeTestimonialIdx]
+                                                .text
+                                        }}”
                                     </p>
 
                                     <!-- Thông tin người dùng -->
-                                    <div class="flex items-center gap-4 border-t border-zinc-100 dark:border-zinc-900 pt-6">
+                                    <div
+                                        class="flex items-center gap-4 border-t border-zinc-100 pt-6 dark:border-zinc-900"
+                                    >
                                         <!-- Avatar tròn có gradient màu ngẫu nhiên/theo index -->
-                                        <div 
+                                        <div
                                             class="flex size-14 shrink-0 items-center justify-center rounded-full font-bold shadow-md ring-4 ring-zinc-50 dark:ring-zinc-900"
-                                            :class="getAvatarGradient(activeTestimonialIdx)"
+                                            :class="
+                                                getAvatarGradient(
+                                                    activeTestimonialIdx,
+                                                )
+                                            "
                                         >
-                                            {{ getInitials(testimonials[activeTestimonialIdx].name) }}
+                                            {{
+                                                getInitials(
+                                                    testimonials[
+                                                        activeTestimonialIdx
+                                                    ].name,
+                                                )
+                                            }}
                                         </div>
                                         <div>
-                                            <h4 class="text-lg font-bold text-zinc-900 dark:text-zinc-50 leading-tight">{{ testimonials[activeTestimonialIdx].name }}</h4>
-                                            <p class="text-xs text-muted-foreground mt-1 font-semibold flex items-center gap-1.5">
-                                                <span class="inline-block size-2 bg-amber-500/80 rounded-full"></span>
-                                                {{ testimonials[activeTestimonialIdx].restaurant }}
+                                            <h4
+                                                class="text-lg leading-tight font-bold text-zinc-900 dark:text-zinc-50"
+                                            >
+                                                {{
+                                                    testimonials[
+                                                        activeTestimonialIdx
+                                                    ].name
+                                                }}
+                                            </h4>
+                                            <p
+                                                class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"
+                                            >
+                                                <span
+                                                    class="inline-block size-2 rounded-full bg-amber-500/80"
+                                                ></span>
+                                                {{
+                                                    testimonials[
+                                                        activeTestimonialIdx
+                                                    ].restaurant
+                                                }}
                                             </p>
                                         </div>
                                     </div>
@@ -2212,41 +2635,66 @@ const demoState = computed(() => {
                             </div>
                         </Transition>
                     </div>
-                    
                 </div>
             </div>
         </section>
 
         <!-- ── FAQ Accordion ─────────────────────────────────────── -->
-        <section class="px-4 py-10 lg:py-12 lg:px-8">
+        <section class="px-4 py-10 lg:px-8 lg:py-12">
             <div class="mx-auto max-w-7xl">
-                <div class="reveal-on-scroll flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end">
+                <div
+                    class="reveal-on-scroll flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end"
+                >
                     <div class="max-w-xl">
-                        <Badge variant="outline" class="mb-3 border-primary/30 bg-primary/5 text-primary">FAQ</Badge>
-                        <h2 class="text-3xl font-semibold">Câu hỏi thường gặp</h2>
+                        <Badge
+                            variant="outline"
+                            class="mb-3 border-primary/30 bg-primary/5 text-primary"
+                            >FAQ</Badge
+                        >
+                        <h2 class="text-3xl font-semibold">
+                            Câu hỏi thường gặp
+                        </h2>
                         <p class="mt-3 text-muted-foreground">
-                            Những thắc mắc phổ biến nhất từ chủ nhà hàng trước khi bắt đầu dùng Aventura.
+                            Những thắc mắc phổ biến nhất từ chủ nhà hàng trước
+                            khi bắt đầu dùng Aventura.
                         </p>
                     </div>
-                    <Button v-if="canRegister" as-child variant="outline" size="sm" class="shrink-0">
+                    <Button
+                        v-if="canRegister"
+                        as-child
+                        variant="outline"
+                        size="sm"
+                        class="shrink-0"
+                    >
                         <Link :href="register()">Bắt đầu miễn phí →</Link>
                     </Button>
                 </div>
-                <div class="reveal-on-scroll mt-8 divide-y divide-border overflow-hidden rounded-xl border border-border">
+                <div
+                    class="reveal-on-scroll mt-8 divide-y divide-border overflow-hidden rounded-xl border border-border"
+                >
                     <div v-for="(item, i) in faq" :key="item.q">
                         <button
                             @click="toggleFaq(i)"
                             class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50"
                         >
-                            <span class="text-sm font-medium">{{ item.q }}</span>
+                            <span class="text-sm font-medium">{{
+                                item.q
+                            }}</span>
                             <ChevronRight
                                 class="size-4 flex-shrink-0 text-muted-foreground transition-transform duration-200"
                                 :class="openFaqIndex === i ? 'rotate-90' : ''"
                             />
                         </button>
                         <Transition name="faq-collapse">
-                            <div v-show="openFaqIndex === i" class="border-t border-border/50 bg-muted/20 px-5 py-4">
-                                <p class="text-sm leading-relaxed text-muted-foreground">{{ item.a }}</p>
+                            <div
+                                v-show="openFaqIndex === i"
+                                class="border-t border-border/50 bg-muted/20 px-5 py-4"
+                            >
+                                <p
+                                    class="text-sm leading-relaxed text-muted-foreground"
+                                >
+                                    {{ item.a }}
+                                </p>
                             </div>
                         </Transition>
                     </div>
@@ -2255,62 +2703,104 @@ const demoState = computed(() => {
         </section>
 
         <!-- ── Stats + Value Props ───────────────────────────────── -->
-        <section id="stats-section" class="border-y border-border bg-muted/30 px-4 py-10 lg:py-12 lg:px-8">
+        <section
+            id="stats-section"
+            class="border-y border-border bg-muted/30 px-4 py-10 lg:px-8 lg:py-12"
+        >
             <div class="mx-auto max-w-7xl">
                 <!-- Số liệu — animated count-up -->
                 <div class="grid grid-cols-3 gap-6 text-center">
                     <div>
-                        <p class="text-4xl font-extrabold tracking-tight tabular-nums">
+                        <p
+                            class="text-4xl font-extrabold tracking-tight tabular-nums"
+                        >
                             {{ countRestaurants }}+
                         </p>
-                        <p class="mt-1.5 text-sm text-muted-foreground">Nhà hàng đang vận hành</p>
+                        <p class="mt-1.5 text-sm text-muted-foreground">
+                            Nhà hàng đang vận hành
+                        </p>
                     </div>
                     <div>
-                        <p class="text-4xl font-extrabold tracking-tight tabular-nums">
+                        <p
+                            class="text-4xl font-extrabold tracking-tight tabular-nums"
+                        >
                             {{ (countOrders / 1000).toFixed(1) }}K+
                         </p>
-                        <p class="mt-1.5 text-sm text-muted-foreground">Đơn hàng đã xử lý</p>
+                        <p class="mt-1.5 text-sm text-muted-foreground">
+                            Đơn hàng đã xử lý
+                        </p>
                     </div>
                     <div>
-                        <p class="text-4xl font-extrabold tracking-tight tabular-nums">
+                        <p
+                            class="text-4xl font-extrabold tracking-tight tabular-nums"
+                        >
                             {{ (countUptime / 10).toFixed(1) }}%
                         </p>
-                        <p class="mt-1.5 text-sm text-muted-foreground">Uptime cam kết SLA</p>
+                        <p class="mt-1.5 text-sm text-muted-foreground">
+                            Uptime cam kết SLA
+                        </p>
                     </div>
                 </div>
 
                 <!-- 3 value prop cards -->
                 <div class="mt-10 grid gap-4 md:grid-cols-3">
-                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 0ms">
+                    <Card
+                        class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                        style="transition-delay: 0ms"
+                    >
                         <CardHeader>
-                            <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
+                            <div
+                                class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105"
+                            >
                                 <Building2 class="size-5" />
                             </div>
-                            <CardTitle class="mt-3 text-base">Quản lý chuỗi quy mô lớn</CardTitle>
+                            <CardTitle class="mt-3 text-base"
+                                >Quản lý chuỗi quy mô lớn</CardTitle
+                            >
                             <CardDescription>
-                                Multi-branch với dữ liệu tenant tách biệt. Một tài khoản kiểm soát toàn bộ hệ thống chi nhánh, báo cáo hợp nhất theo thời gian thực.
+                                Multi-branch với dữ liệu tenant tách biệt. Một
+                                tài khoản kiểm soát toàn bộ hệ thống chi nhánh,
+                                báo cáo hợp nhất theo thời gian thực.
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 150ms">
+                    <Card
+                        class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                        style="transition-delay: 150ms"
+                    >
                         <CardHeader>
-                            <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
+                            <div
+                                class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105"
+                            >
                                 <LineChart class="size-5" />
                             </div>
-                            <CardTitle class="mt-3 text-base">Minh bạch từng thao tác</CardTitle>
+                            <CardTitle class="mt-3 text-base"
+                                >Minh bạch từng thao tác</CardTitle
+                            >
                             <CardDescription>
-                                Audit log ghi vết mọi thay đổi nhạy cảm — thay giá, hủy đơn, xóa dữ liệu. Không thể tẩy xóa, tra soát bất kỳ lúc nào.
+                                Audit log ghi vết mọi thay đổi nhạy cảm — thay
+                                giá, hủy đơn, xóa dữ liệu. Không thể tẩy xóa,
+                                tra soát bất kỳ lúc nào.
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                    <Card class="reveal-on-scroll group border-border transition-shadow hover:shadow-md" style="transition-delay: 300ms">
+                    <Card
+                        class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                        style="transition-delay: 300ms"
+                    >
                         <CardHeader>
-                            <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105">
+                            <div
+                                class="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-transform group-hover:scale-105"
+                            >
                                 <Rocket class="size-5" />
                             </div>
-                            <CardTitle class="mt-3 text-base">Onboarding không cần giải thích</CardTitle>
+                            <CardTitle class="mt-3 text-base"
+                                >Onboarding không cần giải thích</CardTitle
+                            >
                             <CardDescription>
-                                Đăng ký xong, chatbot hướng dẫn từng bước từ menu → bàn → nhân viên → order. Vận hành thật ngay trong 30 phút đầu.
+                                Đăng ký xong, chatbot hướng dẫn từng bước từ
+                                menu → bàn → nhân viên → order. Vận hành thật
+                                ngay trong 30 phút đầu.
                             </CardDescription>
                         </CardHeader>
                     </Card>
@@ -2318,7 +2808,7 @@ const demoState = computed(() => {
             </div>
         </section>
 
-        <section class="px-4 py-10 lg:py-12 lg:px-8">
+        <section class="px-4 py-10 lg:px-8 lg:py-12">
             <div
                 class="reveal-on-scroll mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
             >
@@ -2344,15 +2834,20 @@ const demoState = computed(() => {
         <Transition name="slide-up">
             <div
                 v-if="canRegister && showStickyCta && !stickyCtaDismissed"
-                class="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur"
+                class="fixed right-0 bottom-0 left-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur"
             >
-                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
+                <div
+                    class="mx-auto flex max-w-7xl items-center justify-between gap-4"
+                >
                     <p class="hidden text-sm font-medium sm:block">
                         Bắt đầu miễn phí — không cần thẻ tín dụng
                     </p>
                     <div class="flex flex-1 items-center justify-end gap-3">
                         <Button as-child size="sm">
-                            <Link :href="register()" class="flex items-center gap-1.5">
+                            <Link
+                                :href="register()"
+                                class="flex items-center gap-1.5"
+                            >
                                 <Zap class="size-3.5" />
                                 Tạo tài khoản ngay
                             </Link>
@@ -2387,24 +2882,53 @@ const demoState = computed(() => {
 .slide-next-leave-active,
 .slide-prev-enter-active,
 .slide-prev-leave-active {
-    transition: transform 0.6s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.6s ease;
+    transition:
+        transform 0.6s cubic-bezier(0.77, 0, 0.175, 1),
+        opacity 0.6s ease;
     position: absolute;
     inset: 0;
 }
 
-.slide-next-enter-from  { transform: translateX(100%);  opacity: 0; }
-.slide-next-enter-to    { transform: translateX(0);      opacity: 1; }
-.slide-next-leave-from  { transform: translateX(0);      opacity: 1; }
-.slide-next-leave-to    { transform: translateX(-100%);  opacity: 0; }
+.slide-next-enter-from {
+    transform: translateX(100%);
+    opacity: 0;
+}
+.slide-next-enter-to {
+    transform: translateX(0);
+    opacity: 1;
+}
+.slide-next-leave-from {
+    transform: translateX(0);
+    opacity: 1;
+}
+.slide-next-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
+}
 
-.slide-prev-enter-from  { transform: translateX(-100%); opacity: 0; }
-.slide-prev-enter-to    { transform: translateX(0);      opacity: 1; }
-.slide-prev-leave-from  { transform: translateX(0);      opacity: 1; }
-.slide-prev-leave-to    { transform: translateX(100%);   opacity: 0; }
+.slide-prev-enter-from {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+.slide-prev-enter-to {
+    transform: translateX(0);
+    opacity: 1;
+}
+.slide-prev-leave-from {
+    transform: translateX(0);
+    opacity: 1;
+}
+.slide-prev-leave-to {
+    transform: translateX(100%);
+    opacity: 0;
+}
 
 /* Promo strip dismiss */
 .promo-strip-leave-active {
-    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    transition:
+        max-height 0.3s ease,
+        opacity 0.3s ease,
+        padding 0.3s ease;
     overflow: hidden;
 }
 .promo-strip-leave-to {
@@ -2414,16 +2938,26 @@ const demoState = computed(() => {
     padding-bottom: 0;
 }
 .promo-strip-enter-active {
-    transition: max-height 0.3s ease, opacity 0.3s ease;
+    transition:
+        max-height 0.3s ease,
+        opacity 0.3s ease;
     overflow: hidden;
 }
-.promo-strip-enter-from { max-height: 0; opacity: 0; }
-.promo-strip-enter-to   { max-height: 80px; opacity: 1; }
+.promo-strip-enter-from {
+    max-height: 0;
+    opacity: 0;
+}
+.promo-strip-enter-to {
+    max-height: 80px;
+    opacity: 1;
+}
 
 /* Sticky CTA slide-up */
 .slide-up-enter-active,
 .slide-up-leave-active {
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
 }
 .slide-up-enter-from,
 .slide-up-leave-to {
@@ -2434,7 +2968,9 @@ const demoState = computed(() => {
 /* Testimonial Transition */
 .testimonial-fade-enter-active,
 .testimonial-fade-leave-active {
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
 }
 .testimonial-fade-enter-from {
     opacity: 0;
@@ -2448,7 +2984,10 @@ const demoState = computed(() => {
 /* FAQ collapse accordion transition */
 .faq-collapse-enter-active,
 .faq-collapse-leave-active {
-    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+    transition:
+        max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s ease,
+        padding 0.3s ease;
     max-height: 250px;
     overflow: hidden;
 }
@@ -2463,7 +3002,9 @@ const demoState = computed(() => {
 /* Pricing cross-fade switch */
 .pricing-fade-enter-active,
 .pricing-fade-leave-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
 }
 .pricing-fade-enter-from {
     opacity: 0;
@@ -2478,8 +3019,9 @@ const demoState = computed(() => {
 .reveal-on-scroll {
     opacity: 0;
     transform: translateY(24px);
-    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
-                transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+        opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reveal-on-scroll.revealed {
     opacity: 1;

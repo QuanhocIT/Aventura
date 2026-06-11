@@ -28,19 +28,37 @@ const isImpersonating = computed(() => !!page.props.is_impersonating);
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
             <!-- Impersonation Warning Banner -->
-            <div v-if="isImpersonating" class="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-xs sm:text-sm font-medium border-b border-amber-600/30 w-full shrink-0">
+            <div
+                v-if="isImpersonating"
+                class="flex w-full shrink-0 items-center justify-between border-b border-amber-600/30 bg-amber-500 px-4 py-2 text-xs font-medium text-amber-950 sm:text-sm"
+            >
                 <div class="flex items-center gap-2">
                     <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-600 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-700"></span>
+                        <span
+                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-600 opacity-75"
+                        ></span>
+                        <span
+                            class="relative inline-flex h-2 w-2 rounded-full bg-amber-700"
+                        ></span>
                     </span>
-                    <span>Bạn đang sắm vai thành viên: <strong class="underline">{{ page.props.auth?.user?.name }}</strong> ({{ page.props.auth?.user?.email }})</span>
+                    <span
+                        >Bạn đang sắm vai thành viên:
+                        <strong class="underline">{{
+                            page.props.auth?.user?.name
+                        }}</strong>
+                        ({{ page.props.auth?.user?.email }})</span
+                    >
                 </div>
-                <Link href="/impersonate/stop" method="post" as="button" class="bg-amber-950 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-amber-900 transition-colors">
+                <Link
+                    href="/impersonate/stop"
+                    method="post"
+                    as="button"
+                    class="rounded bg-amber-950 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-amber-900"
+                >
                     Thoát sắm vai
                 </Link>
             </div>
-            
+
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
             <slot />
         </AppContent>

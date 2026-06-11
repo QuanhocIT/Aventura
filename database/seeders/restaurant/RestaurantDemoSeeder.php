@@ -57,11 +57,11 @@ class RestaurantDemoSeeder extends Seeder
         }
 
         $employees = [
-            'owner' => $this->upsertEmployee($restaurant, $branch, $owner, 'EMP-001', 'Owner'),
-            'manager' => $this->upsertEmployee($restaurant, $branch, $manager, 'EMP-002', 'Manager'),
-            'cashier' => $this->upsertEmployee($restaurant, $branch, $cashier, 'EMP-003', 'Cashier'),
-            'kitchen' => $this->upsertEmployee($restaurant, $branch, $kitchen, 'EMP-004', 'Kitchen'),
-            'inventory' => $this->upsertEmployee($restaurant, $branch, $inventoryStaff, 'EMP-005', 'Inventory Staff'),
+            'owner' => $this->upsertEmployee($restaurant, $branch, $owner, 'EMP-001', 'Owner', 'owner'),
+            'manager' => $this->upsertEmployee($restaurant, $branch, $manager, 'EMP-002', 'Manager', 'manager'),
+            'cashier' => $this->upsertEmployee($restaurant, $branch, $cashier, 'EMP-003', 'Cashier', 'cashier'),
+            'kitchen' => $this->upsertEmployee($restaurant, $branch, $kitchen, 'EMP-004', 'Kitchen', 'kitchen'),
+            'inventory' => $this->upsertEmployee($restaurant, $branch, $inventoryStaff, 'EMP-005', 'Inventory Staff', 'inventory_staff'),
         ];
 
         $area = Area::updateOrCreate(
@@ -370,8 +370,13 @@ class RestaurantDemoSeeder extends Seeder
         return $user;
     }
 
-    protected function upsertEmployee(Restaurant $restaurant, RestaurantBranch $branch, User $user, string $code, string $jobTitle): Employee
+    protected function upsertEmployee(Restaurant $restaurant, RestaurantBranch $branch, User $user, string $code, string $jobTitle, string $roleName): Employee
     {
+        $role = \Spatie\Permission\Models\Role::firstOrCreate([
+            'name' => $roleName,
+            'guard_name' => 'web',
+        ]);
+
         return Employee::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'employee_code' => $code],
             [
@@ -386,6 +391,7 @@ class RestaurantDemoSeeder extends Seeder
                 'base_salary' => 9000000,
                 'status' => 'active',
                 'citizen_id_number' => '079'.str_pad((string) random_int(1, 99999999), 9, '0', STR_PAD_LEFT),
+                'role_id' => $role->id,
             ],
         );
     }

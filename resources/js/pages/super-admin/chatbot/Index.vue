@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
-    Bot, ChevronDown, ChevronUp, Edit2, Eye, MessageSquare,
-    Plus, RefreshCcw, ThumbsUp, Trash2, X,
+    Bot,
+    ChevronDown,
+    ChevronUp,
+    Edit2,
+    Eye,
+    MessageSquare,
+    Plus,
+    RefreshCcw,
+    ThumbsUp,
+    Trash2,
+    X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -45,7 +60,12 @@ const props = defineProps<{
     items: KnowledgeItem[];
     categories: string[];
     filters: { category?: string; search?: string };
-    stats: { total: number; active: number; total_views: number; total_helpful: number };
+    stats: {
+        total: number;
+        active: number;
+        total_views: number;
+        total_helpful: number;
+    };
 }>();
 
 // ── Filter state ──────────────────────────────────────────────────────────────
@@ -53,16 +73,24 @@ const searchQuery = ref(props.filters.search ?? '');
 const categoryFilter = ref(props.filters.category ?? '');
 
 function applyFilters() {
-    router.get('/super-admin/chatbot', {
-        search: searchQuery.value || undefined,
-        category: categoryFilter.value || undefined,
-    }, { preserveState: true, replace: true });
+    router.get(
+        '/super-admin/chatbot',
+        {
+            search: searchQuery.value || undefined,
+            category: categoryFilter.value || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
 }
 
 function clearFilters() {
     searchQuery.value = '';
     categoryFilter.value = '';
-    router.get('/super-admin/chatbot', {}, { preserveState: true, replace: true });
+    router.get(
+        '/super-admin/chatbot',
+        {},
+        { preserveState: true, replace: true },
+    );
 }
 
 // ── Dialog state ──────────────────────────────────────────────────────────────
@@ -118,9 +146,18 @@ function closeDialog() {
 }
 
 function submitForm() {
-    form.alt_questions = altQuestionsText.value.split('\n').map(s => s.trim()).filter(Boolean);
-    form.keywords = keywordsText.value.split(',').map(s => s.trim()).filter(Boolean);
-    form.suggested_questions = suggestedQuestionsText.value.split('\n').map(s => s.trim()).filter(Boolean);
+    form.alt_questions = altQuestionsText.value
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    form.keywords = keywordsText.value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    form.suggested_questions = suggestedQuestionsText.value
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
 
     if (editingItem.value) {
         form.put(`/super-admin/chatbot/${editingItem.value.id}`, {
@@ -137,14 +174,18 @@ function submitForm() {
 
 function deleteItem(item: KnowledgeItem) {
     if (!confirm(`Xóa câu hỏi: "${item.question}"?`)) {
-return;
-}
+        return;
+    }
 
     router.delete(`/super-admin/chatbot/${item.id}`, { preserveScroll: true });
 }
 
 function reloadCache() {
-    router.post('/super-admin/chatbot/reload-cache', {}, { preserveScroll: true });
+    router.post(
+        '/super-admin/chatbot/reload-cache',
+        {},
+        { preserveScroll: true },
+    );
 }
 
 function toggleRow(id: number) {
@@ -166,7 +207,7 @@ const categoryLabels: Record<string, string> = {
     'bao-mat': 'Bảo mật',
     'ky-thuat': 'Kỹ thuật',
     'ho-tro': 'Hỗ trợ',
-    'chung': 'Chung',
+    chung: 'Chung',
 };
 
 const categoryColors: Record<string, string> = {
@@ -177,7 +218,7 @@ const categoryColors: Record<string, string> = {
     'bao-mat': 'bg-red-100 text-red-700',
     'ky-thuat': 'bg-cyan-100 text-cyan-700',
     'ho-tro': 'bg-amber-100 text-amber-700',
-    'chung': 'bg-slate-100 text-slate-700',
+    chung: 'bg-slate-100 text-slate-700',
 };
 
 function categoryLabel(cat: string) {
@@ -188,7 +229,9 @@ function categoryColor(cat: string) {
     return categoryColors[cat] ?? 'bg-slate-100 text-slate-700';
 }
 
-const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.value);
+const hasActiveFilters = computed(
+    () => !!searchQuery.value || !!categoryFilter.value,
+);
 </script>
 
 <template>
@@ -198,12 +241,18 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                <div
+                    class="flex size-10 items-center justify-center rounded-xl bg-primary/10"
+                >
                     <Bot class="size-5 text-primary" />
                 </div>
                 <div>
-                    <h1 class="text-xl font-semibold">Chatbot Knowledge Base</h1>
-                    <p class="text-sm text-muted-foreground">Quản lý cơ sở tri thức cho AI chatbot</p>
+                    <h1 class="text-xl font-semibold">
+                        Chatbot Knowledge Base
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        Quản lý cơ sở tri thức cho AI chatbot
+                    </p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -229,19 +278,25 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
             <Card>
                 <CardContent class="pt-4">
                     <p class="text-xs text-muted-foreground">Đang hoạt động</p>
-                    <p class="text-2xl font-bold text-green-600">{{ stats.active }}</p>
+                    <p class="text-2xl font-bold text-green-600">
+                        {{ stats.active }}
+                    </p>
                 </CardContent>
             </Card>
             <Card>
                 <CardContent class="pt-4">
                     <p class="text-xs text-muted-foreground">Lượt xem</p>
-                    <p class="text-2xl font-bold">{{ stats.total_views.toLocaleString() }}</p>
+                    <p class="text-2xl font-bold">
+                        {{ stats.total_views.toLocaleString() }}
+                    </p>
                 </CardContent>
             </Card>
             <Card>
                 <CardContent class="pt-4">
                     <p class="text-xs text-muted-foreground">Hữu ích</p>
-                    <p class="text-2xl font-bold text-blue-600">{{ stats.total_helpful.toLocaleString() }}</p>
+                    <p class="text-2xl font-bold text-blue-600">
+                        {{ stats.total_helpful.toLocaleString() }}
+                    </p>
                 </CardContent>
             </Card>
         </div>
@@ -260,13 +315,25 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="">Tất cả danh mục</SelectItem>
-                    <SelectItem v-for="cat in categories" :key="cat" :value="cat">
+                    <SelectItem
+                        v-for="cat in categories"
+                        :key="cat"
+                        :value="cat"
+                    >
                         {{ categoryLabel(cat) }}
                     </SelectItem>
                 </SelectContent>
             </Select>
-            <Button variant="ghost" size="sm" @click="applyFilters" class="h-8">Tìm</Button>
-            <Button v-if="hasActiveFilters" variant="ghost" size="sm" @click="clearFilters" class="h-8 text-muted-foreground">
+            <Button variant="ghost" size="sm" @click="applyFilters" class="h-8"
+                >Tìm</Button
+            >
+            <Button
+                v-if="hasActiveFilters"
+                variant="ghost"
+                size="sm"
+                @click="clearFilters"
+                class="h-8 text-muted-foreground"
+            >
                 <X class="mr-1 size-3.5" /> Xóa bộ lọc
             </Button>
         </div>
@@ -278,55 +345,117 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b bg-muted/40">
-                                <th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Danh mục</th>
-                                <th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Câu hỏi</th>
-                                <th class="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">
+                                <th
+                                    class="px-4 py-2.5 text-left font-medium text-muted-foreground"
+                                >
+                                    Danh mục
+                                </th>
+                                <th
+                                    class="px-4 py-2.5 text-left font-medium text-muted-foreground"
+                                >
+                                    Câu hỏi
+                                </th>
+                                <th
+                                    class="w-16 px-4 py-2.5 text-center font-medium text-muted-foreground"
+                                >
                                     <Eye class="mx-auto size-3.5" />
                                 </th>
-                                <th class="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">
+                                <th
+                                    class="w-16 px-4 py-2.5 text-center font-medium text-muted-foreground"
+                                >
                                     <ThumbsUp class="mx-auto size-3.5" />
                                 </th>
-                                <th class="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">Trạng thái</th>
-                                <th class="px-4 py-2.5 text-right font-medium text-muted-foreground w-24">Thao tác</th>
+                                <th
+                                    class="w-20 px-4 py-2.5 text-center font-medium text-muted-foreground"
+                                >
+                                    Trạng thái
+                                </th>
+                                <th
+                                    class="w-24 px-4 py-2.5 text-right font-medium text-muted-foreground"
+                                >
+                                    Thao tác
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             <template v-for="item in items" :key="item.id">
                                 <!-- Main row -->
                                 <tr
-                                    class="border-b transition hover:bg-muted/30 cursor-pointer"
+                                    class="cursor-pointer border-b transition hover:bg-muted/30"
                                     @click="toggleRow(item.id)"
                                 >
                                     <td class="px-4 py-2.5">
                                         <span
                                             class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                                            :class="categoryColor(item.category)"
+                                            :class="
+                                                categoryColor(item.category)
+                                            "
                                         >
                                             {{ categoryLabel(item.category) }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-2.5">
                                         <div class="flex items-center gap-1.5">
-                                            <span class="font-medium">{{ item.question }}</span>
+                                            <span class="font-medium">{{
+                                                item.question
+                                            }}</span>
                                             <component
-                                                :is="expandedRows.includes(item.id) ? ChevronUp : ChevronDown"
+                                                :is="
+                                                    expandedRows.includes(
+                                                        item.id,
+                                                    )
+                                                        ? ChevronUp
+                                                        : ChevronDown
+                                                "
                                                 class="size-3.5 shrink-0 text-muted-foreground"
                                             />
                                         </div>
                                     </td>
-                                    <td class="px-4 py-2.5 text-center text-muted-foreground">{{ item.view_count }}</td>
-                                    <td class="px-4 py-2.5 text-center text-muted-foreground">{{ item.helpful_count }}</td>
+                                    <td
+                                        class="px-4 py-2.5 text-center text-muted-foreground"
+                                    >
+                                        {{ item.view_count }}
+                                    </td>
+                                    <td
+                                        class="px-4 py-2.5 text-center text-muted-foreground"
+                                    >
+                                        {{ item.helpful_count }}
+                                    </td>
                                     <td class="px-4 py-2.5 text-center">
-                                        <Badge :class="item.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'" class="text-xs">
+                                        <Badge
+                                            :class="
+                                                item.is_active
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-slate-100 text-slate-500'
+                                            "
+                                            class="text-xs"
+                                        >
                                             {{ item.is_active ? 'Bật' : 'Tắt' }}
                                         </Badge>
                                     </td>
-                                    <td class="px-4 py-2.5 text-right" @click.stop>
-                                        <div class="flex items-center justify-end gap-1">
-                                            <Button variant="ghost" size="icon" class="size-7" @click="openEdit(item)" title="Sửa">
+                                    <td
+                                        class="px-4 py-2.5 text-right"
+                                        @click.stop
+                                    >
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                class="size-7"
+                                                @click="openEdit(item)"
+                                                title="Sửa"
+                                            >
                                                 <Edit2 class="size-3.5" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" class="size-7 text-red-500 hover:text-red-600" @click="deleteItem(item)" title="Xóa">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                class="size-7 text-red-500 hover:text-red-600"
+                                                @click="deleteItem(item)"
+                                                title="Xóa"
+                                            >
                                                 <Trash2 class="size-3.5" />
                                             </Button>
                                         </div>
@@ -334,34 +463,94 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                                 </tr>
 
                                 <!-- Expanded row -->
-                                <tr v-if="expandedRows.includes(item.id)" class="bg-muted/20">
+                                <tr
+                                    v-if="expandedRows.includes(item.id)"
+                                    class="bg-muted/20"
+                                >
                                     <td colspan="6" class="px-6 py-3">
-                                        <div class="grid gap-3 text-sm sm:grid-cols-2">
+                                        <div
+                                            class="grid gap-3 text-sm sm:grid-cols-2"
+                                        >
                                             <div>
-                                                <p class="mb-1 font-medium text-muted-foreground">Câu trả lời:</p>
-                                                <p class="whitespace-pre-wrap text-foreground">{{ item.answer }}</p>
+                                                <p
+                                                    class="mb-1 font-medium text-muted-foreground"
+                                                >
+                                                    Câu trả lời:
+                                                </p>
+                                                <p
+                                                    class="whitespace-pre-wrap text-foreground"
+                                                >
+                                                    {{ item.answer }}
+                                                </p>
                                             </div>
                                             <div class="flex flex-col gap-2">
-                                                <div v-if="item.alt_questions?.length">
-                                                    <p class="mb-1 font-medium text-muted-foreground">Câu hỏi tương đương:</p>
-                                                    <ul class="list-inside list-disc text-xs text-muted-foreground">
-                                                        <li v-for="(q, i) in item.alt_questions" :key="i">{{ q }}</li>
+                                                <div
+                                                    v-if="
+                                                        item.alt_questions
+                                                            ?.length
+                                                    "
+                                                >
+                                                    <p
+                                                        class="mb-1 font-medium text-muted-foreground"
+                                                    >
+                                                        Câu hỏi tương đương:
+                                                    </p>
+                                                    <ul
+                                                        class="list-inside list-disc text-xs text-muted-foreground"
+                                                    >
+                                                        <li
+                                                            v-for="(
+                                                                q, i
+                                                            ) in item.alt_questions"
+                                                            :key="i"
+                                                        >
+                                                            {{ q }}
+                                                        </li>
                                                     </ul>
                                                 </div>
-                                                <div v-if="item.keywords?.length">
-                                                    <p class="mb-1 font-medium text-muted-foreground">Từ khoá:</p>
-                                                    <div class="flex flex-wrap gap-1">
+                                                <div
+                                                    v-if="item.keywords?.length"
+                                                >
+                                                    <p
+                                                        class="mb-1 font-medium text-muted-foreground"
+                                                    >
+                                                        Từ khoá:
+                                                    </p>
+                                                    <div
+                                                        class="flex flex-wrap gap-1"
+                                                    >
                                                         <span
-                                                            v-for="(kw, i) in item.keywords"
+                                                            v-for="(
+                                                                kw, i
+                                                            ) in item.keywords"
                                                             :key="i"
                                                             class="rounded bg-muted px-1.5 py-0.5 text-xs"
-                                                        >{{ kw }}</span>
+                                                            >{{ kw }}</span
+                                                        >
                                                     </div>
                                                 </div>
-                                                <div v-if="item.suggested_questions?.length">
-                                                    <p class="mb-1 font-medium text-muted-foreground">Câu hỏi gợi ý:</p>
-                                                    <ul class="list-inside list-disc text-xs text-muted-foreground">
-                                                        <li v-for="(q, i) in item.suggested_questions" :key="i">{{ q }}</li>
+                                                <div
+                                                    v-if="
+                                                        item.suggested_questions
+                                                            ?.length
+                                                    "
+                                                >
+                                                    <p
+                                                        class="mb-1 font-medium text-muted-foreground"
+                                                    >
+                                                        Câu hỏi gợi ý:
+                                                    </p>
+                                                    <ul
+                                                        class="list-inside list-disc text-xs text-muted-foreground"
+                                                    >
+                                                        <li
+                                                            v-for="(
+                                                                q, i
+                                                            ) in item.suggested_questions"
+                                                            :key="i"
+                                                        >
+                                                            {{ q }}
+                                                        </li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -371,8 +560,13 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                             </template>
 
                             <tr v-if="!items.length">
-                                <td colspan="6" class="px-4 py-10 text-center text-muted-foreground">
-                                    <MessageSquare class="mx-auto mb-2 size-8 opacity-30" />
+                                <td
+                                    colspan="6"
+                                    class="px-4 py-10 text-center text-muted-foreground"
+                                >
+                                    <MessageSquare
+                                        class="mx-auto mb-2 size-8 opacity-30"
+                                    />
                                     <p>Không có dữ liệu</p>
                                 </td>
                             </tr>
@@ -392,13 +586,24 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
-        <div v-if="showDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeDialog">
-            <div class="flex w-full max-w-2xl flex-col gap-4 rounded-2xl bg-background p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div
+            v-if="showDialog"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="closeDialog"
+        >
+            <div
+                class="flex max-h-[90vh] w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl"
+            >
                 <div class="flex items-center justify-between">
                     <h2 class="text-lg font-semibold">
                         {{ editingItem ? 'Sửa câu hỏi' : 'Thêm câu hỏi mới' }}
                     </h2>
-                    <Button variant="ghost" size="icon" class="size-7" @click="closeDialog">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-7"
+                        @click="closeDialog"
+                    >
                         <X class="size-4" />
                     </Button>
                 </div>
@@ -407,60 +612,113 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                     <!-- Category + display_order -->
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Danh mục <span class="text-red-500">*</span></Label>
-                            <Input v-model="form.category" placeholder="vd: gia-ca" />
-                            <p v-if="form.errors.category" class="text-xs text-red-500">{{ form.errors.category }}</p>
+                            <Label
+                                >Danh mục
+                                <span class="text-red-500">*</span></Label
+                            >
+                            <Input
+                                v-model="form.category"
+                                placeholder="vd: gia-ca"
+                            />
+                            <p
+                                v-if="form.errors.category"
+                                class="text-xs text-red-500"
+                            >
+                                {{ form.errors.category }}
+                            </p>
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <Label>Thứ tự hiển thị</Label>
-                            <Input v-model.number="form.display_order" type="number" min="0" max="9999" />
+                            <Input
+                                v-model.number="form.display_order"
+                                type="number"
+                                min="0"
+                                max="9999"
+                            />
                         </div>
                     </div>
 
                     <!-- Question -->
                     <div class="flex flex-col gap-1.5">
-                        <Label>Câu hỏi chính <span class="text-red-500">*</span></Label>
-                        <Input v-model="form.question" placeholder="Làm sao để đăng ký tài khoản?" />
-                        <p v-if="form.errors.question" class="text-xs text-red-500">{{ form.errors.question }}</p>
+                        <Label
+                            >Câu hỏi chính
+                            <span class="text-red-500">*</span></Label
+                        >
+                        <Input
+                            v-model="form.question"
+                            placeholder="Làm sao để đăng ký tài khoản?"
+                        />
+                        <p
+                            v-if="form.errors.question"
+                            class="text-xs text-red-500"
+                        >
+                            {{ form.errors.question }}
+                        </p>
                     </div>
 
                     <!-- Answer -->
                     <div class="flex flex-col gap-1.5">
-                        <Label>Câu trả lời <span class="text-red-500">*</span></Label>
+                        <Label
+                            >Câu trả lời
+                            <span class="text-red-500">*</span></Label
+                        >
                         <textarea
                             v-model="form.answer"
                             placeholder="Nhập câu trả lời..."
                             rows="4"
-                            class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                         />
-                        <p v-if="form.errors.answer" class="text-xs text-red-500">{{ form.errors.answer }}</p>
+                        <p
+                            v-if="form.errors.answer"
+                            class="text-xs text-red-500"
+                        >
+                            {{ form.errors.answer }}
+                        </p>
                     </div>
 
                     <!-- Alt questions -->
                     <div class="flex flex-col gap-1.5">
-                        <Label>Câu hỏi tương đương <span class="text-xs text-muted-foreground">(mỗi dòng một câu)</span></Label>
+                        <Label
+                            >Câu hỏi tương đương
+                            <span class="text-xs text-muted-foreground"
+                                >(mỗi dòng một câu)</span
+                            ></Label
+                        >
                         <textarea
                             v-model="altQuestionsText"
                             placeholder="Tôi muốn tạo tài khoản&#10;Đăng ký như thế nào"
                             rows="3"
-                            class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                         />
                     </div>
 
                     <!-- Keywords -->
                     <div class="flex flex-col gap-1.5">
-                        <Label>Từ khoá <span class="text-xs text-muted-foreground">(phân cách bằng dấu phẩy)</span></Label>
-                        <Input v-model="keywordsText" placeholder="đăng ký, tài khoản, tạo mới" />
+                        <Label
+                            >Từ khoá
+                            <span class="text-xs text-muted-foreground"
+                                >(phân cách bằng dấu phẩy)</span
+                            ></Label
+                        >
+                        <Input
+                            v-model="keywordsText"
+                            placeholder="đăng ký, tài khoản, tạo mới"
+                        />
                     </div>
 
                     <!-- Suggested questions -->
                     <div class="flex flex-col gap-1.5">
-                        <Label>Câu hỏi gợi ý tiếp theo <span class="text-xs text-muted-foreground">(mỗi dòng một câu)</span></Label>
+                        <Label
+                            >Câu hỏi gợi ý tiếp theo
+                            <span class="text-xs text-muted-foreground"
+                                >(mỗi dòng một câu)</span
+                            ></Label
+                        >
                         <textarea
                             v-model="suggestedQuestionsText"
                             placeholder="Gói dịch vụ có những loại nào?&#10;Chi phí sử dụng là bao nhiêu?"
                             rows="3"
-                            class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                         />
                     </div>
 
@@ -472,11 +730,18 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                             type="checkbox"
                             class="size-4 rounded border-border"
                         />
-                        <Label for="is_active" class="cursor-pointer">Kích hoạt (hiển thị trong chatbot)</Label>
+                        <Label for="is_active" class="cursor-pointer"
+                            >Kích hoạt (hiển thị trong chatbot)</Label
+                        >
                     </div>
 
                     <div class="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="outline" @click="closeDialog">Hủy</Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeDialog"
+                            >Hủy</Button
+                        >
                         <Button type="submit" :disabled="form.processing">
                             {{ editingItem ? 'Cập nhật' : 'Thêm mới' }}
                         </Button>

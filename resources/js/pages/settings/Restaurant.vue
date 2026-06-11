@@ -41,11 +41,17 @@ defineOptions({
             description="Cập nhật tên, địa chỉ, liên hệ và thông tin thuế của nhà hàng"
         />
 
-        <div v-if="status" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+        <div
+            v-if="status"
+            class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400"
+        >
             {{ status }}
         </div>
 
-        <div v-if="!restaurant" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
+        <div
+            v-if="!restaurant"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400"
+        >
             Không tìm thấy thông tin nhà hàng. Vui lòng liên hệ hỗ trợ.
         </div>
 
@@ -58,7 +64,9 @@ defineOptions({
         >
             <!-- Tên nhà hàng -->
             <div class="grid gap-1.5">
-                <Label for="name">Tên nhà hàng <span class="text-rose-500">*</span></Label>
+                <Label for="name"
+                    >Tên nhà hàng <span class="text-rose-500">*</span></Label
+                >
                 <Input
                     id="name"
                     name="name"
@@ -118,18 +126,22 @@ defineOptions({
                     class="font-mono"
                 />
                 <InputError :message="errors.tax_code" />
-                <p class="text-xs text-muted-foreground">Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.</p>
+                <p class="text-xs text-muted-foreground">
+                    Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.
+                </p>
             </div>
 
             <!-- Read-only info -->
-            <div class="rounded-xl border border-border bg-muted/30 px-4 py-3 grid grid-cols-2 gap-3 text-sm">
+            <div
+                class="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm"
+            >
                 <div>
                     <p class="text-xs text-muted-foreground">Múi giờ</p>
-                    <p class="font-medium mt-0.5">{{ restaurant.timezone }}</p>
+                    <p class="mt-0.5 font-medium">{{ restaurant.timezone }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-muted-foreground">Đơn vị tiền tệ</p>
-                    <p class="font-medium mt-0.5">{{ restaurant.currency }}</p>
+                    <p class="mt-0.5 font-medium">{{ restaurant.currency }}</p>
                 </div>
             </div>
 

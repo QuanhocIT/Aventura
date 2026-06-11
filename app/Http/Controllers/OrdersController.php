@@ -36,12 +36,50 @@ class OrdersController extends Controller
                 'category_name' => $p->category?->name,
             ]);
 
+        // Auto-generate 20 tables in 1 area if there are no tables for this restaurant
+        $tableCount = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)->count();
+        if ($tableCount === 0) {
+            $branchId = $user->branch_id;
+            $area = \App\Models\Area::firstOrCreate([
+                'restaurant_id' => $restaurantId,
+                'name' => 'Khu vực chính',
+            ], [
+                'branch_id' => $branchId,
+                'code' => 'khu-vuc-chinh',
+                'display_order' => 1,
+                'status' => 'active',
+            ]);
+
+            $names = [];
+            $letters = ['A', 'B', 'C', 'D'];
+            foreach ($letters as $letter) {
+                for ($i = 1; $i <= 5; $i++) {
+                    $names[] = $letter . $i;
+                }
+            }
+
+            foreach ($names as $name) {
+                \App\Models\RestaurantTable::create([
+                    'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
+                    'area_id' => $area->id,
+                    'name' => $name,
+                    'capacity' => 4,
+                    'status' => 'available',
+                    'qr_token' => \Illuminate\Support\Str::random(32),
+                ]);
+            }
+        }
+
         $tables = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)
-            ->where('status', 'available')
+            ->whereNull('deleted_at')
+            ->orderBy('name')
             ->get()
             ->map(fn ($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
+                'status' => $t->status,
+                'capacity' => $t->capacity,
             ]);
 
         return Inertia::render('orders/Create', [
