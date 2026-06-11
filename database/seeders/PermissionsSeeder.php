@@ -30,6 +30,7 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'manage_restaurant_settings',
+            'manage_inventory',
             'manage_supplier_catalog',
             'view_supplier_price_history',
         ];
@@ -95,6 +96,7 @@ class PermissionsSeeder extends Seeder
             'guard_name' => 'web',
         ]);
         $inventoryRole->syncPermissions([
+            'manage_inventory',
             'view_violations',
             'report_violations',
         ]);

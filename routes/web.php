@@ -181,6 +181,19 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('violations', [ViolationReportController::class, 'index'])->name('violations.index');
     Route::post('violations', [ViolationReportController::class, 'store'])->name('violations.store');
     Route::post('violations/{report}/resolve', [ViolationReportController::class, 'resolve'])->name('violations.resolve');
+
+    // Warehouse — Quản lý đơn đặt hàng gửi nhà cung cấp
+    Route::prefix('warehouse/purchase-orders')
+        ->name('warehouse.purchase-orders.')
+        ->middleware('permission:manage_inventory')
+        ->group(function (): void {
+            Route::get('/', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{purchaseOrder}', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'show'])->name('show');
+            Route::post('/{purchaseOrder}/cancel', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'cancel'])->name('cancel');
+            Route::get('/api/suppliers/{supplier}/catalog-items', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'catalogItems'])->name('catalog-items');
+        });
 });
 
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)

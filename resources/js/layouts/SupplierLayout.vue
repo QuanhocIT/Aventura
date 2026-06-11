@@ -1,21 +1,56 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Toaster } from '@/components/ui/sonner';
 import FlashToast from '@/components/FlashToast.vue';
-import { LayoutGrid, ListOrdered, TrendingUp, LogOut, Building2 } from 'lucide-vue-next';
+import { LayoutGrid, ListOrdered, TrendingUp, LogOut, Building2, ShoppingCart } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
+import echo from '@/lib/echo';
 
 const page = usePage();
 const user = computed(() => (page.props.auth?.user as any) ?? null);
 
-const navItems = [
-    { label: 'Tổng quan', href: '/supplier-portal/dashboard', icon: LayoutGrid },
-    { label: 'Danh mục hàng hoá', href: '/supplier-portal/catalog', icon: ListOrdered },
-    { label: 'Lịch sử giá', href: '/supplier-portal/price-history', icon: TrendingUp },
-];
+// Badge: số PO pending chưa được tiếp nhận
+const pendingPoCount = ref<number>(
+    (page.props as any).pendingPoCount ?? 0
+);
+
+const navItems = computed(() => [
+    { label: 'Tổng quan', href: '/supplier-portal/dashboard', icon: LayoutGrid, badge: 0 },
+    { label: 'Danh mục hàng hoá', href: '/supplier-portal/catalog', icon: ListOrdered, badge: 0 },
+    { label: 'Lịch sử giá', href: '/supplier-portal/price-history', icon: TrendingUp, badge: 0 },
+    { label: 'Đơn đặt hàng', href: '/supplier-portal/purchase-orders', icon: ShoppingCart, badge: pendingPoCount.value },
+]);
 
 const currentPath = computed(() => page.url);
 const isActive = (href: string) => currentPath.value.startsWith(href);
+
+// Lắng nghe PO mới qua Reverb
+let channel: ReturnType<typeof echo.private> | null = null;
+
+onMounted(() => {
+    const supplierId = user.value?.supplier_id;
+    if (!supplierId) return;
+
+    channel = echo.private(`supplier.${supplierId}`);
+    channel.listen('.purchase-order.created', (data: any) => {
+        pendingPoCount.value++;
+        toast.info(`Đơn hàng mới: ${data.po_number}`, {
+            description: `Tổng trị giá: ${Number(data.total_amount).toLocaleString('vi-VN')} ₫`,
+            action: {
+                label: 'Xem ngay',
+                onClick: () => { window.location.href = '/supplier-portal/purchase-orders'; },
+            },
+        });
+    });
+});
+
+onUnmounted(() => {
+    const supplierId = user.value?.supplier_id;
+    if (supplierId && channel) {
+        echo.leave(`supplier.${supplierId}`);
+    }
+});
 </script>
 
 <template>
@@ -45,7 +80,11 @@ const isActive = (href: string) => currentPath.value.startsWith(href);
                         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'"
                 >
                     <component :is="item.icon" class="size-4 shrink-0" />
-                    {{ item.label }}
+                    <span class="flex-1">{{ item.label }}</span>
+                    <span
+                        v-if="item.badge > 0"
+                        class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full"
+                    >{{ item.badge }}</span>
                 </Link>
             </nav>
 

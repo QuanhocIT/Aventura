@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApprovalRequest;
+use App\Models\PurchaseOrder;
 use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -105,6 +106,9 @@ class HandleInertiaRequests extends Middleware
             'available_plans' => $availablePlans,
             'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
                 ? ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
+                : 0,
+            'pendingPoCount' => $user?->hasRole('supplier_admin') && $user->supplier_id
+                ? PurchaseOrder::where('supplier_id', $user->supplier_id)->where('status', 'pending')->count()
                 : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),

@@ -3,6 +3,7 @@
 use App\Http\Controllers\SupplierPortal\CatalogController;
 use App\Http\Controllers\SupplierPortal\DashboardController;
 use App\Http\Controllers\SupplierPortal\PriceHistoryController;
+use App\Http\Controllers\SupplierPortal\PurchaseOrderController;
 use App\Http\Controllers\SupplierPortal\SupplierAccountController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,13 @@ Route::prefix('supplier-portal')
         // Lịch sử biến động giá
         Route::get('/price-history', [PriceHistoryController::class, 'index'])
             ->name('price-history.index');
+
+        // Đơn đặt hàng (PO) — supplier tiếp nhận và cập nhật trạng thái
+        Route::prefix('purchase-orders')->name('purchase-orders.')->group(function (): void {
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::post('/{purchaseOrder}/advance', [PurchaseOrderController::class, 'advance'])->name('advance');
+        });
     });
 
 /*
