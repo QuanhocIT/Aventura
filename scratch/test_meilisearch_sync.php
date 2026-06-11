@@ -4,7 +4,7 @@ $app = require 'bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
 use App\Models\SearchQueryLog;
-use App\Models\Customer;
+use App\Models\Restaurant;
 use App\Jobs\SyncSearchIndex;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,15 +12,15 @@ echo "--- Meilisearch Sync and Stats Verification Script ---\n";
 
 // 1. Clean previous sync cache
 echo "Cleaning cache...\n";
-Cache::forget('meilisearch_sync_customers');
+Cache::forget('meilisearch_sync_restaurants');
 
 // 2. Dispatch the Sync job synchronously for test
-echo "Dispatching SyncSearchIndex job for customers...\n";
-$job = new SyncSearchIndex('import', Customer::class, 'customers');
+echo "Dispatching SyncSearchIndex job for restaurants...\n";
+$job = new SyncSearchIndex('import', Restaurant::class, 'restaurants');
 $job->handle();
 
 // Check Cache results
-$status = Cache::get('meilisearch_sync_customers');
+$status = Cache::get('meilisearch_sync_restaurants');
 echo "Sync Job Status in Cache: " . json_encode($status) . "\n";
 
 // 3. Create a test search query log

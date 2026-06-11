@@ -157,5 +157,10 @@ Route::prefix('super-admin')
         Route::get('churn-prediction', [ChurnController::class, 'index'])->name('churn.index');
         Route::post('churn-prediction/recalculate', [ChurnController::class, 'recalculate'])->name('churn.recalculate');
         Route::post('churn-prediction/trigger-email/{restaurant}', [ChurnController::class, 'triggerEmail'])->name('churn.trigger-email');
+
+        // Meilisearch Console
+        Route::get('meilisearch-console', [\App\Http\Controllers\SuperAdmin\MeilisearchConsoleController::class, 'index'])->name('meilisearch-console.index');
+        Route::post('meilisearch-console/sync', [\App\Http\Controllers\SuperAdmin\MeilisearchConsoleController::class, 'sync'])->name('meilisearch-console.sync');
+        Route::post('meilisearch-console/clear-stats', [\App\Http\Controllers\SuperAdmin\MeilisearchConsoleController::class, 'clearStats'])->name('meilisearch-console.clear-stats');
     });
 
