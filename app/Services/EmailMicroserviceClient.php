@@ -71,8 +71,11 @@ class EmailMicroserviceClient
 
     private function post(string $endpoint, array $payload): bool
     {
+        // Fail fast if Python service is offline to bypass the 3-second timeout
+        $isOffline = \Illuminate\Support\Facades\Cache::has('email_service_offline');
+
         // Thử Python service trước nếu URL được cấu hình và không ở chế độ bảo trì
-        if (!empty($this->baseUrl) && !app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
+        if (!$isOffline && !empty($this->baseUrl) && !app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
             try {
                 $response = Http::timeout(3)->post($this->baseUrl.$endpoint, $payload);
 
@@ -86,6 +89,8 @@ class EmailMicroserviceClient
                 Log::warning('EmailMicroserviceClient: Python service không khả dụng, chuyển sang Brevo trực tiếp', [
                     'endpoint' => $endpoint,
                 ]);
+                // Cache the offline status for 5 minutes
+                \Illuminate\Support\Facades\Cache::put('email_service_offline', true, 300);
             }
         }
 

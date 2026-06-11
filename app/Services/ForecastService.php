@@ -38,21 +38,25 @@ class ForecastService
             }
 
             $url = config('services.analytics.url') . '/api/analytics/revenue-forecast';
+            $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
 
-            try {
-                $response = \Illuminate\Support\Facades\Http::timeout(3)
-                    ->post($url, [
-                        'history' => $historyPayload
-                    ]);
+            if (!$isOffline) {
+                try {
+                    $response = \Illuminate\Support\Facades\Http::timeout(3)
+                        ->post($url, [
+                            'history' => $historyPayload
+                        ]);
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    if (isset($data['tomorrow']) && isset($data['next_7_days'])) {
-                        return $data;
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        if (isset($data['tomorrow']) && isset($data['next_7_days'])) {
+                            return $data;
+                        }
                     }
+                } catch (\Throwable $e) {
+                    // Cache the offline status for 5 minutes
+                    \Illuminate\Support\Facades\Cache::put('analytics_service_offline', true, 300);
                 }
-            } catch (\Throwable $e) {
-                // fallback
             }
 
             $tomorrow = Carbon::tomorrow();

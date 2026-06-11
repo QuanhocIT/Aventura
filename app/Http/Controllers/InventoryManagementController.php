@@ -14,6 +14,7 @@ use App\Services\ApprovalService;
 use App\Services\SalaryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -378,6 +379,10 @@ class InventoryManagementController extends Controller
             ];
         }
 
+        if (Cache::has('analytics_service_offline')) {
+            return $this->runFallbackForecast($ingredients, $restaurantId);
+        }
+
         // Gửi request sang Python FastAPI microservice
         $url = config('services.analytics.url') . '/api/analytics/inventory-forecast';
 
@@ -401,11 +406,21 @@ class InventoryManagementController extends Controller
                     ]);
                 }
             }
+
+            Cache::put('analytics_service_offline', true, 300);
         } catch (\Throwable $e) {
             // FastAPI lỗi hoặc offline, chạy fallback PHP
+            Cache::put('analytics_service_offline', true, 300);
         }
 
-        // Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
+        return $this->runFallbackForecast($ingredients, $restaurantId);
+    }
+
+    /**
+     * Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
+     */
+    private function runFallbackForecast($ingredients, int $restaurantId): \Illuminate\Http\JsonResponse
+    {
         $forecast = $ingredients->map(function ($ing) use ($restaurantId) {
             $thirtyDaysAgo = now()->subDays(30);
             $totalUsage = InventoryTransaction::where('restaurant_id', $restaurantId)

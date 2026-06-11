@@ -11,6 +11,7 @@ use App\Services\FraudDetectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -445,6 +446,11 @@ class PromotionController extends Controller
         // 2. Gửi request sang Python FastAPI microservice (port 8003)
         $url = config('services.analytics.url') . '/api/analytics/basket-analysis';
 
+        if (Cache::has('analytics_service_offline')) {
+            $fallbackResult = $this->runFallbackAnalysis($ordersData);
+            return response()->json($fallbackResult);
+        }
+
         try {
             $response = Http::timeout(4) // Timeout ngắn 4 giây
                 ->post($url, [
@@ -458,8 +464,11 @@ class PromotionController extends Controller
                 $result['source'] = 'Python Service (FastAPI + Pandas)';
                 return response()->json($result);
             }
+
+            Cache::put('analytics_service_offline', true, 300);
         } catch (\Exception $e) {
             // FastAPI service ngoại tuyến, kích hoạt Fallback cơ chế dự phòng tại Laravel
+            Cache::put('analytics_service_offline', true, 300);
         }
 
         // 3. Fallback PHP: Thuật toán thống kê giỏ hàng hiệu quả ngay trong Laravel
@@ -572,6 +581,11 @@ class PromotionController extends Controller
         // 1. Gửi request sang Python FastAPI cổng 8003
         $url = config('services.analytics.url') . '/api/analytics/upsell-suggestion';
 
+        if (Cache::has('analytics_service_offline')) {
+            $fallback = $this->runFallbackUpsell($items, $restaurantId);
+            return response()->json($fallback);
+        }
+
         try {
             $response = Http::timeout(2) // Timeout cực ngắn 2s để đảm bảo trải nghiệm POS
                 ->post($url, [
@@ -583,8 +597,11 @@ class PromotionController extends Controller
                 $result['source'] = 'Python Service (FastAPI + Pandas)';
                 return response()->json($result);
             }
+
+            Cache::put('analytics_service_offline', true, 300);
         } catch (\Exception $e) {
             // FastAPI lỗi hoặc offline, chạy Fallback ngay lập tức
+            Cache::put('analytics_service_offline', true, 300);
         }
 
         // 2. Chạy cơ chế Fallback bằng PHP

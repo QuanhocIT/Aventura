@@ -17,8 +17,13 @@ class AiInsightsClient
 
     public function getInsights(array $restaurants, array $tenantGrowth): array
     {
+        // Fail fast if the Python service is known to be offline
+        if (\Illuminate\Support\Facades\Cache::has('ai_insights_service_offline')) {
+            return $this->generateMockInsights($restaurants, $tenantGrowth);
+        }
+
         return \Illuminate\Support\Facades\Cache::remember('superadmin_ai_insights', 3600, function () use ($restaurants, $tenantGrowth) {
-            if (empty($this->baseUrl)) {
+            if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
                 return $this->generateMockInsights($restaurants, $tenantGrowth);
             }
 
@@ -38,6 +43,8 @@ class AiInsightsClient
                 Log::warning('AiInsightsClient: Python service trả lỗi hoặc dữ liệu thiếu, sử dụng fallback', ['status' => $response->status()]);
             } catch (\Throwable $e) {
                 Log::warning('AiInsightsClient: không kết nối được Python service, sử dụng fallback', ['error' => $e->getMessage()]);
+                // Cache the offline status for 5 minutes
+                \Illuminate\Support\Facades\Cache::put('ai_insights_service_offline', true, 300);
             }
 
             return $this->generateMockInsights($restaurants, $tenantGrowth);

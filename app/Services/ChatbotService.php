@@ -69,23 +69,34 @@ class ChatbotService
             return [];
         }
 
-        try {
-            $params = ['limit' => $limit];
-            if ($category) {
-                $params['category'] = $category;
-            }
-
-            $response = Http::timeout(2)
-                ->get($this->baseUrl.'/suggestions', $params);
-
-            if ($response->successful()) {
-                return $response->json('suggestions', []);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('ChatbotService: lỗi lấy suggestions', ['error' => $e->getMessage()]);
+        // If service is currently known to be offline, fail fast to prevent timeout lag
+        if (\Illuminate\Support\Facades\Cache::has('chatbot_service_offline')) {
+            return [];
         }
 
-        return [];
+        $cacheKey = 'chatbot_suggestions_' . ($category ?? 'all') . '_' . $limit;
+
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function () use ($category, $limit) {
+            try {
+                $params = ['limit' => $limit];
+                if ($category) {
+                    $params['category'] = $category;
+                }
+
+                $response = Http::timeout(2)
+                    ->get($this->baseUrl.'/suggestions', $params);
+
+                if ($response->successful()) {
+                    return $response->json('suggestions', []);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('ChatbotService: lỗi lấy suggestions', ['error' => $e->getMessage()]);
+                // Cache the offline status for 2 minutes to prevent subsequent blocking calls
+                \Illuminate\Support\Facades\Cache::put('chatbot_service_offline', true, 120);
+            }
+
+            return [];
+        });
     }
 
     public function sendFeedback(int $knowledgeId, bool $helpful): void
