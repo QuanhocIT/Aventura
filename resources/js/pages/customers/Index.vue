@@ -41,6 +41,7 @@ const props = defineProps<{
     };
     search: string;
     isOwner: boolean;
+    hasRfmFeature: boolean;
 }>();
 
 // --- STATE ---
@@ -236,6 +237,7 @@ const genderColors = {
                 👥 Hồ sơ CRM khách hàng
             </button>
             <button 
+                v-if="hasRfmFeature"
                 type="button"
                 @click="router.visit('/customers/cdp')"
                 class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-350 flex items-center gap-1.5 focus:outline-none"

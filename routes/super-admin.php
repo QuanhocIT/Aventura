@@ -12,6 +12,7 @@ use App\Http\Controllers\SuperAdmin\NewsPostController;
 use App\Http\Controllers\SuperAdmin\RestaurantController;
 use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
 use App\Http\Controllers\SuperAdmin\SupportPortalController;
+use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 
 
 Route::prefix('super-admin')
@@ -47,6 +48,7 @@ Route::prefix('super-admin')
         Route::patch('restaurants/{restaurant}/unflag', [RestaurantController::class, 'unflag'])->name('restaurants.unflag');
         Route::patch('restaurants/{restaurant}/storage-quota', [RestaurantController::class, 'updateStorageQuota'])->name('restaurants.storage-quota');
         Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
+        Route::post('restaurants/{restaurant}/custom-plan', [CustomPlanBuilderController::class, 'store'])->name('restaurants.custom-plan.store');
 
         // Garbage Collector UI
         Route::get('garbage-collector', [\App\Http\Controllers\SuperAdmin\GarbageCollectorController::class, 'index'])->name('garbage-collector.index');

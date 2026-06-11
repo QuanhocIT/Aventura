@@ -16,7 +16,7 @@ class SubscriptionPlanController extends Controller
 {
     public function index(): Response
     {
-        $plans = SubscriptionPlan::withCount('restaurants')->get()->map(fn ($p) => [
+        $plans = SubscriptionPlan::where('is_custom', false)->withCount('restaurants')->get()->map(fn ($p) => [
             'id'              => $p->id,
             'code'            => $p->code,
             'name'            => $p->name,

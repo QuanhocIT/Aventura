@@ -103,11 +103,18 @@ class CustomerController extends Controller
             'total_ordering_30d' => $totalOrdering,
         ];
 
+        $hasRfmFeature = false;
+        $restaurant = $request->user()->restaurant;
+        if ($restaurant) {
+            $hasRfmFeature = app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis');
+        }
+
         return Inertia::render('customers/Index', [
             'customers' => $customers,
             'stats'     => $stats,
             'search'    => $search ?? '',
             'isOwner'   => $request->user()->can('export_customers'),
+            'hasRfmFeature' => $hasRfmFeature,
         ]);
     }
 

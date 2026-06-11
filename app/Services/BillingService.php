@@ -565,12 +565,14 @@ class BillingService
 
     private function billingCycleDays(RestaurantSubscription $subscription): int
     {
-        $cycle = $subscription->billing_cycle ?? $subscription->plan?->billing_cycle ?? 'monthly';
+        $cycle = strtolower(trim($subscription->billing_cycle ?? $subscription->plan?->billing_cycle ?? 'monthly'));
 
         return match ($cycle) {
-            'yearly' => 365,
-            'quarterly' => 90,
-            default => 30,
+            'yearly'      => 365,
+            'quarterly'   => 90,
+            'half_yearly' => 180,
+            'biennial'    => 730,
+            default       => 30,
         };
     }
 

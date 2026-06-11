@@ -23,6 +23,7 @@ class QuotaService
             'branches'   => $plan->max_branches,
             'tables'     => $plan->max_tables,
             'employees'  => $plan->max_users,
+            'dishes'     => $plan->max_dishes,
             'areas'      => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
             'storage_mb' => (int) ($plan->features['max_storage_mb'] ?? 500),
             default      => null,
@@ -45,6 +46,7 @@ class QuotaService
             'employees' => $restaurant->employees()->where('status', 'active')->count(),
             'areas'     => $restaurant->areas()->count(),
             'storage_mb' => $storageMb,
+            'dishes'    => \App\Models\Product::where('restaurant_id', $restaurant->id)->count(),
         ];
     }
 
@@ -109,6 +111,7 @@ class QuotaService
                 'employees' => $format('employees'),
                 'areas'     => $format('areas'),
                 'storage_mb' => $format('storage_mb'),
+                'dishes'    => $format('dishes'),
             ],
             'features' => [
                 'kitchen_display'    => $this->hasFeature($restaurant, 'kitchen_display'),

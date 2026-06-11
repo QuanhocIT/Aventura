@@ -18,7 +18,14 @@ class SubscriptionPlan extends Model
     {
         return [
             'features' => 'array',
+            'is_custom' => 'boolean',
+            'max_dishes' => 'integer',
         ];
+    }
+
+    public function restaurant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Restaurant::class);
     }
 
     public function restaurants(): HasMany

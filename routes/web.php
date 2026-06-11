@@ -79,7 +79,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Functional Pages for Guided Tours
     Route::get('products', [SupportController::class, 'productsPage'])->name('products.index');
     Route::get('api/products/menu-insights', [\App\Http\Controllers\MenuInsightController::class, 'index'])->name('products.menu-insights');
-    Route::post('products', [SupportController::class, 'storeProduct'])->name('products.store');
+    Route::post('products', [SupportController::class, 'storeProduct'])->name('products.store')->middleware('tenant.quota:dishes');
     Route::patch('products/{product}', [SupportController::class, 'updateProduct'])->name('products.update');
     Route::delete('products/{product}', [SupportController::class, 'destroyProduct'])->name('products.destroy');
     Route::post('product-categories', [SupportController::class, 'storeCategory'])->name('product-categories.store');
@@ -93,7 +93,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/waste', [SupportController::class, 'storeWaste'])->name('inventory.waste.store');
 
     Route::get('employees', [SupportController::class, 'employeesPage'])->name('employees.index');
-    Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store');
+    Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
     Route::patch('employees/{employee}', [SupportController::class, 'updateEmployee'])->name('employees.update');
     Route::patch('employees/{employee}/toggle-status', [SupportController::class, 'toggleEmployeeStatus'])->name('employees.toggle-status');
     Route::get('employees/{employee}/export-profile', [SupportController::class, 'exportEmployeeProfile'])->name('employees.export-profile');
@@ -159,7 +159,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Tables management
     Route::get('tables', [\App\Http\Controllers\TablesController::class, 'index'])->name('tables.index');
     Route::post('tables/areas', [\App\Http\Controllers\TablesController::class, 'storeArea'])->name('tables.areas.store');
-    Route::post('tables', [\App\Http\Controllers\TablesController::class, 'store'])->name('tables.store');
+    Route::post('tables', [\App\Http\Controllers\TablesController::class, 'store'])->name('tables.store')->middleware('tenant.quota:tables');
     Route::patch('tables/{table}', [\App\Http\Controllers\TablesController::class, 'update'])->name('tables.update');
     Route::delete('tables/{table}', [\App\Http\Controllers\TablesController::class, 'destroy'])->name('tables.destroy');
     Route::post('tables/{table}/regenerate-qr', [\App\Http\Controllers\TablesController::class, 'regenerateQr'])->name('tables.regenerate-qr');

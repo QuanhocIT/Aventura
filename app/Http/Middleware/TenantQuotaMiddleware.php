@@ -45,6 +45,7 @@ class TenantQuotaMiddleware
                 'tables'    => 'bàn hoạt động',
                 'employees' => 'tài khoản nhân viên',
                 'areas'     => 'khu vực',
+                'dishes'    => 'món ăn',
             ];
 
             $resourceName = $resourceNames[$resource] ?? $resource;

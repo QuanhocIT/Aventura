@@ -88,6 +88,85 @@ function submitOverride() {
     });
 }
 
+const customPlanForm = useForm({
+    name: '',
+    price: 0,
+    billing_cycle: 'monthly',
+    max_branches: -1,
+    max_users: -1,
+    max_tables: -1,
+    max_dishes: -1,
+    max_areas: -1,
+    max_storage_mb: 500,
+    api_rate_limit: 60,
+    password: '',
+    // features
+    kitchen_display: false,
+    qr_ordering: false,
+    inventory_basic: false,
+    hr_timekeeping: false,
+    hr_full: false,
+    advanced_analytics: false,
+    realtime: false,
+    fraud_detection: false,
+    email_reports: false,
+    ai_advisor: false,
+    supplier_portal: false,
+    ai_forecasting: false,
+    api_access: false,
+    rfm_ai_analysis: false,
+    priority_support: false,
+});
+
+function loadDefaultsFromCurrentPlan() {
+    customPlanForm.name = `Gói Custom - ${props.restaurant.name}`;
+    
+    const branches = props.quota.resources.branches;
+    customPlanForm.max_branches = branches.unlimited ? -1 : branches.limit;
+    
+    const tables = props.quota.resources.tables;
+    customPlanForm.max_tables = tables.unlimited ? -1 : tables.limit;
+    
+    const employees = props.quota.resources.employees;
+    customPlanForm.max_users = employees.unlimited ? -1 : employees.limit;
+
+    const dishes = props.quota.resources.dishes;
+    customPlanForm.max_dishes = dishes ? (dishes.unlimited ? -1 : dishes.limit) : -1;
+    
+    const areas = props.quota.resources.areas;
+    customPlanForm.max_areas = areas ? (areas.unlimited ? -1 : areas.limit) : -1;
+    
+    const storage = props.quota.resources.storage_mb;
+    customPlanForm.max_storage_mb = storage.unlimited ? 10240 : storage.limit;
+
+    customPlanForm.api_rate_limit = props.quota.rate_limit || 60;
+    
+    customPlanForm.kitchen_display = !!props.quota.features.kitchen_display;
+    customPlanForm.qr_ordering = !!props.quota.features.qr_ordering;
+    customPlanForm.inventory_basic = !!props.quota.features.inventory_basic;
+    customPlanForm.hr_timekeeping = !!props.quota.features.hr_timekeeping;
+    customPlanForm.hr_full = !!props.quota.features.hr_full;
+    customPlanForm.advanced_analytics = !!props.quota.features.advanced_analytics;
+    customPlanForm.realtime = !!props.quota.features.realtime;
+    customPlanForm.fraud_detection = !!props.quota.features.fraud_detection;
+    customPlanForm.email_reports = !!props.quota.features.email_reports;
+    customPlanForm.ai_advisor = !!props.quota.features.ai_advisor;
+    customPlanForm.supplier_portal = !!props.quota.features.supplier_portal;
+    customPlanForm.ai_forecasting = !!props.quota.features.ai_forecasting;
+    customPlanForm.api_access = !!props.quota.features.api_access;
+    customPlanForm.rfm_ai_analysis = !!props.quota.features.rfm_ai_analysis;
+    customPlanForm.priority_support = !!props.quota.features.priority_support;
+}
+
+function submitCustomPlan() {
+    customPlanForm.post(`/super-admin/restaurants/${props.restaurant.id}/custom-plan`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            customPlanForm.password = '';
+        },
+    });
+}
+
 function impersonateUser() {
     if (!props.restaurant.owner?.id) {
         alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
@@ -117,7 +196,6 @@ function applyPreset(type: string, days: number, discount: number, reason: strin
     overrideForm.discount_amount = discount;
     overrideForm.reason = reason;
     
-    // Tự động focus ô mật khẩu
     const pwdInput = document.getElementById('override-password');
 
     if (pwdInput) {
@@ -147,10 +225,10 @@ const statusLabel: Record<string, string> = {
 };
 
 const resourceIcons: Record<string, any> = {
-    branches: Building2, employees: Users, areas: LayoutGrid, tables: Table2, storage_mb: HardDrive,
+    branches: Building2, employees: Users, areas: LayoutGrid, tables: Table2, storage_mb: HardDrive, dishes: LayoutGrid,
 };
 const resourceLabels: Record<string, string> = {
-    branches: 'Chi nhánh', employees: 'Nhân viên', areas: 'Khu vực', tables: 'Bàn ăn', storage_mb: 'Dung lượng (MB)',
+    branches: 'Chi nhánh', employees: 'Nhân viên', areas: 'Khu vực', tables: 'Bàn ăn', storage_mb: 'Dung lượng (MB)', dishes: 'Món ăn',
 };
 
 function barColor(pct: number, canAdd: boolean) {
@@ -282,6 +360,173 @@ function openSubsDialog() {
                                 <div v-else class="h-full w-full rounded-full bg-emerald-500/30" />
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Custom Plan Builder -->
+                <Card class="border-indigo-500/20 shadow-md">
+                    <CardHeader class="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/20 flex flex-row items-center justify-between">
+                        <CardTitle class="flex items-center gap-2 text-base text-indigo-600 dark:text-indigo-400">
+                            <Crown class="size-5" /> Trình thiết kế Gói dịch vụ tùy chỉnh cho Doanh nghiệp (Enterprise Custom Plan Builder)
+                        </CardTitle>
+                        <Button type="button" size="sm" variant="outline" class="text-xs font-semibold" @click="loadDefaultsFromCurrentPlan">
+                            Tải nhanh thông số hiện tại
+                        </Button>
+                    </CardHeader>
+                    <CardContent class="pt-6">
+                        <form @submit.prevent="submitCustomPlan" class="space-y-6">
+                            <!-- Section 1: Contract Setup -->
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 border-l-2 border-indigo-500 pl-2">1. Thông tin hợp đồng & Giá</h3>
+                                <div class="grid gap-4 md:grid-cols-3">
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-name">Tên gói đăng ký</Label>
+                                        <Input id="cp-name" v-model="customPlanForm.name" placeholder="Gói Custom - Chuỗi Kichi..." />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-price">Đơn giá hợp đồng (VND)</Label>
+                                        <Input id="cp-price" type="number" v-model="customPlanForm.price" min="0" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-cycle">Chu kỳ thanh toán</Label>
+                                        <select id="cp-cycle" v-model="customPlanForm.billing_cycle" class="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                            <option value="monthly">Theo tháng (1 tháng)</option>
+                                            <option value="quarterly">Theo quý (3 tháng)</option>
+                                            <option value="half_yearly">Nửa năm (6 tháng)</option>
+                                            <option value="yearly">Theo năm (1 năm)</option>
+                                            <option value="biennial">Hợp đồng 2 năm</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 2: Quotas -->
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 border-l-2 border-indigo-500 pl-2">2. Thiết lập hạn ngạch (Quotas)</h3>
+                                <p class="text-xs text-muted-foreground mb-3 font-medium">Nhập <code class="bg-muted px-1.5 py-0.5 rounded text-indigo-600 font-bold">-1</code> để thiết lập không giới hạn (∞) cho tài nguyên.</p>
+                                <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-branches">Số chi nhánh tối đa</Label>
+                                        <Input id="cp-branches" type="number" v-model="customPlanForm.max_branches" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-users">Số nhân viên tối đa</Label>
+                                        <Input id="cp-users" type="number" v-model="customPlanForm.max_users" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-tables">Số bàn tối đa</Label>
+                                        <Input id="cp-tables" type="number" v-model="customPlanForm.max_tables" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-dishes">Số món ăn tối đa</Label>
+                                        <Input id="cp-dishes" type="number" v-model="customPlanForm.max_dishes" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-areas">Số khu vực tối đa</Label>
+                                        <Input id="cp-areas" type="number" v-model="customPlanForm.max_areas" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-storage">Dung lượng lưu trữ (MB)</Label>
+                                        <Input id="cp-storage" type="number" v-model="customPlanForm.max_storage_mb" required />
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label for="cp-rate">API Rate Limit (req/min)</Label>
+                                        <Input id="cp-rate" type="number" v-model="customPlanForm.api_rate_limit" required />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 3: Add-on Modules -->
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 border-l-2 border-indigo-500 pl-2">3. Tính năng nâng cao & Add-ons</h3>
+                                
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <!-- Group A: Custom Enterprise Add-ons -->
+                                    <div class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 space-y-3.5">
+                                        <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Enterprise Add-ons</h4>
+                                        <div class="flex items-start gap-2.5">
+                                            <input type="checkbox" id="add-rfm" v-model="customPlanForm.rfm_ai_analysis" class="mt-1 size-4 accent-indigo-600 rounded" />
+                                            <Label for="add-rfm" class="text-xs font-semibold cursor-pointer">
+                                                Phân tích AI khách hàng RFM
+                                                <span class="block text-[10px] text-muted-foreground font-normal">Kích hoạt phân cụm, chấm điểm và đề xuất chiến dịch CDP.</span>
+                                            </Label>
+                                        </div>
+                                        <div class="flex items-start gap-2.5">
+                                            <input type="checkbox" id="add-fraud" v-model="customPlanForm.fraud_detection" class="mt-1 size-4 accent-indigo-600 rounded" />
+                                            <Label for="add-fraud" class="text-xs font-semibold cursor-pointer">
+                                                Phát hiện gian lận tự động (AI Audit)
+                                                <span class="block text-[10px] text-muted-foreground font-normal">Quét kiểm toán hóa đơn, sai phạm và cảnh báo rủi ro thất thoát.</span>
+                                            </Label>
+                                        </div>
+                                        <div class="flex items-start gap-2.5">
+                                            <input type="checkbox" id="add-support" v-model="customPlanForm.priority_support" class="mt-1 size-4 accent-indigo-600 rounded" />
+                                            <Label for="add-support" class="text-xs font-semibold cursor-pointer">
+                                                Ưu tiên xử lý ticket hỗ trợ (SLA VIP)
+                                                <span class="block text-[10px] text-muted-foreground font-normal">Đẩy vé hỗ trợ lên Critical / P1 và phân phối phản hồi nhanh nhất.</span>
+                                            </Label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Group B: Standard Modules -->
+                                    <div class="rounded-xl border border-slate-100 bg-slate-50/30 p-4 grid grid-cols-2 gap-3.5">
+                                        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider col-span-2">Standard Modules</h4>
+                                        
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-kitchen" v-model="customPlanForm.kitchen_display" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-kitchen" class="text-xs cursor-pointer">Màn hình Bếp (KDS)</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-qr" v-model="customPlanForm.qr_ordering" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-qr" class="text-xs cursor-pointer">Gọi món QR tại bàn</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-inv" v-model="customPlanForm.inventory_basic" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-inv" class="text-xs cursor-pointer">Quản lý Kho cơ bản</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-supply" v-model="customPlanForm.supplier_portal" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-supply" class="text-xs cursor-pointer">Cổng Nhà cung cấp</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-shift" v-model="customPlanForm.hr_timekeeping" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-shift" class="text-xs cursor-pointer">Xếp ca làm việc</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-hr" v-model="customPlanForm.hr_full" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-hr" class="text-xs cursor-pointer">Quản lý Nhân sự / Lương</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-realtime" v-model="customPlanForm.realtime" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-realtime" class="text-xs cursor-pointer">Realtime Reverb</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-api" v-model="customPlanForm.api_access" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-api" class="text-xs cursor-pointer">API Integrations</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-advisor" v-model="customPlanForm.ai_advisor" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-advisor" class="text-xs cursor-pointer">Trợ lý Chiến lược AI</Label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="checkbox" id="feat-forecast" v-model="customPlanForm.ai_forecasting" class="size-4 accent-indigo-600 rounded" />
+                                            <Label for="feat-forecast" class="text-xs cursor-pointer">AI Dự báo tồn kho</Label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 4: Security Confirmation -->
+                            <div class="border-t pt-5 grid gap-4 md:grid-cols-2 items-end">
+                                <div class="grid gap-1.5">
+                                    <Label for="cp-pwd" class="text-rose-600 dark:text-rose-400 font-semibold">Xác nhận mật khẩu Super Admin của bạn</Label>
+                                    <Input id="cp-pwd" type="password" v-model="customPlanForm.password" placeholder="Nhập mật khẩu để phê duyệt gói ad-hoc" required />
+                                    <span v-if="customPlanForm.errors.password" class="text-xs text-rose-600 font-medium">{{ customPlanForm.errors.password }}</span>
+                                </div>
+                                <Button type="submit" :disabled="customPlanForm.processing" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 w-full justify-center">
+                                    {{ customPlanForm.processing ? 'Đang tạo và kích hoạt gói...' : 'Kích hoạt & Áp dụng gói tùy chỉnh này' }}
+                                </Button>
+                            </div>
+                        </form>
                     </CardContent>
                 </Card>
 

@@ -119,6 +119,16 @@ class SupportPortalController extends Controller
         ]);
 
         $classification = $this->supportPortal->classifySeverity($data['title'], $data['description']);
+        $severity = $classification['severity'];
+        $priority = $classification['priority'];
+
+        if (!empty($data['restaurant_id'])) {
+            $restaurant = Restaurant::find($data['restaurant_id']);
+            if ($restaurant && app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'priority_support')) {
+                $severity = 'critical';
+                $priority = 'p1';
+            }
+        }
 
         SupportTicket::create([
             'restaurant_id' => $data['restaurant_id'] ?? null,
@@ -126,8 +136,8 @@ class SupportPortalController extends Controller
             'code' => 'TKT-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
             'channel' => 'admin_portal',
             'category' => $data['category'],
-            'severity' => $classification['severity'],
-            'priority' => $classification['priority'],
+            'severity' => $severity,
+            'priority' => $priority,
             'status' => 'open',
             'title' => $data['title'],
             'description' => $data['description'],

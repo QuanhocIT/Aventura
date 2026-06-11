@@ -45,6 +45,7 @@ class HomeController extends Controller
 
         $plans = SubscriptionPlan::query()
             ->where('status', 'active')
+            ->where('is_custom', false)
             ->orderBy('price')
             ->get()
             ->map(fn (SubscriptionPlan $p) => [

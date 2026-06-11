@@ -21,6 +21,11 @@ class CdpController extends Controller
     {
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền truy cập CDP & Phân tích RFM.');
 
+        $restaurant = $request->user()->restaurant;
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+            abort(403, 'Gói dịch vụ của bạn không hỗ trợ tính năng Phân tích AI Khách hàng RFM. Vui lòng liên hệ bộ phận hỗ trợ để kích hoạt tính năng này.');
+        }
+
         $restaurantId = $request->user()->restaurant_id;
 
         // Perform recalculation on-demand if there are any uncalculated customer records
@@ -56,6 +61,11 @@ class CdpController extends Controller
     public function recalculate(Request $request): RedirectResponse
     {
         abort_unless($request->user()->can('manage_customers'), 403);
+
+        $restaurant = $request->user()->restaurant;
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+            abort(403, 'Gói dịch vụ của bạn không hỗ trợ tính năng Phân tích AI Khách hàng RFM.');
+        }
         
         $restaurantId = $request->user()->restaurant_id;
         CdpService::calculateRfmForRestaurant($restaurantId);
@@ -69,6 +79,11 @@ class CdpController extends Controller
     public function segment(Request $request, string $segment): JsonResponse
     {
         abort_unless($request->user()->can('manage_customers'), 403);
+
+        $restaurant = $request->user()->restaurant;
+        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+            return response()->json(['success' => false, 'message' => 'Gói dịch vụ của bạn không hỗ trợ tính năng này.'], 403);
+        }
         
         $restaurantId = $request->user()->restaurant_id;
 
