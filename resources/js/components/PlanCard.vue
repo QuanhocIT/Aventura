@@ -8,27 +8,25 @@ export interface Plan {
     max_branches: number | null;
     max_tables: number | null;
     max_users: number | null;
-    features: {
-        description?: string;
-        ai_features?: boolean;
-        realtime?: boolean;
-        advanced_analytics?: boolean;
-        api_rate_limit?: number;
-        max_storage_mb?: number;
-        max_areas?: number | null;
-    } | null;
+    features: Record<string, any> | null;
 }
 </script>
 
 <script setup lang="ts">
-import { BarChart3, Check, Crown, Sparkles, X, Zap } from 'lucide-vue-next';
+import { Check, Crown, Star, Users, X } from 'lucide-vue-next';
 import { computed } from 'vue';
 
-const props = defineProps<{
-    plan: Plan;
-    selected: boolean;
-    compact?: boolean;
-}>();
+const props = withDefaults(
+    defineProps<{
+        plan: Plan;
+        selected: boolean;
+        compact?: boolean;
+        billingCycle?: 'monthly' | 'yearly';
+    }>(),
+    {
+        billingCycle: 'monthly',
+    }
+);
 
 const emit = defineEmits<{
     select: [code: string];
@@ -38,10 +36,10 @@ const code = computed(() => props.plan.code.toLowerCase());
 
 const PlanIcon = computed(() => {
     switch (code.value) {
-        case 'pro':   return Zap;
-        case 'max':   return BarChart3;
-        case 'ultra': return Crown;
-        default:      return Sparkles;
+        case 'starter':    return Check;
+        case 'pro':        return Crown;
+        case 'enterprise': return Users;
+        default:           return Star;
     }
 });
 
@@ -55,10 +53,10 @@ const accent = computed(() => {
             icon:       'text-emerald-400',
             dot:        'bg-emerald-400',
             badgeCls:   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 backdrop-blur-md',
-            badgeLabel: 'Phổ biến',
+            badgeLabel: 'Khuyến nghị',
             selectedBg: 'bg-emerald-950/25 border-emerald-400/80',
         };
-        case 'max': return {
+        case 'starter': return {
             strip:      'from-sky-500 to-sky-400',
             borderOn:   'border-sky-400 border-2',
             glow:       'shadow-[0_0_35px_rgba(14,165,233,0.35)]',
@@ -69,7 +67,7 @@ const accent = computed(() => {
             badgeLabel: '',
             selectedBg: 'bg-sky-950/25 border-sky-400/80',
         };
-        case 'ultra': return {
+        case 'enterprise': return {
             strip:      'from-violet-500 to-violet-400',
             borderOn:   'border-violet-400 border-2',
             glow:       'shadow-[0_0_35px_rgba(139,92,246,0.35)]',
@@ -77,7 +75,7 @@ const accent = computed(() => {
             icon:       'text-violet-400',
             dot:        'bg-violet-400',
             badgeCls:   'bg-violet-500/20 text-violet-300 border-violet-500/30 backdrop-blur-md',
-            badgeLabel: 'Enterprise',
+            badgeLabel: 'VIP',
             selectedBg: 'bg-violet-950/25 border-violet-400/80',
         };
         default: return {
@@ -95,10 +93,10 @@ const accent = computed(() => {
 });
 
 const defaultDescriptions: Record<string, string> = {
-    free:  'Gói cơ bản trải nghiệm miễn phí.',
-    pro:   'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
-    max:   'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
-    ultra: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
 };
 
 const description = computed(() =>
@@ -109,38 +107,59 @@ const priceDisplay = computed(() => {
     const p = Number(props.plan.price);
 
     if (p === 0) {
-return { main: 'Miễn phí', sub: '' };
-}
+        return { main: 'Miễn phí', sub: '' };
+    }
+
+    if (props.billingCycle === 'yearly') {
+        const discountPercent = props.plan.features?.yearly_discount_percent !== undefined
+            ? Number(props.plan.features.yearly_discount_percent)
+            : 20;
+        const yearlyMonthly = Math.round(p * (1 - discountPercent / 100));
+        return { 
+            main: yearlyMonthly.toLocaleString('vi-VN') + 'đ', 
+            sub: '/tháng (thanh toán năm)' 
+        };
+    }
 
     return { main: p.toLocaleString('vi-VN') + 'đ', sub: '/tháng' };
 });
 
 const lim = (v: number | null, unit: string) =>
-    v === null ? `Không giới hạn ${unit}` : `${v} ${unit}`;
+    v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
+
+const ALL_FEATURES = [
+    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
+    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
+    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
+    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
+    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
+    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
+    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
+    { key: 'api_access',         label: 'Truy cập API' },
+];
 
 const features = computed((): string[] => {
     const p = props.plan;
     const mb = p.features?.max_storage_mb ?? 500;
-    const rate = p.features?.api_rate_limit ?? 60;
+    const rate = p.features?.api_rate_limit ?? 30;
     const list = [
         lim(p.max_branches, 'chi nhánh'),
         lim(p.max_tables, 'bàn'),
         lim(p.max_users, 'nhân viên'),
         mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`,
-        `Rate limit: ${rate.toLocaleString('vi-VN')}/phút`,
+        `API: ${rate.toLocaleString('vi-VN')} req/phút`,
     ];
 
-    if (p.features?.ai_features) {
-list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-}
-
-    if (p.features?.realtime) {
-list.push('Realtime sync & Advanced Analytics');
-}
-
-    if (p.features?.advanced_analytics) {
-list.push('Hệ thống Audit Log bảo mật');
-}
+    for (const f of ALL_FEATURES) {
+        if (p.features?.[f.key]) {
+            list.push(f.label);
+        }
+    }
 
     return list;
 });
@@ -149,29 +168,26 @@ const unsupported = computed((): string[] => {
     const p = props.plan;
     const list: string[] = [];
 
-    if (!p.features?.ai_features) {
-list.push('AI dự báo nguyên liệu & tồn kho', 'Thuật toán AI phát hiện gian lận');
-}
-
-    if (!p.features?.realtime) {
-list.push('Realtime sync & Advanced Analytics');
-}
-
-    if (!p.features?.advanced_analytics) {
-list.push('Hệ thống Audit Log bảo mật');
-}
+    for (const f of ALL_FEATURES) {
+        if (!p.features?.[f.key]) {
+            list.push(f.label);
+        }
+    }
 
     return list;
 });
 </script>
 
 <template>
-    <button
-        type="button"
+    <div
+        role="button"
+        tabindex="0"
         @click="emit('select', plan.code)"
+        @keydown.enter="emit('select', plan.code)"
+        @keydown.space.prevent="emit('select', plan.code)"
         :class="[
-            'group relative w-full overflow-hidden rounded-2xl border text-left transition-all duration-300 backdrop-blur-md',
-            compact ? 'flex items-center gap-3 px-4 py-3.5' : 'block p-6',
+            'group relative w-full overflow-hidden rounded-2xl border text-left transition-all duration-300 backdrop-blur-md outline-none focus-visible:ring-2 focus-visible:ring-ring select-none',
+            compact ? 'flex items-center gap-3 px-4 py-3.5 cursor-pointer' : 'block p-6 cursor-pointer',
             selected
                 ? [accent.borderOn, accent.glow, accent.selectedBg, 'scale-[1.01] z-10']
                 : 'border-zinc-800/80 bg-zinc-950/40 hover:border-zinc-700/60 hover:bg-zinc-900/40 hover:-translate-y-0.5 shadow-md hover:shadow-lg',
@@ -219,29 +235,57 @@ list.push('Hệ thống Audit Log bảo mật');
                 </span>
             </div>
 
-            <div class="mt-4 flex items-baseline gap-1">
+            <div class="mt-4 flex items-baseline gap-1.5 flex-wrap">
                 <span class="text-2xl font-black leading-none tracking-tight transition-colors duration-200" :class="selected ? 'text-white' : 'text-zinc-200 group-hover:text-white'">
                     {{ priceDisplay.main }}
                 </span>
                 <span v-if="priceDisplay.sub" class="text-xs font-medium text-zinc-500">{{ priceDisplay.sub }}</span>
+                <span 
+                    v-if="billingCycle === 'yearly' && Number(plan.price) > 0"
+                    class="inline-flex rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400"
+                >
+                    Giảm {{ plan.features?.yearly_discount_percent !== undefined ? plan.features.yearly_discount_percent : 20 }}%
+                </span>
             </div>
 
             <p v-if="description" class="mt-2.5 text-[11px] leading-snug text-zinc-500 transition-colors duration-200 group-hover:text-zinc-400">{{ description }}</p>
 
             <div class="my-4 h-px bg-zinc-800/80 transition-colors duration-300 group-hover:bg-zinc-800" />
 
-            <ul class="space-y-2">
-                <li v-for="f in features" :key="f" class="flex items-start gap-2">
-                    <Check class="mt-0.5 size-3.5 shrink-0 transition-transform duration-300 group-hover:scale-110" :class="selected ? accent.check : 'text-zinc-500'" />
-                    <span class="text-[11px] leading-snug transition-colors duration-200" :class="selected ? 'text-zinc-300' : 'text-zinc-400 group-hover:text-zinc-300'">{{ f }}</span>
-                </li>
-                <li v-for="f in unsupported" :key="f" class="flex items-start gap-2 opacity-35 transition-all duration-300 group-hover:opacity-40">
-                    <X class="mt-0.5 size-3.5 shrink-0 text-zinc-600" />
-                    <span class="text-[11px] leading-snug text-zinc-600 line-through decoration-zinc-800/80">{{ f }}</span>
-                </li>
-            </ul>
+            <div class="max-h-[180px] overflow-y-auto pr-1.5 custom-scrollbar">
+                <ul class="space-y-2">
+                    <li v-for="f in features" :key="f" class="flex items-start gap-2">
+                        <Check class="mt-0.5 size-3.5 shrink-0 transition-transform duration-300 group-hover:scale-110" :class="selected ? accent.check : 'text-zinc-500'" />
+                        <span class="text-[11px] leading-snug transition-colors duration-200" :class="selected ? 'text-zinc-300' : 'text-zinc-400 group-hover:text-zinc-300'">{{ f }}</span>
+                    </li>
+                    <li v-for="f in unsupported" :key="f" class="flex items-start gap-2 opacity-35 transition-all duration-300 group-hover:opacity-40">
+                        <X class="mt-0.5 size-3.5 shrink-0 text-zinc-650" />
+                        <span class="text-[11px] leading-snug text-zinc-650 line-through decoration-zinc-800/80">{{ f }}</span>
+                    </li>
+                </ul>
+            </div>
 
             <div v-if="selected" :class="['absolute bottom-3.5 right-3.5 h-2 w-2 rounded-full animate-pulse', accent.dot]" />
         </template>
-    </button>
+    </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+</style>

@@ -29,7 +29,8 @@ class SepayCheckoutService
             $originalPrice = $plan->price;
             if ($billingCycle === 'yearly') {
                 $originalPrice = $plan->price * 12;
-                $price = round($originalPrice * 0.85); // 15% discount
+                $discountPercent = (int) ($plan->features['yearly_discount_percent'] ?? 20);
+                $price = round($originalPrice - (($originalPrice / 100) * $discountPercent));
             } else {
                 $price = $plan->price;
             }

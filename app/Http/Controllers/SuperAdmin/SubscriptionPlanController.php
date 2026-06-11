@@ -53,12 +53,19 @@ class SubscriptionPlanController extends Controller
             'max_areas'          => 'required|integer|min:-1',
             'max_storage_mb'     => 'required|integer|min:1',
             'api_rate_limit'     => 'required|integer|min:10',
+            'yearly_discount_percent' => 'required|integer|min:0|max:100',
             ...(array_fill_keys($this->featureFlags, 'boolean')),
         ]);
 
         $toNull = fn ($v) => $v === -1 ? null : $v;
 
-        $features = ['description' => $validated['description'] ?? null, 'max_areas' => $validated['max_areas'], 'max_storage_mb' => $validated['max_storage_mb'], 'api_rate_limit' => $validated['api_rate_limit']];
+        $features = [
+            'description' => $validated['description'] ?? null,
+            'max_areas' => $validated['max_areas'],
+            'max_storage_mb' => $validated['max_storage_mb'],
+            'api_rate_limit' => $validated['api_rate_limit'],
+            'yearly_discount_percent' => $validated['yearly_discount_percent']
+        ];
         foreach ($this->featureFlags as $flag) {
             $features[$flag] = (bool) ($validated[$flag] ?? false);
         }
@@ -108,6 +115,7 @@ class SubscriptionPlanController extends Controller
             'max_areas'      => 'required|integer|min:-1',
             'max_storage_mb' => 'required|integer|min:1',
             'api_rate_limit' => 'required|integer|min:10',
+            'yearly_discount_percent' => 'required|integer|min:0|max:100',
             ...(array_fill_keys($this->featureFlags, 'boolean')),
         ]);
 
@@ -116,7 +124,13 @@ class SubscriptionPlanController extends Controller
         $existingFeatures = $plan->features ?? [];
         $oldValues = ['name' => $plan->name, 'price' => $plan->price, 'max_branches' => $plan->max_branches, 'max_tables' => $plan->max_tables, 'max_users' => $plan->max_users, 'features' => $existingFeatures];
 
-        $newFeatures = array_merge($existingFeatures, ['description' => $validated['description'] ?? null, 'max_areas' => $validated['max_areas'], 'max_storage_mb' => $validated['max_storage_mb'], 'api_rate_limit' => $validated['api_rate_limit']]);
+        $newFeatures = array_merge($existingFeatures, [
+            'description' => $validated['description'] ?? null,
+            'max_areas' => $validated['max_areas'],
+            'max_storage_mb' => $validated['max_storage_mb'],
+            'api_rate_limit' => $validated['api_rate_limit'],
+            'yearly_discount_percent' => $validated['yearly_discount_percent']
+        ]);
         foreach ($this->featureFlags as $flag) {
             $newFeatures[$flag] = (bool) ($validated[$flag] ?? false);
         }

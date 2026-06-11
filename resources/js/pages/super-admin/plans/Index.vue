@@ -1,6 +1,29 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { Check, Crown, Edit2, Plus, Save, Star, Users, X, Zap } from 'lucide-vue-next';
+import {
+    Activity,
+    Building2,
+    Check,
+    Coins,
+    Crown,
+    Database,
+    Edit2,
+    FileText,
+    Globe,
+    HardDrive,
+    Layers,
+    Lock,
+    Plus,
+    Save,
+    Sparkles,
+    Star,
+    Table,
+    Tag,
+    Users,
+    X,
+    Zap,
+    Percent
+} from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,9 +46,12 @@ interface Plan {
 defineProps<{ plans: Plan[] }>();
 
 const editingId = ref<number | null>(null);
+const editingPlanCode = ref<string>('');
 const isEditing = ref(false);
+const activeTab = ref<'info' | 'features'>('info');
 
 const isCreating = ref(false);
+const activeCreateTab = ref<'info' | 'features'>('info');
 const createForm = useForm({
     code: '',
     name: '',
@@ -38,6 +64,7 @@ const createForm = useForm({
     max_areas: 2,
     max_storage_mb: 500,
     api_rate_limit: 30,
+    yearly_discount_percent: 20,
     kitchen_display:    false,
     qr_ordering:        false,
     inventory_basic:    false,
@@ -76,6 +103,7 @@ const form = useForm({
     max_areas: 2,
     max_storage_mb: 500,
     api_rate_limit: 30,
+    yearly_discount_percent: 20,
     kitchen_display:    false,
     qr_ordering:        false,
     inventory_basic:    false,
@@ -95,7 +123,9 @@ const toForm = (v: number | null) => (v === null ? -1 : v);
 
 function startEdit(plan: Plan) {
     editingId.value = plan.id;
+    editingPlanCode.value = plan.code;
     isEditing.value = true;
+    activeTab.value = 'info';
     form.name               = plan.name;
     form.description        = plan.features?.description ?? planNotes[plan.code] ?? '';
     form.price              = plan.price;
@@ -105,6 +135,7 @@ function startEdit(plan: Plan) {
     form.max_areas          = plan.features?.max_areas ?? 2;
     form.max_storage_mb     = plan.features?.max_storage_mb ?? 500;
     form.api_rate_limit     = plan.features?.api_rate_limit ?? 30;
+    form.yearly_discount_percent = plan.features?.yearly_discount_percent ?? 20;
     form.kitchen_display    = plan.features?.kitchen_display ?? false;
     form.qr_ordering        = plan.features?.qr_ordering ?? false;
     form.inventory_basic    = plan.features?.inventory_basic ?? false;
@@ -161,6 +192,40 @@ const ALL_FEATURES: { key: string; label: string }[] = [
     { key: 'api_access',         label: 'Truy cập API' },
 ];
 
+const FEATURE_CATEGORIES = [
+    {
+        name: 'Vận hành & POS',
+        icon: 'Activity',
+        keys: ['kitchen_display', 'qr_ordering', 'inventory_basic', 'supplier_portal']
+    },
+    {
+        name: 'Nhân sự & Chấm công',
+        icon: 'Users',
+        keys: ['hr_timekeeping', 'hr_full']
+    },
+    {
+        name: 'Phân tích & AI',
+        icon: 'Sparkles',
+        keys: ['advanced_analytics', 'fraud_detection', 'ai_advisor', 'ai_forecasting']
+    },
+    {
+        name: 'Hệ thống & Tích hợp',
+        icon: 'Globe',
+        keys: ['realtime', 'email_reports', 'api_access']
+    }
+];
+
+const categoryIcon: Record<string, any> = {
+    Activity: Activity,
+    Users: Users,
+    Sparkles: Sparkles,
+    Globe: Globe,
+};
+
+function getFeatureLabel(key: string): string {
+    return ALL_FEATURES.find(f => f.key === key)?.label || key;
+}
+
 function planFeatures(plan: Plan): string[] {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
@@ -216,7 +281,7 @@ const planIcon: Record<string, any> = {
                 </p>
             </div>
             <div class="flex items-center gap-2">
-                <Button size="sm" variant="outline" @click="isCreating = true">
+                <Button size="sm" variant="outline" @click="isCreating = true; activeCreateTab = 'info'">
                     <Plus class="size-4 mr-1.5" />
                     Tạo gói mới
                 </Button>
@@ -320,72 +385,196 @@ const planIcon: Record<string, any> = {
 
         <!-- ── PLAN EDIT SHEET (DRAWER) ── -->
         <Sheet v-model:open="isEditing">
-            <SheetContent class="sm:max-w-md overflow-y-auto" @close="editingId = null">
+            <SheetContent class="sm:max-w-xl overflow-y-auto" @close="editingId = null">
                 <SheetHeader class="pb-4 border-b border-border">
-                    <SheetTitle>Chỉnh sửa gói dịch vụ</SheetTitle>
+                    <SheetTitle class="text-xl font-bold flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <component :is="planIcon[editingPlanCode] ?? Edit2" class="size-5 text-indigo-500 animate-pulse" />
+                            Chỉnh sửa gói dịch vụ
+                        </div>
+                        <Badge variant="outline" class="font-mono text-[10px] bg-muted px-2 py-0.5 uppercase tracking-wide border-indigo-500/20 text-indigo-600 rounded-full">{{ editingPlanCode }}</Badge>
+                    </SheetTitle>
                     <SheetDescription>Cập nhật thông tin chi tiết và hạn mức cho gói {{ form.name }}</SheetDescription>
                 </SheetHeader>
                 
-                <div class="flex flex-col gap-4 py-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Tên gói</Label>
-                            <Input v-model="form.name" />
-                        </div>
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Mô tả ngắn (hiển thị trên trang khách)</Label>
-                            <textarea
-                                v-model="form.description"
-                                rows="2"
-                                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                                placeholder="Mô tả ngắn về gói dịch vụ..."
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Giá (VND/tháng)</Label>
-                            <Input v-model.number="form.price" type="number" min="0" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Rate limit (req/phút)</Label>
-                            <Input v-model.number="form.api_rate_limit" type="number" min="10" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Chi nhánh tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="form.max_branches" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Bàn tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="form.max_tables" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Nhân viên tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="form.max_users" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Khu vực tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="form.max_areas" type="number" min="-1" />
-                        </div>
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Lưu trữ (MB)</Label>
-                            <Input v-model.number="form.max_storage_mb" type="number" min="1" />
+                <!-- Tab Selector -->
+                <div class="flex border-b border-border/60 my-4 bg-muted/40 p-1 rounded-xl">
+                    <button
+                        type="button"
+                        @click="activeTab = 'info'"
+                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
+                        :class="activeTab === 'info' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >
+                        Thông tin & Hạn mức
+                    </button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'features'"
+                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
+                        :class="activeTab === 'features' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >
+                        Tính năng ({{ ALL_FEATURES.filter(f => (form as any)[f.key]).length }})
+                    </button>
+                </div>
+
+                <div class="flex flex-col gap-4 py-2">
+                    <!-- Tab 1: Info & Limits -->
+                    <div v-show="activeTab === 'info'" class="space-y-4 animate-in fade-in duration-200">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tên gói</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Tag class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model="form.name" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mô tả ngắn (hiển thị trên trang khách)</Label>
+                                <div class="relative">
+                                    <textarea
+                                        v-model="form.description"
+                                        rows="2"
+                                        class="flex w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500 resize-none"
+                                        placeholder="Mô tả ngắn về gói dịch vụ..."
+                                    />
+                                    <div class="absolute left-3.5 top-3 text-muted-foreground pointer-events-none">
+                                        <FileText class="size-4 text-indigo-500" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Giá (VND/tháng)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Coins class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.price" type="number" min="0" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chiết khấu gói năm (%)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Percent class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.yearly_discount_percent" type="number" min="0" max="100" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rate limit (req/phút)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Activity class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.api_rate_limit" type="number" min="10" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chi nhánh tối đa</Label>
+                                    <Badge v-if="form.max_branches === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Building2 class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.max_branches" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bàn tối đa</Label>
+                                    <Badge v-if="form.max_tables === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Table class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.max_tables" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nhân viên tối đa</Label>
+                                    <Badge v-if="form.max_users === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Users class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.max_users" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Khu vực tối đa</Label>
+                                    <Badge v-if="form.max_areas === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Layers class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.max_areas" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dung lượng lưu trữ tối đa (MB)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <HardDrive class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="form.max_storage_mb" type="number" min="1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Feature toggles — 13 flags -->
-                    <div class="rounded-lg border border-border p-3 space-y-1">
-                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng được kích hoạt</p>
-                        <label v-for="f in ALL_FEATURES" :key="f.key" class="flex items-center justify-between gap-2 cursor-pointer py-0.5">
-                            <span class="text-sm">{{ f.label }}</span>
-                            <input type="checkbox" v-model="(form as any)[f.key]" class="size-4 rounded accent-primary" />
-                        </label>
+                    <!-- Tab 2: Feature Toggles -->
+                    <div v-show="activeTab === 'features'" class="space-y-4 animate-in fade-in duration-200">
+                        <div v-for="category in FEATURE_CATEGORIES" :key="category.name" class="rounded-2xl border border-border bg-card p-4 space-y-3.5 shadow-xs">
+                            <div class="flex items-center gap-2 border-b border-border/50 pb-2">
+                                <component :is="categoryIcon[category.icon] ?? Sparkles" class="size-4 text-indigo-500" />
+                                <h3 class="text-xs font-bold uppercase tracking-wider text-foreground">{{ category.name }}</h3>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 gap-2">
+                                <div 
+                                    v-for="key in category.keys" 
+                                    :key="key" 
+                                    class="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all duration-200"
+                                    :class="{'border-indigo-500/20 bg-indigo-500/[0.02] shadow-2xs': (form as any)[key]}"
+                                >
+                                    <span class="text-xs font-medium text-foreground pr-2">{{ getFeatureLabel(key) }}</span>
+                                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                        <input type="checkbox" v-model="(form as any)[key]" class="sr-only peer" />
+                                        <div class="w-8 h-4.5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="flex gap-2 pt-2 border-t border-border mt-2">
-                        <Button size="sm" @click="editingId && save(editingId)" :disabled="form.processing" class="flex-1">
-                            <Save class="size-3.5 mr-1.5" />
+                    <!-- Actions -->
+                    <div class="flex gap-3 pt-4 border-t border-border mt-4">
+                        <Button 
+                            size="lg" 
+                            @click="editingId && save(editingId)" 
+                            :disabled="form.processing" 
+                            class="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border-none py-6"
+                        >
+                            <Save class="size-4 mr-1.5" />
                             {{ form.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
                         </Button>
-                        <Button size="sm" variant="outline" @click="isEditing = false">Hủy</Button>
+                        <Button 
+                            size="lg" 
+                            variant="outline" 
+                            @click="isEditing = false"
+                            class="rounded-xl border-border font-bold text-xs uppercase tracking-wider py-6"
+                        >
+                            Hủy
+                        </Button>
                     </div>
                 </div>
             </SheetContent>
@@ -393,90 +582,217 @@ const planIcon: Record<string, any> = {
 
         <!-- ── CREATE PLAN DIALOG ── -->
         <Dialog :open="isCreating" @update:open="val => { if (!val) { isCreating = false; createForm.reset(); } }">
-            <DialogContent class="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Tạo gói dịch vụ mới</DialogTitle>
+            <DialogContent class="sm:max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
+                <DialogHeader class="pb-4 border-b border-border">
+                    <DialogTitle class="text-xl font-bold flex items-center gap-2">
+                        <component :is="planIcon[createForm.code] ?? Sparkles" class="size-5 text-indigo-500" />
+                        Tạo gói dịch vụ mới
+                    </DialogTitle>
                     <DialogDescription>Gói mới sẽ xuất hiện ngay trên trang khách hàng sau khi tạo.</DialogDescription>
                 </DialogHeader>
 
+                <!-- Tab Selector for Create -->
+                <div class="flex border-b border-border/60 my-4 bg-muted/40 p-1 rounded-xl">
+                    <button
+                        type="button"
+                        @click="activeCreateTab = 'info'"
+                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
+                        :class="activeCreateTab === 'info' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >
+                        Thông tin & Hạn mức
+                    </button>
+                    <button
+                        type="button"
+                        @click="activeCreateTab = 'features'"
+                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
+                        :class="activeCreateTab === 'features' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >
+                        Tính năng ({{ ALL_FEATURES.filter(f => (createForm as any)[f.key]).length }})
+                    </button>
+                </div>
+
                 <form class="flex flex-col gap-4 py-2" @submit.prevent="submitCreate">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Mã gói (code) <span class="text-destructive">*</span></Label>
-                            <Input v-model="createForm.code" placeholder="vd: starter" />
-                            <p v-if="createForm.errors.code" class="text-xs text-destructive">{{ createForm.errors.code }}</p>
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Chu kỳ thanh toán <span class="text-destructive">*</span></Label>
-                            <Select v-model="createForm.billing_cycle">
-                                <SelectTrigger class="h-9 text-sm">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="monthly">Hàng tháng</SelectItem>
-                                    <SelectItem value="yearly">Hàng năm</SelectItem>
-                                    <SelectItem value="quarterly">Hàng quý</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Tên gói <span class="text-destructive">*</span></Label>
-                            <Input v-model="createForm.name" placeholder="vd: Gói Khởi Nghiệp" />
-                            <p v-if="createForm.errors.name" class="text-xs text-destructive">{{ createForm.errors.name }}</p>
-                        </div>
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Mô tả ngắn (hiển thị trang khách)</Label>
-                            <textarea
-                                v-model="createForm.description"
-                                rows="2"
-                                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                                placeholder="Mô tả ngắn gọn về gói..."
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Giá (VND/tháng) <span class="text-destructive">*</span></Label>
-                            <Input v-model.number="createForm.price" type="number" min="0" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Rate limit (req/phút)</Label>
-                            <Input v-model.number="createForm.api_rate_limit" type="number" min="10" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Chi nhánh tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="createForm.max_branches" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Bàn tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="createForm.max_tables" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Nhân viên tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="createForm.max_users" type="number" min="-1" />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs">Khu vực tối đa (-1 = ∞)</Label>
-                            <Input v-model.number="createForm.max_areas" type="number" min="-1" />
-                        </div>
-                        <div class="col-span-2 grid gap-1.5">
-                            <Label class="text-xs">Lưu trữ (MB)</Label>
-                            <Input v-model.number="createForm.max_storage_mb" type="number" min="1" />
+                    <!-- Tab 1: Info & Limits -->
+                    <div v-show="activeCreateTab === 'info'" class="space-y-4 animate-in fade-in duration-200">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mã gói (code) <span class="text-destructive">*</span></Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Lock class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model="createForm.code" placeholder="vd: starter" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                                <p v-if="createForm.errors.code" class="text-xs text-destructive mt-1">{{ createForm.errors.code }}</p>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chu kỳ thanh toán <span class="text-destructive">*</span></Label>
+                                <Select v-model="createForm.billing_cycle">
+                                    <SelectTrigger class="h-9 text-sm rounded-xl border-border focus:ring-indigo-500/20 focus:border-indigo-500">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent class="rounded-xl">
+                                        <SelectItem value="monthly">Hàng tháng</SelectItem>
+                                        <SelectItem value="yearly">Hàng năm</SelectItem>
+                                        <SelectItem value="quarterly">Hàng quý</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tên gói <span class="text-destructive">*</span></Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Tag class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model="createForm.name" placeholder="vd: Gói Khởi Nghiệp" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                                <p v-if="createForm.errors.name" class="text-xs text-destructive mt-1">{{ createForm.errors.name }}</p>
+                            </div>
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mô tả ngắn (hiển thị trang khách)</Label>
+                                <div class="relative">
+                                    <textarea
+                                        v-model="createForm.description"
+                                        rows="2"
+                                        class="flex w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500 resize-none"
+                                        placeholder="Mô tả ngắn gọn về gói..."
+                                    />
+                                    <div class="absolute left-3.5 top-3 text-muted-foreground pointer-events-none">
+                                        <FileText class="size-4 text-indigo-500" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Giá (VND/tháng) <span class="text-destructive">*</span></Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Coins class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.price" type="number" min="0" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chiết khấu gói năm (%)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Percent class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.yearly_discount_percent" type="number" min="0" max="100" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rate limit (req/phút)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Activity class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.api_rate_limit" type="number" min="10" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chi nhánh tối đa</Label>
+                                    <Badge v-if="createForm.max_branches === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Building2 class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.max_branches" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bàn tối đa</Label>
+                                    <Badge v-if="createForm.max_tables === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Table class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.max_tables" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nhân viên tối đa</Label>
+                                    <Badge v-if="createForm.max_users === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Users class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.max_users" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Khu vực tối đa</Label>
+                                    <Badge v-if="createForm.max_areas === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
+                                </div>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <Layers class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.max_areas" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
+                            <div class="col-span-2 grid gap-1.5">
+                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lưu trữ (MB)</Label>
+                                <div class="relative flex items-center">
+                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
+                                        <HardDrive class="size-4 text-indigo-500" />
+                                    </div>
+                                    <Input v-model.number="createForm.max_storage_mb" type="number" min="1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="rounded-lg border border-border p-3 space-y-1">
-                        <p class="text-xs font-semibold text-muted-foreground mb-2">Tính năng được kích hoạt</p>
-                        <label v-for="f in ALL_FEATURES" :key="f.key" class="flex items-center justify-between gap-2 cursor-pointer py-0.5">
-                            <span class="text-sm">{{ f.label }}</span>
-                            <input type="checkbox" v-model="(createForm as any)[f.key]" class="size-4 rounded accent-primary" />
-                        </label>
+                    <!-- Tab 2: Feature Toggles for Create -->
+                    <div v-show="activeCreateTab === 'features'" class="space-y-4 animate-in fade-in duration-200">
+                        <div v-for="category in FEATURE_CATEGORIES" :key="category.name" class="rounded-2xl border border-border bg-card p-4 space-y-3.5 shadow-xs">
+                            <div class="flex items-center gap-2 border-b border-border/50 pb-2">
+                                <component :is="categoryIcon[category.icon] ?? Sparkles" class="size-4 text-indigo-500" />
+                                <h3 class="text-xs font-bold uppercase tracking-wider text-foreground">{{ category.name }}</h3>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 gap-2">
+                                <div 
+                                    v-for="key in category.keys" 
+                                    :key="key" 
+                                    class="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all duration-200"
+                                    :class="{'border-indigo-500/20 bg-indigo-500/[0.02] shadow-2xs': (createForm as any)[key]}"
+                                >
+                                    <span class="text-xs font-medium text-foreground pr-2">{{ getFeatureLabel(key) }}</span>
+                                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                        <input type="checkbox" v-model="(createForm as any)[key]" class="sr-only peer" />
+                                        <div class="w-8 h-4.5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="flex gap-2 pt-2 border-t border-border">
-                        <Button type="submit" size="sm" :disabled="createForm.processing" class="flex-1">
-                            <Save class="size-3.5 mr-1.5" />
+                    <div class="flex gap-3 pt-4 border-t border-border mt-4">
+                        <Button 
+                            type="submit" 
+                            size="lg" 
+                            :disabled="createForm.processing" 
+                            class="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border-none py-6"
+                        >
+                            <Plus class="size-4 mr-1.5" />
                             {{ createForm.processing ? 'Đang tạo...' : 'Tạo gói' }}
                         </Button>
-                        <Button type="button" size="sm" variant="outline" @click="isCreating = false; createForm.reset()">Hủy</Button>
+                        <Button 
+                            type="button" 
+                            size="lg" 
+                            variant="outline" 
+                            @click="isCreating = false; createForm.reset()"
+                            class="rounded-xl border-border font-bold text-xs uppercase tracking-wider py-6"
+                        >
+                            Hủy
+                        </Button>
                     </div>
                 </form>
             </DialogContent>

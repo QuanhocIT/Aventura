@@ -26,7 +26,11 @@ class CustomRegisterResponse implements RegisterResponseContract
             ->first();
 
         if ($plan && (float) $plan->price > 0) {
-            return redirect()->route('billing.checkout', ['plan' => Str::lower($plan->code)]);
+            $cycle = $request->input('cycle', 'monthly');
+            if (! in_array($cycle, ['monthly', 'yearly'])) {
+                $cycle = 'monthly';
+            }
+            return redirect()->route('billing.checkout', ['plan' => Str::lower($plan->code), 'cycle' => $cycle]);
         }
 
         return redirect()->intended('/dashboard');

@@ -40,134 +40,177 @@ const staticPlans = [
         maxBranches: '1 chi nhánh',
         maxTables: '10 bàn',
         maxUsers: '5 nhân viên',
-        note: 'Gói cơ bản trải nghiệm miễn phí.',
+        note: 'Gói cơ bản, trải nghiệm POS miễn phí.',
         features: [
             '1 chi nhánh',
-            '10 bàn hoạt động',
+            '10 bàn',
             '5 nhân viên',
-            '500 MB dung lượng lưu trữ',
-            'Rate limit: 60 yêu cầu/phút',
+            '500 MB lưu trữ',
+            'API: 30 req/phút',
         ],
         unsupportedFeatures: [
-            'AI dự báo nguyên liệu & tồn kho',
-            'Thuật toán AI phát hiện gian lận',
-            'Realtime sync & Advanced Analytics',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
+        ],
+        isRecommended: false,
+    },
+    {
+        code: 'starter',
+        name: 'Cơ Bản',
+        price: '299.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Tối đa 3 chi nhánh',
+        maxTables: 'Tối đa 60 bàn',
+        maxUsers: 'Tối đa 20 nhân viên',
+        note: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+        features: [
+            '3 chi nhánh',
+            '60 bàn',
+            '20 nhân viên',
+            '5 GB lưu trữ',
+            'API: 120 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Cập nhật thời gian thực',
+        ],
+        unsupportedFeatures: [
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
         ],
         isRecommended: false,
     },
     {
         code: 'pro',
-        name: 'Pro',
-        price: '499.000đ',
+        name: 'Chuyên Nghiệp',
+        price: '699.000đ',
         cycle: '/tháng',
-        maxBranches: 'Không giới hạn chi nhánh',
-        maxTables: 'Không giới hạn bàn',
-        maxUsers: 'Không giới hạn nhân viên',
-        note: 'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
+        maxBranches: 'Tối đa 10 chi nhánh',
+        maxTables: 'Tối đa 200 bàn',
+        maxUsers: 'Tối đa 60 nhân viên',
+        note: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
         features: [
-            'Không giới hạn chi nhánh',
-            'Không giới hạn bàn',
-            'Không giới hạn nhân viên',
-            '10 GB dung lượng lưu trữ',
-            'Rate limit: 600 yêu cầu/phút',
-            'AI dự báo nguyên liệu & tồn kho',
-            'Thuật toán AI phát hiện gian lận',
-            'Realtime sync & Advanced Analytics',
-            'Hệ thống Audit Log bảo mật',
+            '10 chi nhánh',
+            '200 bàn',
+            '60 nhân viên',
+            '50 GB lưu trữ',
+            'API: 600 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+        ],
+        unsupportedFeatures: [
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
         ],
         isRecommended: true,
     },
     {
-        code: 'max',
-        name: 'Max',
-        price: '999.000đ',
-        cycle: '/tháng',
-        maxBranches: 'Tối đa 10 chi nhánh',
-        maxTables: 'Tối đa 300 bàn',
-        maxUsers: 'Tối đa 80 nhân viên',
-        note: 'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
-        features: [
-            'Tối đa 10 chi nhánh',
-            'Tối đa 300 bàn',
-            'Tối đa 80 nhân viên',
-            '50 GB dung lượng lưu trữ',
-            'Rate limit: 1.200 yêu cầu/phút',
-            'AI dự báo nguyên liệu & tồn kho',
-            'Thuật toán AI phát hiện gian lận',
-            'Realtime sync & Advanced Analytics',
-            'Hệ thống Audit Log bảo mật',
-        ],
-        isRecommended: false,
-    },
-    {
-        code: 'ultra',
-        name: 'Ultra',
-        price: '1.999.000đ',
+        code: 'enterprise',
+        name: 'Doanh Nghiệp',
+        price: '1.499.000đ',
         cycle: '/tháng',
         maxBranches: 'Không giới hạn chi nhánh',
         maxTables: 'Không giới hạn bàn',
         maxUsers: 'Không giới hạn nhân viên',
-        note: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+        note: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
         features: [
             'Không giới hạn chi nhánh',
             'Không giới hạn bàn',
             'Không giới hạn nhân viên',
-            '200 GB dung lượng lưu trữ',
-            'Rate limit: 3.000 yêu cầu/phút',
-            'AI dự báo nguyên liệu & tồn kho',
-            'Thuật toán AI phát hiện gian lận',
-            'Realtime sync & Advanced Analytics',
-            'Hệ thống Audit Log bảo mật',
+            '200 GB lưu trữ',
+            'API: 3.000 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
         ],
+        unsupportedFeatures: [],
         isRecommended: false,
     },
 ];
 
 const planNotes: Record<string, string> = {
-    free:  'Gói cơ bản trải nghiệm miễn phí.',
-    pro:   'Tối ưu hiệu năng, chống thất thoát cho mô hình chuyên nghiệp.',
-    max:   'Phù hợp cho chuỗi nhà hàng vừa và lớn.',
-    ultra: 'Giải pháp tối thượng cho doanh nghiệp lớn & chuỗi rộng khắp.',
+    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
 };
+
+const ALL_FEATURES = [
+    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
+    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
+    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
+    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
+    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
+    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
+    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
+    { key: 'api_access',         label: 'Truy cập API' },
+];
 
 function buildDisplayPlan(db: DbPlan) {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
 
     const mb  = (db.features.max_storage_mb as number) ?? 500;
-    const storage = mb >= 1024 ? `${mb / 1024} GB dung lượng lưu trữ` : `${mb} MB dung lượng lưu trữ`;
+    const storage = mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`;
     const rate = (db.features.api_rate_limit as number) ?? 60;
 
-    const always = [
+    const features: string[] = [
         lim(db.max_branches, 'chi nhánh'),
         lim(db.max_tables, 'bàn'),
         lim(db.max_users, 'nhân viên'),
         storage,
-        `Rate limit: ${rate.toLocaleString('vi-VN')} yêu cầu/phút`,
+        `API: ${rate.toLocaleString('vi-VN')} req/phút`,
     ];
 
-    const conditionals = [
-        { key: 'ai_features',         label: 'AI dự báo nguyên liệu & tồn kho' },
-        { key: 'ai_features',         label: 'Thuật toán AI phát hiện gian lận' },
-        { key: 'realtime',            label: 'Realtime sync & Advanced Analytics' },
-        { key: 'advanced_analytics',  label: 'Hệ thống Audit Log bảo mật' },
-    ];
-
-    const features: string[] = [...always];
     const unsupportedFeatures: string[] = [];
-    const seen = new Set<string>();
 
-    for (const { key, label } of conditionals) {
-        if (seen.has(label)) {
-            continue;
-        }
-
-        seen.add(label);
-
-        if (db.features[key]) {
-            features.push(label);
+    for (const f of ALL_FEATURES) {
+        if (db.features[f.key]) {
+            features.push(f.label);
         } else {
-            unsupportedFeatures.push(label);
+            unsupportedFeatures.push(f.label);
         }
     }
 
@@ -180,6 +223,7 @@ function buildDisplayPlan(db: DbPlan) {
         features,
         unsupportedFeatures,
         isRecommended:      db.code === 'pro',
+        yearlyDiscountPercent: db.features.yearly_discount_percent !== undefined ? Number(db.features.yearly_discount_percent) : 20,
     };
 }
 
@@ -187,22 +231,28 @@ function buildDisplayPlan(db: DbPlan) {
 const billingCycle = ref<'monthly' | 'yearly'>('monthly');
 
 const displayPlans = computed(() => {
-    const plans = props.plans?.length ? props.plans.map(buildDisplayPlan) : staticPlans;
+    const plans = props.plans?.length ? props.plans.map(buildDisplayPlan) : staticPlans.map(p => ({ ...p, yearlyDiscountPercent: 20 }));
 
     if (billingCycle.value === 'yearly') {
         return plans.map(p => {
-            if (p.price === '0đ') {
+            if (p.price === '0đ' || p.price === 'Miễn phí') {
                 return p;
             }
 
-            // Strip existing price, compute 20% discount
-            const dbPlan = props.plans?.find(d => d.code === p.code);
+            let rawPrice = 0;
+            if (props.plans?.length) {
+                const dbPlan = props.plans.find(d => d.code === p.code);
+                rawPrice = dbPlan ? Number(dbPlan.price) : 0;
+            } else {
+                rawPrice = Number(p.price.replace(/[^\d]/g, ''));
+            }
 
-            if (!dbPlan || dbPlan.price === 0) {
+            if (rawPrice === 0) {
                 return p;
             }
 
-            const yearlyMonthly = Math.round(dbPlan.price * 0.8);
+            const discountPercent = p.yearlyDiscountPercent ?? 20;
+            const yearlyMonthly = Math.round(rawPrice * (1 - discountPercent / 100));
 
             return {
                 ...p,
@@ -254,7 +304,7 @@ const displayPlans = computed(() => {
                         'border-2 border-primary shadow-sm':
                             plan.isRecommended,
                         'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent':
-                            plan.code === 'ultra',
+                            plan.code === 'enterprise' || plan.code === 'ultra',
                     }"
                     :style="{ transitionDelay: idx * 150 + 'ms' }"
                 >
@@ -265,7 +315,7 @@ const displayPlans = computed(() => {
                                 :class="{
                                     'text-primary': plan.isRecommended,
                                     'text-violet-500':
-                                        plan.code === 'ultra',
+                                        plan.code === 'enterprise' || plan.code === 'ultra',
                                 }"
                             >
                                 {{ plan.name }}
@@ -279,20 +329,20 @@ const displayPlans = computed(() => {
                                 >Khuyến nghị</Badge
                             >
                             <Badge
-                                v-else-if="plan.code === 'ultra'"
+                                v-else-if="plan.code === 'enterprise' || plan.code === 'ultra'"
                                 class="bg-violet-600 text-white hover:bg-violet-700"
                                 >VIP</Badge
                             >
                         </div>
-                        <div class="mt-2 flex items-end gap-1 min-h-[40px]">
+                        <div class="mt-2 flex items-end gap-1.5 min-h-[40px]">
                             <Transition name="pricing-fade" mode="out-in">
-                                <div :key="plan.price" class="flex items-end gap-1">
+                                <div :key="plan.price" class="flex items-end gap-1.5 flex-wrap">
                                     <span
                                         class="text-3xl font-extrabold text-foreground"
                                         :class="{
                                             'text-primary': plan.isRecommended,
                                             'text-violet-500':
-                                                plan.code === 'ultra',
+                                                plan.code === 'enterprise' || plan.code === 'ultra',
                                         }"
                                     >
                                         {{ plan.price }}
@@ -301,6 +351,13 @@ const displayPlans = computed(() => {
                                         class="pb-1 text-xs text-muted-foreground"
                                         >{{ plan.cycle }}</span
                                     >
+                                    <Badge
+                                        v-if="billingCycle === 'yearly' && plan.yearlyDiscountPercent > 0"
+                                        variant="outline"
+                                        class="ml-1 text-[10px] font-bold border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-center"
+                                    >
+                                        Giảm {{ plan.yearlyDiscountPercent }}%
+                                    </Badge>
                                 </div>
                             </Transition>
                         </div>
@@ -308,30 +365,32 @@ const displayPlans = computed(() => {
                             {{ plan.note }}
                         </CardDescription>
                     </CardHeader>
-                    <CardContent class="flex-grow space-y-2 text-xs">
-                        <p
-                            v-for="feat in plan.features"
-                            :key="feat"
-                            class="flex items-center gap-2"
-                        >
-                            <Check
-                                class="size-4 flex-shrink-0 text-emerald-500"
-                                :class="{
-                                    'text-primary': plan.isRecommended,
-                                    'text-violet-500':
-                                        plan.code === 'ultra',
-                                }"
-                            />
-                            <span>{{ feat }}</span>
-                        </p>
-                        <p
-                            v-for="unfeat in plan.unsupportedFeatures"
-                            :key="unfeat"
-                            class="flex items-center gap-2 text-muted-foreground opacity-60"
-                        >
-                            <X class="size-4 flex-shrink-0" />
-                            <span>{{ unfeat }}</span>
-                        </p>
+                    <CardContent class="flex-grow text-xs">
+                        <div class="max-h-[180px] overflow-y-auto pr-1.5 custom-scrollbar space-y-2">
+                            <p
+                                v-for="feat in plan.features"
+                                :key="feat"
+                                class="flex items-center gap-2"
+                            >
+                                <Check
+                                    class="size-4 flex-shrink-0 text-emerald-500"
+                                    :class="{
+                                        'text-primary': plan.isRecommended,
+                                        'text-violet-500':
+                                            plan.code === 'enterprise' || plan.code === 'ultra',
+                                    }"
+                                />
+                                <span>{{ feat }}</span>
+                            </p>
+                            <p
+                                v-for="unfeat in plan.unsupportedFeatures"
+                                :key="unfeat"
+                                class="flex items-center gap-2 text-muted-foreground opacity-60"
+                            >
+                                <X class="size-4 flex-shrink-0" />
+                                <span>{{ unfeat }}</span>
+                            </p>
+                        </div>
                     </CardContent>
                     <div class="mt-4 px-6 pb-6">
                         <Button
@@ -340,17 +399,17 @@ const displayPlans = computed(() => {
                             :variant="
                                 plan.isRecommended
                                     ? 'default'
-                                    : plan.code === 'ultra'
+                                    : (plan.code === 'enterprise' || plan.code === 'ultra')
                                       ? 'default'
                                       : 'outline'
                             "
                             class="w-full text-xs font-semibold"
                             :class="{
                                 'border-0 bg-violet-600 text-white hover:bg-violet-700':
-                                    plan.code === 'ultra',
+                                    plan.code === 'enterprise' || plan.code === 'ultra',
                             }"
                         >
-                            <Link :href="user ? '/billing/checkout?plan=' + plan.code : login.url({ query: { status: 'Bạn cần đăng nhập tài khoản để nâng gói', plan: plan.code } })"
+                            <Link :href="user ? `/billing/checkout?plan=${plan.code}&cycle=${billingCycle}` : login.url({ query: { status: 'Bạn cần đăng nhập tài khoản để nâng gói', plan: plan.code, cycle: billingCycle } })"
                                 >Chọn {{ plan.name }}</Link
                             >
                         </Button>
@@ -374,5 +433,23 @@ const displayPlans = computed(() => {
 .pricing-fade-leave-to {
     opacity: 0;
     transform: translateY(-4px);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 </style>

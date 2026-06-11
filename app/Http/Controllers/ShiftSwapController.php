@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
 use App\Models\WorkShift;
+use App\Models\ScheduleRegistration;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -315,6 +316,21 @@ class ShiftSwapController extends Controller
         return response()->json([
             'success' => true
         ]);
+    }
+
+    private function getDayVn(string $day): string
+    {
+        $days = [
+            'Monday' => 'Thứ Hai',
+            'Tuesday' => 'Thứ Ba',
+            'Wednesday' => 'Thứ Tư',
+            'Thursday' => 'Thứ Năm',
+            'Friday' => 'Thứ Sáu',
+            'Saturday' => 'Thứ Bảy',
+            'Sunday' => 'Chủ Nhật',
+        ];
+
+        return $days[$day] ?? $day;
     }
 
 }

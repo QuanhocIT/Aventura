@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 // @ts-ignore
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 // @ts-ignore
@@ -21,7 +21,7 @@ import { home, register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
-defineProps<{
+const props = defineProps<{
     status?: string;
     canResetPassword: boolean;
     canRegister: boolean;
@@ -30,6 +30,15 @@ defineProps<{
 
 const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const selectedPlan = ref(urlParams?.get('plan') || 'free');
+const selectedCycle = ref(urlParams?.get('cycle') || 'monthly');
+
+const maxDiscountPercent = computed(() => {
+    if (!props.plans?.length) return 20;
+    const percentages = props.plans.map((p: Plan) => 
+        p.features?.yearly_discount_percent !== undefined ? Number(p.features.yearly_discount_percent) : 20
+    );
+    return Math.max(...percentages);
+});
 </script>
 
 <template>
@@ -76,6 +85,7 @@ const selectedPlan = ref(urlParams?.get('plan') || 'free');
                         class="mt-6 space-y-5"
                     >
                         <input type="hidden" name="plan_code" :value="selectedPlan" />
+                        <input type="hidden" name="cycle" :value="selectedCycle" />
 
                         <div class="grid gap-1.5">
                             <Label for="email" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">Địa chỉ email</Label>
@@ -133,7 +143,7 @@ const selectedPlan = ref(urlParams?.get('plan') || 'free');
             <!-- Footer (bottom) -->
             <p v-if="canRegister" class="text-center text-sm text-muted-foreground mt-6 relative z-10">
                 Chưa có tài khoản?
-                <TextLink :href="register.url({ query: { plan: selectedPlan } })" :tabindex="6" class="font-bold text-emerald-600 dark:text-emerald-400 underline underline-offset-4 hover:text-emerald-500 transition-colors">
+                <TextLink :href="register.url({ query: { plan: selectedPlan, cycle: selectedCycle } })" :tabindex="6" class="font-bold text-emerald-600 dark:text-emerald-400 underline underline-offset-4 hover:text-emerald-500 transition-colors">
                     Đăng ký miễn phí
                 </TextLink>
             </p>
@@ -157,19 +167,40 @@ const selectedPlan = ref(urlParams?.get('plan') || 'free');
             <div class="pointer-events-none absolute bottom-1/4 right-1/4 h-[450px] w-[450px] rounded-full bg-violet-500/[0.10] blur-[120px] z-0 animate-pulse duration-[10s]" />
 
             <!-- Header (top) -->
-            <div class="relative z-10">
-                <div class="mb-3.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs text-zinc-400 shadow-sm backdrop-blur-md">
-                    <svg class="size-3 text-emerald-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Chọn gói phù hợp
+            <div class="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div class="max-w-xl">
+                    <div class="mb-3.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs text-zinc-400 shadow-sm backdrop-blur-md">
+                        <svg class="size-3 text-emerald-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        Chọn gói phù hợp
+                    </div>
+                    <h2 class="bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-3xl font-black tracking-tight text-transparent">Nâng cấp bất cứ lúc nào</h2>
+                    <p class="mt-2 text-sm text-zinc-500 leading-relaxed">
+                        Chọn gói rồi đăng nhập — hệ thống chuyển bạn đến trang thanh toán ngay.
+                    </p>
                 </div>
-                <h2 class="bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-3xl font-black tracking-tight text-transparent">Nâng cấp bất cứ lúc nào</h2>
-                <p class="mt-2 text-sm text-zinc-500 max-w-md leading-relaxed">
-                    Chọn gói rồi đăng nhập — hệ thống chuyển bạn đến trang thanh toán ngay.
-                </p>
+
+                <!-- Billing toggle -->
+                <div class="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1 text-xs shrink-0 self-start sm:self-auto backdrop-blur-md">
+                    <button
+                        type="button"
+                        @click="selectedCycle = 'monthly'"
+                        class="rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer"
+                        :class="selectedCycle === 'monthly' ? 'bg-zinc-800 shadow-sm text-white' : 'text-zinc-400 hover:text-white'"
+                    >Tháng</button>
+                    <button
+                        type="button"
+                        @click="selectedCycle = 'yearly'"
+                        class="rounded-lg px-3 py-1.5 font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                        :class="selectedCycle === 'yearly' ? 'bg-zinc-800 shadow-sm text-white' : 'text-zinc-400 hover:text-white'"
+                    >
+                        Năm
+                        <span class="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shadow-xs">-{{ maxDiscountPercent }}%</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Plans (middle — flex-1 centered) -->
-            <div class="relative z-10 flex flex-1 flex-col justify-center my-6">
+            <div class="relative z-10 flex flex-1 flex-col justify-start pt-2 my-4">
                 <div class="animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both w-full">
                     <div class="grid grid-cols-4 gap-3">
                         <PlanCard
@@ -177,6 +208,7 @@ const selectedPlan = ref(urlParams?.get('plan') || 'free');
                             :key="plan.code"
                             :plan="plan"
                             :selected="selectedPlan === plan.code"
+                            :billing-cycle="selectedCycle === 'yearly' ? 'yearly' : 'monthly'"
                             @select="selectedPlan = $event"
                         />
                     </div>

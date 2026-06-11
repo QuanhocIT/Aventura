@@ -59,6 +59,11 @@ class ForecastService
                 }
             }
 
+            $driver = \Illuminate\Support\Facades\DB::connection()->getDriverName();
+            $dayOfWeekField = $driver === 'sqlite'
+                ? "CAST(strftime('%w', summary_date) AS INTEGER) + 1"
+                : "DAYOFWEEK(summary_date)";
+
             $tomorrow = Carbon::tomorrow();
             $dayOfWeek = $tomorrow->dayOfWeek;
 
@@ -66,7 +71,7 @@ class ForecastService
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
                 ->where('summary_date', '<', today())
-                ->whereRaw('DAYOFWEEK(summary_date) = ?', [$dayOfWeek + 1])
+                ->whereRaw("{$dayOfWeekField} = ?", [$dayOfWeek + 1])
                 ->orderByDesc('summary_date')
                 ->take(8)
                 ->get();
@@ -108,7 +113,7 @@ class ForecastService
                     ->where('restaurant_id', $restaurantId)
                     ->where('summary_type', 'daily')
                     ->where('summary_date', '<', today())
-                    ->whereRaw('DAYOFWEEK(summary_date) = ?', [$targetDayOfWeek + 1])
+                    ->whereRaw("{$dayOfWeekField} = ?", [$targetDayOfWeek + 1])
                     ->orderByDesc('summary_date')
                     ->take(4)
                     ->get();

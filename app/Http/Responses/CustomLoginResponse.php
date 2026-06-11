@@ -36,7 +36,11 @@ class CustomLoginResponse implements LoginResponseContract
                     ->first();
 
                 if ($plan && (float) $plan->price > 0) {
-                    return redirect()->route('billing.checkout', ['plan' => $desiredCode]);
+                    $cycle = $request->input('cycle', 'monthly');
+                    if (! in_array($cycle, ['monthly', 'yearly'])) {
+                        $cycle = 'monthly';
+                    }
+                    return redirect()->route('billing.checkout', ['plan' => $desiredCode, 'cycle' => $cycle]);
                 }
             }
         }

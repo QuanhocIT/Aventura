@@ -19,13 +19,22 @@ import { Spinner } from '@/components/ui/spinner';
 import { home, login } from '@/routes';
 import { store } from '@/routes/register';
 
-defineProps<{
+const props = defineProps<{
     passwordRules: string;
     plans: Plan[];
 }>();
 
 const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const selectedPlan = ref(urlParams?.get('plan') || 'free');
+const selectedCycle = ref(urlParams?.get('cycle') || 'monthly');
+
+const maxDiscountPercent = computed(() => {
+    if (!props.plans?.length) return 20;
+    const percentages = props.plans.map((p: Plan) => 
+        p.features?.yearly_discount_percent !== undefined ? Number(p.features.yearly_discount_percent) : 20
+    );
+    return Math.max(...percentages);
+});
 
 const passwordValue = ref('');
 const hasReferral = ref(false);
@@ -115,6 +124,7 @@ return { score, label: 'Khá', color: 'bg-yellow-400' };
                         class="mt-6 space-y-4"
                     >
                         <input type="hidden" name="plan_code" :value="selectedPlan" />
+                        <input type="hidden" name="cycle" :value="selectedCycle" />
 
                         <div class="grid gap-1.5">
                             <Label for="restaurant_name" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">Tên nhà hàng</Label>
@@ -259,20 +269,41 @@ return { score, label: 'Khá', color: 'bg-yellow-400' };
             <div class="pointer-events-none absolute bottom-1/4 right-1/4 h-[450px] w-[450px] rounded-full bg-violet-500/[0.10] blur-[120px] z-0 animate-pulse duration-[10s]" />
 
             <!-- Header (top) -->
-            <div class="relative z-10">
-                <div class="mb-3.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs text-zinc-400 shadow-sm backdrop-blur-md">
-                    <svg class="size-3 text-emerald-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Chọn gói để bắt đầu
+            <div class="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div class="max-w-xl">
+                    <div class="mb-3.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs text-zinc-400 shadow-sm backdrop-blur-md">
+                        <svg class="size-3 text-emerald-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        Chọn gói để bắt đầu
+                    </div>
+                    <h2 class="bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-3xl font-black tracking-tight text-transparent">14 ngày dùng thử miễn phí</h2>
+                    <p class="mt-2 text-sm text-zinc-500 leading-relaxed">
+                        Nếu không thanh toán, tài khoản sẽ tự động chuyển về gói
+                        <span class="font-black text-zinc-300">Free</span> — hoàn toàn không mất gì cả.
+                    </p>
                 </div>
-                <h2 class="bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-3xl font-black tracking-tight text-transparent">14 ngày dùng thử miễn phí</h2>
-                <p class="mt-2 text-sm text-zinc-500 max-w-md leading-relaxed">
-                    Nếu không thanh toán, tài khoản sẽ tự động chuyển về gói
-                    <span class="font-black text-zinc-300">Free</span> — hoàn toàn không mất gì cả.
-                </p>
+
+                <!-- Billing toggle -->
+                <div class="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1 text-xs shrink-0 self-start sm:self-auto backdrop-blur-md">
+                    <button
+                        type="button"
+                        @click="selectedCycle = 'monthly'"
+                        class="rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer"
+                        :class="selectedCycle === 'monthly' ? 'bg-zinc-800 shadow-sm text-white' : 'text-zinc-400 hover:text-white'"
+                    >Tháng</button>
+                    <button
+                        type="button"
+                        @click="selectedCycle = 'yearly'"
+                        class="rounded-lg px-3 py-1.5 font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                        :class="selectedCycle === 'yearly' ? 'bg-zinc-800 shadow-sm text-white' : 'text-zinc-400 hover:text-white'"
+                    >
+                        Năm
+                        <span class="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shadow-xs">-{{ maxDiscountPercent }}%</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Plans (middle — flex-1 centered) -->
-            <div class="relative z-10 flex flex-1 flex-col justify-center my-6">
+            <div class="relative z-10 flex flex-1 flex-col justify-start pt-2 my-4">
                 <div class="animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both w-full">
                     <div class="grid grid-cols-4 gap-3">
                         <PlanCard
@@ -280,6 +311,7 @@ return { score, label: 'Khá', color: 'bg-yellow-400' };
                             :key="plan.code"
                             :plan="plan"
                             :selected="selectedPlan === plan.code"
+                            :billing-cycle="selectedCycle === 'yearly' ? 'yearly' : 'monthly'"
                             @select="selectedPlan = $event"
                         />
                     </div>

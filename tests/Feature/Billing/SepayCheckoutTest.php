@@ -112,4 +112,50 @@ class SepayCheckoutTest extends TestCase
         $this->assertSame('active', $restaurant->status);
         $this->assertSame('active', $checkout['subscription']->fresh()->status);
     }
+
+    public function test_yearly_checkout_respects_custom_yearly_discount_percent(): void
+    {
+        $free = SubscriptionPlan::where('code', 'free')->firstOrFail();
+        
+        // Create a plan with a custom yearly discount percent of 15%
+        $plan = SubscriptionPlan::create([
+            'code' => 'custom_discount_plan',
+            'name' => 'Custom Discount Plan',
+            'price' => 100000,
+            'billing_cycle' => 'monthly',
+            'max_branches' => 3,
+            'max_tables' => 50,
+            'max_users' => 10,
+            'status' => 'active',
+            'features' => [
+                'yearly_discount_percent' => 15,
+            ],
+        ]);
+
+        $owner = User::factory()->create();
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $owner->assignRole($role);
+
+        $restaurant = Restaurant::factory()->create([
+            'plan_id' => $free->id,
+            'owner_user_id' => $owner->id,
+        ]);
+        $owner->update(['restaurant_id' => $restaurant->id]);
+
+        $response = $this->actingAs($owner)->get(route('billing.checkout', [
+            'plan' => 'custom_discount_plan',
+            'cycle' => 'yearly',
+        ]));
+
+        $subscription = RestaurantSubscription::query()
+            ->where('plan_id', $plan->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($subscription);
+        // Original price: 100,000 * 12 = 1,200,000
+        $this->assertEquals(1200000, $subscription->original_price);
+        // Price: 1,200,000 - (1,200,000 * 0.15) = 1,020,000
+        $this->assertEquals(1020000, $subscription->price);
+    }
 }

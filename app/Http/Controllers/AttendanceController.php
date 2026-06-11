@@ -8,6 +8,8 @@ use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {

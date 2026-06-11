@@ -190,13 +190,24 @@ function planAccent(code: string) {
 
 const isYearly = ref(false);
 
-function getDisplayPrice(price: number) {
-    if (price === 0) return 'Miễn phí';
+const maxDiscountPercent = computed(() => {
+    if (!availablePlans.value.length) return 20;
+    const percentages = availablePlans.value.map(p => 
+        p.features?.yearly_discount_percent !== undefined ? Number(p.features.yearly_discount_percent) : 20
+    );
+    return Math.max(...percentages);
+});
+
+function getDisplayPrice(plan: AvailablePlan) {
+    if (plan.price === 0) return 'Miễn phí';
     if (isYearly.value) {
-        const yearlyPrice = Math.round(price * 12 * 0.85);
+        const discountPercent = plan.features?.yearly_discount_percent !== undefined
+            ? Number(plan.features.yearly_discount_percent)
+            : 20;
+        const yearlyPrice = Math.round(plan.price * 12 * (1 - discountPercent / 100));
         return yearlyPrice.toLocaleString('vi-VN') + 'đ/năm';
     }
-    return price.toLocaleString('vi-VN') + 'đ/tháng';
+    return plan.price.toLocaleString('vi-VN') + 'đ/tháng';
 }
 
 function goToCheckout(code: string) {
@@ -360,7 +371,7 @@ onUnmounted(() => {
                             <span class="text-xs flex items-center gap-1.5" :class="isYearly ? 'font-bold text-foreground' : 'text-muted-foreground'">
                                 Thanh toán Hàng năm
                                 <span class="inline-flex rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                                    Tiết kiệm 15%
+                                    Tiết kiệm tới {{ maxDiscountPercent }}%
                                 </span>
                             </span>
                         </div>
@@ -397,9 +408,15 @@ onUnmounted(() => {
                                     {{ planDescription(plan) }}
                                 </p>
 
-                                <div class="mt-3 flex items-baseline gap-1">
+                                <div class="mt-3 flex items-baseline gap-1.5 flex-wrap">
                                     <span class="text-xl font-extrabold" :class="idx < planRank ? 'text-muted-foreground' : 'text-foreground'">
-                                        {{ getDisplayPrice(plan.price) }}
+                                        {{ getDisplayPrice(plan) }}
+                                    </span>
+                                    <span 
+                                        v-if="isYearly && plan.price > 0 && (plan.features?.yearly_discount_percent !== undefined ? Number(plan.features.yearly_discount_percent) : 20) > 0"
+                                        class="inline-flex rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 self-center"
+                                    >
+                                        Tiết kiệm {{ plan.features?.yearly_discount_percent !== undefined ? plan.features.yearly_discount_percent : 20 }}%
                                     </span>
                                 </div>
 
