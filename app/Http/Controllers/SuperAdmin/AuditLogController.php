@@ -39,24 +39,24 @@ class AuditLogController extends Controller
         $logs = $query->paginate(25)->withQueryString();
 
         return Inertia::render('super-admin/audit-log/Index', [
-            'logs'        => $logs->through(fn ($l) => [
-                'id'           => $l->id,
-                'restaurant'   => $l->restaurant?->name ?? null,
-                'user_name'    => $l->user?->name ?? 'Hệ thống',
-                'user_email'   => $l->user?->email,
-                'user_role'    => $l->user_role,
-                'event'        => $l->event,
-                'action'       => $l->action,
+            'logs' => $logs->through(fn ($l) => [
+                'id' => $l->id,
+                'restaurant' => $l->restaurant?->name ?? null,
+                'user_name' => $l->user?->name ?? 'Hệ thống',
+                'user_email' => $l->user?->email,
+                'user_role' => $l->user_role,
+                'event' => $l->event,
+                'action' => $l->action,
                 'subject_type' => $l->subject_type ? class_basename($l->subject_type) : null,
-                'subject_id'   => $l->subject_id,
-                'ip_address'   => $l->ip_address,
-                'old_values'   => $l->old_values,
-                'new_values'   => $l->new_values,
-                'created_at'   => $l->created_at->format('d/m/Y H:i:s'),
+                'subject_id' => $l->subject_id,
+                'ip_address' => $l->ip_address,
+                'old_values' => $l->old_values,
+                'new_values' => $l->new_values,
+                'created_at' => $l->created_at->format('d/m/Y H:i:s'),
             ]),
             'restaurants' => Restaurant::orderBy('name')->get(['id', 'name']),
-            'filters'     => $request->only(['restaurant_id', 'event', 'action', 'from', 'to']),
-            'total'       => $logs->total(),
+            'filters' => $request->only(['restaurant_id', 'event', 'action', 'from', 'to']),
+            'total' => $logs->total(),
         ]);
     }
 }

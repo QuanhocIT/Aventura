@@ -80,6 +80,7 @@ const props = defineProps<{
         cash_revenue: number;
         transfer_revenue: number;
     } | null;
+    tables: { id: number; name: string }[];
 }>();
 
 const dateInput = ref(props.filters.date);
@@ -89,6 +90,68 @@ const viewMode = ref(props.filters.history ? 'history' : 'today');
 const expandedOrderId = ref<number | null>(null);
 const isSimulating = ref(false);
 const updatingItemStatus = ref<number | null>(null);
+
+const isSplitModalOpen = ref(false);
+const selectedOrderToSplit = ref<Order | null>(null);
+const selectedTableId = ref<number | null>(null);
+const itemsToSplit = ref<
+    {
+        order_item_id: number;
+        quantity: number;
+        max_quantity: number;
+        product_name: string;
+    }[]
+>([]);
+
+const openSplitModal = (order: Order) => {
+    selectedOrderToSplit.value = order;
+    selectedTableId.value = null;
+    itemsToSplit.value = (order.items || []).map((item) => ({
+        order_item_id: item.id,
+        quantity: 0,
+        max_quantity: item.quantity,
+        product_name: item.product_name,
+    }));
+    isSplitModalOpen.value = true;
+};
+
+const totalSplitItems = computed(() =>
+    itemsToSplit.value.reduce((sum, item) => sum + item.quantity, 0),
+);
+const isSplitFormValid = computed(() => {
+    return selectedTableId.value !== null && totalSplitItems.value > 0;
+});
+
+const handleSplitSubmit = () => {
+    if (!selectedOrderToSplit.value || !selectedTableId.value) {
+        return;
+    }
+
+    const payload = {
+        table_id: selectedTableId.value,
+        items: itemsToSplit.value
+            .filter((item) => item.quantity > 0)
+            .map((item) => ({
+                order_item_id: item.order_item_id,
+                quantity: item.quantity,
+            })),
+    };
+
+    router.post(`/orders/${selectedOrderToSplit.value.id}/split`, payload, {
+        onSuccess: () => {
+            isSplitModalOpen.value = false;
+            selectedOrderToSplit.value = null;
+            selectedTableId.value = null;
+            itemsToSplit.value = [];
+            toast.success(
+                'Đã tách đơn hàng thành công và cảnh báo đỏ đã được thiết lập!',
+            );
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Có lỗi xảy ra khi tách đơn.');
+        },
+    });
+};
 
 const page = usePage();
 const isCashier = computed(() => {
@@ -790,6 +853,17 @@ const nextStatus: Record<string, string | null> = {
                                 </span>
                                 <button
                                     v-if="
+                                        isCashier &&
+                                        o.status !== 'completed' &&
+                                        o.status !== 'cancelled'
+                                    "
+                                    @click="openSplitModal(o)"
+                                    class="border-slate-250 dark:border-slate-750 dark:hover:bg-slate-805 mr-1 h-7 rounded-lg border bg-white px-2.5 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300"
+                                >
+                                    Tách đơn
+                                </button>
+                                <button
+                                    v-if="
                                         nextStatus[o.status] &&
                                         (nextStatus[o.status] !== 'completed' ||
                                             isCashier)
@@ -1123,6 +1197,166 @@ const nextStatus: Record<string, string | null> = {
                         class="dark:hover:bg-slate-750 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800 dark:bg-slate-800"
                     >
                         Đóng gợi ý
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Split Order Dialog -->
+        <Dialog v-model:open="isSplitModalOpen">
+            <DialogContent
+                class="rounded-2xl border border-slate-100 bg-white/95 shadow-2xl backdrop-blur-md sm:max-w-[500px] dark:border-slate-800 dark:bg-slate-900/95"
+            >
+                <DialogHeader>
+                    <DialogTitle
+                        class="text-lg font-bold text-slate-900 dark:text-slate-100"
+                    >
+                        Tách Đơn Hàng
+                    </DialogTitle>
+                    <DialogDescription
+                        class="text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        Chọn bàn trống để tách các món được chọn sang. Hành động
+                        này sẽ được ghi nhận và cảnh báo.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-4 py-4" v-if="selectedOrderToSplit">
+                    <!-- Original Order Info -->
+                    <div
+                        class="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-950/30"
+                    >
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Đơn gốc:</span>
+                            <span class="font-bold">{{
+                                selectedOrderToSplit.order_number
+                            }}</span>
+                        </div>
+                        <div class="mt-1 flex justify-between">
+                            <span class="text-muted-foreground">Bàn gốc:</span>
+                            <span class="font-bold">{{
+                                selectedOrderToSplit.table_name || '—'
+                            }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Target Table Select -->
+                    <div class="space-y-1.5">
+                        <label
+                            class="text-slate-650 dark:text-slate-350 text-xs font-bold"
+                        >
+                            Bàn trống mục tiêu
+                        </label>
+                        <select
+                            v-model="selectedTableId"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-violet-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                        >
+                            <option :value="null" disabled>
+                                -- Chọn bàn trống --
+                            </option>
+                            <option
+                                v-for="t in tables"
+                                :key="t.id"
+                                :value="t.id"
+                            >
+                                Bàn {{ t.name }}
+                            </option>
+                        </select>
+                        <p
+                            class="text-[10px] text-amber-600 dark:text-amber-400"
+                            v-if="tables.length === 0"
+                        >
+                            Không tìm thấy bàn trống nào.
+                        </p>
+                    </div>
+
+                    <!-- Items List with Quantity selection -->
+                    <div class="space-y-2">
+                        <label
+                            class="text-slate-650 dark:text-slate-350 text-xs font-bold"
+                        >
+                            Chọn số lượng món cần tách
+                        </label>
+                        <div class="max-h-60 space-y-2 overflow-y-auto pr-1">
+                            <div
+                                v-for="item in itemsToSplit"
+                                :key="item.order_item_id"
+                                class="dark:border-slate-850 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:bg-slate-950/20"
+                            >
+                                <div class="flex min-w-0 flex-col pr-2">
+                                    <span
+                                        class="truncate text-xs font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{ item.product_name }}
+                                    </span>
+                                    <span
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Tối đa có sẵn: {{ item.max_quantity }}
+                                    </span>
+                                </div>
+
+                                <div class="flex shrink-0 items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        @click="
+                                            item.quantity = Math.max(
+                                                0,
+                                                item.quantity - 1,
+                                            )
+                                        "
+                                        class="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        type="number"
+                                        v-model.number="item.quantity"
+                                        min="0"
+                                        :max="item.max_quantity"
+                                        class="border-slate-250 dark:border-slate-750 h-6 w-10 rounded-lg border bg-white text-center text-xs font-semibold focus:ring-1 focus:ring-violet-500 focus:outline-none dark:bg-slate-950"
+                                    />
+                                    <button
+                                        type="button"
+                                        @click="
+                                            item.quantity = Math.min(
+                                                item.max_quantity,
+                                                item.quantity + 1,
+                                            )
+                                        "
+                                        class="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    >
+                                        +
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="
+                                            item.quantity = item.max_quantity
+                                        "
+                                        class="ml-1 text-[9px] font-bold text-violet-600 hover:underline dark:text-violet-400"
+                                    >
+                                        Tất cả
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <DialogFooter class="gap-2 sm:justify-end">
+                    <Button
+                        variant="outline"
+                        @click="isSplitModalOpen = false"
+                        class="dark:text-slate-350 rounded-xl border-slate-200 text-slate-700 dark:border-slate-800"
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        @click="handleSplitSubmit"
+                        :disabled="!isSplitFormValid"
+                        class="rounded-xl bg-violet-600 font-semibold text-white hover:bg-violet-700"
+                    >
+                        Xác nhận tách
                     </Button>
                 </DialogFooter>
             </DialogContent>

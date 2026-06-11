@@ -4,14 +4,24 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Middleware\SetTenantContext;
+use App\Http\Responses\CustomLoginResponse;
+use App\Http\Responses\CustomRegisterResponse;
+use App\Http\Responses\CustomTwoFactorLoginResponse;
 use App\Models\SubscriptionPlan;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Contracts\RegisterResponse;
+use Laravel\Fortify\Contracts\TwoFactorLoginResponse;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -28,25 +38,25 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureViews();
         $this->configureRateLimiting();
 
-        $this->app->singleton(\Laravel\Fortify\Contracts\LoginResponse::class, \App\Http\Responses\CustomLoginResponse::class);
-        $this->app->singleton(\Laravel\Fortify\Contracts\RegisterResponse::class, \App\Http\Responses\CustomRegisterResponse::class);
-        $this->app->singleton(\Laravel\Fortify\Contracts\TwoFactorLoginResponse::class, \App\Http\Responses\CustomTwoFactorLoginResponse::class);
+        $this->app->singleton(LoginResponse::class, CustomLoginResponse::class);
+        $this->app->singleton(RegisterResponse::class, CustomRegisterResponse::class);
+        $this->app->singleton(TwoFactorLoginResponse::class, CustomTwoFactorLoginResponse::class);
 
         Fortify::authenticateUsing(function (Request $request) {
-            $users = \App\Models\User::where('email', $request->email)->get();
+            $users = User::where('email', $request->email)->get();
 
             $matchedUsers = $users->filter(function ($u) use ($request) {
-                return \Illuminate\Support\Facades\Hash::check($request->password, $u->password);
+                return Hash::check($request->password, $u->password);
             });
 
             if ($matchedUsers->isEmpty()) {
                 return null;
             }
 
-            $activeUsers = $matchedUsers->filter(fn($u) => $u->status === 'active');
+            $activeUsers = $matchedUsers->filter(fn ($u) => $u->status === 'active');
 
             if ($activeUsers->isEmpty()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'email' => ['Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.'],
                 ]);
             }
@@ -54,16 +64,17 @@ class FortifyServiceProvider extends ServiceProvider
             // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
             if ($activeUsers->count() === 1) {
                 $user = $activeUsers->first();
-                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
-                    if (!app()->runningUnitTests() || \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests) {
+                if ($user->restaurant_id && ! $user->isSuperAdmin() && ! $user->hasAnyRole(['owner', 'manager'])) {
+                    if (! app()->runningUnitTests() || SetTenantContext::$enforceShiftLockInTests) {
                         $employee = $user->employee;
-                        if (!$employee || !$employee->isWithinScheduledShift()) {
-                            throw \Illuminate\Validation\ValidationException::withMessages([
+                        if (! $employee || ! $employee->isWithinScheduledShift()) {
+                            throw ValidationException::withMessages([
                                 'email' => ['Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.'],
                             ]);
                         }
                     }
                 }
+
                 return $user;
             }
 
@@ -87,15 +98,15 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView(function (Request $request) {
             return Inertia::render('auth/Login', [
                 'canResetPassword' => Features::enabled(Features::resetPasswords()),
-                'canRegister'      => Features::enabled(Features::registration()),
-                'status'           => $request->session()->get('status'),
-                'plans'            => $this->activePlans(),
+                'canRegister' => Features::enabled(Features::registration()),
+                'status' => $request->session()->get('status'),
+                'plans' => $this->activePlans(),
             ]);
         });
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/ResetPassword', [
-            'email'         => $request->email,
-            'token'         => $request->route('token'),
+            'email' => $request->email,
+            'token' => $request->route('token'),
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]));
 
@@ -109,7 +120,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         Fortify::registerView(fn () => Inertia::render('auth/Register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
-            'plans'         => $this->activePlans(),
+            'plans' => $this->activePlans(),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));
@@ -122,15 +133,15 @@ class FortifyServiceProvider extends ServiceProvider
             ->orderBy('price')
             ->get()
             ->map(fn (SubscriptionPlan $p) => [
-                'id'            => $p->id,
-                'code'          => $p->code,
-                'name'          => $p->name,
-                'price'         => (int) $p->price,
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'price' => (int) $p->price,
                 'billing_cycle' => $p->billing_cycle,
-                'max_branches'  => $p->max_branches,
-                'max_tables'    => $p->max_tables,
-                'max_users'     => $p->max_users,
-                'features'      => $p->features ?? [],
+                'max_branches' => $p->max_branches,
+                'max_tables' => $p->max_tables,
+                'max_users' => $p->max_users,
+                'features' => $p->features ?? [],
             ])
             ->all();
     }
@@ -143,6 +154,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+
             return Limit::perMinute(5)->by($throttleKey);
         });
     }

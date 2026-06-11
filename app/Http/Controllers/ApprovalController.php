@@ -29,27 +29,27 @@ class ApprovalController extends Controller
         }
 
         $approvals = $query->get()->map(fn (ApprovalRequest $a) => [
-            'id'               => $a->id,
-            'operation_type'   => $a->operation_type,
-            'operation_label'  => $a->operationLabel(),
-            'operation_data'   => $a->operation_data,
-            'status'           => $a->status,
-            'requester_name'   => $a->requester?->name ?? '—',
-            'reviewer_name'    => $a->reviewer?->name ?? null,
+            'id' => $a->id,
+            'operation_type' => $a->operation_type,
+            'operation_label' => $a->operationLabel(),
+            'operation_data' => $a->operation_data,
+            'status' => $a->status,
+            'requester_name' => $a->requester?->name ?? '—',
+            'reviewer_name' => $a->reviewer?->name ?? null,
             'rejection_reason' => $a->rejection_reason,
-            'reviewed_at'      => $a->reviewed_at?->format('H:i d/m/Y'),
-            'created_at'       => $a->created_at->format('H:i d/m/Y'),
+            'reviewed_at' => $a->reviewed_at?->format('H:i d/m/Y'),
+            'created_at' => $a->created_at->format('H:i d/m/Y'),
         ]);
 
         $stats = [
-            'pending'           => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'pending')->count(),
-            'approved_today'    => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'approved')->whereDate('reviewed_at', today())->count(),
-            'rejected_today'    => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'rejected')->whereDate('reviewed_at', today())->count(),
+            'pending' => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'pending')->count(),
+            'approved_today' => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'approved')->whereDate('reviewed_at', today())->count(),
+            'rejected_today' => ApprovalRequest::forRestaurant($restaurantId)->where('status', 'rejected')->whereDate('reviewed_at', today())->count(),
         ];
 
         return Inertia::render('approvals/Index', [
-            'approvals'    => $approvals,
-            'stats'        => $stats,
+            'approvals' => $approvals,
+            'stats' => $stats,
             'statusFilter' => $statusFilter,
         ]);
     }

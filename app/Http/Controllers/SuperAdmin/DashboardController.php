@@ -48,11 +48,11 @@ class DashboardController extends Controller
 
         $stats = [
             'total_restaurants' => Restaurant::count(),
-            'active'            => Restaurant::where('status', 'active')->count(),
-            'suspended'         => Restaurant::where('status', 'suspended')->count(),
-            'expired'           => Restaurant::where('status', 'expired')->count(),
-            'total_users'       => User::count(),
-            'pro_plan'          => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
+            'active' => Restaurant::where('status', 'active')->count(),
+            'suspended' => Restaurant::where('status', 'suspended')->count(),
+            'expired' => Restaurant::where('status', 'expired')->count(),
+            'total_users' => User::count(),
+            'pro_plan' => Restaurant::whereHas('plan', fn ($q) => $q->whereRaw('LOWER(code) = ?', ['pro']))->count(),
         ];
 
         $tenantGrowthSeries = $this->tenantGrowthSeries($now, $subscriptions);
@@ -66,17 +66,17 @@ class DashboardController extends Controller
         $restaurantsData = Restaurant::with(['plan', 'activeSubscription'])
             ->get()
             ->map(fn (Restaurant $r) => [
-                'id'                           => $r->id,
-                'name'                         => $r->name,
-                'plan_code'                    => $r->plan?->code ?? 'free',
-                'status'                       => $r->status,
-                'is_trial'                     => $r->activeSubscription?->status === 'trial',
-                'days_since_created'           => (int) $r->created_at->diffInDays($now),
+                'id' => $r->id,
+                'name' => $r->name,
+                'plan_code' => $r->plan?->code ?? 'free',
+                'status' => $r->status,
+                'is_trial' => $r->activeSubscription?->status === 'trial',
+                'days_since_created' => (int) $r->created_at->diffInDays($now),
                 'days_until_subscription_ends' => $r->subscription_ends_at
                     ? (int) $now->diffInDays($r->subscription_ends_at, false)
                     : -1,
-                'order_count_30d'              => (int) ($orderCounts[$r->id] ?? 0),
-                'subscription_status'          => $r->activeSubscription?->status ?? 'none',
+                'order_count_30d' => (int) ($orderCounts[$r->id] ?? 0),
+                'subscription_status' => $r->activeSubscription?->status ?? 'none',
             ])->toArray();
 
         $aiInsights = app(AiInsightsClient::class)->getInsights($restaurantsData, $tenantGrowthSeries);
@@ -86,20 +86,20 @@ class DashboardController extends Controller
             ->take(10)
             ->get()
             ->map(fn ($r) => [
-                'id'         => $r->id,
-                'name'       => $r->name,
-                'status'     => $r->status,
-                'plan'       => $r->plan?->name ?? '-',
-                'plan_code'  => $r->plan?->code ?? 'free',
-                'owner'      => $r->owner?->name ?? '-',
+                'id' => $r->id,
+                'name' => $r->name,
+                'status' => $r->status,
+                'plan' => $r->plan?->name ?? '-',
+                'plan_code' => $r->plan?->code ?? 'free',
+                'owner' => $r->owner?->name ?? '-',
                 'created_at' => $r->created_at->format('d/m/Y'),
             ]);
 
         $planDistribution = SubscriptionPlan::withCount('restaurants')
             ->get()
             ->map(fn ($p) => [
-                'name'  => $p->name,
-                'code'  => $p->code,
+                'name' => $p->name,
+                'code' => $p->code,
                 'count' => $p->restaurants_count,
             ]);
 
@@ -118,7 +118,7 @@ class DashboardController extends Controller
                     ->count(),
             ],
             'tenantGrowth' => $tenantGrowthSeries,
-            'aiInsights'  => $aiInsights,
+            'aiInsights' => $aiInsights,
             'resourceInsights' => [
                 'top_order_restaurants' => $this->topOrderRestaurants($windowStart),
                 'top_storage_restaurants' => $this->topStorageRestaurants(),
@@ -236,6 +236,3 @@ class DashboardController extends Controller
             ->all();
     }
 }
-
-
-

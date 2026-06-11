@@ -16,10 +16,10 @@ class RestaurantController extends Controller
 
         return Inertia::render('settings/Restaurant', [
             'restaurant' => $restaurant ? [
-                'name'     => $restaurant->name,
-                'phone'    => $restaurant->phone,
-                'email'    => $restaurant->email,
-                'address'  => $restaurant->address,
+                'name' => $restaurant->name,
+                'phone' => $restaurant->phone,
+                'email' => $restaurant->email,
+                'address' => $restaurant->address,
                 'tax_code' => $restaurant->tax_code,
                 'timezone' => $restaurant->timezone,
                 'currency' => $restaurant->currency,
@@ -37,10 +37,10 @@ class RestaurantController extends Controller
         }
 
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'email'    => ['nullable', 'email', 'max:255'],
-            'address'  => ['nullable', 'string', 'max:500'],
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'address' => ['nullable', 'string', 'max:500'],
             'tax_code' => ['nullable', 'string', 'max:50'],
         ]);
 

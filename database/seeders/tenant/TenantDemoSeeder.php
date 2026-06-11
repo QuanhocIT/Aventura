@@ -21,12 +21,12 @@ class TenantDemoSeeder extends Seeder
     public function run(): void
     {
         $this->onboarding->onboard([
-            'name'            => 'Owner Demo',
+            'name' => 'Owner Demo',
             'restaurant_name' => 'Aventura Demo',
-            'email'           => 'owner@bepso.test',
-            'password'        => 'password',
-            'phone'           => '0900000001',
-            'plan_code'       => 'pro',
+            'email' => 'owner@bepso.test',
+            'password' => 'password',
+            'phone' => '0900000001',
+            'plan_code' => 'pro',
         ]);
     }
 }

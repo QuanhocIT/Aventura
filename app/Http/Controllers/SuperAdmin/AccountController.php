@@ -40,18 +40,18 @@ class AccountController extends Controller
 
         return Inertia::render('super-admin/accounts/Index', [
             'accounts' => $accounts->through(fn ($u) => [
-                'id'             => $u->id,
-                'name'           => $u->name,
-                'email'          => $u->email,
-                'phone'          => $u->phone ?? null,
-                'status'         => $u->status ?? 'active',
-                'roles'          => $u->roles->pluck('name'),
-                'restaurant'     => $u->restaurant?->name ?? '—',
-                'restaurant_id'  => $u->restaurant_id,
-                'has_2fa'        => ! is_null($u->two_factor_confirmed_at),
-                'last_login_at'  => $u->last_login_at?->format('d/m/Y H:i'),
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'phone' => $u->phone ?? null,
+                'status' => $u->status ?? 'active',
+                'roles' => $u->roles->pluck('name'),
+                'restaurant' => $u->restaurant?->name ?? '—',
+                'restaurant_id' => $u->restaurant_id,
+                'has_2fa' => ! is_null($u->two_factor_confirmed_at),
+                'last_login_at' => $u->last_login_at?->format('d/m/Y H:i'),
                 'email_verified' => ! is_null($u->email_verified_at),
-                'created_at'     => $u->created_at?->format('d/m/Y') ?? '-',
+                'created_at' => $u->created_at?->format('d/m/Y') ?? '-',
             ]),
             'filters' => $request->only(['search', 'role', 'status']),
         ]);
@@ -63,7 +63,7 @@ class AccountController extends Controller
             return back()->with('error', 'Không thể reset mật khẩu tài khoản Super Admin.');
         }
 
-        $tempPassword = Str::random(10) . rand(10, 99) . '!';
+        $tempPassword = Str::random(10).rand(10, 99).'!';
         $user->forceFill(['password' => bcrypt($tempPassword)])->save();
 
         $this->writeAuditLog('reset_password', $user);
@@ -84,9 +84,9 @@ class AccountController extends Controller
         }
 
         $user->forceFill([
-            'two_factor_secret'         => null,
+            'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
-            'two_factor_confirmed_at'   => null,
+            'two_factor_confirmed_at' => null,
         ])->save();
 
         $this->writeAuditLog('disable_2fa', $user);
@@ -107,17 +107,17 @@ class AccountController extends Controller
 
         AuditLog::create([
             'restaurant_id' => null,
-            'branch_id'     => null,
-            'user_id'       => auth()->id(),
-            'user_role'     => 'admin',
-            'event'         => 'updated',
-            'action'        => 'toggle_account_status',
-            'subject_type'  => User::class,
-            'subject_id'    => $user->id,
-            'old_values'    => ['status' => $old],
-            'new_values'    => ['status' => $request->status, 'user_email' => $user->email],
-            'ip_address'    => $request->ip(),
-            'user_agent'    => $request->userAgent(),
+            'branch_id' => null,
+            'user_id' => auth()->id(),
+            'user_role' => 'admin',
+            'event' => 'updated',
+            'action' => 'toggle_account_status',
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'old_values' => ['status' => $old],
+            'new_values' => ['status' => $request->status, 'user_email' => $user->email],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
         ]);
 
         $label = $request->status === 'active' ? 'kích hoạt' : 'tạm ngừng';
@@ -129,17 +129,17 @@ class AccountController extends Controller
     {
         AuditLog::create([
             'restaurant_id' => null,
-            'branch_id'     => null,
-            'user_id'       => auth()->id(),
-            'user_role'     => 'admin',
-            'event'         => 'updated',
-            'action'        => $action,
-            'subject_type'  => User::class,
-            'subject_id'    => $subject->id,
-            'old_values'    => null,
-            'new_values'    => ['user_email' => $subject->email],
-            'ip_address'    => request()->ip(),
-            'user_agent'    => request()->userAgent(),
+            'branch_id' => null,
+            'user_id' => auth()->id(),
+            'user_role' => 'admin',
+            'event' => 'updated',
+            'action' => $action,
+            'subject_type' => User::class,
+            'subject_id' => $subject->id,
+            'old_values' => null,
+            'new_values' => ['user_email' => $subject->email],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Onboarding;
 
+use App\Jobs\SendWelcomeEmail;
 use App\Models\Area;
 use App\Models\Ingredient;
 use App\Models\Inventory;
@@ -15,7 +16,6 @@ use App\Models\SubscriptionPlan;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
-use App\Jobs\SendWelcomeEmail;
 use App\Services\QrCodeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -27,8 +27,9 @@ class RestaurantOnboardingService
     public function __construct(
         private readonly QrCodeService $qrCodeService,
     ) {}
+
     /**
-     * @param array{name:string,email:string,password:string,phone?:string|null,plan_code?:string|null,restaurant_name?:string|null} $input
+     * @param  array{name:string,email:string,password:string,phone?:string|null,plan_code?:string|null,restaurant_name?:string|null}  $input
      */
     public function onboard(array $input): User
     {
@@ -99,7 +100,6 @@ class RestaurantOnboardingService
 
         return $user;
     }
-
 
     private function seedDefaults(Restaurant $restaurant, User $owner): void
     {
@@ -200,8 +200,8 @@ class RestaurantOnboardingService
         }
 
         $table->forceFill([
-            'qr_token'     => $token,
-            'qr_code'      => $orderUrl, // lưu URL đầy đủ để backward compatible
+            'qr_token' => $token,
+            'qr_code' => $orderUrl, // lưu URL đầy đủ để backward compatible
             'qr_code_path' => $path,
         ])->save();
     }
@@ -209,12 +209,12 @@ class RestaurantOnboardingService
     private function generateRestaurantCode(string $name): string
     {
         $base = preg_replace('/[^A-Za-z0-9]+/', '', Str::ascii($name)) ?: 'RST';
-        return strtoupper(Str::limit($base, 10, '')) . '-' . strtoupper(Str::random(6));
+
+        return strtoupper(Str::limit($base, 10, '')).'-'.strtoupper(Str::random(6));
     }
 
     private function generateRestaurantSlug(string $name): string
     {
-        return Str::slug($name) . '-' . Str::lower(Str::random(4));
+        return Str::slug($name).'-'.Str::lower(Str::random(4));
     }
 }
-

@@ -159,6 +159,7 @@ function impersonateUser(account: any) {
     ) {
         return;
     }
+
     router.post(`/super-admin/impersonate/${account.id}`, {});
 }
 

@@ -7,6 +7,8 @@ use App\Models\Restaurant;
 use App\Services\BillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class BillingOverrideController extends Controller
@@ -25,13 +27,13 @@ class BillingOverrideController extends Controller
         ]);
 
         // Xác nhận mật khẩu hiện tại của Super Admin
-        if (! \Illuminate\Support\Facades\Hash::check($validated['password'], $request->user()->password)) {
+        if (! Hash::check($validated['password'], $request->user()->password)) {
             return back()->withErrors(['password' => 'Mật khẩu xác nhận không chính xác.']);
         }
 
         $this->billingService->applyManualOverride($restaurant, $validated, $request->user());
 
-        \Illuminate\Support\Facades\Cache::forget('superadmin_ai_insights');
+        Cache::forget('superadmin_ai_insights');
 
         return back()->with('success', 'Đã áp dụng điều chỉnh billing thủ công cho doanh nghiệp.');
     }

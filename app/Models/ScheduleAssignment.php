@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
+use Carbon\Carbon;
 use Database\Factories\Hr\ScheduleAssignmentFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -20,12 +20,12 @@ class ScheduleAssignment extends Model
     protected static function booted(): void
     {
         $lockCheck = function (self $model) {
-            $date = $model->scheduled_date instanceof \Carbon\Carbon
+            $date = $model->scheduled_date instanceof Carbon
                 ? $model->scheduled_date->toDateString()
-                : \Carbon\Carbon::parse($model->scheduled_date)->toDateString();
+                : Carbon::parse($model->scheduled_date)->toDateString();
 
             if (Salary::isPeriodLocked($model->restaurant_id, $model->employee_id, $date)) {
-                throw new \Exception("Dữ liệu lịch trực đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+                throw new \Exception('Dữ liệu lịch trực đã bị khóa do bảng lương của kỳ này đã được phê duyệt.');
             }
         };
 
@@ -54,7 +54,7 @@ class ScheduleAssignment extends Model
 
     public static function findEmployeeOnShiftAt($timestamp, $restaurantId)
     {
-        $dateTime = \Carbon\Carbon::parse($timestamp);
+        $dateTime = Carbon::parse($timestamp);
         $targetDate = $dateTime->toDateString();
         $prevDate = $dateTime->copy()->subDay()->toDateString();
         $nextDate = $dateTime->copy()->addDay()->toDateString();
@@ -66,24 +66,24 @@ class ScheduleAssignment extends Model
 
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
-            if (!$shift || $shift->status !== 'active') {
+            if (! $shift || $shift->status !== 'active') {
                 continue;
             }
 
-            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+            $dateStr = $assignment->scheduled_date instanceof Carbon
                 ? $assignment->scheduled_date->toDateString()
-                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+                : Carbon::parse($assignment->scheduled_date)->toDateString();
 
-            if (!in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
+            if (! in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
                 continue;
             }
 
-            $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
+            $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
             if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
             } else {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
             }
 
             if ($dateTime->between($start, $end)) {
@@ -99,4 +99,3 @@ class ScheduleAssignment extends Model
         return ScheduleAssignmentFactory::new();
     }
 }
-

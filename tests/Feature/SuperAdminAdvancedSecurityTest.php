@@ -3,10 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Restaurant;
+use App\Models\RestaurantSubscription;
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -16,9 +17,13 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $tenantUser;
+
     private Restaurant $restaurant;
+
     private Role $superAdminRole;
+
     private Role $ownerRole;
 
     protected function setUp(): void
@@ -41,12 +46,12 @@ class SuperAdminAdvancedSecurityTest extends TestCase
         $this->restaurant = Restaurant::factory()->create();
 
         // Seed a dummy active subscription so applyManualOverride does not throw a 404
-        $plan = \App\Models\SubscriptionPlan::firstOrCreate(
+        $plan = SubscriptionPlan::firstOrCreate(
             ['code' => 'free'],
             ['name' => 'Free Plan']
         );
 
-        \App\Models\RestaurantSubscription::create([
+        RestaurantSubscription::create([
             'restaurant_id' => $this->restaurant->id,
             'plan_id' => $plan->id,
             'status' => 'active',
@@ -92,7 +97,7 @@ class SuperAdminAdvancedSecurityTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('impersonate_original_user_id', $this->superAdmin->id);
-        
+
         // Đảm bảo user đăng nhập đã chuyển sang tenantUser
         $this->assertEquals($this->tenantUser->id, Auth::id());
     }
@@ -104,7 +109,7 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     {
         // Giả lập trạng thái đã sắm vai
         $this->actingAs($this->superAdmin);
-        
+
         $responseStart = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id));
         $responseStart->assertRedirect(route('dashboard'));
         $this->assertEquals($this->tenantUser->id, Auth::id());
@@ -114,7 +119,7 @@ class SuperAdminAdvancedSecurityTest extends TestCase
 
         $responseStop->assertRedirect(route('superadmin.accounts.index'));
         $responseStop->assertSessionMissing('impersonate_original_user_id');
-        
+
         // Trả lại tài khoản Super Admin gốc
         $this->assertEquals($this->superAdmin->id, Auth::id());
     }

@@ -2,34 +2,29 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\User;
-use App\Models\Restaurant;
-use App\Models\RestaurantBranch;
-use App\Models\Employee;
 use App\Models\Area;
-use App\Models\RestaurantTable;
-use App\Models\ProductCategory;
-use App\Models\Product;
-use App\Models\ProductRecipe;
-use App\Models\Unit;
-use App\Models\Supplier;
+use App\Models\AuditLog;
+use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
-use App\Models\InventoryTransaction;
-use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
-use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\ProductRecipe;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantRevenueSummary;
-use App\Models\AuditLog;
-use App\Models\ShiftClosing;
-use App\Models\LeaveRequest;
-use App\Models\CustomerFeedback;
-use App\Models\ViolationReport;
+use App\Models\RestaurantTable;
+use App\Models\ScheduleAssignment;
+use App\Models\Supplier;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
@@ -46,14 +41,16 @@ class SeedRestaurantDemoData extends Command
         $this->info("Starting demo seeding for restaurant owner: {$email}");
 
         $owner = User::where('email', $email)->first();
-        if (!$owner) {
+        if (! $owner) {
             $this->error("User with email {$email} not found!");
+
             return Command::FAILURE;
         }
 
         $restaurant = $owner->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             $this->error("No restaurant found for user {$owner->name} ({$email})!");
+
             return Command::FAILURE;
         }
 
@@ -87,7 +84,7 @@ class SeedRestaurantDemoData extends Command
             $cashierUser = $this->upsertStaffUser('cashier_vq@aventura.local', 'Nguyễn Thu Ngân', '0922345678', 'cashier', $restaurant, $branch);
             $kitchenUser = $this->upsertStaffUser('kitchen_vq@aventura.local', 'Trần Đầu Bếp', '0932345678', 'kitchen', $restaurant, $branch);
             $inventoryUser = $this->upsertStaffUser('inventory_vq@aventura.local', 'Phạm Thủ Kho', '0942345678', 'inventory_staff', $restaurant, $branch);
-            $this->info("Staff Users created/loaded.");
+            $this->info('Staff Users created/loaded.');
 
             // 3. Setup Employee Records
             $employees = [
@@ -97,7 +94,7 @@ class SeedRestaurantDemoData extends Command
                 'kitchen' => $this->upsertEmployee($restaurant, $branch, $kitchenUser, 'EMP-VQ-004', 'Đầu bếp chính', 9500000, 5),
                 'inventory' => $this->upsertEmployee($restaurant, $branch, $inventoryUser, 'EMP-VQ-005', 'Thủ kho', 8500000, 6),
             ];
-            $this->info("Employee records updated.");
+            $this->info('Employee records updated.');
 
             // 4. Setup Layout (Areas & Tables)
             $areaMain = Area::updateOrCreate(
@@ -135,13 +132,13 @@ class SeedRestaurantDemoData extends Command
                     [
                         'branch_id' => $branch->id,
                         'area_id' => $t['area']->id,
-                        'qr_code' => 'QR-' . $t['name'] . '-' . $restaurant->id,
+                        'qr_code' => 'QR-'.$t['name'].'-'.$restaurant->id,
                         'capacity' => $t['capacity'],
                         'status' => $t['status'],
                     ]
                 );
             }
-            $this->info("Areas & Tables set up.");
+            $this->info('Areas & Tables set up.');
 
             // 5. Units, Ingredients, Inventory Levels
             $unitKg = Unit::updateOrCreate(
@@ -248,7 +245,7 @@ class SeedRestaurantDemoData extends Command
                     ]
                 );
             }
-            $this->info("Ingredients and Inventory level loaded (Alerts triggered purposefully).");
+            $this->info('Ingredients and Inventory level loaded (Alerts triggered purposefully).');
 
             // 6. Categories and Products setup
             $catMain = ProductCategory::updateOrCreate(
@@ -358,7 +355,7 @@ class SeedRestaurantDemoData extends Command
                 ['product_id' => $traChanh->id, 'ingredient_id' => $ingLime->id],
                 ['restaurant_id' => $restaurant->id, 'unit_id' => $unitKg->id, 'quantity' => 0.03, 'waste_rate' => 5.0]
             );
-            $this->info("Products catalog & BOM recipes configured.");
+            $this->info('Products catalog & BOM recipes configured.');
 
             // 7. Work shifts
             $shiftSang = WorkShift::updateOrCreate(
@@ -383,7 +380,7 @@ class SeedRestaurantDemoData extends Command
                     'status' => 'active',
                 ]
             );
-            $this->info("Work Shifts created.");
+            $this->info('Work Shifts created.');
 
             // 8. Customers
             $customers = [];
@@ -403,7 +400,7 @@ class SeedRestaurantDemoData extends Command
             }
 
             // 9. Historical Sales - 28 Days
-            $this->info("Seeding 28 days of orders and daily revenue summaries...");
+            $this->info('Seeding 28 days of orders and daily revenue summaries...');
             $orderCounter = 1;
 
             for ($d = 28; $d >= 0; $d--) {
@@ -427,7 +424,7 @@ class SeedRestaurantDemoData extends Command
                 $bankRevenue = 0;
 
                 for ($oIdx = 0; $oIdx < $orderCount; $oIdx++) {
-                    $orderNum = 'ORD-VQ-' . str_pad($orderCounter++, 5, '0', STR_PAD_LEFT);
+                    $orderNum = 'ORD-VQ-'.str_pad($orderCounter++, 5, '0', STR_PAD_LEFT);
                     $table = $tables[array_rand($tables)];
                     $customer = $customers[array_rand($customers)];
 
@@ -497,7 +494,7 @@ class SeedRestaurantDemoData extends Command
                             'restaurant_id' => $restaurant->id,
                             'branch_id' => $branch->id,
                             'processed_by' => $cashierUser->id,
-                            'transaction_code' => 'TXN-' . $order->order_number,
+                            'transaction_code' => 'TXN-'.$order->order_number,
                             'payment_method' => $method,
                             'status' => 'paid',
                             'amount' => $subtotal,
@@ -526,7 +523,7 @@ class SeedRestaurantDemoData extends Command
                         'summary_date' => $dateStr,
                     ],
                     [
-                        'scope_key' => 'branch_' . $branch->id,
+                        'scope_key' => 'branch_'.$branch->id,
                         'order_count' => $orderCount,
                         'completed_order_count' => $orderCount,
                         'cancelled_order_count' => 0,
@@ -549,7 +546,7 @@ class SeedRestaurantDemoData extends Command
                     ]
                 );
             }
-            $this->info("Completed seeding 28 days of historical data!");
+            $this->info('Completed seeding 28 days of historical data!');
 
             // 10. REAL-TIME TODAY'S DATA (Pending, Preparing, Completed, Cancelled orders)
             $this->info("Adding today's live orders to trigger alerts...");
@@ -700,7 +697,7 @@ class SeedRestaurantDemoData extends Command
                     'summary_date' => $today->toDateString(),
                 ],
                 [
-                    'scope_key' => 'branch_' . $branch->id,
+                    'scope_key' => 'branch_'.$branch->id,
                     'order_count' => 4, // 2 completed + 2 in-progress/stuck
                     'completed_order_count' => 2,
                     'cancelled_order_count' => 0,
@@ -787,10 +784,11 @@ class SeedRestaurantDemoData extends Command
                 'user_agent' => 'Aventura Demo Seeder Command',
             ]);
 
-            $this->info("Audit log logged.");
+            $this->info('Audit log logged.');
         });
 
         $this->info("SUCCESS! Demo data seeded successfully for restaurant owner: {$email}");
+
         return Command::SUCCESS;
     }
 
@@ -830,7 +828,7 @@ class SeedRestaurantDemoData extends Command
                 'base_salary' => $baseSalary,
                 'status' => 'active',
                 'role_id' => $roleId,
-                'citizen_id_number' => '079' . str_pad((string) random_int(1, 99999999), 9, '0', STR_PAD_LEFT),
+                'citizen_id_number' => '079'.str_pad((string) random_int(1, 99999999), 9, '0', STR_PAD_LEFT),
             ]
         );
     }

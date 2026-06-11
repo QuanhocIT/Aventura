@@ -24,14 +24,14 @@ class FraudController extends Controller
     {
         abort_unless($request->user()->hasRole('owner'), 403);
 
-        $user         = $request->user();
+        $user = $request->user();
         $restaurantId = $user->restaurant_id;
-        $period       = $request->input('period', today()->format('Y-m'));
-        $activeTab    = $request->input('tab', 'ai');
+        $period = $request->input('period', today()->format('Y-m'));
+        $activeTab = $request->input('tab', 'ai');
 
         [$year, $month] = explode('-', $period);
         $start = Carbon::createFromDate($year, $month, 1)->startOfMonth()->toDateString();
-        $end   = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
+        $end = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
 
         // Clamp to today to avoid querying future data
         if ($end > today()->toDateString()) {
@@ -42,21 +42,21 @@ class FraudController extends Controller
 
         // Lazy-tab: only run the active tab's heavy detail query
         $data = match ($activeTab) {
-            'ai'       => $service->detectAiFraudAlerts(),
-            'audit'    => $service->getAuditLogs(),
+            'ai' => $service->detectAiFraudAlerts(),
+            'audit' => $service->getAuditLogs(),
             'discount' => $service->detectDiscountAnomalies(),
-            'cancel'   => $service->detectSuspiciousCancellations(),
-            'waste'    => $service->detectInventoryWasteSpikes(),
-            'revenue'  => $service->detectRevenueDiscrepancies(),
-            default    => $service->detectCashShortfalls(),
+            'cancel' => $service->detectSuspiciousCancellations(),
+            'waste' => $service->detectInventoryWasteSpikes(),
+            'revenue' => $service->detectRevenueDiscrepancies(),
+            default => $service->detectCashShortfalls(),
         };
 
         return Inertia::render('fraud/Index', [
-            'period'    => $period,
+            'period' => $period,
             'activeTab' => $activeTab,
-            'summary'   => $service->getSummary(),
-            'data'      => $data,
-            'canAct'    => $user->hasRole('owner'),
+            'summary' => $service->getSummary(),
+            'data' => $data,
+            'canAct' => $user->hasRole('owner'),
             'dateRange' => ['start' => $start, 'end' => $end],
         ]);
     }
@@ -66,29 +66,29 @@ class FraudController extends Controller
         abort_unless($request->user()->hasRole('owner'), 403);
 
         $data = $request->validate([
-            'employee_id'     => ['required', 'integer', 'exists:employees,id'],
-            'violation_type'  => ['required', 'string', 'max:100'],
-            'severity'        => ['required', 'in:low,medium,high,critical'],
-            'description'     => ['required', 'string', 'max:2000'],
-            'penalty_amount'  => ['nullable', 'numeric', 'min:0'],
-            'occurred_at'     => ['required', 'date'],
+            'employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'violation_type' => ['required', 'string', 'max:100'],
+            'severity' => ['required', 'in:low,medium,high,critical'],
+            'description' => ['required', 'string', 'max:2000'],
+            'penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'occurred_at' => ['required', 'date'],
             'apply_deduction' => ['nullable', 'boolean'],
         ]);
 
-        $user         = $request->user();
+        $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
         // Always create ViolationReport directly (recording a fact — no approval needed)
         $violation = ViolationReport::create([
-            'restaurant_id'  => $restaurantId,
-            'employee_id'    => $data['employee_id'],
-            'reported_by'    => $user->id,
+            'restaurant_id' => $restaurantId,
+            'employee_id' => $data['employee_id'],
+            'reported_by' => $user->id,
             'violation_type' => $data['violation_type'],
-            'severity'       => $data['severity'],
-            'description'    => $data['description'],
+            'severity' => $data['severity'],
+            'description' => $data['description'],
             'penalty_amount' => $data['penalty_amount'] ?? 0,
-            'occurred_at'    => $data['occurred_at'],
-            'status'         => 'open',
+            'occurred_at' => $data['occurred_at'],
+            'status' => 'open',
         ]);
 
         // Salary deduction — owner direct, manager via ApprovalService
@@ -104,11 +104,11 @@ class FraudController extends Controller
                     Carbon::parse($data['occurred_at'])->toDateString()
                 );
                 $this->salaryService->addAdjustment($salary, [
-                    'employee_id'    => $employee->id,
-                    'type'           => 'violation',
-                    'amount'         => (float) $data['penalty_amount'],
-                    'reason'         => "Vi phạm: {$data['violation_type']} — {$data['description']}",
-                    'reference_id'   => $violation->id,
+                    'employee_id' => $employee->id,
+                    'type' => 'violation',
+                    'amount' => (float) $data['penalty_amount'],
+                    'reason' => "Vi phạm: {$data['violation_type']} — {$data['description']}",
+                    'reference_id' => $violation->id,
                     'reference_type' => ViolationReport::class,
                 ]);
             } else {
@@ -120,9 +120,9 @@ class FraudController extends Controller
                 );
                 $this->approvalService->submitRequest('salary_adjustment', [
                     'salary_id' => $salary->id,
-                    'type'      => 'violation',
-                    'amount'    => (float) $data['penalty_amount'],
-                    'reason'    => "Vi phạm: {$data['violation_type']} — {$data['description']}",
+                    'type' => 'violation',
+                    'amount' => (float) $data['penalty_amount'],
+                    'reason' => "Vi phạm: {$data['violation_type']} — {$data['description']}",
                 ], $user);
             }
         }

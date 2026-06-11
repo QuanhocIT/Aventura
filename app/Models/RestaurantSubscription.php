@@ -12,16 +12,16 @@ class RestaurantSubscription extends Model
     protected function casts(): array
     {
         return [
-            'started_at'   => 'datetime',
-            'ended_at'     => 'datetime',
+            'started_at' => 'datetime',
+            'ended_at' => 'datetime',
             'cancelled_at' => 'datetime',
-            'renewal_at'   => 'datetime',
+            'renewal_at' => 'datetime',
             'grace_ends_at' => 'datetime',
             'last_notified_at' => 'datetime',
             'last_paid_at' => 'datetime',
-            'meta'         => 'array',
+            'meta' => 'array',
             'billing_meta' => 'array',
-            'price'        => 'decimal:0',
+            'price' => 'decimal:0',
         ];
     }
 

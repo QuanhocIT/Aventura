@@ -6,10 +6,9 @@ use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
-use App\Models\WorkShift;
-use App\Models\LeaveRequest;
-use App\Models\ViolationReport;
 use App\Models\User;
+use App\Models\ViolationReport;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -20,15 +19,25 @@ class EmployeeSelfServiceTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $cashierUser;
+
     private User $kitchenUser;
+
     private Employee $employee;
+
     private Employee $otherEmployee;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private WorkShift $shift;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
+
     private Role $kitchenRole;
 
     protected function setUp(): void
@@ -40,7 +49,7 @@ class EmployeeSelfServiceTest extends TestCase
             'owner_user_id' => $this->owner->id,
         ]);
         $this->owner->update(['restaurant_id' => $this->restaurant->id]);
-        
+
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'manager_user_id' => $this->owner->id,
@@ -50,7 +59,7 @@ class EmployeeSelfServiceTest extends TestCase
         $this->ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
         $this->kitchenRole = Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);
-        
+
         $this->owner->assignRole($this->ownerRole);
 
         // Setup employee 1 (cashier)
@@ -120,12 +129,12 @@ class EmployeeSelfServiceTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('schedule_assignments', [
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee->id,
             'shift_id' => $this->shift->id,
-            'scheduled_date' => $regDate . ' 00:00:00',
+            'scheduled_date' => $regDate.' 00:00:00',
             'status' => 'scheduled',
             'notes' => 'Tự đăng ký ca làm việc',
         ]);
@@ -173,8 +182,8 @@ class EmployeeSelfServiceTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee->id,
             'leave_type' => 'emergency',
-            'start_date' => $startDate . ' 00:00:00',
-            'end_date' => $endDate . ' 00:00:00',
+            'start_date' => $startDate.' 00:00:00',
+            'end_date' => $endDate.' 00:00:00',
             'status' => 'pending',
             'reason' => 'Đơn xin nghỉ đột xuất khẩn cấp do việc gia đình',
         ]);
@@ -199,8 +208,8 @@ class EmployeeSelfServiceTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee->id,
             'leave_type' => 'resignation',
-            'start_date' => $startDate . ' 00:00:00',
-            'end_date' => $endDate . ' 00:00:00',
+            'start_date' => $startDate.' 00:00:00',
+            'end_date' => $endDate.' 00:00:00',
             'status' => 'pending',
             'reason' => 'Đơn xin thôi việc',
         ]);

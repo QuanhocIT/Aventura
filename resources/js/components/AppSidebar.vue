@@ -90,12 +90,16 @@ const isCustomer = computed(() => hasRole('customer'));
 // Lấy danh sách permissions từ Inertia shared state
 const permissions = computed(() => {
     const authUser = page.props.auth?.user as any;
+
     return authUser?.permissions ?? [];
 });
 
 // Kiểm tra quyền Spatie
 const can = (permission: string) => {
-    if (isSuperAdmin.value) return true;
+    if (isSuperAdmin.value) {
+        return true;
+    }
+
     return permissions.value.includes(permission);
 };
 
@@ -178,9 +182,11 @@ const ownerNav = computed<NavItem[]>(() => {
                 return false;
             }
         }
+
         if (item.permission) {
             return can(item.permission);
         }
+
         return true;
     });
 });
@@ -229,6 +235,7 @@ const managerNav = computed<NavItem[]>(() => {
         if (item.permission) {
             return can(item.permission);
         }
+
         return true;
     });
 });

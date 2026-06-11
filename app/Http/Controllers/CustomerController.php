@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -25,8 +27,8 @@ class CustomerController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('full_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -34,7 +36,7 @@ class CustomerController extends Controller
             ->get()
             ->map(fn ($c) => [
                 'id' => $c->id,
-                'customer_code' => 'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                'customer_code' => 'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                 'full_name' => $c->full_name,
                 'phone' => $c->phone,
                 'email' => $c->email,
@@ -47,26 +49,26 @@ class CustomerController extends Controller
             ]);
 
         // Tính toán thống kê CRM
-        $restaurantId   = $request->user()->restaurant_id;
+        $restaurantId = $request->user()->restaurant_id;
         $totalCustomers = Customer::count();
-        $totalPoints    = Customer::sum('loyalty_points');
-        $newThisMonth   = Customer::where('created_at', '>=', now()->startOfMonth())->count();
+        $totalPoints = Customer::sum('loyalty_points');
+        $newThisMonth = Customer::where('created_at', '>=', now()->startOfMonth())->count();
 
         // ── Retention stats ──────────────────────────────────────────────────
         // Khách quay lại: có ít nhất 2 đơn hàng trong 30 ngày qua
-        $cutoff   = now()->subDays(30);
-        $returning = \Illuminate\Support\Facades\DB::table('orders')
+        $cutoff = now()->subDays(30);
+        $returning = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
             ->whereNotNull('customer_id')
-            ->select('customer_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as order_count'))
+            ->select('customer_id', DB::raw('COUNT(*) as order_count'))
             ->groupBy('customer_id')
             ->having('order_count', '>=', 2)
             ->count();
 
         $newCustomers30 = Customer::where('created_at', '>=', $cutoff)->count();
-        $totalOrdering  = \Illuminate\Support\Facades\DB::table('orders')
+        $totalOrdering = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
@@ -78,21 +80,21 @@ class CustomerController extends Controller
             ? round($returning / $totalOrdering * 100, 1) : 0;
 
         $stats = [
-            'total'          => $totalCustomers,
-            'total_points'   => (int) $totalPoints,
+            'total' => $totalCustomers,
+            'total_points' => (int) $totalPoints,
             'new_this_month' => $newThisMonth,
             // Mới
-            'retention_rate'   => $retentionRate,
-            'returning_30d'    => $returning,
+            'retention_rate' => $retentionRate,
+            'returning_30d' => $returning,
             'new_customers_30d' => $newCustomers30,
             'total_ordering_30d' => $totalOrdering,
         ];
 
         return Inertia::render('customers/Index', [
             'customers' => $customers,
-            'stats'     => $stats,
-            'search'    => $search ?? '',
-            'isOwner'   => $request->user()->hasRole('owner'),
+            'stats' => $stats,
+            'search' => $search ?? '',
+            'isOwner' => $request->user()->hasRole('owner'),
         ]);
     }
 
@@ -137,7 +139,7 @@ class CustomerController extends Controller
     /**
      * API tra cứu khách hàng nhanh theo SĐT (dành cho Thu ngân/Phục vụ tạo đơn).
      */
-    public function search(Request $request): \Illuminate\Http\JsonResponse
+    public function search(Request $request): JsonResponse
     {
         $phone = $request->input('phone');
         if (empty($phone)) {
@@ -146,7 +148,7 @@ class CustomerController extends Controller
 
         $customer = Customer::where('phone', $phone)->first();
 
-        if (!$customer) {
+        if (! $customer) {
             return response()->json(['success' => false, 'message' => 'Không tìm thấy thông tin khách hàng.']);
         }
 
@@ -158,7 +160,7 @@ class CustomerController extends Controller
                 'phone' => $customer->phone,
                 'email' => $customer->email,
                 'loyalty_points' => $customer->loyalty_points,
-            ]
+            ],
         ]);
     }
 
@@ -171,18 +173,18 @@ class CustomerController extends Controller
 
         $headers = [
             'Content-type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename=aventura_crm_export_' . now()->format('Ymd_His') . '.csv',
+            'Content-Disposition' => 'attachment; filename=aventura_crm_export_'.now()->format('Ymd_His').'.csv',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0'
+            'Expires' => '0',
         ];
 
-        $callback = function() {
+        $callback = function () {
             $file = fopen('php://output', 'w');
-            
+
             // Thêm UTF-8 BOM để Excel hiển thị đúng tiếng Việt
-            fputs($file, "\xEF\xBB\xBF");
-            
+            fwrite($file, "\xEF\xBB\xBF");
+
             // Tiêu đề các cột dữ liệu
             fputcsv($file, [
                 'Mã Khách Hàng',
@@ -192,7 +194,7 @@ class CustomerController extends Controller
                 'Giới Tính',
                 'Ngày Sinh',
                 'Điểm Tích Lũy',
-                'Ngày Đăng Ký'
+                'Ngày Đăng Ký',
             ]);
 
             // Dùng cursor() hoặc chunk() để tối ưu bộ nhớ khi xuất file số lượng lớn
@@ -200,14 +202,14 @@ class CustomerController extends Controller
                 foreach ($customers as $c) {
                     $genderLabel = $c->gender === 'male' ? 'Nam' : ($c->gender === 'female' ? 'Nữ' : ($c->gender === 'other' ? 'Khác' : '—'));
                     fputcsv($file, [
-                        'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                        'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                         $c->full_name,
                         $c->phone,
                         $c->email ?? '—',
                         $genderLabel,
                         $c->date_of_birth ? $c->date_of_birth->toDateString() : '—',
                         $c->loyalty_points,
-                        $c->created_at->format('Y-m-d H:i:s')
+                        $c->created_at->format('Y-m-d H:i:s'),
                     ]);
                 }
             });

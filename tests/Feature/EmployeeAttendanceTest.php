@@ -6,8 +6,8 @@ use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
-use App\Models\WorkShift;
 use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -18,12 +18,19 @@ class EmployeeAttendanceTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $cashierUser;
+
     private Employee $employee;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private WorkShift $shift;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
@@ -43,7 +50,7 @@ class EmployeeAttendanceTest extends TestCase
 
         $this->ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
-        
+
         $this->owner->assignRole($this->ownerRole);
 
         // Setup cashier and employee
@@ -82,7 +89,7 @@ class EmployeeAttendanceTest extends TestCase
 
         $response = $this->actingAs($this->cashierUser)->post('/schedules/check-in');
         $response->assertSessionHasErrors(['email']);
-        
+
         Carbon::setTestNow();
     }
 
@@ -102,7 +109,7 @@ class EmployeeAttendanceTest extends TestCase
 
         $response = $this->actingAs($this->cashierUser)->post('/schedules/check-in');
         $response->assertRedirect();
-        
+
         $this->assertSame('checked_in', $schedule->fresh()->status);
         $this->assertNotNull($schedule->fresh()->check_in_at);
 

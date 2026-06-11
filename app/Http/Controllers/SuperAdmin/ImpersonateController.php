@@ -16,7 +16,7 @@ class ImpersonateController extends Controller
         $currentUser = $request->user();
 
         // 1. Chỉ Super Admin mới được bắt đầu sắm vai
-        if (!$currentUser || !$currentUser->isSuperAdmin()) {
+        if (! $currentUser || ! $currentUser->isSuperAdmin()) {
             abort(403, 'Chỉ tài khoản Super Admin mới được phép thực hiện hành động này.');
         }
 
@@ -42,7 +42,7 @@ class ImpersonateController extends Controller
     public function stop(Request $request): RedirectResponse
     {
         // 1. Kiểm tra xem session có chứa khóa sắm vai gốc hay không
-        if (!$request->session()->has('impersonate_original_user_id')) {
+        if (! $request->session()->has('impersonate_original_user_id')) {
             abort(403, 'Bạn không ở trong chế độ đăng nhập sắm vai.');
         }
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\SepayCheckoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class SepayCheckoutTest extends TestCase
@@ -24,8 +25,8 @@ class SepayCheckoutTest extends TestCase
         $free = SubscriptionPlan::where('code', 'free')->firstOrFail();
         $pro = SubscriptionPlan::where('code', 'pro')->firstOrFail();
         $owner = User::factory()->create();
-        
-        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+
+        $role = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $owner->assignRole($role);
 
         $restaurant = Restaurant::factory()->create([
@@ -62,8 +63,8 @@ class SepayCheckoutTest extends TestCase
             'plan_id' => $free->id,
         ]);
         $manager->update(['restaurant_id' => $restaurant->id]);
-        
-        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+
+        $role = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->assignRole($role);
 
         $response = $this->actingAs($manager)->get(route('billing.checkout', ['plan' => 'pro']));

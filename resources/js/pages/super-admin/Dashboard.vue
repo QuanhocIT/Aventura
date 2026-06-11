@@ -280,6 +280,7 @@ const isRiskExpanded = (id: number, index: number) => {
     if (expandedRiskId.value === null && index === 0) {
         return true;
     }
+
     return expandedRiskId.value === id;
 };
 
@@ -328,12 +329,15 @@ const formatBytes = (bytes: number) => {
     if (bytes >= 1024 ** 3) {
         return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
     }
+
     if (bytes >= 1024 ** 2) {
         return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
     }
+
     if (bytes >= 1024) {
         return `${(bytes / 1024).toFixed(1)} KB`;
     }
+
     return `${bytes} B`;
 };
 
@@ -408,6 +412,7 @@ const healthBarColor: Record<string, string> = {
 
 const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
+
     return [
         {
             label: 'Pro đang hoạt động',
@@ -491,6 +496,7 @@ const donutSlices = computed(() => {
                 },
             };
             accumulatedPercentage += percentage;
+
             return slice;
         });
 });
@@ -526,6 +532,7 @@ const overallHealthStyle = computed(() => {
             glow: 'shadow-slate-500/20',
         },
     };
+
     return map[color] ?? map.gray;
 });
 
@@ -538,6 +545,7 @@ const maxForecastMrr = computed(() =>
 
 const hasAiData = computed(() => {
     const ai = props.aiInsights;
+
     return (
         ai &&
         ai.overall_health != null &&
@@ -562,6 +570,7 @@ const growthPoints = computed(() => {
                 ? 0
                 : (index / (props.tenantGrowth.length - 1)) * width;
         const y = height + 2 - ((point.new_tenants - min) / span) * height;
+
         return {
             x,
             y,
@@ -586,12 +595,16 @@ const freeToProPoints = computed(() => {
                 ? 0
                 : (index / (props.tenantGrowth.length - 1)) * width;
         const y = height + 2 - ((point.free_to_pro - min) / span) * height;
+
         return { x, y, value: point.free_to_pro, label: point.label };
     });
 });
 
 const growthPath = computed(() => {
-    if (growthPoints.value.length === 0) return '';
+    if (growthPoints.value.length === 0) {
+        return '';
+    }
+
     return growthPoints.value
         .map(
             (p, i) =>
@@ -601,13 +614,20 @@ const growthPath = computed(() => {
 });
 
 const growthAreaPath = computed(() => {
-    if (growthPoints.value.length === 0) return '';
+    if (growthPoints.value.length === 0) {
+        return '';
+    }
+
     const line = growthPath.value;
+
     return `${line} L 100 44 L 0 44 Z`;
 });
 
 const freeToProPath = computed(() => {
-    if (freeToProPoints.value.length === 0) return '';
+    if (freeToProPoints.value.length === 0) {
+        return '';
+    }
+
     return freeToProPoints.value
         .map(
             (p, i) =>
@@ -617,8 +637,12 @@ const freeToProPath = computed(() => {
 });
 
 const freeToProAreaPath = computed(() => {
-    if (freeToProPoints.value.length === 0) return '';
+    if (freeToProPoints.value.length === 0) {
+        return '';
+    }
+
     const line = freeToProPath.value;
+
     return `${line} L 100 44 L 0 44 Z`;
 });
 
@@ -2389,9 +2413,7 @@ const topStorageMax = computed(() =>
                                             : 'text-slate-600 dark:text-slate-400',
                                     ]"
                                 >
-                                    {{
-                                        supportOverview.monitoring.failed_jobs
-                                    }}
+                                    {{ supportOverview.monitoring.failed_jobs }}
                                     /
                                     {{
                                         supportOverview.monitoring.pending_jobs

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,12 +17,12 @@ class ViolationReport extends Model
     protected static function booted(): void
     {
         $lockCheck = function (self $model) {
-            $date = $model->occurred_at instanceof \Carbon\Carbon
+            $date = $model->occurred_at instanceof Carbon
                 ? $model->occurred_at->toDateString()
-                : \Carbon\Carbon::parse($model->occurred_at)->toDateString();
+                : Carbon::parse($model->occurred_at)->toDateString();
 
             if (Salary::isPeriodLocked($model->restaurant_id, $model->employee_id, $date)) {
-                throw new \Exception("Dữ liệu vi phạm đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+                throw new \Exception('Dữ liệu vi phạm đã bị khóa do bảng lương của kỳ này đã được phê duyệt.');
             }
         };
 
@@ -32,9 +33,9 @@ class ViolationReport extends Model
     protected function casts(): array
     {
         return [
-            'occurred_at'    => 'datetime',
+            'occurred_at' => 'datetime',
             'penalty_amount' => 'decimal:2',
-            'is_anonymous'   => 'boolean',
+            'is_anonymous' => 'boolean',
         ];
     }
 

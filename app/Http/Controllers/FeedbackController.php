@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\CustomerFeedback;
 use App\Models\Order;
 use App\Models\Promotion;
-use App\Models\WorkShift;
+use App\Models\Restaurant;
+use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
-use App\Models\AuditLog;
+use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
 
 class FeedbackController extends Controller
 {
@@ -49,7 +50,7 @@ class FeedbackController extends Controller
 
                 foreach ($shifts as $shift) {
                     $inShift = false;
-                    if (!$shift->is_overnight) {
+                    if (! $shift->is_overnight) {
                         $inShift = $orderTimeStr >= $shift->start_time && $orderTimeStr <= $shift->end_time;
                     } else {
                         // Ca qua đêm (Ví dụ từ 22:00:00 đến 06:00:00 sáng hôm sau)
@@ -62,7 +63,7 @@ class FeedbackController extends Controller
 
                     if ($inShift) {
                         $responsibleShift = $shift->name;
-                        
+
                         // Lấy nhân sự được xếp lịch ca trực này hôm xảy ra sự cố
                         $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
                             ->whereDate('scheduled_date', $orderDate)
@@ -92,7 +93,7 @@ class FeedbackController extends Controller
                 'order_number' => $fb->order?->order_number,
                 'table_name' => $fb->order?->table?->name ?? 'Mang về',
                 'created_at' => $fb->created_at->format('H:i d/m/Y'),
-                'items' => $fb->order ? $fb->order->items->map(fn($item) => $item->product?->name)->filter()->values()->toArray() : [],
+                'items' => $fb->order ? $fb->order->items->map(fn ($item) => $item->product?->name)->filter()->values()->toArray() : [],
                 'responsible_shift' => $responsibleShift ?? 'Không xác định',
                 'responsible_staff' => $responsibleStaff,
                 'compensation_voucher' => $fb->compensation_voucher,
@@ -105,7 +106,7 @@ class FeedbackController extends Controller
             ->where('is_active', true)
             ->where('is_approved', true)
             ->get()
-            ->map(fn($p) => [
+            ->map(fn ($p) => [
                 'id' => $p->id,
                 'name' => $p->name,
                 'code' => $p->code,
@@ -135,7 +136,7 @@ class FeedbackController extends Controller
                 'new' => $newFeedback,
                 'average' => $averageRating,
                 'distribution' => $ratingDistribution,
-            ]
+            ],
         ]);
     }
 
@@ -165,7 +166,7 @@ class FeedbackController extends Controller
         // Tự động phân giải tên nhà hàng để giao diện trông cá nhân hóa
         $restaurantName = 'Aventura Restaurant';
         if ($restaurantId) {
-            $res = \App\Models\Restaurant::find($restaurantId);
+            $res = Restaurant::find($restaurantId);
             if ($res) {
                 $restaurantName = $res->name;
             }
@@ -199,7 +200,7 @@ class FeedbackController extends Controller
         $branchId = null;
 
         // 1. Phân giải restaurant_id & branch_id từ đơn hàng
-        if (!empty($data['order_id'])) {
+        if (! empty($data['order_id'])) {
             $order = Order::find($data['order_id']);
             if ($order) {
                 $restaurantId = $order->restaurant_id;
@@ -208,22 +209,22 @@ class FeedbackController extends Controller
         }
 
         // 2. Nếu không có order_id, lấy từ table_id
-        if (!$restaurantId && !empty($data['table_id'])) {
-            $table = \App\Models\RestaurantTable::find($data['table_id']);
+        if (! $restaurantId && ! empty($data['table_id'])) {
+            $table = RestaurantTable::find($data['table_id']);
             if ($table) {
                 $restaurantId = $table->restaurant_id;
             }
         }
 
         // 3. Dự phòng lấy từ TenantContext hoặc tham số truyền lên
-        if (!$restaurantId) {
+        if (! $restaurantId) {
             $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->getRestaurantId();
         }
 
-        if (!$restaurantId) {
+        if (! $restaurantId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không thể xác định thông tin chi nhánh nhà hàng để tiếp nhận phản hồi.'
+                'message' => 'Không thể xác định thông tin chi nhánh nhà hàng để tiếp nhận phản hồi.',
             ], 422);
         }
 

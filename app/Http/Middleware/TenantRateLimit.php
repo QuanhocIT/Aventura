@@ -31,20 +31,20 @@ class TenantRateLimit
         }
 
         $maxAttempts = $this->quota->getRateLimit($restaurant);
-        $key = 'tenant_rate_limit:' . $restaurant->id;
+        $key = 'tenant_rate_limit:'.$restaurant->id;
 
         if ($this->limiter->tooManyAttempts($key, $maxAttempts)) {
             $retryAfter = $this->limiter->availableIn($key);
 
             return response()->json([
-                'message'     => 'Vượt quá giới hạn request. Vui lòng thử lại sau.',
+                'message' => 'Vượt quá giới hạn request. Vui lòng thử lại sau.',
                 'retry_after' => $retryAfter,
-                'plan'        => $restaurant->plan?->name,
-                'limit'       => $maxAttempts . ' requests/phút',
+                'plan' => $restaurant->plan?->name,
+                'limit' => $maxAttempts.' requests/phút',
             ], 429)->withHeaders([
-                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Limit' => $maxAttempts,
                 'X-RateLimit-Remaining' => 0,
-                'Retry-After'           => $retryAfter,
+                'Retry-After' => $retryAfter,
             ]);
         }
 
@@ -53,7 +53,7 @@ class TenantRateLimit
         $response = $next($request);
 
         return $response->withHeaders([
-            'X-RateLimit-Limit'     => $maxAttempts,
+            'X-RateLimit-Limit' => $maxAttempts,
             'X-RateLimit-Remaining' => max(0, $maxAttempts - $this->limiter->attempts($key)),
         ]);
     }

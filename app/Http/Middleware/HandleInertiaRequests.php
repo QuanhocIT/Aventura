@@ -4,8 +4,10 @@ namespace App\Http\Middleware;
 
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
+use App\Services\QuotaService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Spatie\Permission\PermissionRegistrar;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -42,7 +44,7 @@ class HandleInertiaRequests extends Middleware
         // Clear Spatie permission cache để đảm bảo roles luôn mới nhất
         if ($user) {
             try {
-                app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
             } catch (\Throwable $e) {
                 // Ignore
             }
@@ -55,20 +57,20 @@ class HandleInertiaRequests extends Middleware
             $restaurant = $user->restaurant;
             if ($restaurant) {
                 $tenant = [
-                    'id'                   => $restaurant->id,
-                    'name'                 => $restaurant->name,
-                    'status'               => $restaurant->status,
-                    'trial_ends_at'        => $restaurant->trial_ends_at?->toDateString(),
+                    'id' => $restaurant->id,
+                    'name' => $restaurant->name,
+                    'status' => $restaurant->status,
+                    'trial_ends_at' => $restaurant->trial_ends_at?->toDateString(),
                     'subscription_ends_at' => $restaurant->subscription_ends_at?->toDateString(),
                     'plan' => $restaurant->plan ? [
-                        'code'         => $restaurant->plan->code,
-                        'name'         => $restaurant->plan->name,
+                        'code' => $restaurant->plan->code,
+                        'name' => $restaurant->plan->name,
                         'max_branches' => $restaurant->plan->max_branches,
-                        'max_tables'   => $restaurant->plan->max_tables,
-                        'max_users'    => $restaurant->plan->max_users,
-                        'features'     => $restaurant->plan->features,
+                        'max_tables' => $restaurant->plan->max_tables,
+                        'max_users' => $restaurant->plan->max_users,
+                        'features' => $restaurant->plan->features,
                     ] : null,
-                    'quota_summary' => app(\App\Services\QuotaService::class)->getSummary($restaurant),
+                    'quota_summary' => app(QuotaService::class)->getSummary($restaurant),
                 ];
             }
         }
@@ -77,15 +79,15 @@ class HandleInertiaRequests extends Middleware
             ->orderBy('price')
             ->get()
             ->map(fn (SubscriptionPlan $p) => [
-                'id'            => $p->id,
-                'code'          => $p->code,
-                'name'          => $p->name,
-                'price'         => (int) $p->price,
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'price' => (int) $p->price,
                 'billing_cycle' => $p->billing_cycle,
-                'max_branches'  => $p->max_branches,
-                'max_tables'    => $p->max_tables,
-                'max_users'     => $p->max_users,
-                'features'      => $p->features ?? [],
+                'max_branches' => $p->max_branches,
+                'max_tables' => $p->max_tables,
+                'max_users' => $p->max_users,
+                'features' => $p->features ?? [],
             ])
             ->values()
             ->all();
@@ -100,8 +102,8 @@ class HandleInertiaRequests extends Middleware
                     'roles' => $roles->toArray(),
                 ]) : null,
             ],
-            'roles'           => $roles,
-            'tenant'          => $tenant,
+            'roles' => $roles,
+            'tenant' => $tenant,
             'available_plans' => $availablePlans,
             'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
                 ? ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
@@ -109,8 +111,8 @@ class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
             'flash' => [
-                'success'      => $request->session()->get('success'),
-                'error'        => $request->session()->get('error'),
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
                 'temp_password' => $request->session()->get('temp_password'),
             ],
         ];

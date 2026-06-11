@@ -15,12 +15,12 @@ class MenuInsightController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $restaurantId = $request->user()->restaurant_id;
-        $days         = (int) $request->input('days', 30);
+        $days = (int) $request->input('days', 30);
 
         return response()->json([
             'insights' => $this->service->getInsights($restaurantId, $days),
-            'bcg'      => $this->service->getBcgData($restaurantId, $days),
-            'margins'  => $this->service->getProductMargins($restaurantId, $days),
+            'bcg' => $this->service->getBcgData($restaurantId, $days),
+            'margins' => $this->service->getProductMargins($restaurantId, $days),
         ]);
     }
 }

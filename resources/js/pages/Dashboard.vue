@@ -233,20 +233,25 @@ const activeTab = ref<'feed' | 'tables' | 'inventory' | 'owner'>('feed');
 // ── Health Score helpers ─────────────────────────────────────────────────────
 const healthScoreColor = computed(() => {
     const s = props.healthScore ?? 0;
-    if (s >= 70)
+
+    if (s >= 70) {
         return {
             bar: 'bg-emerald-500',
             text: 'text-emerald-600 dark:text-emerald-400',
             bg: 'bg-emerald-50 dark:bg-emerald-950/20',
             label: 'Tốt',
         };
-    if (s >= 40)
+    }
+
+    if (s >= 40) {
         return {
             bar: 'bg-amber-500',
             text: 'text-amber-600 dark:text-amber-400',
             bg: 'bg-amber-50 dark:bg-amber-950/20',
             label: 'Trung bình',
         };
+    }
+
     return {
         bar: 'bg-rose-500',
         text: 'text-rose-600 dark:text-rose-400',
@@ -260,18 +265,34 @@ const shiftHeatmapMax = computed(() => {
     let max = 0;
     (props.shiftRevenue ?? []).forEach((row) =>
         row.days.forEach((d) => {
-            if (d.revenue > max) max = d.revenue;
+            if (d.revenue > max) {
+                max = d.revenue;
+            }
         }),
     );
+
     return Math.max(max, 1);
 });
 
 function shiftHeatColor(revenue: number): string {
     const pct = revenue / shiftHeatmapMax.value;
-    if (pct === 0) return 'bg-slate-100 dark:bg-slate-800';
-    if (pct < 0.25) return 'bg-indigo-100 dark:bg-indigo-950/30';
-    if (pct < 0.5) return 'bg-indigo-300 dark:bg-indigo-800/50';
-    if (pct < 0.75) return 'bg-indigo-500 dark:bg-indigo-600';
+
+    if (pct === 0) {
+        return 'bg-slate-100 dark:bg-slate-800';
+    }
+
+    if (pct < 0.25) {
+        return 'bg-indigo-100 dark:bg-indigo-950/30';
+    }
+
+    if (pct < 0.5) {
+        return 'bg-indigo-300 dark:bg-indigo-800/50';
+    }
+
+    if (pct < 0.75) {
+        return 'bg-indigo-500 dark:bg-indigo-600';
+    }
+
     return 'bg-indigo-700 dark:bg-indigo-500';
 }
 
@@ -557,6 +578,7 @@ const alertColorMap = {
 const revenueChartList = computed(() => props.revenueChartData ?? []);
 const maxRevenue = computed(() => {
     const vals = revenueChartList.value.map((d) => d.revenue);
+
     return Math.max(...vals, 100000); // at least 100k
 });
 
@@ -571,9 +593,13 @@ const channelColors: Record<string, string> = {
 const doughnutPaths = computed(() => {
     const list = channelChartList.value;
     const total = list.reduce((sum, item) => sum + item.count, 0);
-    if (total === 0) return [];
+
+    if (total === 0) {
+        return [];
+    }
 
     let currentAngle = -Math.PI / 2; // start at top
+
     return list.map((item) => {
         const pct = item.count / total;
         const angle = pct * 2 * Math.PI;
@@ -601,6 +627,7 @@ const doughnutPaths = computed(() => {
 const topProductsList = computed(() => props.topProductsChartData ?? []);
 const maxProductQty = computed(() => {
     const qtyList = topProductsList.value.map((p) => p.quantity);
+
     return Math.max(...qtyList, 1);
 });
 
@@ -608,16 +635,22 @@ const activeHoverIndex = ref<number | null>(null);
 
 const maxOrders = computed(() => {
     const list = revenueChartList.value.map((d) => d.orders);
+
     return Math.max(...list, 5);
 });
 
 const ordersLinePath = computed(() => {
     const list = revenueChartList.value;
-    if (list.length === 0) return '';
+
+    if (list.length === 0) {
+        return '';
+    }
+
     return list
         .map((day, i) => {
             const x = i * 85 + 80;
             const y = 160 - (day.orders / maxOrders.value) * 125;
+
             return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
         })
         .join(' ');
@@ -625,8 +658,12 @@ const ordersLinePath = computed(() => {
 
 const topDishName = computed(() => topProductsList.value[0]?.name ?? 'chưa có');
 const topChannelLabel = computed(() => {
-    if (doughnutPaths.value.length === 0) return 'chưa có';
+    if (doughnutPaths.value.length === 0) {
+        return 'chưa có';
+    }
+
     const sorted = [...doughnutPaths.value].sort((a, b) => b.count - a.count);
+
     return sorted[0]?.label ?? 'chưa có';
 });
 </script>
@@ -2783,9 +2820,7 @@ const topChannelLabel = computed(() => {
                                     <p
                                         class="mt-1 text-xs text-muted-foreground"
                                     >
-                                        {{
-                                            props.stats.orders_cancelled ?? 0
-                                        }}
+                                        {{ props.stats.orders_cancelled ?? 0 }}
                                         đơn đã huỷ
                                     </p>
                                 </div>

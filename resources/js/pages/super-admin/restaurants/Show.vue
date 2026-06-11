@@ -584,9 +584,7 @@ function typeLabel(type: string) {
                                     <span>+{{ adjustment.days }} ngay</span>
                                     <span
                                         >Giam
-                                        {{
-                                            adjustment.discount_amount
-                                        }}
+                                        {{ adjustment.discount_amount }}
                                         VND</span
                                     >
                                     <span>{{

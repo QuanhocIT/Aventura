@@ -3,12 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
-use App\Models\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,7 +26,7 @@ class ScheduleController extends Controller
         // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
         if ($user->hasAnyRole(['owner', 'manager'])) {
             $selectedDate = $request->input('date', today()->toDateString());
-            
+
             // Lấy danh sách lịch xếp ca trong ngày được chọn
             $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
                 ->whereDate('scheduled_date', $selectedDate)
@@ -47,7 +48,7 @@ class ScheduleController extends Controller
                         'job_title' => $a->employee?->job_title ?? '—',
                         'shift_id' => $a->shift_id,
                         'shift_name' => $a->shift?->name ?? '—',
-                        'shift_time' => $a->shift ? substr($a->shift->start_time, 0, 5) . ' - ' . substr($a->shift->end_time, 0, 5) : '—',
+                        'shift_time' => $a->shift ? substr($a->shift->start_time, 0, 5).' - '.substr($a->shift->end_time, 0, 5) : '—',
                         'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
                         'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i:s d/m/Y') : null,
                         'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : null,
@@ -95,12 +96,12 @@ class ScheduleController extends Controller
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
-            $peakHours = \Illuminate\Support\Facades\DB::table('orders')
+            $peakHours = DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays(30))
                 ->selectRaw('HOUR(completed_at) as hour, COUNT(*) as order_count, SUM(total_amount) as revenue')
-                ->groupBy(\Illuminate\Support\Facades\DB::raw('HOUR(completed_at)'))
+                ->groupBy(DB::raw('HOUR(completed_at)'))
                 ->orderByDesc('revenue')
                 ->get();
 
@@ -111,8 +112,10 @@ class ScheduleController extends Controller
                 foreach ($shifts as $shift) {
                     // Xác định giờ trong ca
                     $startH = (int) substr($shift['start'], 0, 2);
-                    $endH   = (int) substr($shift['end'],   0, 2);
-                    if ($endH <= $startH) $endH += 24; // overnight
+                    $endH = (int) substr($shift['end'], 0, 2);
+                    if ($endH <= $startH) {
+                        $endH += 24;
+                    } // overnight
 
                     $shiftRevenue = $peakHours
                         ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
@@ -126,37 +129,37 @@ class ScheduleController extends Controller
 
                     if ($pct >= 35 && $currentStaff < 3) {
                         $staffingTips[] = [
-                            'shift'   => $shift['name'],
-                            'pct'     => $pct,
+                            'shift' => $shift['name'],
+                            'pct' => $pct,
                             'message' => "Ca <strong>{$shift['name']}</strong> chiếm {$pct}% doanh thu — hiện chỉ có {$currentStaff} nhân viên. Nên bố trí ít nhất 3 người.",
-                            'level'   => 'warning',
+                            'level' => 'warning',
                         ];
                     } elseif ($pct < 10 && $currentStaff > 2) {
                         $staffingTips[] = [
-                            'shift'   => $shift['name'],
-                            'pct'     => $pct,
+                            'shift' => $shift['name'],
+                            'pct' => $pct,
                             'message' => "Ca <strong>{$shift['name']}</strong> chỉ chiếm {$pct}% doanh thu — {$currentStaff} nhân viên có thể hơi nhiều. Cân nhắc tối ưu chi phí lương.",
-                            'level'   => 'info',
+                            'level' => 'info',
                         ];
                     }
                 }
             }
 
             return Inertia::render('schedules/Index', [
-                'isAdmin'          => true,
-                'selectedDate'     => $selectedDate,
-                'assignments'      => $assignments,
-                'stats'            => $stats,
+                'isAdmin' => true,
+                'selectedDate' => $selectedDate,
+                'assignments' => $assignments,
+                'stats' => $stats,
                 'weeklyAssignments' => $weeklyAssignments,
-                'shifts'           => $shifts,
-                'employees'        => $employees,
-                'staffingTips'     => $staffingTips,
+                'shifts' => $shifts,
+                'employees' => $employees,
+                'staffingTips' => $staffingTips,
             ]);
         }
 
         // 2. Nếu là Nhân viên thường: Bảng chấm công cá nhân
         $employee = $user->employee;
-        if (!$employee) {
+        if (! $employee) {
             abort(403, 'Bạn chưa được liên kết với hồ sơ nhân sự nào trên hệ thống.');
         }
 
@@ -176,7 +179,7 @@ class ScheduleController extends Controller
                     'day' => Carbon::parse($wa->scheduled_date)->format('l'),
                     'day_vn' => $this->getDayVn(Carbon::parse($wa->scheduled_date)->format('l')),
                     'shift_name' => $wa->shift?->name ?? '—',
-                    'shift_time' => $wa->shift ? substr($wa->shift->start_time, 0, 5) . ' - ' . substr($wa->shift->end_time, 0, 5) : '—',
+                    'shift_time' => $wa->shift ? substr($wa->shift->start_time, 0, 5).' - '.substr($wa->shift->end_time, 0, 5) : '—',
                     'check_in_at' => $wa->check_in_at ? Carbon::parse($wa->check_in_at)->format('H:i:s') : null,
                     'check_out_at' => $wa->check_out_at ? Carbon::parse($wa->check_out_at)->format('H:i:s') : null,
                     'status' => $wa->status,
@@ -200,7 +203,7 @@ class ScheduleController extends Controller
             $todayActiveAssignment = [
                 'id' => $checkedInAssignment->id,
                 'shift_name' => $checkedInAssignment->shift?->name ?? '—',
-                'shift_time' => $checkedInAssignment->shift ? substr($checkedInAssignment->shift->start_time, 0, 5) . ' - ' . substr($checkedInAssignment->shift->end_time, 0, 5) : '—',
+                'shift_time' => $checkedInAssignment->shift ? substr($checkedInAssignment->shift->start_time, 0, 5).' - '.substr($checkedInAssignment->shift->end_time, 0, 5) : '—',
                 'check_in_at' => Carbon::parse($checkedInAssignment->check_in_at)->format('H:i:s d/m/Y'),
                 'status' => $checkedInAssignment->status,
                 'duration' => $durationStr,
@@ -216,17 +219,17 @@ class ScheduleController extends Controller
 
             foreach ($scheduledAssignments as $sa) {
                 $shift = $sa->shift;
-                if (!$shift || $shift->status !== 'active') {
+                if (! $shift || $shift->status !== 'active') {
                     continue;
                 }
 
                 $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
-                $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
-                
+                $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
                 if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                    $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
                 } else {
-                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
+                    $end = Carbon::parse($dateStr.' '.$shift->end_time);
                 }
 
                 // Khung check-in: Từ 30 phút trước ca trực cho đến khi hết ca trực
@@ -237,7 +240,7 @@ class ScheduleController extends Controller
                     $todayActiveAssignment = [
                         'id' => $sa->id,
                         'shift_name' => $shift->name,
-                        'shift_time' => substr($shift->start_time, 0, 5) . ' - ' . substr($shift->end_time, 0, 5),
+                        'shift_time' => substr($shift->start_time, 0, 5).' - '.substr($shift->end_time, 0, 5),
                         'check_in_at' => null,
                         'status' => $sa->status,
                         'duration' => null,
@@ -268,13 +271,13 @@ class ScheduleController extends Controller
             ->latest()
             ->get()
             ->map(fn ($lr) => [
-                'id'            => $lr->id,
-                'leave_type'    => $lr->leave_type,
-                'start_date'    => $lr->start_date instanceof Carbon ? $lr->start_date->toDateString() : Carbon::parse($lr->start_date)->toDateString(),
-                'end_date'      => $lr->end_date instanceof Carbon ? $lr->end_date->toDateString() : Carbon::parse($lr->end_date)->toDateString(),
-                'reason'        => $lr->reason,
-                'status'        => $lr->status,
-                'created_at'    => $lr->created_at->format('H:i d/m/Y'),
+                'id' => $lr->id,
+                'leave_type' => $lr->leave_type,
+                'start_date' => $lr->start_date instanceof Carbon ? $lr->start_date->toDateString() : Carbon::parse($lr->start_date)->toDateString(),
+                'end_date' => $lr->end_date instanceof Carbon ? $lr->end_date->toDateString() : Carbon::parse($lr->end_date)->toDateString(),
+                'reason' => $lr->reason,
+                'status' => $lr->status,
+                'created_at' => $lr->created_at->format('H:i d/m/Y'),
             ]);
 
         return Inertia::render('schedules/Index', [
@@ -294,7 +297,7 @@ class ScheduleController extends Controller
     public function checkIn(Request $request): RedirectResponse
     {
         $employee = $request->user()->employee;
-        if (!$employee) {
+        if (! $employee) {
             return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
         }
 
@@ -309,17 +312,17 @@ class ScheduleController extends Controller
 
         foreach ($scheduledAssignments as $saCandidate) {
             $shift = $saCandidate->shift;
-            if (!$shift || $shift->status !== 'active') {
+            if (! $shift || $shift->status !== 'active') {
                 continue;
             }
 
             $dateStr = $saCandidate->scheduled_date instanceof Carbon ? $saCandidate->scheduled_date->toDateString() : Carbon::parse($saCandidate->scheduled_date)->toDateString();
-            $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
+            $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
             if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
             } else {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
             }
 
             $allowedStart = $start->copy()->subMinutes(30);
@@ -331,7 +334,7 @@ class ScheduleController extends Controller
             }
         }
 
-        if (!$sa) {
+        if (! $sa) {
             return back()->withErrors(['email' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.']);
         }
 
@@ -340,7 +343,7 @@ class ScheduleController extends Controller
             'status' => 'checked_in',
         ]);
 
-        return back()->with('success', 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!');
+        return back()->with('success', 'Bạn đã CHECK-IN thành công ca trực "'.$sa->shift->name.'". Chúc bạn một ca làm việc vui vẻ!');
     }
 
     /**
@@ -349,7 +352,7 @@ class ScheduleController extends Controller
     public function checkOut(Request $request): RedirectResponse
     {
         $employee = $request->user()->employee;
-        if (!$employee) {
+        if (! $employee) {
             return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
         }
 
@@ -357,7 +360,7 @@ class ScheduleController extends Controller
             ->where('status', 'checked_in')
             ->first();
 
-        if (!$sa) {
+        if (! $sa) {
             return back()->withErrors(['email' => 'Không tìm thấy ca trực nào đang hoạt động để check-out.']);
         }
 
@@ -382,7 +385,7 @@ class ScheduleController extends Controller
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
+
         $sa->update([
             'check_in_at' => now(),
             'status' => 'checked_in',
@@ -406,7 +409,7 @@ class ScheduleController extends Controller
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
+
         $sa->update([
             'check_out_at' => now(),
             'status' => 'completed',
@@ -430,7 +433,7 @@ class ScheduleController extends Controller
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
+
         $sa->update([
             'status' => 'absent',
             'approved_by' => $request->user()->id,
@@ -446,12 +449,12 @@ class ScheduleController extends Controller
     public function register(Request $request): RedirectResponse
     {
         $employee = $request->user()->employee;
-        if (!$employee) {
+        if (! $employee) {
             return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
         }
 
         $data = $request->validate([
-            'shift_id'       => ['required', 'exists:work_shifts,id'],
+            'shift_id' => ['required', 'exists:work_shifts,id'],
             'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
         ]);
 
@@ -468,12 +471,12 @@ class ScheduleController extends Controller
         }
 
         ScheduleAssignment::create([
-            'restaurant_id'  => $restaurantId,
-            'employee_id'    => $employee->id,
-            'shift_id'       => $data['shift_id'],
+            'restaurant_id' => $restaurantId,
+            'employee_id' => $employee->id,
+            'shift_id' => $data['shift_id'],
             'scheduled_date' => $data['scheduled_date'],
-            'status'         => 'scheduled',
-            'notes'          => 'Tự đăng ký ca làm việc',
+            'status' => 'scheduled',
+            'notes' => 'Tự đăng ký ca làm việc',
         ]);
 
         return back()->with('success', 'Đăng ký ca làm việc thành công.');

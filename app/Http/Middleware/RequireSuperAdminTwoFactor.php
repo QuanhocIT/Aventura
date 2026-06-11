@@ -20,7 +20,7 @@ class RequireSuperAdminTwoFactor
         if ($user && $user->isSuperAdmin()) {
             // 2. Nếu Super Admin chưa hoàn thành/xác thực mã bảo mật 2FA
             if (is_null($user->two_factor_confirmed_at)) {
-                
+
                 // 3. Cho phép bỏ qua đối với trang bảo mật (security settings), các route Fortify 2FA, và đăng xuất
                 if ($request->routeIs('security.edit')
                     || $request->routeIs('logout')

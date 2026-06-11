@@ -61,7 +61,11 @@ const empSearchQuery = ref('');
 
 const filteredEmployees = computed(() => {
     const q = empSearchQuery.value.trim().toLowerCase();
-    if (!q) return props.employees;
+
+    if (!q) {
+        return props.employees;
+    }
+
     return props.employees.filter(
         (e) =>
             e.full_name.toLowerCase().includes(q) ||
@@ -226,6 +230,7 @@ const weekDaysWithDates = computed(() => {
         nextDay.setDate(monday.getDate() + index);
         const dd = String(nextDay.getDate()).padStart(2, '0');
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
@@ -343,6 +348,7 @@ function openLeaveModal() {
     if (props.employees.length > 0) {
         leaveForm.employee_id = String(props.employees[0].id);
     }
+
     showLeaveModal.value = true;
 }
 
@@ -367,8 +373,10 @@ function approveLeave(id: number) {
         !confirm(
             'Bạn có chắc chắn muốn phê duyệt đơn nghỉ này? Mọi tác vụ tự động (hủy ca hoặc chấm dứt hợp đồng) sẽ được thực thi.',
         )
-    )
+    ) {
         return;
+    }
+
     router.patch(
         `/employees/leaves/${id}/approve`,
         {},
@@ -390,8 +398,10 @@ function submitRejectLeave() {
         import('vue-sonner').then((m) =>
             m.toast.error('Vui lòng nhập lý do từ chối.'),
         );
+
         return;
     }
+
     router.patch(
         `/employees/leaves/${showRejectModal.value}/reject`,
         {
@@ -418,6 +428,7 @@ const currentAssignDayLabel = computed(() => {
     const day = weekDaysWithDates.value.find(
         (d) => d.key === currentAssignDay.value,
     );
+
     return day ? day.fullLabel : '';
 });
 
@@ -426,6 +437,7 @@ const availableEmployeesList = computed(() => {
     if (props.employees && props.employees.length > 0) {
         return props.employees.map((e) => e.full_name);
     }
+
     return [
         'Nguyễn Văn Thu Ngân',
         'Trần Thị Bếp',

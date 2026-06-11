@@ -133,11 +133,15 @@ function actionLabel(action: string): string {
         test_data_seeded: 'Seed dữ liệu test',
         seed_demo_order: 'Seed đơn demo',
     };
+
     return map[action] ?? action;
 }
 
 function formatJson(obj: Record<string, any> | null): string {
-    if (!obj) return '—';
+    if (!obj) {
+        return '—';
+    }
+
     return JSON.stringify(obj, null, 2);
 }
 </script>

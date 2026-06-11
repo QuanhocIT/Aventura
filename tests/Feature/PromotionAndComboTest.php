@@ -2,23 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\LogDiscountAppliedJob;
+use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Promotion;
-use App\Models\AuditLog;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
-use App\Models\User;
-use App\Models\Employee;
-use App\Models\WorkShift;
 use App\Models\ScheduleAssignment;
-use App\Jobs\LogDiscountAppliedJob;
+use App\Models\User;
+use App\Models\WorkShift;
 use App\Services\FraudDetectionService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -27,13 +27,21 @@ class PromotionAndComboTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $manager;
+
     private User $cashier;
+
     private Employee $cashierEmp;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $managerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
@@ -66,7 +74,7 @@ class PromotionAndComboTest extends TestCase
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->manager->assignRole($this->managerRole);
 
@@ -81,7 +89,7 @@ class PromotionAndComboTest extends TestCase
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->cashier->assignRole($this->cashierRole);
 
@@ -237,10 +245,10 @@ class PromotionAndComboTest extends TestCase
                         'description' => 'Áp dụng mã giảm giá liên tục',
                         'penalty_amount' => 40000.0,
                         'risk_score' => 98.4,
-                        'reason' => 'Tần suất áp dụng voucher vượt quá ngưỡng an toàn.'
-                    ]
-                ]
-            ], 200)
+                        'reason' => 'Tần suất áp dụng voucher vượt quá ngưỡng an toàn.',
+                    ],
+                ],
+            ], 200),
         ]);
 
         // Đảm bảo TenantContext thiết lập đúng
@@ -284,7 +292,7 @@ class PromotionAndComboTest extends TestCase
         $alerts = $fraudService->detectAiFraudAlerts();
 
         // Xác minh phát hiện cảnh báo áp voucher bất thường
-        $voucherAlerts = collect($alerts)->filter(fn($a) => str_contains($a['violation_type'], 'voucher') || str_contains($a['violation_type'], 'Voucher'));
+        $voucherAlerts = collect($alerts)->filter(fn ($a) => str_contains($a['violation_type'], 'voucher') || str_contains($a['violation_type'], 'Voucher'));
         $this->assertNotEmpty($voucherAlerts);
 
         $criticalAlert = $voucherAlerts->first();
@@ -337,7 +345,7 @@ class PromotionAndComboTest extends TestCase
 
         // 2. Mock HTTP để giả định FastAPI microservice đang offline
         Http::fake([
-            'http://localhost:8003/*' => Http::response(null, 500)
+            'http://localhost:8003/*' => Http::response(null, 500),
         ]);
 
         // 3. Gọi API phân tích và kiểm tra xem có tự động kích hoạt Fallback không
@@ -368,14 +376,14 @@ class PromotionAndComboTest extends TestCase
                 'suggestion' => 'AI đề xuất: Khách đang gọi Lẩu gà Hỏa Đứng, mời dùng thêm Nước Cốt Sấu Hạt Chia để được áp dụng combo giảm giá.',
                 'recommended_item' => 'Nước Cốt Sấu Hạt Chia',
                 'confidence' => 0.85,
-                'lift' => 2.8
-            ], 200)
+                'lift' => 2.8,
+            ], 200),
         ]);
 
         // 2. Gọi API gợi ý từ Laravel
         $response = $this->actingAs($this->cashier)
             ->postJson('/api/promotions/upsell-suggestion', [
-                'items' => ['Lẩu gà Hỏa Đứng']
+                'items' => ['Lẩu gà Hỏa Đứng'],
             ])
             ->assertStatus(200);
 
@@ -428,13 +436,13 @@ class PromotionAndComboTest extends TestCase
 
         // 1. Mock HTTP cho FastAPI bị lỗi 500
         Http::fake([
-            'http://localhost:8003/*' => Http::response(null, 500)
+            'http://localhost:8003/*' => Http::response(null, 500),
         ]);
 
         // 2. Gọi API gợi ý từ Laravel và kiểm tra xem có chạy Fallback không
         $response = $this->actingAs($this->cashier)
             ->postJson('/api/promotions/upsell-suggestion', [
-                'items' => ['Lẩu gà Hỏa Đứng']
+                'items' => ['Lẩu gà Hỏa Đứng'],
             ])
             ->assertStatus(200);
 

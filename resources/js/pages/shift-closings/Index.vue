@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     ArrowDownCircle,
@@ -41,6 +41,15 @@ defineOptions({ layout: AppLayout });
 
 type Status = 'draft' | 'submitted' | 'confirmed' | 'disputed';
 
+type SplitOrder = {
+    id: number;
+    order_number: string;
+    total_amount: number;
+    is_override_split_penalty: boolean;
+    is_red_flagged: boolean;
+    status: string;
+};
+
 type ShiftClosing = {
     id: number;
     closing_date: string;
@@ -60,6 +69,8 @@ type ShiftClosing = {
     notes: string | null;
     confirmed_by_name: string | null;
     closed_at: string | null;
+    split_orders?: SplitOrder[];
+    split_penalty_total?: number;
 };
 
 type Shift = {
@@ -97,6 +108,8 @@ type Preview = {
     transfer_amount: number;
     pending_orders: number;
     already_closed: boolean;
+    split_orders: SplitOrder[];
+    split_penalty_total: number;
 };
 
 const props = defineProps<{
@@ -187,7 +200,10 @@ const form = useForm({
 const isSubmitting = ref(false);
 
 const cashDifference = computed(() => {
-    if (!previewData.value) return 0;
+    if (!previewData.value) {
+        return 0;
+    }
+
     return form.actual_cash - previewData.value.expected_cash;
 });
 
@@ -208,6 +224,7 @@ function openDialog() {
 async function loadPreview() {
     if (!form.shift_id || !form.closing_date) {
         previewError.value = 'Vui lòng chọn ca và ngày.';
+
         return;
     }
 
@@ -226,6 +243,7 @@ async function loadPreview() {
 
         if (!res.ok) {
             previewError.value = 'Không thể tải dữ liệu. Thử lại.';
+
             return;
         }
 
@@ -260,7 +278,10 @@ function submitForm(isSubmit: boolean) {
             onError: (errors) => {
                 isSubmitting.value = false;
                 const msg = Object.values(errors)[0];
-                if (msg) toast.error(String(msg));
+
+                if (msg) {
+                    toast.error(String(msg));
+                }
             },
         },
     );
@@ -278,9 +299,13 @@ function openDisputeDialog(closing: ShiftClosing) {
 }
 
 function submitDispute() {
-    if (!disputeTarget.value) return;
+    if (!disputeTarget.value) {
+        return;
+    }
+
     if (!disputeNotes.value.trim()) {
         toast.error('Vui lòng nhập lý do tranh chấp.');
+
         return;
     }
 
@@ -320,6 +345,57 @@ const expandedId = ref<number | null>(null);
 function toggleExpand(id: number) {
     expandedId.value = expandedId.value === id ? null : id;
 }
+
+const page = usePage();
+const isOwner = computed(() => {
+    const roles = (page.props as any).roles ?? [];
+
+    return roles.includes('owner');
+});
+
+function playPrintChime() {
+    try {
+        const audioCtx = new (
+            window.AudioContext || (window as any).webkitAudioContext
+        )();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(660, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+    } catch (e) {
+        console.error('Failed to play print chime', e);
+    }
+}
+
+const handlePrintSplitOrder = (orderNumber: string) => {
+    playPrintChime();
+    toast.success(`Đang gửi lệnh in hóa đơn tách ${orderNumber} tới máy in...`);
+};
+
+const handleOverridePenalty = (orderId: number) => {
+    router.patch(
+        `/orders/${orderId}/override-split-penalty`,
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success(
+                    'Đã phê duyệt đối soát đơn tách. Khoản phạt âm tiền đã được vô hiệu hóa.',
+                );
+            },
+            onError: (err: any) => {
+                toast.error(err.message || 'Có lỗi xảy ra.');
+            },
+        },
+    );
+};
 
 // ── Derived totals for selected month ─────────────────────────────────────────
 
@@ -418,6 +494,7 @@ function openCalendar() {
     } else {
         calView.value = { year: today.getFullYear(), month: today.getMonth() };
     }
+
     // Đặt calendar sang bên phải trigger
     if (calTriggerRef.value) {
         const rect = calTriggerRef.value.getBoundingClientRect();
@@ -427,6 +504,7 @@ function openCalendar() {
             width: rect.width,
         };
     }
+
     showCalendar.value = true;
 }
 
@@ -443,6 +521,7 @@ function nextMonth() {
             ? calView.value.year + 1
             : calView.value.year;
     const nextM = calView.value.month === 11 ? 0 : calView.value.month + 1;
+
     if (new Date(nextY, nextM, 1) <= today) {
         calView.value = { year: nextY, month: nextM };
     }
@@ -454,6 +533,7 @@ const isNextMonthDisabled = computed(() => {
             ? calView.value.year + 1
             : calView.value.year;
     const nextM = calView.value.month === 11 ? 0 : calView.value.month + 1;
+
     return new Date(nextY, nextM, 1) > today;
 });
 
@@ -487,6 +567,7 @@ const calDays = computed<CalDay[]>(() => {
             isSelected: str === form.closing_date,
         });
     }
+
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const dt = new Date(year, month, d);
         const str = dt.toISOString().slice(0, 10);
@@ -499,7 +580,9 @@ const calDays = computed<CalDay[]>(() => {
             isSelected: str === form.closing_date,
         });
     }
+
     const remaining = 42 - days.length;
+
     for (let i = 1; i <= remaining; i++) {
         const d = new Date(year, month + 1, i);
         const str = d.toISOString().slice(0, 10);
@@ -512,13 +595,18 @@ const calDays = computed<CalDay[]>(() => {
             isSelected: false,
         });
     }
+
     return days;
 });
 
 function selectDate(day: CalDay) {
-    if (day.isFuture) return;
+    if (day.isFuture) {
+        return;
+    }
+
     form.closing_date = day.date;
     showCalendar.value = false;
+
     if (dialogStep.value === 2) {
         dialogStep.value = 1;
         previewData.value = null;
@@ -526,8 +614,12 @@ function selectDate(day: CalDay) {
 }
 
 const displayDate = computed(() => {
-    if (!form.closing_date) return '';
+    if (!form.closing_date) {
+        return '';
+    }
+
     const d = new Date(form.closing_date + 'T00:00:00');
+
     return d.toLocaleDateString('vi-VN', {
         weekday: 'long',
         day: '2-digit',
@@ -540,6 +632,7 @@ function handleOutsideClick(e: MouseEvent) {
     const target = e.target as Node;
     const trigger = calTriggerRef.value;
     const calEl = document.getElementById('shift-cal-popup');
+
     if (
         trigger &&
         !trigger.contains(target) &&
@@ -1264,6 +1357,161 @@ onUnmounted(() =>
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- Audit Split Orders inside Expanded Row -->
+                                <div
+                                    v-if="
+                                        closing.split_orders &&
+                                        closing.split_orders.length > 0
+                                    "
+                                    class="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800"
+                                >
+                                    <h5
+                                        class="mb-3 flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-800 uppercase dark:text-slate-200"
+                                    >
+                                        <AlertTriangle
+                                            class="size-4 text-rose-500"
+                                        />
+                                        Danh sách đơn bị tách (Audit đối soát
+                                        rủi ro)
+                                    </h5>
+                                    <div
+                                        class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800"
+                                    >
+                                        <table
+                                            class="w-full border-collapse text-left text-xs"
+                                        >
+                                            <thead>
+                                                <tr
+                                                    class="border-b border-slate-100 bg-slate-50 font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-900"
+                                                >
+                                                    <th class="p-3">Mã đơn</th>
+                                                    <th class="p-3">Số tiền</th>
+                                                    <th class="p-3">
+                                                        Trạng thái
+                                                    </th>
+                                                    <th class="p-3">
+                                                        Cảnh báo/Bỏ phạt
+                                                    </th>
+                                                    <th class="p-3 text-right">
+                                                        Thao tác
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr
+                                                    v-for="order in closing.split_orders"
+                                                    :key="order.id"
+                                                    class="dark:border-slate-850 border-b border-slate-100 hover:bg-slate-50/50 dark:hover:bg-slate-900/10"
+                                                >
+                                                    <td
+                                                        class="p-3 font-mono font-bold"
+                                                    >
+                                                        {{ order.order_number }}
+                                                    </td>
+                                                    <td class="p-3 font-mono">
+                                                        {{
+                                                            vnd(
+                                                                order.total_amount,
+                                                            )
+                                                        }}
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <span
+                                                            class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                                            :class="
+                                                                order.status ===
+                                                                'completed'
+                                                                    ? 'dark:text-emerald-450 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40'
+                                                                    : 'dark:bg-amber-955/40 dark:text-amber-450 bg-amber-100 text-amber-800'
+                                                            "
+                                                        >
+                                                            {{
+                                                                order.status ===
+                                                                'completed'
+                                                                    ? 'Đã thanh toán'
+                                                                    : 'Chưa thanh toán'
+                                                            }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <span
+                                                            v-if="
+                                                                order.is_override_split_penalty
+                                                            "
+                                                            class="flex items-center gap-1 text-[10px] font-bold text-emerald-600"
+                                                        >
+                                                            <Check
+                                                                class="size-3"
+                                                            />
+                                                            Đã bỏ phạt (Đã đối
+                                                            soát)
+                                                        </span>
+                                                        <span
+                                                            v-else-if="
+                                                                order.status !==
+                                                                'completed'
+                                                            "
+                                                            class="flex items-center gap-1 text-[10px] font-bold text-rose-600"
+                                                        >
+                                                            <AlertTriangle
+                                                                class="size-3"
+                                                            />
+                                                            Chờ thu hồi / Tính
+                                                            phạt âm
+                                                        </span>
+                                                        <span
+                                                            v-else
+                                                            class="text-slate-500"
+                                                            >Bình thường</span
+                                                        >
+                                                    </td>
+                                                    <td class="p-3 text-right">
+                                                        <div
+                                                            class="flex justify-end gap-2"
+                                                        >
+                                                            <Button
+                                                                v-if="
+                                                                    order.status !==
+                                                                    'completed'
+                                                                "
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                class="dark:text-slate-350 h-6 rounded-lg border-slate-200 text-[9px] text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950"
+                                                                @click="
+                                                                    handlePrintSplitOrder(
+                                                                        order.order_number,
+                                                                    )
+                                                                "
+                                                            >
+                                                                In đơn bị tách
+                                                            </Button>
+                                                            <Button
+                                                                v-if="
+                                                                    !order.is_override_split_penalty &&
+                                                                    order.status !==
+                                                                        'completed' &&
+                                                                    isOwner
+                                                                "
+                                                                type="button"
+                                                                size="sm"
+                                                                class="h-6 rounded-lg bg-rose-600 text-[9px] font-semibold text-white shadow-sm transition-transform hover:bg-rose-700 active:scale-95"
+                                                                @click="
+                                                                    handleOverridePenalty(
+                                                                        order.id,
+                                                                    )
+                                                                "
+                                                            >
+                                                                Bỏ phạt
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         </Transition>
                     </div>
@@ -1871,6 +2119,92 @@ onUnmounted(() =>
                                                 previewData.transfer_amount,
                                         )
                                     }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Split orders penalty preview -->
+                        <div
+                            v-if="
+                                previewData.split_orders &&
+                                previewData.split_orders.length > 0
+                            "
+                            class="mt-4 rounded-xl border border-rose-100 bg-rose-50/20 p-4 dark:border-rose-950/20 dark:bg-rose-950/5"
+                        >
+                            <div class="mb-2 flex items-center justify-between">
+                                <p
+                                    class="flex items-center gap-1 text-[10px] font-bold tracking-wider text-rose-600 uppercase"
+                                >
+                                    <TriangleAlert class="size-3.5" />
+                                    Cảnh báo: Đơn bị tách trong ca
+                                </p>
+                                <span
+                                    class="font-mono text-xs font-bold text-rose-600"
+                                >
+                                    -{{ vnd(previewData.split_penalty_total) }}
+                                </span>
+                            </div>
+                            <p class="mb-3 text-[10px] text-muted-foreground">
+                                Các đơn bị tách nếu chưa hoàn thành hoặc chưa
+                                được Owner bỏ phạt sẽ bị tính âm trực tiếp vào
+                                quỹ tiền mặt sổ sách của thu ngân.
+                            </p>
+                            <div
+                                class="max-h-48 space-y-2 overflow-y-auto pr-1"
+                            >
+                                <div
+                                    v-for="order in previewData.split_orders"
+                                    :key="order.id"
+                                    class="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-2 text-xs dark:border-slate-800 dark:bg-slate-900"
+                                >
+                                    <div>
+                                        <p
+                                            class="font-bold text-slate-800 dark:text-slate-200"
+                                        >
+                                            {{ order.order_number }}
+                                        </p>
+                                        <div
+                                            class="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500"
+                                        >
+                                            <span
+                                                >Số tiền:
+                                                {{
+                                                    vnd(order.total_amount)
+                                                }}</span
+                                            >
+                                            <span
+                                                :class="
+                                                    order.status === 'completed'
+                                                        ? 'font-medium text-emerald-600'
+                                                        : 'font-bold text-rose-600'
+                                                "
+                                            >
+                                                {{
+                                                    order.status === 'completed'
+                                                        ? 'Đã thanh toán'
+                                                        : 'Chưa thanh toán'
+                                                }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="flex gap-1"
+                                        v-if="order.status !== 'completed'"
+                                    >
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="border-slate-250 dark:border-slate-750 dark:text-slate-350 h-6 rounded-lg text-[9px] text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-950"
+                                            @click="
+                                                handlePrintSplitOrder(
+                                                    order.order_number,
+                                                )
+                                            "
+                                        >
+                                            In đơn bị tách
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

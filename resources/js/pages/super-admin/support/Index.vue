@@ -1930,9 +1930,7 @@ function submitRule() {
                                                         >•</span
                                                     >
                                                     cooldown:
-                                                    {{
-                                                        rule.cooldown_minutes
-                                                    }}
+                                                    {{ rule.cooldown_minutes }}
                                                     phút
                                                 </p>
                                             </div>

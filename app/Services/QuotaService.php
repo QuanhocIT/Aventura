@@ -16,12 +16,12 @@ class QuotaService
         }
 
         return match ($resource) {
-            'branches'   => $plan->max_branches,
-            'tables'     => $plan->max_tables,
-            'employees'  => $plan->max_users,
-            'areas'      => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
+            'branches' => $plan->max_branches,
+            'tables' => $plan->max_tables,
+            'employees' => $plan->max_users,
+            'areas' => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
             'storage_mb' => (int) ($plan->features['max_storage_mb'] ?? 500),
-            default      => null,
+            default => null,
         };
     }
 
@@ -33,10 +33,10 @@ class QuotaService
     public function getUsage(Restaurant $restaurant): array
     {
         return [
-            'branches'  => $restaurant->branches()->count(),
-            'tables'    => $restaurant->tables()->count(),
+            'branches' => $restaurant->branches()->count(),
+            'tables' => $restaurant->tables()->count(),
             'employees' => $restaurant->employees()->where('status', 'active')->count(),
-            'areas'     => $restaurant->areas()->count(),
+            'areas' => $restaurant->areas()->count(),
         ];
     }
 
@@ -79,31 +79,31 @@ class QuotaService
         $usage = $this->getUsage($restaurant);
 
         $format = function (string $res) use ($restaurant, $usage) {
-            $limit     = $this->getLimit($restaurant, $res);
+            $limit = $this->getLimit($restaurant, $res);
             $unlimited = $limit === null;
-            $used      = $usage[$res] ?? 0;
+            $used = $usage[$res] ?? 0;
 
             return [
-                'used'       => $used,
-                'limit'      => $limit,
-                'unlimited'  => $unlimited,
+                'used' => $used,
+                'limit' => $limit,
+                'unlimited' => $unlimited,
                 'percentage' => $unlimited ? 0 : $this->percentage($used, $limit ?? 0),
-                'can_add'    => $this->canAdd($restaurant, $res),
+                'can_add' => $this->canAdd($restaurant, $res),
             ];
         };
 
         return [
-            'plan'      => $restaurant->plan?->name ?? 'Unknown',
+            'plan' => $restaurant->plan?->name ?? 'Unknown',
             'plan_code' => $restaurant->plan?->code ?? 'FREE',
             'resources' => [
-                'branches'  => $format('branches'),
-                'tables'    => $format('tables'),
+                'branches' => $format('branches'),
+                'tables' => $format('tables'),
                 'employees' => $format('employees'),
-                'areas'     => $format('areas'),
+                'areas' => $format('areas'),
             ],
             'features' => [
-                'ai_features'        => $this->hasFeature($restaurant, 'ai_features'),
-                'realtime'           => $this->hasFeature($restaurant, 'realtime'),
+                'ai_features' => $this->hasFeature($restaurant, 'ai_features'),
+                'realtime' => $this->hasFeature($restaurant, 'realtime'),
                 'advanced_analytics' => $this->hasFeature($restaurant, 'advanced_analytics'),
             ],
             'rate_limit' => $this->getRateLimit($restaurant),

@@ -22,11 +22,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('api/billing/check/{code}', [CheckoutController::class, 'checkStatus']);
 
     // Multi-tenant restaurant selector
-    Route::get('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
-    Route::post('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
+    Route::get('choose-restaurant', [SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
+    Route::post('choose-restaurant', [SupportController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
 
     // Impersonation Stop
-    Route::post('impersonate/stop', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'stop'])->name('impersonate.stop');
+    Route::post('impersonate/stop', [ImpersonateController::class, 'stop'])->name('impersonate.stop');
 });
 
 Route::middleware('guest')->group(function () {
@@ -39,16 +39,27 @@ Route::get('/tin-tuc', [NewsController::class, 'index'])->name('news.index');
 Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show');
 
 use App\Http\Controllers\ApprovalController;
-use App\Http\Controllers\OnboardingController;
-use App\Http\Controllers\SupportController;
-use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\FraudController;
+use App\Http\Controllers\MenuInsightController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\QrOrderController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ShiftClosingController;
+use App\Http\Controllers\SuperAdmin\ImpersonateController;
+use App\Http\Controllers\SupportController;
+use App\Http\Controllers\TablesController;
 use App\Http\Controllers\ViolationReportController;
 
 Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function () {
-    Route::get('dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Onboarding API
     Route::post('api/onboarding/update', [OnboardingController::class, 'updateProgress'])->name('onboarding.update');
@@ -61,7 +72,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
 
     // Functional Pages for Guided Tours
     Route::get('products', [SupportController::class, 'productsPage'])->name('products.index');
-    Route::get('api/products/menu-insights', [\App\Http\Controllers\MenuInsightController::class, 'index'])->name('products.menu-insights');
+    Route::get('api/products/menu-insights', [MenuInsightController::class, 'index'])->name('products.menu-insights');
     Route::post('products', [SupportController::class, 'storeProduct'])->name('products.store');
     Route::patch('products/{product}', [SupportController::class, 'updateProduct'])->name('products.update');
     Route::delete('products/{product}', [SupportController::class, 'destroyProduct'])->name('products.destroy');
@@ -114,53 +125,53 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::post('api/promotions/upsell-suggestion', [PromotionController::class, 'getUpsellSuggestion'])->name('promotions.upsell-suggestion');
 
     // Tables management
-    Route::get('tables', [\App\Http\Controllers\TablesController::class, 'index'])->name('tables.index');
-    Route::post('tables/areas', [\App\Http\Controllers\TablesController::class, 'storeArea'])->name('tables.areas.store');
-    Route::post('tables', [\App\Http\Controllers\TablesController::class, 'store'])->name('tables.store');
-    Route::patch('tables/{table}', [\App\Http\Controllers\TablesController::class, 'update'])->name('tables.update');
-    Route::delete('tables/{table}', [\App\Http\Controllers\TablesController::class, 'destroy'])->name('tables.destroy');
+    Route::get('tables', [TablesController::class, 'index'])->name('tables.index');
+    Route::post('tables/areas', [TablesController::class, 'storeArea'])->name('tables.areas.store');
+    Route::post('tables', [TablesController::class, 'store'])->name('tables.store');
+    Route::patch('tables/{table}', [TablesController::class, 'update'])->name('tables.update');
+    Route::delete('tables/{table}', [TablesController::class, 'destroy'])->name('tables.destroy');
 
     // Orders management
-    Route::get('orders/create', [\App\Http\Controllers\OrdersController::class, 'create'])->name('orders.create');
-    Route::post('orders', [\App\Http\Controllers\OrdersController::class, 'store'])->name('orders.store');
-    Route::get('orders', [\App\Http\Controllers\OrdersController::class, 'index'])->name('orders.index');
-    Route::patch('orders/{order}/status', [\App\Http\Controllers\OrdersController::class, 'updateStatus'])->name('orders.update-status');
-    Route::post('orders/{order}/split', [\App\Http\Controllers\OrdersController::class, 'split'])->name('orders.split');
-    Route::patch('orders/{order}/override-split-penalty', [\App\Http\Controllers\OrdersController::class, 'overrideSplitPenalty'])->name('orders.override-split-penalty');
-    Route::patch('orders/{order}', [\App\Http\Controllers\OrdersController::class, 'update'])->name('orders.update');
-    Route::patch('orders/items/{item}/status', [\App\Http\Controllers\OrdersController::class, 'updateItemStatus'])->name('orders.items.update-status');
-    Route::post('api/orders/third-party/simulate', [\App\Http\Controllers\OrdersController::class, 'simulateThirdPartyOrder'])->name('orders.third-party.simulate');
+    Route::get('orders/create', [OrdersController::class, 'create'])->name('orders.create');
+    Route::post('orders', [OrdersController::class, 'store'])->name('orders.store');
+    Route::get('orders', [OrdersController::class, 'index'])->name('orders.index');
+    Route::patch('orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.update-status');
+    Route::post('orders/{order}/split', [OrdersController::class, 'split'])->name('orders.split');
+    Route::patch('orders/{order}/override-split-penalty', [OrdersController::class, 'overrideSplitPenalty'])->name('orders.override-split-penalty');
+    Route::patch('orders/{order}', [OrdersController::class, 'update'])->name('orders.update');
+    Route::patch('orders/items/{item}/status', [OrdersController::class, 'updateItemStatus'])->name('orders.items.update-status');
+    Route::post('api/orders/third-party/simulate', [OrdersController::class, 'simulateThirdPartyOrder'])->name('orders.third-party.simulate');
 
     // Audit Logs (Owner & Manager — chỉ xem log của nhà hàng mình)
-    Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
     // Revenue / Reports
-    Route::get('reports', [\App\Http\Controllers\ReportsController::class, 'index'])->name('reports.index');
-    Route::post('reports/generate', [\App\Http\Controllers\ReportsController::class, 'generate'])->name('reports.generate');
-    Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
+    Route::get('reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::post('reports/generate', [ReportsController::class, 'generate'])->name('reports.generate');
+    Route::post('reports/send-email', [ReportsController::class, 'sendReport'])->name('reports.send-email');
 
     // Bảng lương
-    Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
-    Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');
-    Route::post('salaries/adjustments/bulk', [\App\Http\Controllers\SalaryController::class, 'storeBulkAdjustment'])->name('salaries.adjustments.bulk');
-    Route::patch('salaries/adjustments/{adjustment}/dispute', [\App\Http\Controllers\SalaryController::class, 'disputeAdjustment'])->name('salaries.adjustments.dispute');
-    Route::patch('salaries/{salary}/approve', [\App\Http\Controllers\SalaryController::class, 'approve'])->name('salaries.approve');
-    Route::patch('salaries/{salary}/paid', [\App\Http\Controllers\SalaryController::class, 'markPaid'])->name('salaries.paid');
-    Route::post('salaries/{salary}/adjustments', [\App\Http\Controllers\SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
+    Route::get('salaries', [SalaryController::class, 'index'])->name('salaries.index');
+    Route::post('salaries/generate', [SalaryController::class, 'generate'])->name('salaries.generate');
+    Route::post('salaries/adjustments/bulk', [SalaryController::class, 'storeBulkAdjustment'])->name('salaries.adjustments.bulk');
+    Route::patch('salaries/adjustments/{adjustment}/dispute', [SalaryController::class, 'disputeAdjustment'])->name('salaries.adjustments.dispute');
+    Route::patch('salaries/{salary}/approve', [SalaryController::class, 'approve'])->name('salaries.approve');
+    Route::patch('salaries/{salary}/paid', [SalaryController::class, 'markPaid'])->name('salaries.paid');
+    Route::post('salaries/{salary}/adjustments', [SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
 
     // Shift Closings — Chốt ca & Doanh thu gộp
-    Route::get('shift-closings', [\App\Http\Controllers\ShiftClosingController::class, 'index'])->name('shift-closings.index');
-    Route::get('shift-closings/preview', [\App\Http\Controllers\ShiftClosingController::class, 'preview'])->name('shift-closings.preview');
-    Route::post('shift-closings', [\App\Http\Controllers\ShiftClosingController::class, 'store'])->name('shift-closings.store');
-    Route::patch('shift-closings/{closing}/confirm', [\App\Http\Controllers\ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
-    Route::patch('shift-closings/{closing}/dispute', [\App\Http\Controllers\ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
+    Route::get('shift-closings', [ShiftClosingController::class, 'index'])->name('shift-closings.index');
+    Route::get('shift-closings/preview', [ShiftClosingController::class, 'preview'])->name('shift-closings.preview');
+    Route::post('shift-closings', [ShiftClosingController::class, 'store'])->name('shift-closings.store');
+    Route::patch('shift-closings/{closing}/confirm', [ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
+    Route::patch('shift-closings/{closing}/dispute', [ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
 
     // Support booking demo
     Route::post('support/bookings', [SupportController::class, 'storeBooking'])->name('support.bookings.store');
 
     // Kiểm toán gian lận
-    Route::get('fraud', [\App\Http\Controllers\FraudController::class, 'index'])->name('fraud.index');
-    Route::post('fraud/violation', [\App\Http\Controllers\FraudController::class, 'createViolation'])->name('fraud.violation.store');
+    Route::get('fraud', [FraudController::class, 'index'])->name('fraud.index');
+    Route::post('fraud/violation', [FraudController::class, 'createViolation'])->name('fraud.violation.store');
 
     // Kiểm duyệt chéo (Cross-review)
     Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
@@ -182,9 +193,8 @@ Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('f
 Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
 // Trải nghiệm gọi món qua QR dành cho Khách hàng tại bàn
-Route::get('order/{restaurant}/{table_token}', [\App\Http\Controllers\QrOrderController::class, 'showMenu'])->name('qr.order.show');
-Route::post('order/{restaurant}/{table_token}', [\App\Http\Controllers\QrOrderController::class, 'submitOrder'])->name('qr.order.submit');
-
+Route::get('order/{restaurant}/{table_token}', [QrOrderController::class, 'showMenu'])->name('qr.order.show');
+Route::post('order/{restaurant}/{table_token}', [QrOrderController::class, 'submitOrder'])->name('qr.order.submit');
 
 // Xác thực lời mời nhận việc của nhân viên mới
 Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])
@@ -192,4 +202,3 @@ Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee
     ->middleware('signed');
 
 require __DIR__.'/settings.php';
-

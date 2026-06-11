@@ -76,12 +76,12 @@ class User extends Authenticatable
 
     public function media(): MorphMany
     {
-        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+        return $this->morphMany(MediaAsset::class, 'attachable');
     }
 
     public function avatarAsset(): MorphOne
     {
-        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+        return $this->morphOne(MediaAsset::class, 'attachable')
             ->where('collection', 'user_avatar');
     }
 
@@ -90,4 +90,3 @@ class User extends Authenticatable
         return $this->hasAnyRole(config('auth.super_admin_roles', ['super_admin']));
     }
 }
-

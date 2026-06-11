@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Billing;
 use App\Http\Controllers\Controller;
 use App\Models\SubscriptionPlan;
 use App\Services\SepayCheckoutService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class CheckoutController extends Controller
 {
@@ -95,10 +97,10 @@ class CheckoutController extends Controller
         $bank = (string) config('services.sepay.bank');
         $accountNumber = (string) config('services.sepay.account_number');
         $accountName = (string) config('services.sepay.account_name');
-        
+
         $paymentUrl = $this->checkout->paymentUrl($restaurant, $subscription);
 
-        return \Inertia\Inertia::render('billing/Pay', [
+        return Inertia::render('billing/Pay', [
             'subscription' => [
                 'transaction_code' => $subscription->transaction_code,
                 'price' => (float) $subscription->price,
@@ -116,7 +118,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function checkStatus(Request $request, string $code): \Illuminate\Http\JsonResponse
+    public function checkStatus(Request $request, string $code): JsonResponse
     {
         $user = $request->user();
         $restaurant = $user?->restaurant;

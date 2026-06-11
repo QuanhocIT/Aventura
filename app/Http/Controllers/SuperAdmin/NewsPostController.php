@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\NewsPost;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -29,34 +30,34 @@ class NewsPostController extends Controller
         if ($request->filled('status')) {
             match ($request->string('status')->toString()) {
                 'published' => $query->where('is_published', true),
-                'draft'     => $query->where('is_published', false),
-                default     => null,
+                'draft' => $query->where('is_published', false),
+                default => null,
             };
         }
 
         $posts = $query->paginate(20)->withQueryString()
             ->through(fn (NewsPost $p) => [
-                'id'                 => $p->id,
-                'title'              => $p->title,
-                'slug'               => $p->slug,
-                'excerpt'            => $p->excerpt,
-                'category'           => $p->category,
+                'id' => $p->id,
+                'title' => $p->title,
+                'slug' => $p->slug,
+                'excerpt' => $p->excerpt,
+                'category' => $p->category,
                 'featured_image_url' => $p->featured_image_url,
-                'is_published'       => $p->is_published,
-                'is_featured'        => $p->is_featured,
-                'view_count'         => $p->view_count,
-                'published_at'       => $p->published_at?->format('d/m/Y'),
-                'author_name'        => $p->author?->name ?? 'Aventura Team',
-                'created_at'         => $p->created_at->format('d/m/Y'),
+                'is_published' => $p->is_published,
+                'is_featured' => $p->is_featured,
+                'view_count' => $p->view_count,
+                'published_at' => $p->published_at?->format('d/m/Y'),
+                'author_name' => $p->author?->name ?? 'Aventura Team',
+                'created_at' => $p->created_at->format('d/m/Y'),
             ]);
 
         return Inertia::render('super-admin/news/Index', [
-            'posts'   => $posts,
+            'posts' => $posts,
             'filters' => $request->only('search', 'category', 'status'),
-            'stats'   => [
-                'total'       => NewsPost::count(),
-                'published'   => NewsPost::where('is_published', true)->count(),
-                'featured'    => NewsPost::where('is_featured', true)->count(),
+            'stats' => [
+                'total' => NewsPost::count(),
+                'published' => NewsPost::where('is_published', true)->count(),
+                'featured' => NewsPost::where('is_featured', true)->count(),
                 'total_views' => NewsPost::sum('view_count'),
             ],
         ]);
@@ -72,10 +73,10 @@ class NewsPostController extends Controller
 
         NewsPost::create([
             ...$data,
-            'author_id'      => $request->user()?->id,
-            'slug'           => NewsPost::generateSlug($data['title']),
+            'author_id' => $request->user()?->id,
+            'slug' => NewsPost::generateSlug($data['title']),
             'featured_image' => $path,
-            'published_at'   => $data['is_published'] ? ($data['published_at'] ?? now()) : null,
+            'published_at' => $data['is_published'] ? ($data['published_at'] ?? now()) : null,
         ]);
 
         return back()->with('success', 'Đã tạo bài viết thành công.');
@@ -121,7 +122,7 @@ class NewsPostController extends Controller
         return back()->with('success', $post->is_published ? 'Đã đăng bài.' : 'Đã ẩn bài.');
     }
 
-    public function getContent(NewsPost $post): \Illuminate\Http\JsonResponse
+    public function getContent(NewsPost $post): JsonResponse
     {
         return response()->json(['content' => $post->content, 'tags' => $post->tags ?? []]);
     }
@@ -136,15 +137,15 @@ class NewsPostController extends Controller
     private function validated(Request $request, ?NewsPost $post = null): array
     {
         return $request->validate([
-            'title'        => ['required', 'string', 'max:255'],
-            'excerpt'      => ['nullable', 'string', 'max:500'],
-            'content'      => ['required', 'string'],
-            'category'     => ['required', 'in:tin-tuc,khuyen-mai,thanh-cong,cap-nhat,thong-bao'],
-            'tags'         => ['nullable', 'array'],
-            'tags.*'       => ['string', 'max:50'],
-            'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'title' => ['required', 'string', 'max:255'],
+            'excerpt' => ['nullable', 'string', 'max:500'],
+            'content' => ['required', 'string'],
+            'category' => ['required', 'in:tin-tuc,khuyen-mai,thanh-cong,cap-nhat,thong-bao'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'is_published' => ['boolean'],
-            'is_featured'  => ['boolean'],
+            'is_featured' => ['boolean'],
             'published_at' => ['nullable', 'date'],
         ]);
     }

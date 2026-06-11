@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -78,7 +79,7 @@ class SepayCheckoutService
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
-    private function calculateEndsAt(?RestaurantSubscription $activeSubscription): \Carbon\CarbonInterface
+    private function calculateEndsAt(?RestaurantSubscription $activeSubscription): CarbonInterface
     {
         $base = $activeSubscription?->ended_at && $activeSubscription->ended_at->isFuture()
             ? $activeSubscription->ended_at->copy()

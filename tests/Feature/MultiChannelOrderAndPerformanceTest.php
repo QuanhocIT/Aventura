@@ -2,36 +2,39 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
-use App\Models\Restaurant;
-use App\Models\RestaurantBranch;
-use App\Models\Area;
-use App\Models\RestaurantTable;
-use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Events\QrOrderPlaced;
+use App\Models\Employee;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Employee;
-use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
 use App\Models\Payment;
-use App\Events\QrOrderPlaced;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\ScheduleAssignment;
+use App\Models\User;
+use App\Models\WorkShift;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use Carbon\Carbon;
-use Inertia\Testing\AssertableInertia as Assert;
 
 class MultiChannelOrderAndPerformanceTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $cashierUser;
+
     protected Employee $employee;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected WorkShift $shift;
+
     protected Product $product;
 
     protected function setUp(): void

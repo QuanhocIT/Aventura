@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderSplit;
 use App\Events\QrOrderPlaced;
 use App\Models\Area;
 use App\Models\AuditLog;
@@ -309,6 +310,16 @@ class OrdersController extends Controller
             }
         }
 
+        $tables = RestaurantTable::where('restaurant_id', $restaurantId)
+            ->where('status', 'available')
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+            ]);
+
         return Inertia::render('orders/Index', [
             'orders' => $orders,
             'summary' => $summary,
@@ -319,6 +330,7 @@ class OrdersController extends Controller
                 'history' => $isHistory,
             ],
             'activeShiftStats' => $activeShiftStats,
+            'tables' => $tables,
         ]);
     }
 
@@ -555,6 +567,8 @@ class OrdersController extends Controller
         ], [
             'total_amount' => (float) $order->total_amount,
         ]);
+
+        event(new OrderSplit($order, $newOrder, $user));
 
         return back()->with('success', 'Đã tách đơn hàng ra bàn trống thành công. Giao dịch này đã được đánh dấu đỏ cảnh báo.');
     }

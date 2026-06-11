@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 return new class extends Migration
 {
@@ -11,7 +12,7 @@ return new class extends Migration
 
         // 1. Insert the waiter role
         $roleId = DB::table('roles')->insertGetId([
-            'name'       => 'waiter',
+            'name' => 'waiter',
             'guard_name' => 'web',
             'created_at' => $now,
             'updated_at' => $now,
@@ -25,8 +26,8 @@ return new class extends Migration
 
         // 3. Clear permission cache
         try {
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-        } catch (\Throwable $e) {
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        } catch (Throwable $e) {
             // Ignore
         }
     }
@@ -41,8 +42,8 @@ return new class extends Migration
 
         // Clear permission cache
         try {
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-        } catch (\Throwable $e) {
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        } catch (Throwable $e) {
             // Ignore
         }
     }

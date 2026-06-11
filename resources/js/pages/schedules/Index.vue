@@ -161,20 +161,26 @@ const parseDateTimeStr = (str: string) => {
     const [time, date] = str.split(' ');
     const [h, i, s] = time.split(':').map(Number);
     const [d, m, y] = date.split('/').map(Number);
+
     return new Date(y, m - 1, d, h, i, s);
 };
 
 const startLiveDurationTimer = (checkInStr: string) => {
     const checkIn = parseDateTimeStr(checkInStr);
 
-    if (durationInterval) clearInterval(durationInterval);
+    if (durationInterval) {
+clearInterval(durationInterval);
+}
 
     const updateTimer = () => {
         const diffMs = new Date().getTime() - checkIn.getTime();
+
         if (diffMs < 0) {
             liveDuration.value = '00:00:00';
+
             return;
         }
+
         const totalSecs = Math.floor(diffMs / 1000);
         const hrs = Math.floor(totalSecs / 3600);
         const mins = Math.floor((totalSecs % 3600) / 60);
@@ -201,8 +207,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (clockInterval) clearInterval(clockInterval);
-    if (durationInterval) clearInterval(durationInterval);
+    if (clockInterval) {
+clearInterval(clockInterval);
+}
+
+    if (durationInterval) {
+clearInterval(durationInterval);
+}
 });
 
 // --- ADMIN PORTAL STATE ---
@@ -237,6 +248,7 @@ const weekDaysWithDates = computed(() => {
         nextDay.setDate(monday.getDate() + index);
         const dd = String(nextDay.getDate()).padStart(2, '0');
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
@@ -275,6 +287,7 @@ const handleCheckIn = () => {
             onSuccess: (page) => {
                 // Start duration timer immediately if active assignment checked-in successfully
                 const freshAssign = page.props.todayActiveAssignment as any;
+
                 if (
                     freshAssign &&
                     freshAssign.status === 'checked_in' &&
@@ -298,7 +311,9 @@ const handleCheckOut = () => {
             {},
             {
                 onFinish: () => {
-                    if (durationInterval) clearInterval(durationInterval);
+                    if (durationInterval) {
+clearInterval(durationInterval);
+}
                 },
             },
         );
@@ -306,13 +321,21 @@ const handleCheckOut = () => {
 };
 
 const submitAdminOverride = () => {
-    if (!activeOverrideAssignment.value) return;
+    if (!activeOverrideAssignment.value) {
+return;
+}
+
     processingOverride.value = true;
 
     let url = '/schedules/check-in-employee';
-    if (overrideAction.value === 'check_out')
-        url = '/schedules/check-out-employee';
-    if (overrideAction.value === 'absent') url = '/schedules/absent-employee';
+
+    if (overrideAction.value === 'check_out') {
+url = '/schedules/check-out-employee';
+}
+
+    if (overrideAction.value === 'absent') {
+url = '/schedules/absent-employee';
+}
 
     router.post(
         url,
@@ -353,7 +376,10 @@ const regProcessing = ref(false);
 const regErrors = ref<Record<string, string>>({});
 
 const submitShiftRegistration = () => {
-    if (!regDate.value || !regShiftId.value) return;
+    if (!regDate.value || !regShiftId.value) {
+return;
+}
+
     regProcessing.value = true;
     regErrors.value = {};
     router.post('/schedules/register', {
@@ -381,7 +407,10 @@ const leaveProcessing = ref(false);
 const leaveErrors = ref<Record<string, string>>({});
 
 const submitLeaveRequest = () => {
-    if (!leaveStartDate.value || !leaveEndDate.value) return;
+    if (!leaveStartDate.value || !leaveEndDate.value) {
+return;
+}
+
     leaveProcessing.value = true;
     leaveErrors.value = {};
     router.post('/employees/leaves', {
@@ -413,7 +442,10 @@ const complaintProcessing = ref(false);
 const complaintErrors = ref<Record<string, string>>({});
 
 const submitComplaint = () => {
-    if (!complaintEmployeeId.value || !complaintViolationType.value || !complaintOccurredAt.value || !complaintDescription.value) return;
+    if (!complaintEmployeeId.value || !complaintViolationType.value || !complaintOccurredAt.value || !complaintDescription.value) {
+return;
+}
+
     complaintProcessing.value = true;
     complaintErrors.value = {};
     router.post('/violations', {
@@ -440,9 +472,16 @@ const submitComplaint = () => {
 
 // --- LATE INDICATOR ---
 function lateMinutes(a: Assignment): number | null {
-    if (!a.check_in_at || !props.shifts) return null;
+    if (!a.check_in_at || !props.shifts) {
+return null;
+}
+
     const shift = props.shifts.find((s) => s.id === a.shift_id);
-    if (!shift) return null;
+
+    if (!shift) {
+return null;
+}
+
     // shift.start = "06:00", a.scheduled_date = "2026-05-29"
     const shiftStart = new Date(`${a.scheduled_date}T${shift.start}`);
     const graceEnd = new Date(shiftStart.getTime() + 5 * 60_000); // 5 min grace
@@ -451,15 +490,22 @@ function lateMinutes(a: Assignment): number | null {
     const diffMin = Math.round(
         (checkIn.getTime() - graceEnd.getTime()) / 60_000,
     );
+
     return diffMin > 0 ? diffMin : null;
 }
 
 // --- COMPUTED PROPERTIES ---
 const filteredAssignments = computed(() => {
-    if (!props.assignments) return [];
-    if (!searchQuery.value.trim()) return props.assignments;
+    if (!props.assignments) {
+return [];
+}
+
+    if (!searchQuery.value.trim()) {
+return props.assignments;
+}
 
     const query = searchQuery.value.toLowerCase().trim();
+
     return props.assignments.filter(
         (a) =>
             a.employee_name.toLowerCase().includes(query) ||

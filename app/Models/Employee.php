@@ -3,16 +3,16 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
+use Carbon\Carbon;
 use Database\Factories\Hr\EmployeeFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -20,8 +20,8 @@ class Employee extends Model
 {
     use BelongsToRestaurant;
     use HasFactory;
-    use SoftDeletes;
     use HasRoles;
+    use SoftDeletes;
 
     protected $guarded = [];
 
@@ -98,24 +98,24 @@ class Employee extends Model
 
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
-            if (!$shift || $shift->status !== 'active') {
+            if (! $shift || $shift->status !== 'active') {
                 continue;
             }
 
-            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+            $dateStr = $assignment->scheduled_date instanceof Carbon
                 ? $assignment->scheduled_date->toDateString()
-                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+                : Carbon::parse($assignment->scheduled_date)->toDateString();
 
-            if (!in_array($dateStr, [$yesterday, $today, $tomorrow])) {
+            if (! in_array($dateStr, [$yesterday, $today, $tomorrow])) {
                 continue;
             }
 
-            $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
+            $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
             if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
             } else {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
             }
 
             $allowedStart = $start->copy()->subMinutes(30);
@@ -146,24 +146,24 @@ class Employee extends Model
 
     public function media(): MorphMany
     {
-        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+        return $this->morphMany(MediaAsset::class, 'attachable');
     }
 
     public function avatar(): MorphOne
     {
-        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+        return $this->morphOne(MediaAsset::class, 'attachable')
             ->where('collection', 'employee_avatar');
     }
 
     public function citizenIdFront(): MorphOne
     {
-        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+        return $this->morphOne(MediaAsset::class, 'attachable')
             ->where('collection', 'citizen_id_front');
     }
 
     public function citizenIdBack(): MorphOne
     {
-        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+        return $this->morphOne(MediaAsset::class, 'attachable')
             ->where('collection', 'citizen_id_back');
     }
 
@@ -172,4 +172,3 @@ class Employee extends Model
         return EmployeeFactory::new();
     }
 }
-

@@ -18,18 +18,20 @@ class SetTenantContext
             auth()->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.']);
         }
 
         if ($user && $user->status === 'active') {
-            if (!$request->is('logout') && !$request->routeIs('logout')) {
-                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
-                    if (!app()->runningUnitTests() || self::$enforceShiftLockInTests) {
+            if (! $request->is('logout') && ! $request->routeIs('logout')) {
+                if ($user->restaurant_id && ! $user->isSuperAdmin() && ! $user->hasAnyRole(['owner', 'manager'])) {
+                    if (! app()->runningUnitTests() || self::$enforceShiftLockInTests) {
                         $employee = $user->employee;
-                        if (!$employee || !$employee->isWithinScheduledShift()) {
+                        if (! $employee || ! $employee->isWithinScheduledShift()) {
                             auth()->logout();
                             $request->session()->invalidate();
                             $request->session()->regenerateToken();
+
                             return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);
                         }
                     }

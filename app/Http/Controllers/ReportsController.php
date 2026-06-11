@@ -29,7 +29,7 @@ class ReportsController extends Controller
             $date,
         );
 
-        return back()->with('success', 'Đã tạo báo cáo ngày ' . Carbon::parse($date)->format('d/m/Y') . '.');
+        return back()->with('success', 'Đã tạo báo cáo ngày '.Carbon::parse($date)->format('d/m/Y').'.');
     }
 
     public function sendReport(Request $request): RedirectResponse
@@ -46,16 +46,16 @@ class ReportsController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
-        $user         = $request->user();
+        $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
         $period = $request->input('period', '7days');
 
-        $endDate   = today();
+        $endDate = today();
         $startDate = match ($period) {
             '30days' => today()->subDays(29),
-            'month'  => today()->startOfMonth(),
-            default  => today()->subDays(6),
+            'month' => today()->startOfMonth(),
+            default => today()->subDays(6),
         };
 
         $dayCount = $startDate->diffInDays($endDate) + 1;
@@ -68,32 +68,32 @@ class ReportsController extends Controller
             ->get();
 
         $summaries = $rawSummaries->map(fn ($s) => [
-            'date'                  => $s->summary_date->format('d/m'),
-            'date_full'             => $s->summary_date->toDateString(),
-            'order_count'           => (int) $s->order_count,
+            'date' => $s->summary_date->format('d/m'),
+            'date_full' => $s->summary_date->toDateString(),
+            'order_count' => (int) $s->order_count,
             'completed_order_count' => (int) $s->completed_order_count,
-            'cancelled_count'       => (int) $s->cancelled_order_count,
-            'net_revenue'           => (float) $s->net_revenue,
-            'gross_revenue'         => (float) $s->gross_revenue,
-            'discount_total'        => (float) $s->discount_total,
-            'cogs_amount'           => (float) $s->cogs_amount,
-            'gross_profit'          => (float) $s->gross_profit,
-            'cash_revenue'          => (float) $s->cash_revenue,
+            'cancelled_count' => (int) $s->cancelled_order_count,
+            'net_revenue' => (float) $s->net_revenue,
+            'gross_revenue' => (float) $s->gross_revenue,
+            'discount_total' => (float) $s->discount_total,
+            'cogs_amount' => (float) $s->cogs_amount,
+            'gross_profit' => (float) $s->gross_profit,
+            'cash_revenue' => (float) $s->cash_revenue,
             'bank_transfer_revenue' => (float) $s->bank_transfer_revenue,
-            'card_revenue'          => (float) $s->card_revenue,
-            'ewallet_revenue'       => (float) $s->ewallet_revenue,
-            'average_order_value'   => (float) $s->average_order_value,
+            'card_revenue' => (float) $s->card_revenue,
+            'ewallet_revenue' => (float) $s->ewallet_revenue,
+            'average_order_value' => (float) $s->average_order_value,
         ]);
 
         // ── Period totals ─────────────────────────────────────────────────────
         $totals = [
-            'net_revenue'           => $summaries->sum('net_revenue'),
-            'gross_revenue'         => $summaries->sum('gross_revenue'),
-            'gross_profit'          => $summaries->sum('gross_profit'),
-            'order_count'           => $summaries->sum('order_count'),
+            'net_revenue' => $summaries->sum('net_revenue'),
+            'gross_revenue' => $summaries->sum('gross_revenue'),
+            'gross_profit' => $summaries->sum('gross_profit'),
+            'order_count' => $summaries->sum('order_count'),
             'completed_order_count' => $summaries->sum('completed_order_count'),
-            'discount_total'        => $summaries->sum('discount_total'),
-            'cancelled_count'       => $summaries->sum('cancelled_count'),
+            'discount_total' => $summaries->sum('discount_total'),
+            'cancelled_count' => $summaries->sum('cancelled_count'),
         ];
 
         // ── Payment breakdown (kỳ này) ────────────────────────────────────────
@@ -106,18 +106,18 @@ class ReportsController extends Controller
         );
 
         $paymentBreakdown = [
-            'cash'          => (float) $summaries->sum('cash_revenue'),
+            'cash' => (float) $summaries->sum('cash_revenue'),
             'bank_transfer' => (float) $summaries->sum('bank_transfer_revenue'),
-            'card'          => (float) $summaries->sum('card_revenue'),
-            'ewallet'       => (float) $summaries->sum('ewallet_revenue'),
-            'cash_pct'          => round($summaries->sum('cash_revenue') / $totalPayment * 100, 1),
+            'card' => (float) $summaries->sum('card_revenue'),
+            'ewallet' => (float) $summaries->sum('ewallet_revenue'),
+            'cash_pct' => round($summaries->sum('cash_revenue') / $totalPayment * 100, 1),
             'bank_transfer_pct' => round($summaries->sum('bank_transfer_revenue') / $totalPayment * 100, 1),
-            'card_pct'          => round($summaries->sum('card_revenue') / $totalPayment * 100, 1),
-            'ewallet_pct'       => round($summaries->sum('ewallet_revenue') / $totalPayment * 100, 1),
+            'card_pct' => round($summaries->sum('card_revenue') / $totalPayment * 100, 1),
+            'ewallet_pct' => round($summaries->sum('ewallet_revenue') / $totalPayment * 100, 1),
         ];
 
         // ── Period comparison (kỳ trước cùng độ dài) ─────────────────────────
-        $prevEnd   = $startDate->copy()->subDay();
+        $prevEnd = $startDate->copy()->subDay();
         $prevStart = $prevEnd->copy()->subDays($dayCount - 1);
 
         $prevSummaries = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
@@ -125,28 +125,28 @@ class ReportsController extends Controller
             ->whereBetween('summary_date', [$prevStart, $prevEnd])
             ->get();
 
-        $prevNet    = (float) $prevSummaries->sum('net_revenue');
-        $prevOrders = (int)   $prevSummaries->sum('completed_order_count');
+        $prevNet = (float) $prevSummaries->sum('net_revenue');
+        $prevOrders = (int) $prevSummaries->sum('completed_order_count');
 
-        $currentNet    = (float) $totals['net_revenue'];
-        $currentOrders = (int)   $totals['completed_order_count'];
+        $currentNet = (float) $totals['net_revenue'];
+        $currentOrders = (int) $totals['completed_order_count'];
 
         $revenueChangePct = $prevNet > 0 ? round(($currentNet - $prevNet) / $prevNet * 100, 1) : null;
-        $orderChangePct   = $prevOrders > 0 ? round(($currentOrders - $prevOrders) / $prevOrders * 100, 1) : null;
+        $orderChangePct = $prevOrders > 0 ? round(($currentOrders - $prevOrders) / $prevOrders * 100, 1) : null;
 
-        $avgCurrent  = $currentOrders > 0 ? $currentNet / $currentOrders : 0;
-        $avgPrev     = $prevOrders > 0 ? $prevNet / $prevOrders : 0;
+        $avgCurrent = $currentOrders > 0 ? $currentNet / $currentOrders : 0;
+        $avgPrev = $prevOrders > 0 ? $prevNet / $prevOrders : 0;
         $avgChangePct = $avgPrev > 0 ? round(($avgCurrent - $avgPrev) / $avgPrev * 100, 1) : null;
 
         $periodComparison = [
-            'prev_net_revenue'   => $prevNet,
-            'prev_order_count'   => $prevOrders,
+            'prev_net_revenue' => $prevNet,
+            'prev_order_count' => $prevOrders,
             'revenue_change_pct' => $revenueChangePct,
-            'order_change_pct'   => $orderChangePct,
-            'avg_change_pct'     => $avgChangePct,
-            'prev_date_range'    => [
+            'order_change_pct' => $orderChangePct,
+            'avg_change_pct' => $avgChangePct,
+            'prev_date_range' => [
                 'start' => $prevStart->format('d/m/Y'),
-                'end'   => $prevEnd->format('d/m/Y'),
+                'end' => $prevEnd->format('d/m/Y'),
             ],
             'has_prev_data' => $prevSummaries->isNotEmpty(),
         ];
@@ -154,7 +154,7 @@ class ReportsController extends Controller
         // ── Cancelled stats ───────────────────────────────────────────────────
         $totalCancelledOrders = (int) $summaries->sum('cancelled_count');
         $cancelledStats = [
-            'total_cancelled'   => $totalCancelledOrders,
+            'total_cancelled' => $totalCancelledOrders,
             'cancellation_rate' => $totals['order_count'] > 0
                 ? round($totalCancelledOrders / $totals['order_count'] * 100, 1)
                 : 0.0,
@@ -173,11 +173,11 @@ class ReportsController extends Controller
         $maxPeakRevenue = $peakRows->max('revenue') ?: 1;
 
         $peakHours = $peakRows->map(fn ($r) => [
-            'hour'        => (int) $r->hour,
-            'label'       => sprintf('%02d:00', $r->hour),
-            'revenue'     => (float) $r->revenue,
+            'hour' => (int) $r->hour,
+            'label' => sprintf('%02d:00', $r->hour),
+            'revenue' => (float) $r->revenue,
             'order_count' => (int) $r->order_count,
-            'width_pct'   => round((float) $r->revenue / $maxPeakRevenue * 100, 1),
+            'width_pct' => round((float) $r->revenue / $maxPeakRevenue * 100, 1),
         ])->values();
 
         // ── Top 10 products ───────────────────────────────────────────────────
@@ -193,8 +193,8 @@ class ReportsController extends Controller
             ->limit(10)
             ->get()
             ->map(fn ($r) => [
-                'name'          => $r->name,
-                'total_qty'     => (int) $r->total_qty,
+                'name' => $r->name,
+                'total_qty' => (int) $r->total_qty,
                 'total_revenue' => (float) $r->total_revenue,
             ]);
 
@@ -210,27 +210,27 @@ class ReportsController extends Controller
             ->first();
 
         $todaySummary = $todayRecord ? [
-            'net_revenue'         => (float) $todayRecord->net_revenue,
-            'gross_revenue'       => (float) $todayRecord->gross_revenue,
-            'completed_count'     => (int) $todayRecord->completed_order_count,
-            'order_count'         => (int) $todayRecord->order_count,
+            'net_revenue' => (float) $todayRecord->net_revenue,
+            'gross_revenue' => (float) $todayRecord->gross_revenue,
+            'completed_count' => (int) $todayRecord->completed_order_count,
+            'order_count' => (int) $todayRecord->order_count,
             'average_order_value' => (float) $todayRecord->average_order_value,
-            'calculated_at'       => $todayRecord->calculated_at?->format('H:i d/m/Y'),
+            'calculated_at' => $todayRecord->calculated_at?->format('H:i d/m/Y'),
         ] : null;
 
         $comparisonCards = null;
         if ($todayRecord && $yesterdayRecord) {
-            $revDelta    = $todayRecord->net_revenue - $yesterdayRecord->net_revenue;
-            $prevNet2    = (float) $yesterdayRecord->net_revenue;
+            $revDelta = $todayRecord->net_revenue - $yesterdayRecord->net_revenue;
+            $prevNet2 = (float) $yesterdayRecord->net_revenue;
             $revDeltaPct = $prevNet2 > 0 ? round(($revDelta / $prevNet2) * 100, 1) : 0.0;
-            $orderDelta  = $todayRecord->completed_order_count - $yesterdayRecord->completed_order_count;
+            $orderDelta = $todayRecord->completed_order_count - $yesterdayRecord->completed_order_count;
 
             $comparisonCards = [
-                'revenue_delta'     => (float) $revDelta,
+                'revenue_delta' => (float) $revDelta,
                 'revenue_delta_pct' => $revDeltaPct,
-                'order_delta'       => (int) $orderDelta,
+                'order_delta' => (int) $orderDelta,
                 'yesterday_revenue' => (float) $yesterdayRecord->net_revenue,
-                'yesterday_orders'  => (int) $yesterdayRecord->completed_order_count,
+                'yesterday_orders' => (int) $yesterdayRecord->completed_order_count,
             ];
         }
 
@@ -244,42 +244,42 @@ class ReportsController extends Controller
             ->sum('net_salary');
 
         $grossProfit = (float) $totals['gross_profit'];
-        $netProfit   = $grossProfit - $totalPayroll;
-        $netRevenue  = (float) $totals['net_revenue'];
+        $netProfit = $grossProfit - $totalPayroll;
+        $netRevenue = (float) $totals['net_revenue'];
 
         $profitBreakdown = [
-            'gross_profit'   => $grossProfit,
-            'total_cogs'     => (float) $totalCogs,
-            'total_payroll'  => $totalPayroll,
-            'net_profit'     => $netProfit,
+            'gross_profit' => $grossProfit,
+            'total_cogs' => (float) $totalCogs,
+            'total_payroll' => $totalPayroll,
+            'net_profit' => $netProfit,
             'net_profit_pct' => $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 1) : 0.0,
-            'cogs_pct'       => $netRevenue > 0 ? round(($totalCogs / $netRevenue) * 100, 1) : 0.0,
-            'payroll_pct'    => $netRevenue > 0 ? round(($totalPayroll / $netRevenue) * 100, 1) : 0.0,
+            'cogs_pct' => $netRevenue > 0 ? round(($totalCogs / $netRevenue) * 100, 1) : 0.0,
+            'payroll_pct' => $netRevenue > 0 ? round(($totalPayroll / $netRevenue) * 100, 1) : 0.0,
         ];
 
         // ── Product analysis (BCG + margins) ─────────────────────────────────
         $days = $startDate->diffInDays($endDate) + 1;
-        $bcgData        = $this->menuInsight->getBcgData($restaurantId, $days);
+        $bcgData = $this->menuInsight->getBcgData($restaurantId, $days);
         $productMargins = $this->menuInsight->getProductMargins($restaurantId, $days);
 
         return Inertia::render('reports/Index', [
-            'summaries'        => $summaries->values(),
-            'totals'           => $totals,
-            'topProducts'      => $topProducts,
-            'period'           => $period,
-            'dateRange'        => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
+            'summaries' => $summaries->values(),
+            'totals' => $totals,
+            'topProducts' => $topProducts,
+            'period' => $period,
+            'dateRange' => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
             'paymentBreakdown' => $paymentBreakdown,
             'periodComparison' => $periodComparison,
-            'cancelledStats'   => $cancelledStats,
-            'peakHours'        => $peakHours,
-            'todaySummary'     => $todaySummary,
-            'comparisonCards'  => $comparisonCards,
-            'profitBreakdown'  => $profitBreakdown,
-            'canGenerate'      => $user->hasAnyRole(['owner', 'manager']),
-            'canSendEmail'     => $user->hasAnyRole(['owner']),
+            'cancelledStats' => $cancelledStats,
+            'peakHours' => $peakHours,
+            'todaySummary' => $todaySummary,
+            'comparisonCards' => $comparisonCards,
+            'profitBreakdown' => $profitBreakdown,
+            'canGenerate' => $user->hasAnyRole(['owner', 'manager']),
+            'canSendEmail' => $user->hasAnyRole(['owner']),
             // Mới
-            'bcgData'          => $bcgData,
-            'productMargins'   => $productMargins,
+            'bcgData' => $bcgData,
+            'productMargins' => $productMargins,
         ]);
     }
 }

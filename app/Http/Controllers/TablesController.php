@@ -23,9 +23,9 @@ class TablesController extends Controller
             ->withCount('tables')
             ->get()
             ->map(fn ($a) => [
-                'id'     => $a->id,
-                'name'   => $a->name,
-                'code'   => $a->code,
+                'id' => $a->id,
+                'name' => $a->name,
+                'code' => $a->code,
                 'tables_count' => $a->tables_count,
             ]);
 
@@ -36,16 +36,16 @@ class TablesController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($t) => [
-                'id'       => $t->id,
-                'name'     => $t->name,
+                'id' => $t->id,
+                'name' => $t->name,
                 'capacity' => $t->capacity,
-                'status'   => $t->status,
-                'area'     => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
-                'qr_code'  => $t->qr_code,
+                'status' => $t->status,
+                'area' => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
+                'qr_code' => $t->qr_code,
             ]);
 
         return Inertia::render('tables/Index', [
-            'areas'  => $areas,
+            'areas' => $areas,
             'tables' => $tables,
         ]);
     }
@@ -60,10 +60,10 @@ class TablesController extends Controller
 
         Area::create([
             'restaurant_id' => $user->restaurant_id,
-            'name'          => $data['name'],
-            'code'          => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'name' => $data['name'],
+            'code' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
             'display_order' => Area::where('restaurant_id', $user->restaurant_id)->count() + 1,
-            'status'        => 'active',
+            'status' => 'active',
         ]);
 
         return back()->with('success', 'Đã thêm khu vực mới.');
@@ -74,18 +74,18 @@ class TablesController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:50'],
-            'area_id'  => ['required', 'exists:areas,id'],
+            'name' => ['required', 'string', 'max:50'],
+            'area_id' => ['required', 'exists:areas,id'],
             'capacity' => ['required', 'integer', 'min:1', 'max:100'],
         ]);
 
         RestaurantTable::create([
             'restaurant_id' => $user->restaurant_id,
-            'area_id'       => $data['area_id'],
-            'name'          => $data['name'],
-            'capacity'      => $data['capacity'],
-            'status'        => 'available',
-            'qr_token'      => Str::random(32),
+            'area_id' => $data['area_id'],
+            'name' => $data['name'],
+            'capacity' => $data['capacity'],
+            'status' => 'available',
+            'qr_token' => Str::random(32),
         ]);
 
         return back()->with('success', 'Đã thêm bàn mới.');
@@ -96,9 +96,9 @@ class TablesController extends Controller
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $data = $request->validate([
-            'name'     => ['sometimes', 'string', 'max:50'],
+            'name' => ['sometimes', 'string', 'max:50'],
             'capacity' => ['sometimes', 'integer', 'min:1'],
-            'status'   => ['sometimes', 'in:available,occupied,reserved,inactive'],
+            'status' => ['sometimes', 'in:available,occupied,reserved,inactive'],
         ]);
 
         $table->update($data);

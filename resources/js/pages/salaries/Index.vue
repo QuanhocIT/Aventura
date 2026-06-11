@@ -169,8 +169,13 @@ const filteredSalaries = computed(() => {
             employmentTypeFilter.value === 'all' ||
             s.employment_type === employmentTypeFilter.value;
 
-        if (!matchStatus || !matchBranch || !matchEmpType) return false;
-        if (!q) return true;
+        if (!matchStatus || !matchBranch || !matchEmpType) {
+            return false;
+        }
+
+        if (!q) {
+            return true;
+        }
 
         return (
             s.employee_name.toLowerCase().includes(q) ||
@@ -186,14 +191,19 @@ const totalPages = computed(
 const paginatedSalaries = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
     const end = start + itemsPerPage.value;
+
     return filteredSalaries.value.slice(start, end);
 });
 
 function prevPage() {
-    if (currentPage.value > 1) currentPage.value--;
+    if (currentPage.value > 1) {
+        currentPage.value--;
+    }
 }
 function nextPage() {
-    if (currentPage.value < totalPages.value) currentPage.value++;
+    if (currentPage.value < totalPages.value) {
+        currentPage.value++;
+    }
 }
 
 function exportCSV() {
@@ -292,7 +302,11 @@ const isAllSelected = computed(() => {
     const pageIds = paginatedSalaries.value
         .filter((s) => s.status !== 'paid')
         .map((s) => s.id);
-    if (pageIds.length === 0) return false;
+
+    if (pageIds.length === 0) {
+        return false;
+    }
+
     return pageIds.every((id) => selectedIds.value.includes(id));
 });
 
@@ -300,6 +314,7 @@ function toggleSelectAll() {
     const pageIds = paginatedSalaries.value
         .filter((s) => s.status !== 'paid')
         .map((s) => s.id);
+
     if (isAllSelected.value) {
         selectedIds.value = selectedIds.value.filter(
             (id) => !pageIds.includes(id),
@@ -312,6 +327,7 @@ function toggleSelectAll() {
 
 function toggleSelect(id: number) {
     const idx = selectedIds.value.indexOf(id);
+
     if (idx > -1) {
         selectedIds.value.splice(idx, 1);
     } else {
@@ -328,7 +344,10 @@ const bulkForm = useForm({
 });
 
 function openBulkDialog() {
-    if (selectedIds.value.length === 0) return;
+    if (selectedIds.value.length === 0) {
+        return;
+    }
+
     bulkForm.reset();
     showBulkDialog.value = true;
 }
@@ -368,7 +387,10 @@ function openAdjDialog(salary: SalaryRow) {
 }
 
 function submitAdj() {
-    if (!adjTarget.value) return;
+    if (!adjTarget.value) {
+        return;
+    }
+
     adjForm.post(`/salaries/${adjTarget.value.id}/adjustments`, {
         onSuccess: () => {
             const msg =

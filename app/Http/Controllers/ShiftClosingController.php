@@ -20,11 +20,11 @@ class ShiftClosingController extends Controller
 {
     public function index(Request $request): Response
     {
-        $user         = $request->user();
+        $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
         $statusFilter = $request->input('status', 'all');
-        $monthFilter  = $request->input('month', today()->format('Y-m'));
+        $monthFilter = $request->input('month', today()->format('Y-m'));
 
         [$year, $month] = explode('-', $monthFilter);
 
@@ -38,34 +38,74 @@ class ShiftClosingController extends Controller
             $query->where('status', $statusFilter);
         }
 
-        $closings = $query->get()->map(fn (ShiftClosing $c) => [
-            'id'                => $c->id,
-            'closing_date'      => $c->closing_date->format('d/m/Y'),
-            'closing_date_raw'  => $c->closing_date->toDateString(),
-            'shift_name'        => $c->shift?->name ?? '—',
-            'shift_code'        => $c->shift?->code ?? '',
-            'shift_start'       => $c->shift?->start_time ?? '',
-            'shift_end'         => $c->shift?->end_time ?? '',
-            'cashier_name'      => $c->cashier?->name ?? '—',
-            'status'            => $c->status,
-            'expected_cash'     => (float) $c->expected_cash,
-            'actual_cash'       => (float) $c->actual_cash,
-            'cash_difference'   => (float) $c->cash_difference,
-            'transfer_amount'   => (float) $c->transfer_amount,
-            'gross_revenue'     => (float) ($c->expected_cash + $c->transfer_amount),
-            'other_expense'     => (float) $c->other_expense_amount,
-            'notes'             => $c->notes,
-            'confirmed_by_name' => $c->confirmedBy?->name ?? null,
-            'closed_at'         => $c->closed_at?->format('H:i d/m/Y'),
-        ]);
+        $closings = $query->get()->map(function (ShiftClosing $c) use ($restaurantId) {
+            $splitOrders = [];
+            $splitPenaltyTotal = 0;
+            if ($c->shift) {
+                [$startDt, $endDt] = $this->shiftTimeRange($c->shift, $c->closing_date);
+
+                $splitOrders = Order::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('is_split', true)
+                    ->where(function ($q) use ($startDt, $endDt) {
+                        $q->where(function ($sq) use ($startDt, $endDt) {
+                            $sq->where('status', 'completed')
+                                ->whereBetween('completed_at', [$startDt, $endDt]);
+                        })->orWhere(function ($sq) use ($startDt, $endDt) {
+                            $sq->whereNotIn('status', ['completed', 'cancelled'])
+                                ->whereBetween('created_at', [$startDt, $endDt]);
+                        });
+                    })
+                    ->get(['id', 'order_number', 'total_amount', 'is_override_split_penalty', 'is_red_flagged', 'status'])
+                    ->map(fn ($o) => [
+                        'id' => $o->id,
+                        'order_number' => $o->order_number,
+                        'total_amount' => (float) $o->total_amount,
+                        'is_override_split_penalty' => (bool) $o->is_override_split_penalty,
+                        'is_red_flagged' => (bool) $o->is_red_flagged,
+                        'status' => $o->status,
+                    ])->toArray();
+
+                $splitPenaltyTotal = Order::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('is_split', true)
+                    ->where('is_override_split_penalty', false)
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->whereBetween('created_at', [$startDt, $endDt])
+                    ->sum('total_amount');
+            }
+
+            return [
+                'id' => $c->id,
+                'closing_date' => $c->closing_date->format('d/m/Y'),
+                'closing_date_raw' => $c->closing_date->toDateString(),
+                'shift_name' => $c->shift?->name ?? '—',
+                'shift_code' => $c->shift?->code ?? '',
+                'shift_start' => $c->shift?->start_time ?? '',
+                'shift_end' => $c->shift?->end_time ?? '',
+                'cashier_name' => $c->cashier?->name ?? '—',
+                'status' => $c->status,
+                'expected_cash' => (float) $c->expected_cash,
+                'actual_cash' => (float) $c->actual_cash,
+                'cash_difference' => (float) $c->cash_difference,
+                'transfer_amount' => (float) $c->transfer_amount,
+                'gross_revenue' => (float) ($c->expected_cash + $c->transfer_amount),
+                'other_expense' => (float) $c->other_expense_amount,
+                'notes' => $c->notes,
+                'confirmed_by_name' => $c->confirmedBy?->name ?? null,
+                'closed_at' => $c->closed_at?->format('H:i d/m/Y'),
+                'split_orders' => $splitOrders,
+                'split_penalty_total' => (float) $splitPenaltyTotal,
+            ];
+        });
 
         // KPI tổng tháng
         $kpi = [
-            'total_closings'    => $closings->count(),
-            'total_gross'       => $closings->sum('gross_revenue'),
-            'total_cash'        => $closings->sum('actual_cash'),
-            'total_transfer'    => $closings->sum('transfer_amount'),
-            'total_difference'  => $closings->sum('cash_difference'),
+            'total_closings' => $closings->count(),
+            'total_gross' => $closings->sum('gross_revenue'),
+            'total_cash' => $closings->sum('actual_cash'),
+            'total_transfer' => $closings->sum('transfer_amount'),
+            'total_difference' => $closings->sum('cash_difference'),
         ];
 
         // Auto-seed ca mặc định nếu chưa có
@@ -90,10 +130,10 @@ class ShiftClosingController extends Controller
         }
 
         return Inertia::render('shift-closings/Index', [
-            'closings'   => $closings->values(),
-            'shifts'     => $shifts,
-            'kpi'        => $kpi,
-            'filters'    => ['status' => $statusFilter, 'month' => $monthFilter],
+            'closings' => $closings->values(),
+            'shifts' => $shifts,
+            'kpi' => $kpi,
+            'filters' => ['status' => $statusFilter, 'month' => $monthFilter],
             'canConfirm' => $user->hasAnyRole(['owner', 'manager']),
         ]);
     }
@@ -101,7 +141,7 @@ class ShiftClosingController extends Controller
     public function preview(Request $request): JsonResponse
     {
         $request->validate([
-            'shift_id'     => ['required', 'integer'],
+            'shift_id' => ['required', 'integer'],
             'closing_date' => ['required', 'date'],
         ]);
 
@@ -122,9 +162,9 @@ class ShiftClosingController extends Controller
 
         $orderIds = $completedOrders->pluck('id');
 
-        $grossRevenue  = $completedOrders->sum('total_amount');
+        $grossRevenue = $completedOrders->sum('total_amount');
         $discountTotal = $completedOrders->sum('discount_amount');
-        $netRevenue    = $grossRevenue - $discountTotal;
+        $netRevenue = $grossRevenue - $discountTotal;
 
         $payments = Payment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -133,36 +173,45 @@ class ShiftClosingController extends Controller
             ->whereIn('order_id', $orderIds->all())
             ->get(['payment_method', 'amount']);
 
-        $expectedCash      = (float) $payments->where('payment_method', 'cash')->sum('amount');
+        $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
         $bankTransferAmount = (float) $payments->where('payment_method', 'bank_transfer')->sum('amount');
-        $cardAmount         = (float) $payments->where('payment_method', 'card')->sum('amount');
-        $ewalletAmount      = (float) $payments->where('payment_method', 'ewallet')->sum('amount');
-        $mixedAmount        = (float) $payments->where('payment_method', 'mixed')->sum('amount');
-        $transferAmount     = $bankTransferAmount + $cardAmount + $ewalletAmount + $mixedAmount;
+        $cardAmount = (float) $payments->where('payment_method', 'card')->sum('amount');
+        $ewalletAmount = (float) $payments->where('payment_method', 'ewallet')->sum('amount');
+        $mixedAmount = (float) $payments->where('payment_method', 'mixed')->sum('amount');
+        $transferAmount = $bankTransferAmount + $cardAmount + $ewalletAmount + $mixedAmount;
 
         // Tính phạt đơn tách chưa đối soát
         $splitPenaltyTotal = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$startDt, $endDt])
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->whereBetween('created_at', [$startDt, $endDt])
             ->sum('total_amount');
 
         $expectedCashAfterPenalty = max(0.0, $expectedCash - $splitPenaltyTotal);
-        $netRevenueAfterPenalty   = max(0.0, $netRevenue - $splitPenaltyTotal);
+        $netRevenueAfterPenalty = max(0.0, $netRevenue - $splitPenaltyTotal);
 
         $splitOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
-            ->whereBetween('completed_at', [$startDt, $endDt])
-            ->get(['id', 'order_number', 'total_amount', 'is_override_split_penalty', 'is_red_flagged'])
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->where(function ($sq) use ($startDt, $endDt) {
+                    $sq->where('status', 'completed')
+                        ->whereBetween('completed_at', [$startDt, $endDt]);
+                })->orWhere(function ($sq) use ($startDt, $endDt) {
+                    $sq->whereNotIn('status', ['completed', 'cancelled'])
+                        ->whereBetween('created_at', [$startDt, $endDt]);
+                });
+            })
+            ->get(['id', 'order_number', 'total_amount', 'is_override_split_penalty', 'is_red_flagged', 'status'])
             ->map(fn ($o) => [
                 'id' => $o->id,
                 'order_number' => $o->order_number,
                 'total_amount' => (float) $o->total_amount,
                 'is_override_split_penalty' => (bool) $o->is_override_split_penalty,
                 'is_red_flagged' => (bool) $o->is_red_flagged,
+                'status' => $o->status,
             ]);
 
         $pendingOrders = Order::withoutGlobalScopes()
@@ -178,25 +227,25 @@ class ShiftClosingController extends Controller
             ->exists();
 
         return response()->json([
-            'shift_name'         => $shift->name,
-            'shift_code'         => $shift->code,
-            'start_time'         => $startDt->format('H:i d/m/Y'),
-            'end_time'           => $endDt->format('H:i d/m/Y'),
-            'is_overnight'       => (bool) $shift->is_overnight,
-            'order_count'        => $completedOrders->count(),
-            'gross_revenue'      => (float) $grossRevenue,
-            'discount_total'     => (float) $discountTotal,
-            'net_revenue'        => (float) $netRevenueAfterPenalty,
-            'expected_cash'      => $expectedCashAfterPenalty,
-            'bank_transfer'      => $bankTransferAmount,
-            'card'               => $cardAmount,
-            'ewallet'            => $ewalletAmount,
-            'mixed'              => $mixedAmount,
-            'transfer_amount'    => $transferAmount,
-            'pending_orders'     => $pendingOrders,
-            'already_closed'     => $alreadyClosed,
-            'split_penalty_total'=> (float) $splitPenaltyTotal,
-            'split_orders'       => $splitOrders,
+            'shift_name' => $shift->name,
+            'shift_code' => $shift->code,
+            'start_time' => $startDt->format('H:i d/m/Y'),
+            'end_time' => $endDt->format('H:i d/m/Y'),
+            'is_overnight' => (bool) $shift->is_overnight,
+            'order_count' => $completedOrders->count(),
+            'gross_revenue' => (float) $grossRevenue,
+            'discount_total' => (float) $discountTotal,
+            'net_revenue' => (float) $netRevenueAfterPenalty,
+            'expected_cash' => $expectedCashAfterPenalty,
+            'bank_transfer' => $bankTransferAmount,
+            'card' => $cardAmount,
+            'ewallet' => $ewalletAmount,
+            'mixed' => $mixedAmount,
+            'transfer_amount' => $transferAmount,
+            'pending_orders' => $pendingOrders,
+            'already_closed' => $alreadyClosed,
+            'split_penalty_total' => (float) $splitPenaltyTotal,
+            'split_orders' => $splitOrders,
         ]);
     }
 
@@ -207,12 +256,12 @@ class ShiftClosingController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager', 'cashier']), 403);
 
         $data = $request->validate([
-            'shift_id'             => ['required', 'integer', 'exists:work_shifts,id'],
-            'closing_date'         => ['required', 'date', 'before_or_equal:today'],
-            'actual_cash'          => ['required', 'numeric', 'min:0'],
+            'shift_id' => ['required', 'integer', 'exists:work_shifts,id'],
+            'closing_date' => ['required', 'date', 'before_or_equal:today'],
+            'actual_cash' => ['required', 'numeric', 'min:0'],
             'other_expense_amount' => ['nullable', 'numeric', 'min:0'],
-            'notes'                => ['nullable', 'string', 'max:1000'],
-            'submit'               => ['nullable', 'in:0,1'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'submit' => ['nullable', 'in:0,1'],
         ]);
 
         $restaurantId = $user->restaurant_id;
@@ -234,22 +283,22 @@ class ShiftClosingController extends Controller
 
         $notes = $data['notes'];
         if ($calculated['split_penalty_total'] > 0) {
-            $notes = trim(($notes ?? '') . "\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -" . number_format($calculated['split_penalty_total']) . "đ");
+            $notes = trim(($notes ?? '')."\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -".number_format($calculated['split_penalty_total']).'đ');
         }
 
         ShiftClosing::create([
-            'restaurant_id'        => $restaurantId,
-            'shift_id'             => $data['shift_id'],
-            'closing_date'         => $data['closing_date'],
-            'cashier_user_id'      => $user->id,
-            'expected_cash'        => $calculated['expected_cash'],
-            'actual_cash'          => $data['actual_cash'],
-            'cash_difference'      => $cashDifference,
-            'transfer_amount'      => $calculated['transfer_amount'],
+            'restaurant_id' => $restaurantId,
+            'shift_id' => $data['shift_id'],
+            'closing_date' => $data['closing_date'],
+            'cashier_user_id' => $user->id,
+            'expected_cash' => $calculated['expected_cash'],
+            'actual_cash' => $data['actual_cash'],
+            'cash_difference' => $cashDifference,
+            'transfer_amount' => $calculated['transfer_amount'],
             'other_expense_amount' => $data['other_expense_amount'] ?? 0,
-            'notes'                => $notes,
-            'status'               => $status,
-            'closed_at'            => now(),
+            'notes' => $notes,
+            'status' => $status,
+            'closed_at' => now(),
         ]);
 
         $message = $status === 'submitted'
@@ -267,7 +316,7 @@ class ShiftClosingController extends Controller
         $restaurantId = $request->user()->restaurant_id;
 
         $closing->update([
-            'status'       => 'confirmed',
+            'status' => 'confirmed',
             'confirmed_by' => $request->user()->id,
         ]);
 
@@ -286,18 +335,18 @@ class ShiftClosingController extends Controller
                     ->exists();
 
                 if (! $alreadyExists) {
-                    $dateStr      = Carbon::parse($closing->closing_date)->toDateString();
-                    $shiftName    = $closing->shift?->name ?? 'ca';
-                    $shortageAmt  = abs((float) $closing->cash_difference);
+                    $dateStr = Carbon::parse($closing->closing_date)->toDateString();
+                    $shiftName = $closing->shift?->name ?? 'ca';
+                    $shortageAmt = abs((float) $closing->cash_difference);
 
                     $salaryService = app(SalaryService::class);
                     $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $dateStr);
                     $salaryService->addAdjustment($salary, [
-                        'employee_id'    => $employee->id,
-                        'type'           => 'cash_shortage',
-                        'amount'         => $shortageAmt,
-                        'reason'         => "Thiếu quỹ {$shiftName} ngày " . Carbon::parse($closing->closing_date)->format('d/m/Y') . ': ' . number_format($shortageAmt) . 'đ',
-                        'reference_id'   => $closing->id,
+                        'employee_id' => $employee->id,
+                        'type' => 'cash_shortage',
+                        'amount' => $shortageAmt,
+                        'reason' => "Thiếu quỹ {$shiftName} ngày ".Carbon::parse($closing->closing_date)->format('d/m/Y').': '.number_format($shortageAmt).'đ',
+                        'reference_id' => $closing->id,
                         'reference_type' => ShiftClosing::class,
                     ]);
                 }
@@ -316,7 +365,7 @@ class ShiftClosingController extends Controller
 
         $closing->update([
             'status' => 'disputed',
-            'notes'  => trim(($closing->notes ?? '') . "\n[Tranh chấp] " . $request->input('dispute_notes')),
+            'notes' => trim(($closing->notes ?? '')."\n[Tranh chấp] ".$request->input('dispute_notes')),
         ]);
 
         return back()->with('success', 'Đã đánh dấu tranh chấp.');
@@ -348,15 +397,15 @@ class ShiftClosingController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$startDt, $endDt])
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->whereBetween('created_at', [$startDt, $endDt])
             ->sum('total_amount');
 
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
         $expectedCash = max(0.0, $expectedCash - $splitPenaltyTotal);
 
         return [
-            'expected_cash'   => $expectedCash,
+            'expected_cash' => $expectedCash,
             'transfer_amount' => (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount'),
             'split_penalty_total' => (float) $splitPenaltyTotal,
         ];
@@ -364,11 +413,11 @@ class ShiftClosingController extends Controller
 
     private function shiftTimeRange(WorkShift $shift, Carbon $closingDate): array
     {
-        $startDt = Carbon::parse($closingDate->toDateString() . ' ' . $shift->start_time);
+        $startDt = Carbon::parse($closingDate->toDateString().' '.$shift->start_time);
 
         $endDt = $shift->is_overnight
-            ? Carbon::parse($closingDate->copy()->addDay()->toDateString() . ' ' . $shift->end_time)
-            : Carbon::parse($closingDate->toDateString() . ' ' . $shift->end_time);
+            ? Carbon::parse($closingDate->copy()->addDay()->toDateString().' '.$shift->end_time)
+            : Carbon::parse($closingDate->toDateString().' '.$shift->end_time);
 
         return [$startDt, $endDt];
     }

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class NewsPost extends Model
@@ -15,9 +14,9 @@ class NewsPost extends Model
     protected function casts(): array
     {
         return [
-            'tags'         => 'array',
+            'tags' => 'array',
             'is_published' => 'boolean',
-            'is_featured'  => 'boolean',
+            'is_featured' => 'boolean',
             'published_at' => 'datetime',
         ];
     }
@@ -40,15 +39,18 @@ class NewsPost extends Model
 
     public function getFeaturedImageUrlAttribute(): ?string
     {
-        if (!$this->featured_image) return null;
+        if (! $this->featured_image) {
+            return null;
+        }
         if (str_starts_with($this->featured_image, 'http')) {
             return $this->featured_image;
         }
-        return '/storage/' . $this->featured_image;
+
+        return '/storage/'.$this->featured_image;
     }
 
     public static function generateSlug(string $title): string
     {
-        return Str::slug($title) . '-' . Str::lower(Str::random(4));
+        return Str::slug($title).'-'.Str::lower(Str::random(4));
     }
 }

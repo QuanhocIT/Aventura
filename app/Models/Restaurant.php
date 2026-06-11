@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use Database\Factories\Tenant\RestaurantFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 class Restaurant extends Model
@@ -24,8 +24,8 @@ class Restaurant extends Model
     {
         return [
             'subscription_started_at' => 'datetime',
-            'subscription_ends_at'    => 'datetime',
-            'trial_ends_at'           => 'datetime',
+            'subscription_ends_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
         ];
     }
 
@@ -61,7 +61,7 @@ class Restaurant extends Model
 
     public function revenueSummaries(): HasMany
     {
-        return $this->hasMany(\App\Models\RestaurantRevenueSummary::class);
+        return $this->hasMany(RestaurantRevenueSummary::class);
     }
 
     public function subscriptions(): HasMany
@@ -98,12 +98,23 @@ class Restaurant extends Model
 
     public function media(): MorphMany
     {
-        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+        return $this->morphMany(MediaAsset::class, 'attachable');
     }
 
-    public function isActive(): bool { return $this->status === 'active'; }
-    public function isSuspended(): bool { return $this->status === 'suspended'; }
-    public function isExpired(): bool { return $this->status === 'expired'; }
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    public function isExpired(): bool
+    {
+        return $this->status === 'expired';
+    }
 
     public function currentAccessStatus(): string
     {

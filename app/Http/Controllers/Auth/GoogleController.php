@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -7,7 +8,6 @@ use App\Models\User;
 use App\Services\Onboarding\RestaurantOnboardingService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -42,15 +42,15 @@ class GoogleController extends Controller
                     return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.']);
                 }
 
-                if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                if (! $user->isSuperAdmin() && ! $user->hasAnyRole(['owner', 'manager'])) {
                     $employee = $user->employee;
-                    if (!$employee || !$employee->isWithinScheduledShift()) {
+                    if (! $employee || ! $employee->isWithinScheduledShift()) {
                         return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);
                     }
                 }
 
                 // Tài khoản đã tồn tại — cập nhật google_id nếu chưa có
-                $user->google_id     = $googleUser->getId();
+                $user->google_id = $googleUser->getId();
                 $user->last_login_at = now();
 
                 if (! $user->email_verified_at) {
@@ -68,17 +68,17 @@ class GoogleController extends Controller
                 // Tài khoản mới qua Google → chạy onboarding tự động ngay lập tức
                 // Tên nhà hàng tạm dùng tên Google, owner có thể đổi sau trong cài đặt.
                 $user = $this->onboarding->onboard([
-                    'name'            => $googleUser->getName() ?: $googleEmail,
-                    'restaurant_name' => ($googleUser->getName() ?: $googleEmail) . ' Restaurant',
-                    'email'           => $googleEmail,
-                    'password'        => Str::random(40), // mật khẩu ngẫu nhiên, đăng nhập bằng Google
-                    'phone'           => null,
-                    'plan_code'       => 'free',
+                    'name' => $googleUser->getName() ?: $googleEmail,
+                    'restaurant_name' => ($googleUser->getName() ?: $googleEmail).' Restaurant',
+                    'email' => $googleEmail,
+                    'password' => Str::random(40), // mật khẩu ngẫu nhiên, đăng nhập bằng Google
+                    'phone' => null,
+                    'plan_code' => 'free',
                 ]);
 
                 // Gắn google_id sau khi onboard (onboard tạo user mới)
                 $user->forceFill([
-                    'google_id'    => $googleUser->getId(),
+                    'google_id' => $googleUser->getId(),
                     'last_login_at' => now(),
                 ])->save();
             }
@@ -89,8 +89,9 @@ class GoogleController extends Controller
         } catch (Exception $exception) {
             Log::error('Google login failed', [
                 'message' => $exception->getMessage(),
-                'trace'   => $exception->getTraceAsString(),
+                'trace' => $exception->getTraceAsString(),
             ]);
+
             return redirect('/login')->withErrors(['msg' => 'Đăng nhập Google thất bại. Vui lòng thử lại.']);
         }
     }
@@ -106,12 +107,12 @@ class GoogleController extends Controller
             // Vì onboard() tạo User mới, ta gọi trực tiếp seedDefaults thông qua service helper.
             // Đơn giản nhất: gọi onboard với email placeholder rồi merge user.
             $tempUser = $this->onboarding->onboard([
-                'name'            => $displayName,
-                'restaurant_name' => $displayName . ' Restaurant',
-                'email'           => 'google_temp_' . $user->id . '_' . Str::random(6) . '@temp.local',
-                'password'        => Str::random(40),
-                'phone'           => null,
-                'plan_code'       => 'free',
+                'name' => $displayName,
+                'restaurant_name' => $displayName.' Restaurant',
+                'email' => 'google_temp_'.$user->id.'_'.Str::random(6).'@temp.local',
+                'password' => Str::random(40),
+                'phone' => null,
+                'plan_code' => 'free',
             ]);
 
             // Chuyển restaurant sang user gốc và xóa user tạm
@@ -130,6 +131,7 @@ class GoogleController extends Controller
             return $user->fresh();
         } catch (\Throwable $e) {
             Log::warning('autoOnboardGoogleUser failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+
             return $user;
         }
     }

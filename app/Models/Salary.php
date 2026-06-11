@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,12 +18,12 @@ class Salary extends Model
     {
         return [
             'pay_period_start' => 'date',
-            'pay_period_end'   => 'date',
-            'paid_at'          => 'datetime',
-            'base_salary'      => 'decimal:2',
-            'bonus_amount'     => 'decimal:2',
+            'pay_period_end' => 'date',
+            'paid_at' => 'datetime',
+            'base_salary' => 'decimal:2',
+            'bonus_amount' => 'decimal:2',
             'deduction_amount' => 'decimal:2',
-            'net_salary'       => 'decimal:2',
+            'net_salary' => 'decimal:2',
         ];
     }
 
@@ -46,7 +47,7 @@ class Salary extends Model
      */
     public static function isPeriodLocked(int $restaurantId, ?int $employeeId, string $date): bool
     {
-        $targetDate = \Carbon\Carbon::parse($date)->toDateString();
+        $targetDate = Carbon::parse($date)->toDateString();
 
         $query = self::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)

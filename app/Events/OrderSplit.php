@@ -9,11 +9,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class QrOrderPlaced implements ShouldBroadcastNow
+class OrderSplit implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Order $order) {}
+    public function __construct(public Order $order, public Order $newOrder, public $user) {}
 
     public function broadcastOn(): array
     {
@@ -22,20 +22,20 @@ class QrOrderPlaced implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'qr-order.placed';
+        return 'order.split';
     }
 
     public function broadcastWith(): array
     {
+        $this->order->load('table');
+        $this->newOrder->load('table');
+
         return [
-            'order' => [
-                'id' => $this->order->id,
-                'order_number' => $this->order->order_number,
-                'table_name' => $this->order->table?->name,
-                'total_amount' => (float) $this->order->total_amount,
-                'items_count' => $this->order->items->count(),
-                'created_at' => $this->order->created_at->format('H:i'),
-            ],
+            'original_order_number' => $this->order->order_number,
+            'original_table_name' => $this->order->table?->name,
+            'new_order_number' => $this->newOrder->order_number,
+            'new_table_name' => $this->newOrder->table?->name,
+            'split_by' => $this->user->name ?? 'Nhân viên',
         ];
     }
 }

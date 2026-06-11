@@ -242,7 +242,10 @@ const paymentSlices = computed(() => {
         props.paymentBreakdown.bank_transfer +
         props.paymentBreakdown.card +
         props.paymentBreakdown.ewallet;
-    if (total === 0) return [];
+
+    if (total === 0) {
+        return [];
+    }
 
     const entries = [
         {
@@ -274,16 +277,22 @@ const paymentSlices = computed(() => {
             pct: props.paymentBreakdown.ewallet_pct,
         },
     ];
+
     return entries.filter((e) => e.value > 0);
 });
 
 const donutPaths = computed(() => {
     const total = paymentSlices.value.reduce((s, e) => s + e.value, 0);
-    if (total === 0) return [];
+
+    if (total === 0) {
+        return [];
+    }
+
     let angle = -Math.PI / 2;
     const r = 60;
     const cx = 70;
     const cy = 70;
+
     return paymentSlices.value.map((slice) => {
         const sweep = (slice.value / total) * 2 * Math.PI;
         const x1 = cx + r * Math.cos(angle);
@@ -293,6 +302,7 @@ const donutPaths = computed(() => {
         const large = sweep > Math.PI ? 1 : 0;
         const path = `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
         angle += sweep;
+
         return { ...slice, path };
     });
 });
@@ -311,23 +321,31 @@ const pieSlices = computed(() => {
         color: colors[i],
         pct: (p.total_revenue / total) * 100,
     }));
-    if (other > 0)
+
+    if (other > 0) {
         slices.push({
             name: 'Khác',
             value: other,
             color: '#94a3b8',
             pct: (other / total) * 100,
         });
+    }
+
     return slices;
 });
 
 const piePaths = computed(() => {
     const total = pieSlices.value.reduce((s, p) => s + p.value, 0);
-    if (total === 0) return [];
+
+    if (total === 0) {
+        return [];
+    }
+
     let angle = -Math.PI / 2;
     const r = 100;
     const cx = 100;
     const cy = 100;
+
     return pieSlices.value.map((slice) => {
         const sweep = (slice.value / total) * 2 * Math.PI;
         const x1 = cx + r * Math.cos(angle);
@@ -337,6 +355,7 @@ const piePaths = computed(() => {
         const large = sweep > Math.PI ? 1 : 0;
         const path = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${cx} ${cy} Z`;
         angle += sweep;
+
         return { ...slice, path };
     });
 });
@@ -417,7 +436,10 @@ function exportCSV() {
 // ── Delta badge helper ────────────────────────────────────────────────────────
 
 function deltaBadge(pct: number | null) {
-    if (pct === null) return null;
+    if (pct === null) {
+        return null;
+    }
+
     return { positive: pct >= 0, text: (pct >= 0 ? '+' : '') + pct + '%' };
 }
 </script>

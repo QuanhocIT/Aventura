@@ -1,17 +1,17 @@
 <?php
+
 require 'vendor/autoload.php';
 $app = require 'bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 echo "========== DATABASE DATA VERIFICATION ==========\n\n";
 
 // Get all tables
 $tables = DB::select("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'aventura'");
 
-$tableNames = array_map(fn($t) => $t->TABLE_NAME, $tables);
+$tableNames = array_map(fn ($t) => $t->TABLE_NAME, $tables);
 sort($tableNames);
 
 $summary = [];
@@ -24,12 +24,12 @@ foreach ($tableNames as $table) {
         if ($count > 0) {
             $hasData = true;
         }
-    } catch (\Exception $e) {
-        $summary[$table] = "ERROR";
+    } catch (Exception $e) {
+        $summary[$table] = 'ERROR';
     }
 }
 
-echo "Total tables: " . count($summary) . "\n\n";
+echo 'Total tables: '.count($summary)."\n\n";
 
 echo "Tables with data:\n";
 $dataCount = 0;
@@ -54,7 +54,7 @@ foreach ($summary as $table => $count) {
 }
 
 echo "\n========== SUMMARY ==========\n";
-echo "Total tables: " . count($summary) . "\n";
+echo 'Total tables: '.count($summary)."\n";
 echo "Tables with data: $dataCount\n";
 echo "Empty tables: $emptyCount\n";
 

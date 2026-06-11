@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,7 +20,7 @@ class OnboardingController extends Controller
         ]);
 
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Chưa đăng nhập.');
         }
 
@@ -36,15 +35,15 @@ class OnboardingController extends Controller
         $status['current_day'] = (int) $data['current_day'];
 
         // Cập nhật bước cụ thể nếu có
-        if (!empty($data['step'])) {
-            $dayKey = 'day_' . $status['current_day'];
-            if (!isset($status[$dayKey])) {
+        if (! empty($data['step'])) {
+            $dayKey = 'day_'.$status['current_day'];
+            if (! isset($status[$dayKey])) {
                 $status[$dayKey] = ['started_at' => now()->toIso8601String(), 'completed_at' => null, 'steps' => []];
             }
-            if (!isset($status[$dayKey]['steps'])) {
+            if (! isset($status[$dayKey]['steps'])) {
                 $status[$dayKey]['steps'] = [];
             }
-            $status[$dayKey]['steps'][$data['step']] = !empty($data['completed']);
+            $status[$dayKey]['steps'][$data['step']] = ! empty($data['completed']);
 
             // Nếu đây là bước đầu tiên của ngày mới, đánh dấu started_at
             if (empty($status[$dayKey]['started_at'])) {
@@ -54,15 +53,15 @@ class OnboardingController extends Controller
 
         // Đánh dấu hoàn thành nguyên 1 ngày nếu có
         if (isset($data['completed_day'])) {
-            $compDayKey = 'day_' . $data['completed_day'];
+            $compDayKey = 'day_'.$data['completed_day'];
             if (isset($status[$compDayKey])) {
                 $status[$compDayKey]['completed_at'] = now()->toIso8601String();
-                
+
                 // Mở khóa ngày kế tiếp
                 $nextDay = $data['completed_day'] + 1;
                 if ($nextDay <= 3) {
                     $status['current_day'] = $nextDay;
-                    $nextDayKey = 'day_' . $nextDay;
+                    $nextDayKey = 'day_'.$nextDay;
                     if (empty($status[$nextDayKey]['started_at'])) {
                         $status[$nextDayKey]['started_at'] = now()->toIso8601String();
                     }
@@ -81,7 +80,7 @@ class OnboardingController extends Controller
     public function resetProgress(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Chưa đăng nhập.');
         }
 

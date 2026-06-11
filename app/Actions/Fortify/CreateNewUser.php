@@ -4,9 +4,9 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Models\User;
 use App\Services\Onboarding\RestaurantOnboardingService;
 use App\Support\Tenant\TenantContext;
-use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 

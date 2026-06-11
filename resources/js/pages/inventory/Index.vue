@@ -137,9 +137,11 @@ const loadingForecast = ref(false);
 
 const fetchAiForecast = async () => {
     loadingForecast.value = true;
+
     try {
         const response = await fetch('/api/inventory/ai-forecast');
         const data = await response.json();
+
         if (data.success) {
             aiForecasts.value = data.forecast;
         }
@@ -180,7 +182,11 @@ const ingredientSearch = ref('');
 
 const filteredIngredients = computed(() => {
     const q = ingredientSearch.value.trim().toLowerCase();
-    if (!q) return props.ingredients;
+
+    if (!q) {
+        return props.ingredients;
+    }
+
     return props.ingredients.filter(
         (i) =>
             i.name.toLowerCase().includes(q) ||
@@ -214,7 +220,11 @@ const estimatedWasteCost = computed(() => {
     const ing = props.ingredients.find(
         (i) => i.id === Number(wasteForm.ingredient_id),
     );
-    if (!ing || !wasteForm.quantity) return 0;
+
+    if (!ing || !wasteForm.quantity) {
+        return 0;
+    }
+
     return Number(wasteForm.quantity) * (ing.average_cost ?? 0);
 });
 

@@ -16,10 +16,7 @@ class TenantQuotaMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     * @param  string  $resource
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, string $resource): Response
     {
@@ -41,10 +38,10 @@ class TenantQuotaMiddleware
             $limit = $this->quota->getLimit($restaurant, $resource);
 
             $resourceNames = [
-                'branches'  => 'chi nhánh',
-                'tables'    => 'bàn hoạt động',
+                'branches' => 'chi nhánh',
+                'tables' => 'bàn hoạt động',
                 'employees' => 'tài khoản nhân viên',
-                'areas'     => 'khu vực',
+                'areas' => 'khu vực',
             ];
 
             $resourceName = $resourceNames[$resource] ?? $resource;

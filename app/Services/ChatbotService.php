@@ -97,6 +97,7 @@ class ChatbotService
 
         try {
             $response = Http::timeout(10)->post($this->baseUrl.'/reload-cache');
+
             return $response->successful();
         } catch (\Throwable $e) {
             return false;

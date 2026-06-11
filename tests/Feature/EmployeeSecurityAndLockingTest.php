@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\ScheduleAssignment;
 use App\Models\User;
+use App\Models\WorkShift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
-use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
 use Tests\TestCase;
 
 class EmployeeSecurityAndLockingTest extends TestCase
@@ -39,7 +39,7 @@ class EmployeeSecurityAndLockingTest extends TestCase
         // Attempting to create employee with missing fields
         $response = $this->actingAs($owner)->post('/employees', []);
         $response->assertSessionHasErrors([
-            'name', 'email', 'phone', 'citizen_id_number', 'address', 'date_of_birth', 'citizen_id_front', 'citizen_id_back'
+            'name', 'email', 'phone', 'citizen_id_number', 'address', 'date_of_birth', 'citizen_id_front', 'citizen_id_back',
         ]);
 
         // Creating with valid data and file uploads
@@ -88,7 +88,7 @@ class EmployeeSecurityAndLockingTest extends TestCase
         $owner = User::factory()->create();
         $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
         $owner->update(['restaurant_id' => $restaurant->id]);
-        
+
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $owner->assignRole($ownerRole);
 

@@ -3,16 +3,15 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\ProductFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
@@ -34,12 +33,12 @@ class Product extends Model
 
     public function media(): MorphMany
     {
-        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+        return $this->morphMany(MediaAsset::class, 'attachable');
     }
 
     public function primaryImage(): MorphOne
     {
-        return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
+        return $this->morphOne(MediaAsset::class, 'attachable')
             ->where('collection', 'product_image');
     }
 
@@ -48,4 +47,3 @@ class Product extends Model
         return ProductFactory::new();
     }
 }
-

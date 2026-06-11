@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Models\Order;
 use App\Jobs\LogDiscountAppliedJob;
+use App\Models\Order;
 
 class OrderObserver
 {

@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\QrOrderPlaced;
+use App\Models\AuditLog;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
 use App\Models\RestaurantTable;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\AuditLog;
-use App\Events\QrOrderPlaced;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,13 +24,13 @@ class QrOrderController extends Controller
     public function showMenu(int $restaurantId, string $tableToken): Response
     {
         $restaurant = Restaurant::findOrFail($restaurantId);
-        
+
         $table = RestaurantTable::where('restaurant_id', $restaurantId)
             ->where('qr_token', $tableToken)
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$table) {
+        if (! $table) {
             abort(404, 'Bàn ăn không tồn tại hoặc mã QR đã hết hạn.');
         }
 
@@ -93,7 +93,7 @@ class QrOrderController extends Controller
         ]);
 
         $order = DB::transaction(function () use ($restaurantId, $table, $data) {
-            $orderNumber = 'ORD-QR-' . strtoupper(uniqid());
+            $orderNumber = 'ORD-QR-'.strtoupper(uniqid());
 
             $productIds = array_column($data['items'], 'product_id');
             $products = Product::where('restaurant_id', $restaurantId)
@@ -107,7 +107,7 @@ class QrOrderController extends Controller
             foreach ($data['items'] as $itemData) {
                 $product = $products->get($itemData['product_id'])
                     ?? abort(422, 'Sản phẩm không tồn tại hoặc không hoạt động.');
-                
+
                 $lineTotal = (float) $product->price * (float) $itemData['quantity'];
                 $subtotal += $lineTotal;
 
@@ -161,7 +161,7 @@ class QrOrderController extends Controller
             'order' => [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
-            ]
+            ],
         ]);
     }
 }

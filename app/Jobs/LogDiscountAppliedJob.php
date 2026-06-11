@@ -29,24 +29,24 @@ class LogDiscountAppliedJob implements ShouldQueue
         $order = Order::find($this->orderId);
         $user = User::find($this->userId);
 
-        if (!$order || !$user) {
+        if (! $order || ! $user) {
             return;
         }
 
         AuditLog::create([
             'restaurant_id' => $order->restaurant_id,
-            'branch_id'     => $order->branch_id,
-            'user_id'       => $user->id,
-            'user_role'     => $user->roles()->pluck('name')->first() ?? 'staff',
-            'event'         => 'updated',
-            'action'        => 'discount_applied',
-            'subject_type'  => Order::class,
-            'subject_id'    => $order->id,
-            'old_values'    => $this->oldValues,
-            'new_values'    => $this->newValues,
-            'ip_address'    => $this->ipAddress ?? '127.0.0.1',
-            'user_agent'    => $this->userAgent ?? 'unknown',
-            'created_at'    => now(),
+            'branch_id' => $order->branch_id,
+            'user_id' => $user->id,
+            'user_role' => $user->roles()->pluck('name')->first() ?? 'staff',
+            'event' => 'updated',
+            'action' => 'discount_applied',
+            'subject_type' => Order::class,
+            'subject_id' => $order->id,
+            'old_values' => $this->oldValues,
+            'new_values' => $this->newValues,
+            'ip_address' => $this->ipAddress ?? '127.0.0.1',
+            'user_agent' => $this->userAgent ?? 'unknown',
+            'created_at' => now(),
         ]);
     }
 }

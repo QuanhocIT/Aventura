@@ -93,7 +93,10 @@ function toggleExpand(key: string) {
 // ── Override Split Penalty ─────────────────────────────────────────────────────
 
 function overrideSplit(orderId: number) {
-    if (!confirm('Bạn có chắc chắn muốn phê duyệt đối soát và gỡ bỏ khoản phạt âm tiền cho đơn hàng này?')) return;
+    if (!confirm('Bạn có chắc chắn muốn phê duyệt đối soát và gỡ bỏ khoản phạt âm tiền cho đơn hàng này?')) {
+return;
+}
+
     router.patch(route('orders.override-split-penalty', orderId), {}, {
         onSuccess: () => toast.success('Đã phê duyệt đối soát đơn tách thành công!'),
         onError: () => toast.error('Lỗi khi phê duyệt đối soát.'),

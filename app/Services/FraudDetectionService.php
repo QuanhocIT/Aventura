@@ -2,7 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
+use App\Models\Employee;
+use App\Models\ScheduleAssignment;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class FraudDetectionService
 {
@@ -95,12 +99,12 @@ class FraudDetectionService
 
         return [
             'cash_shortfall_cashiers' => (int) ($cashCount->cnt ?? 0),
-            'discount_flagged_days'   => (int) ($discountCount->cnt ?? 0),
-            'cancellation_cashiers'   => (int) ($cancelCount->cnt ?? 0),
-            'waste_flagged_entries'   => (int) ($wasteCount->cnt ?? 0),
-            'revenue_flagged_days'    => (int) ($revenueCount->cnt ?? 0),
-            'ai_flagged_alerts'       => max(2, (int) ($aiCount->cnt ?? 0)), // Luôn có ít nhất 2 cảnh báo mô phỏng AI cho WOW factor
-            'audit_logs_count'        => (int) ($auditCount->cnt ?? 0),
+            'discount_flagged_days' => (int) ($discountCount->cnt ?? 0),
+            'cancellation_cashiers' => (int) ($cancelCount->cnt ?? 0),
+            'waste_flagged_entries' => (int) ($wasteCount->cnt ?? 0),
+            'revenue_flagged_days' => (int) ($revenueCount->cnt ?? 0),
+            'ai_flagged_alerts' => max(2, (int) ($aiCount->cnt ?? 0)), // Luôn có ít nhất 2 cảnh báo mô phỏng AI cho WOW factor
+            'audit_logs_count' => (int) ($auditCount->cnt ?? 0),
         ];
     }
 
@@ -110,7 +114,7 @@ class FraudDetectionService
     public function detectAiFraudAlerts(): array
     {
         // 1. Thu thập dữ liệu logs thực tế từ MySQL
-        $logs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+        $logs = AuditLog::where('restaurant_id', $this->restaurantId)
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
             ->latest('created_at')
@@ -133,19 +137,19 @@ class FraudDetectionService
         }
 
         // 2. Gửi request sang Python FastAPI microservice
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/fraud-detection';
+        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003').'/api/analytics/fraud-detection';
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(3)
+            $response = Http::timeout(3)
                 ->post($url, [
                     'logs' => $logPayload,
                 ]);
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (!empty($data['alerts'])) {
+                if (! empty($data['alerts'])) {
                     return array_map(function ($alert) {
-                        $emp = \App\Models\Employee::withoutGlobalScopes()
+                        $emp = Employee::withoutGlobalScopes()
                             ->where('restaurant_id', $this->restaurantId)
                             ->where('full_name', $alert['employee_name'])
                             ->first();
@@ -153,16 +157,16 @@ class FraudDetectionService
                         $employeeId = $emp ? $emp->id : null;
 
                         return [
-                            'id'             => $alert['id'],
-                            'employee_id'    => $employeeId,
-                            'employee_name'  => $alert['employee_name'],
+                            'id' => $alert['id'],
+                            'employee_id' => $employeeId,
+                            'employee_name' => $alert['employee_name'],
                             'violation_type' => $alert['violation_type'],
-                            'severity'       => $alert['severity'],
-                            'description'    => $alert['description'] . " [Nguồn: Python AI Service]",
-                            'penalty_amount' => (float)$alert['penalty_amount'],
-                            'occurred_at'    => today()->toDateString(),
-                            'risk_score'     => (float)$alert['risk_score'],
-                            'reason'         => $alert['reason'],
+                            'severity' => $alert['severity'],
+                            'description' => $alert['description'].' [Nguồn: Python AI Service]',
+                            'penalty_amount' => (float) $alert['penalty_amount'],
+                            'occurred_at' => today()->toDateString(),
+                            'risk_score' => (float) $alert['risk_score'],
+                            'reason' => $alert['reason'],
                         ];
                     }, $data['alerts']);
                 }
@@ -172,100 +176,100 @@ class FraudDetectionService
         }
 
         // 3. Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
-        $emp1 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->first() ?? \App\Models\Employee::first();
-        $emp2 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->skip(1)->first() ?? \App\Models\Employee::first();
+        $emp1 = Employee::where('restaurant_id', $this->restaurantId)->first() ?? Employee::first();
+        $emp2 = Employee::where('restaurant_id', $this->restaurantId)->skip(1)->first() ?? Employee::first();
 
         $emp1Name = $emp1 ? $emp1->full_name : 'Nguyễn Văn Hùng';
-        $emp1Id   = $emp1 ? $emp1->id : 1;
+        $emp1Id = $emp1 ? $emp1->id : 1;
         $emp2Name = $emp2 ? $emp2->full_name : 'Lê Thị Tuyết';
-        $emp2Id   = $emp2 ? $emp2->id : 2;
+        $emp2Id = $emp2 ? $emp2->id : 2;
 
         $alerts = [
             [
-                'id'             => 'ai-1',
-                'employee_id'    => $emp1Id,
-                'employee_name'  => $emp1Name,
+                'id' => 'ai-1',
+                'employee_id' => $emp1Id,
+                'employee_name' => $emp1Name,
                 'violation_type' => 'AI: Sửa giá món nhiều lần',
-                'severity'       => 'high',
-                'description'    => "Phát hiện nhân viên sửa giá món ăn trên đơn #ORD-8812 liên tiếp 4 lần trong vòng 5 phút (Tăng từ 50,000đ lên 150,000đ rồi hạ xuống 10,000đ để bỏ túi riêng chênh lệch). [Nguồn: Laravel Fallback]",
+                'severity' => 'high',
+                'description' => 'Phát hiện nhân viên sửa giá món ăn trên đơn #ORD-8812 liên tiếp 4 lần trong vòng 5 phút (Tăng từ 50,000đ lên 150,000đ rồi hạ xuống 10,000đ để bỏ túi riêng chênh lệch). [Nguồn: Laravel Fallback]',
                 'penalty_amount' => 140000,
-                'occurred_at'    => today()->toDateString(),
-                'risk_score'     => 97.8,
-                'reason'         => "Hành vi sửa giá món lặp lại nhiều lần của cùng một món ăn trên cùng một bàn. Chỉ số rủi ro: 97.8%.",
+                'occurred_at' => today()->toDateString(),
+                'risk_score' => 97.8,
+                'reason' => 'Hành vi sửa giá món lặp lại nhiều lần của cùng một món ăn trên cùng một bàn. Chỉ số rủi ro: 97.8%.',
             ],
             [
-                'id'             => 'ai-2',
-                'employee_id'    => $emp2Id,
-                'employee_name'  => $emp2Name,
+                'id' => 'ai-2',
+                'employee_id' => $emp2Id,
+                'employee_name' => $emp2Name,
                 'violation_type' => 'AI: Hủy món sau khi thanh toán',
-                'severity'       => 'critical',
-                'description'    => "Phát hiện nhân viên thực hiện thao tác xóa món 'Phở Đuôi Bò' khỏi hóa đơn của Bàn 4 sau khi đơn hàng #ORD-7729 đã được thu ngân đánh dấu Thanh toán (Paid). [Nguồn: Laravel Fallback]",
+                'severity' => 'critical',
+                'description' => "Phát hiện nhân viên thực hiện thao tác xóa món 'Phở Đuôi Bò' khỏi hóa đơn của Bàn 4 sau khi đơn hàng #ORD-7729 đã được thu ngân đánh dấu Thanh toán (Paid). [Nguồn: Laravel Fallback]",
                 'penalty_amount' => 85000,
-                'occurred_at'    => today()->toDateString(),
-                'risk_score'     => 99.1,
-                'reason'         => "Thao tác hủy món nhạy cảm diễn ra sau khi hệ thống ghi nhận giao dịch thanh toán thành công. Chỉ số rủi ro: 99.1%.",
-            ]
+                'occurred_at' => today()->toDateString(),
+                'risk_score' => 99.1,
+                'reason' => 'Thao tác hủy món nhạy cảm diễn ra sau khi hệ thống ghi nhận giao dịch thanh toán thành công. Chỉ số rủi ro: 99.1%.',
+            ],
         ];
 
         foreach ($logs->take(15) as $log) {
-            $emp = \App\Models\Employee::withoutGlobalScopes()
+            $emp = Employee::withoutGlobalScopes()
                 ->where('user_id', $log->user_id)
                 ->first();
 
-            $empId   = $emp ? $emp->id : $emp1Id;
+            $empId = $emp ? $emp->id : $emp1Id;
             $empName = $log->user?->name ?? 'Nhân viên';
 
             if ($log->action === 'price_modified') {
                 $alerts[] = [
-                    'id'             => 'ai-log-' . $log->id,
-                    'employee_id'    => $empId,
-                    'employee_name'  => $empName,
+                    'id' => 'ai-log-'.$log->id,
+                    'employee_id' => $empId,
+                    'employee_name' => $empName,
                     'violation_type' => 'AI: Sửa đổi giá món nhạy cảm',
-                    'severity'       => 'medium',
-                    'description'    => "Phát hiện thay đổi giá sản phẩm trên đơn hàng #{$log->subject_id} bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
+                    'severity' => 'medium',
+                    'description' => "Phát hiện thay đổi giá sản phẩm trên đơn hàng #{$log->subject_id} bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => 0,
-                    'occurred_at'    => $log->created_at->toDateString(),
-                    'risk_score'     => 92.5,
-                    'reason'         => "Thao tác sửa giá món được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 92.5%.",
+                    'occurred_at' => $log->created_at->toDateString(),
+                    'risk_score' => 92.5,
+                    'reason' => 'Thao tác sửa giá món được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 92.5%.',
                 ];
             } elseif ($log->action === 'order_cancelled') {
                 $alerts[] = [
-                    'id'             => 'ai-log-' . $log->id,
-                    'employee_id'    => $empId,
-                    'employee_name'  => $empName,
+                    'id' => 'ai-log-'.$log->id,
+                    'employee_id' => $empId,
+                    'employee_name' => $empName,
                     'violation_type' => 'AI: Hủy đơn nhạy cảm',
-                    'severity'       => 'high',
-                    'description'    => "Phát hiện hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
+                    'severity' => 'high',
+                    'description' => "Phát hiện hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => 0,
-                    'occurred_at'    => $log->created_at->toDateString(),
-                    'risk_score'     => 95.8,
-                    'reason'         => "Thao tác hủy hóa đơn đã phục vụ được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 95.8%.",
+                    'occurred_at' => $log->created_at->toDateString(),
+                    'risk_score' => 95.8,
+                    'reason' => 'Thao tác hủy hóa đơn đã phục vụ được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 95.8%.',
                 ];
             } elseif ($log->action === 'order_split') {
                 $alerts[] = [
-                    'id'             => 'ai-log-' . $log->id,
-                    'employee_id'    => $empId,
-                    'employee_name'  => $empName,
+                    'id' => 'ai-log-'.$log->id,
+                    'employee_id' => $empId,
+                    'employee_name' => $empName,
                     'violation_type' => 'AI: Tách bàn đáng ngờ',
-                    'severity'       => 'high',
-                    'description'    => "Phát hiện tách hóa đơn #{$log->subject_id} ra bàn trống bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
+                    'severity' => 'high',
+                    'description' => "Phát hiện tách hóa đơn #{$log->subject_id} ra bàn trống bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => (float) ($log->new_values['total_amount'] ?? 0),
-                    'occurred_at'    => $log->created_at->toDateString(),
-                    'risk_score'     => 96.5,
-                    'reason'         => "Thao tác tách đơn ra bàn trống lập tức được hệ thống đánh dấu đỏ. Chỉ số rủi ro: 96.5%.",
+                    'occurred_at' => $log->created_at->toDateString(),
+                    'risk_score' => 96.5,
+                    'reason' => 'Thao tác tách đơn ra bàn trống lập tức được hệ thống đánh dấu đỏ. Chỉ số rủi ro: 96.5%.',
                 ];
             } elseif ($log->action === 'discount_applied') {
                 $alerts[] = [
-                    'id'             => 'ai-log-' . $log->id,
-                    'employee_id'    => $empId,
-                    'employee_name'  => $empName,
+                    'id' => 'ai-log-'.$log->id,
+                    'employee_id' => $empId,
+                    'employee_name' => $empName,
                     'violation_type' => 'AI: Áp mã giảm giá',
-                    'severity'       => 'medium',
-                    'description'    => "Ghi nhận thao tác áp mã giảm giá trị giá " . number_format($log->new_values['discount_amount'] ?? 0) . "đ cho đơn #{$log->subject_id} bởi {$empName}. [Nguồn: Laravel Fallback]",
+                    'severity' => 'medium',
+                    'description' => 'Ghi nhận thao tác áp mã giảm giá trị giá '.number_format($log->new_values['discount_amount'] ?? 0)."đ cho đơn #{$log->subject_id} bởi {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => 0,
-                    'occurred_at'    => $log->created_at->toDateString(),
-                    'risk_score'     => 45.2,
-                    'reason'         => "Hoạt động áp voucher thông thường được lưu vết kiểm toán.",
+                    'occurred_at' => $log->created_at->toDateString(),
+                    'risk_score' => 45.2,
+                    'reason' => 'Hoạt động áp voucher thông thường được lưu vết kiểm toán.',
                 ];
             }
         }
@@ -278,26 +282,26 @@ class FraudDetectionService
      */
     public function getAuditLogs(): array
     {
-        $rows = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+        $rows = AuditLog::where('restaurant_id', $this->restaurantId)
             ->with(['user'])
             ->latest('created_at')
             ->take(100)
             ->get()
             ->map(fn ($log) => [
-                'id'           => $log->id,
-                'user_name'    => $log->user?->name ?? 'Hệ thống',
-                'user_role'    => $log->user_role ?? 'staff',
-                'event'        => $log->event,
-                'action'       => $log->action,
+                'id' => $log->id,
+                'user_name' => $log->user?->name ?? 'Hệ thống',
+                'user_role' => $log->user_role ?? 'staff',
+                'event' => $log->event,
+                'action' => $log->action,
                 'action_label' => $this->getActionLabel($log->action),
                 'subject_type' => $log->subject_type ? class_basename($log->subject_type) : '—',
-                'subject_id'   => $log->subject_id,
-                'old_values'   => $log->old_values,
-                'new_values'   => $log->new_values,
-                'ip_address'   => $log->ip_address ?? '127.0.0.1',
-                'user_agent'   => $log->user_agent ? substr($log->user_agent, 0, 80) . '...' : '—',
-                'created_at'   => $log->created_at->format('H:i:s d/m/Y'),
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($log->created_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
+                'subject_id' => $log->subject_id,
+                'old_values' => $log->old_values,
+                'new_values' => $log->new_values,
+                'ip_address' => $log->ip_address ?? '127.0.0.1',
+                'user_agent' => $log->user_agent ? substr($log->user_agent, 0, 80).'...' : '—',
+                'created_at' => $log->created_at->format('H:i:s d/m/Y'),
+                'scheduled_employee' => ScheduleAssignment::findEmployeeOnShiftAt($log->created_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
             ]);
 
         return [
@@ -309,16 +313,16 @@ class FraudDetectionService
     private function getActionLabel(string $action): string
     {
         return match ($action) {
-            'order_cancelled'      => 'Hủy hóa đơn',
-            'order_split'          => 'Tách bàn',
+            'order_cancelled' => 'Hủy hóa đơn',
+            'order_split' => 'Tách bàn',
             'order_split_override' => 'Chủ quán duyệt đơn tách',
-            'price_modified'       => 'Sửa giá món',
-            'discount_applied'     => 'Áp mã giảm giá',
-            'order_updated'        => 'Sửa đổi đơn hàng',
-            'toggle_account_status'=> 'Khóa/Mở tài khoản',
-            'reset_password'       => 'Reset mật khẩu',
-            'disable_2fa'          => 'Tắt 2FA',
-            default                => $action,
+            'price_modified' => 'Sửa giá món',
+            'discount_applied' => 'Áp mã giảm giá',
+            'order_updated' => 'Sửa đổi đơn hàng',
+            'toggle_account_status' => 'Khóa/Mở tài khoản',
+            'reset_password' => 'Reset mật khẩu',
+            'disable_2fa' => 'Tắt 2FA',
+            default => $action,
         };
     }
 
@@ -357,31 +361,31 @@ class FraudDetectionService
             $severity = match (true) {
                 $abs >= 500000 => 'high',
                 $abs >= 200000 => 'medium',
-                default        => 'low',
+                default => 'low',
             };
 
             $cashiers[] = [
                 'cashier_user_id' => $row->cashier_user_id,
-                'cashier_name'    => $row->cashier_name,
+                'cashier_name' => $row->cashier_name,
                 'shortfall_count' => (int) $row->shortfall_count,
                 'total_difference' => (float) $row->total_difference,
-                'severity'        => $severity,
-                'closings'        => array_map(fn ($c) => [
-                    'id'              => $c->id,
-                    'closing_date'    => $c->closing_date,
-                    'shift_name'      => $c->shift_name ?? '—',
-                    'expected_cash'   => (float) $c->expected_cash,
-                    'actual_cash'     => (float) $c->actual_cash,
+                'severity' => $severity,
+                'closings' => array_map(fn ($c) => [
+                    'id' => $c->id,
+                    'closing_date' => $c->closing_date,
+                    'shift_name' => $c->shift_name ?? '—',
+                    'expected_cash' => (float) $c->expected_cash,
+                    'actual_cash' => (float) $c->actual_cash,
                     'cash_difference' => (float) $c->cash_difference,
-                    'status'          => $c->status,
+                    'status' => $c->status,
                 ], $closings),
             ];
         }
 
         return [
-            'flagged_count'  => count($cashiers),
+            'flagged_count' => count($cashiers),
             'total_shortage' => (float) array_sum(array_column($cashiers, 'total_difference')),
-            'cashiers'       => $cashiers,
+            'cashiers' => $cashiers,
         ];
     }
 
@@ -429,44 +433,44 @@ class FraudDetectionService
         $ordersByDate = [];
         foreach ($suspiciousOrders as $o) {
             $ordersByDate[$o->order_date][] = [
-                'id'               => $o->id,
-                'order_number'     => $o->order_number,
-                'cashier_name'     => $o->cashier_name ?? '—',
-                'subtotal'         => (float) $o->subtotal,
-                'discount_amount'  => (float) $o->discount_amount,
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'cashier_name' => $o->cashier_name ?? '—',
+                'subtotal' => (float) $o->subtotal,
+                'discount_amount' => (float) $o->discount_amount,
                 'discount_rate_pct' => round((float) $o->discount_rate_pct, 1),
-                'total_amount'     => (float) $o->total_amount,
+                'total_amount' => (float) $o->total_amount,
             ];
         }
 
         $days = [];
         $totalExcess = 0.0;
         foreach ($flaggedDays as $day) {
-            $rate    = (float) $day->discount_rate_pct;
-            $total   = (float) $day->discount_total;
-            $byRate  = $rate > 20;
-            $byAmt   = $total > 2000000;
-            $reason  = match (true) {
+            $rate = (float) $day->discount_rate_pct;
+            $total = (float) $day->discount_total;
+            $byRate = $rate > 20;
+            $byAmt = $total > 2000000;
+            $reason = match (true) {
                 $byRate && $byAmt => 'both',
-                $byRate           => 'rate',
-                default           => 'amount',
+                $byRate => 'rate',
+                default => 'amount',
             };
             $totalExcess += $total;
             $days[] = [
-                'order_date'        => $day->order_date,
-                'order_count'       => (int) $day->order_count,
-                'gross_revenue'     => (float) $day->gross_revenue,
-                'discount_total'    => $total,
+                'order_date' => $day->order_date,
+                'order_count' => (int) $day->order_count,
+                'gross_revenue' => (float) $day->gross_revenue,
+                'discount_total' => $total,
                 'discount_rate_pct' => round($rate, 1),
-                'flag_reason'       => $reason,
-                'orders'            => $ordersByDate[$day->order_date] ?? [],
+                'flag_reason' => $reason,
+                'orders' => $ordersByDate[$day->order_date] ?? [],
             ];
         }
 
         return [
-            'flagged_days'         => count($days),
+            'flagged_days' => count($days),
             'total_excess_discount' => $totalExcess,
-            'days'                 => $days,
+            'days' => $days,
         ];
     }
 
@@ -509,9 +513,9 @@ class FraudDetectionService
         $standalone = [];
         foreach ($highValueRows as $o) {
             $row = [
-                'id'             => $o->id,
-                'order_number'   => $o->order_number,
-                'total_amount'   => (float) $o->total_amount,
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'total_amount' => (float) $o->total_amount,
                 'cancelled_date' => $o->cancelled_date,
             ];
             if (in_array($o->cancelled_by, $flaggedCashierIds)) {
@@ -527,24 +531,24 @@ class FraudDetectionService
             $value = (float) $row->total_value_cancelled;
             $reason = match (true) {
                 $count > 3 && $value > 1000000 => 'both',
-                $count > 3                      => 'count',
-                default                         => 'value',
+                $count > 3 => 'count',
+                default => 'value',
             };
             $cashiers[] = [
-                'cancelled_by'          => $row->cancelled_by,
-                'cashier_name'          => $row->cashier_name ?? '—',
-                'cancelled_count'       => $count,
+                'cancelled_by' => $row->cancelled_by,
+                'cashier_name' => $row->cashier_name ?? '—',
+                'cancelled_count' => $count,
                 'total_value_cancelled' => $value,
-                'flag_reason'           => $reason,
-                'orders'                => $ordersByCashier[$row->cancelled_by] ?? [],
+                'flag_reason' => $reason,
+                'orders' => $ordersByCashier[$row->cancelled_by] ?? [],
             ];
         }
 
         return [
             'flagged_cashiers_count' => count($cashiers),
-            'total_cancelled_value'  => (float) array_sum(array_column($cashiers, 'total_value_cancelled')),
-            'cashiers'               => $cashiers,
-            'standalone_high_value'  => $standalone,
+            'total_cancelled_value' => (float) array_sum(array_column($cashiers, 'total_value_cancelled')),
+            'cashiers' => $cashiers,
+            'standalone_high_value' => $standalone,
         ];
     }
 
@@ -595,30 +599,30 @@ class FraudDetectionService
         );
 
         return [
-            'total_waste_cost'      => (float) array_sum(array_column($topEmployees, 'total_waste_cost')),
+            'total_waste_cost' => (float) array_sum(array_column($topEmployees, 'total_waste_cost')),
             'flagged_entries_count' => count($largeEntries),
-            'flagged_days_count'    => count($flaggedDays),
-            'top_employees'         => array_map(fn ($r) => [
-                'performed_by'    => $r->performed_by,
-                'employee_name'   => $r->employee_name ?? '—',
+            'flagged_days_count' => count($flaggedDays),
+            'top_employees' => array_map(fn ($r) => [
+                'performed_by' => $r->performed_by,
+                'employee_name' => $r->employee_name ?? '—',
                 'waste_entry_count' => (int) $r->waste_entry_count,
-                'total_waste_cost'  => (float) $r->total_waste_cost,
+                'total_waste_cost' => (float) $r->total_waste_cost,
             ], $topEmployees),
-            'large_entries'  => array_map(fn ($r) => [
-                'id'              => $r->id,
-                'employee_name'   => $r->employee_name ?? '—',
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($r->occurred_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
+            'large_entries' => array_map(fn ($r) => [
+                'id' => $r->id,
+                'employee_name' => $r->employee_name ?? '—',
+                'scheduled_employee' => ScheduleAssignment::findEmployeeOnShiftAt($r->occurred_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
                 'ingredient_name' => $r->ingredient_name,
-                'quantity'        => (float) $r->quantity,
-                'unit_cost'       => (float) $r->unit_cost,
-                'total_cost'      => (float) $r->total_cost,
-                'occurred_at'     => $r->occurred_at,
-                'notes'           => $r->notes,
+                'quantity' => (float) $r->quantity,
+                'unit_cost' => (float) $r->unit_cost,
+                'total_cost' => (float) $r->total_cost,
+                'occurred_at' => $r->occurred_at,
+                'notes' => $r->notes,
             ], $largeEntries),
-            'flagged_days'   => array_map(fn ($r) => [
-                'waste_date'       => $r->waste_date,
+            'flagged_days' => array_map(fn ($r) => [
+                'waste_date' => $r->waste_date,
                 'daily_waste_cost' => (float) $r->daily_waste_cost,
-                'entry_count'      => (int) $r->entry_count,
+                'entry_count' => (int) $r->entry_count,
             ], $flaggedDays),
         ];
     }
@@ -658,20 +662,20 @@ class FraudDetectionService
                 $maxPct = $pct;
             }
             $days[] = [
-                'summary_date'        => $row->summary_date,
+                'summary_date' => $row->summary_date,
                 'summary_net_revenue' => (float) $row->summary_net_revenue,
                 'summary_gross_revenue' => (float) $row->summary_gross_revenue,
-                'shift_total'         => (float) $row->shift_total,
-                'difference'          => (float) $row->difference,
-                'difference_pct'      => $pct,
-                'severity'            => $pct >= 15 ? 'danger' : 'warning',
+                'shift_total' => (float) $row->shift_total,
+                'difference' => (float) $row->difference,
+                'difference_pct' => $pct,
+                'severity' => $pct >= 15 ? 'danger' : 'warning',
             ];
         }
 
         return [
-            'flagged_days_count'    => count($days),
-            'max_discrepancy_pct'   => $maxPct,
-            'days'                  => $days,
+            'flagged_days_count' => count($days),
+            'max_discrepancy_pct' => $maxPct,
+            'days' => $days,
         ];
     }
 }

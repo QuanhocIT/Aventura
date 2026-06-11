@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\EmployeeInvitationMail;
+use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\KnowledgeBaseArticle;
+use App\Models\LeaveRequest;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductRecipe;
-use App\Models\RestaurantTable;
+use App\Models\SalaryAdjustment;
+use App\Models\ScheduleAssignment;
 use App\Models\Supplier;
 use App\Models\SupportAnnouncement;
 use App\Models\SupportTicket;
@@ -18,17 +22,23 @@ use App\Models\SupportTicketReply;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
-use App\Models\LeaveRequest;
 use App\Services\ApprovalService;
 use App\Services\SalaryService;
 use App\Services\SupportPortalService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Permission\Models\Role;
 
 class SupportController extends Controller
 {
@@ -43,7 +53,7 @@ class SupportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        
+
         $tickets = SupportTicket::where('restaurant_id', $user->restaurant_id)
             ->with(['replies.user'])
             ->latest()
@@ -102,7 +112,7 @@ class SupportController extends Controller
         SupportTicket::create([
             'restaurant_id' => $user->restaurant_id,
             'created_by' => $user->id,
-            'code' => 'TKT-' . now()->format('ymd') . '-' . Str::upper(Str::random(5)),
+            'code' => 'TKT-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
             'channel' => 'tenant_portal',
             'category' => $data['category'],
             'severity' => $classification['severity'],
@@ -166,18 +176,18 @@ class SupportController extends Controller
             ->latest()
             ->get()
             ->map(fn ($p) => [
-                'id'           => $p->id,
-                'code'         => $p->code,
-                'name'         => $p->name,
-                'price'        => $p->price,
-                'description'  => $p->description,
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'price' => $p->price,
+                'description' => $p->description,
                 'is_available' => (bool) $p->is_available,
-                'category'     => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
+                'category' => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
             ]);
 
         return Inertia::render('products/Index', [
             'categories' => $categories,
-            'products'   => $products,
+            'products' => $products,
         ]);
     }
 
@@ -196,7 +206,7 @@ class SupportController extends Controller
         ProductCategory::create([
             'restaurant_id' => $user->restaurant_id,
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
             'description' => $data['description'] ?? null,
             'display_order' => ProductCategory::where('restaurant_id', $user->restaurant_id)->count() + 1,
             'status' => 'active',
@@ -222,9 +232,9 @@ class SupportController extends Controller
         Product::create([
             'restaurant_id' => $user->restaurant_id,
             'category_id' => $data['category_id'],
-            'code' => 'PROD-' . Str::upper(Str::random(6)),
+            'code' => 'PROD-'.Str::upper(Str::random(6)),
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
             'price' => $data['price'],
             'description' => $data['description'] ?? null,
             'is_active' => true,
@@ -251,15 +261,16 @@ class SupportController extends Controller
                 $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
                     ->where('ingredient_id', $ing->id)
                     ->first();
+
                 return [
-                    'id'            => $ing->id,
-                    'sku'           => $ing->sku,
-                    'name'          => $ing->name,
+                    'id' => $ing->id,
+                    'sku' => $ing->sku,
+                    'name' => $ing->name,
                     'category_name' => $ing->category_name,
-                    'average_cost'  => $ing->average_cost,
-                    'unit'          => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
-                    'stock'         => $inventory ? (float) $inventory->quantity_on_hand : null,
-                    'last_cost'     => $inventory ? (float) $inventory->last_cost : null,
+                    'average_cost' => $ing->average_cost,
+                    'unit' => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
+                    'stock' => $inventory ? (float) $inventory->quantity_on_hand : null,
+                    'last_cost' => $inventory ? (float) $inventory->last_cost : null,
                 ];
             });
 
@@ -296,14 +307,14 @@ class SupportController extends Controller
             ->take(20)
             ->get()
             ->map(fn ($t) => [
-                'id'              => $t->id,
+                'id' => $t->id,
                 'ingredient_name' => $t->ingredient?->name ?? '—',
-                'quantity'        => (float) $t->quantity,
-                'unit_cost'       => (float) $t->unit_cost,
-                'total_cost'      => (float) $t->total_cost,
-                'supplier_name'   => $t->supplier?->name ?? '—',
-                'occurred_at'     => $t->occurred_at?->format('d/m/Y H:i'),
-                'notes'           => $t->notes,
+                'quantity' => (float) $t->quantity,
+                'unit_cost' => (float) $t->unit_cost,
+                'total_cost' => (float) $t->total_cost,
+                'supplier_name' => $t->supplier?->name ?? '—',
+                'occurred_at' => $t->occurred_at?->format('d/m/Y H:i'),
+                'notes' => $t->notes,
             ]);
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
@@ -320,7 +331,7 @@ class SupportController extends Controller
             ->get();
 
         // Fetch pending or rejected waste approvals
-        $recentWasteApprovals = \App\Models\ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+        $recentWasteApprovals = ApprovalRequest::where('restaurant_id', $user->restaurant_id)
             ->where('operation_type', 'inventory_waste')
             ->with(['requester:id,name'])
             ->latest('created_at')
@@ -330,25 +341,25 @@ class SupportController extends Controller
         $recentWastes = collect();
 
         foreach ($recentWasteTransactions as $t) {
-            $salaryAdjustment = \App\Models\SalaryAdjustment::where('reference_id', $t->id)
+            $salaryAdjustment = SalaryAdjustment::where('reference_id', $t->id)
                 ->where('reference_type', InventoryTransaction::class)
                 ->with('employee:id,full_name')
                 ->first();
 
             $recentWastes->push([
-                'id'              => $t->id,
-                'is_approval'     => false,
+                'id' => $t->id,
+                'is_approval' => false,
                 'ingredient_name' => $t->ingredient?->name ?? '—',
-                'quantity'        => (float) $t->quantity,
-                'unit_symbol'     => $t->ingredient?->unit?->symbol ?? '—',
-                'cost'            => (float) $t->total_cost,
-                'notes'           => $t->notes,
-                'performed_by'    => $t->performedBy?->name ?? 'Hệ thống',
-                'employee_name'   => $salaryAdjustment?->employee?->full_name ?? 'Không khấu trừ',
-                'timestamp'       => $t->occurred_at->timestamp,
-                'occurred_at'     => $t->occurred_at->format('d/m/Y H:i'),
-                'status'          => 'approved',
-                'rejection_reason'=> null,
+                'quantity' => (float) $t->quantity,
+                'unit_symbol' => $t->ingredient?->unit?->symbol ?? '—',
+                'cost' => (float) $t->total_cost,
+                'notes' => $t->notes,
+                'performed_by' => $t->performedBy?->name ?? 'Hệ thống',
+                'employee_name' => $salaryAdjustment?->employee?->full_name ?? 'Không khấu trừ',
+                'timestamp' => $t->occurred_at->timestamp,
+                'occurred_at' => $t->occurred_at->format('d/m/Y H:i'),
+                'status' => 'approved',
+                'rejection_reason' => null,
             ]);
         }
 
@@ -359,35 +370,35 @@ class SupportController extends Controller
 
             $opData = $r->operation_data;
             $ing = Ingredient::find($opData['ingredient_id'] ?? null);
-            $emp = !empty($opData['employee_id']) ? Employee::find($opData['employee_id']) : null;
+            $emp = ! empty($opData['employee_id']) ? Employee::find($opData['employee_id']) : null;
 
             $recentWastes->push([
-                'id'              => $r->id,
-                'is_approval'     => true,
+                'id' => $r->id,
+                'is_approval' => true,
                 'ingredient_name' => $ing?->name ?? '—',
-                'quantity'        => (float) ($opData['quantity'] ?? 0),
-                'unit_symbol'     => $ing?->unit?->symbol ?? '—',
-                'cost'            => (float) (($opData['quantity'] ?? 0) * ($ing?->average_cost ?? 0)),
-                'notes'           => $opData['notes'] ?? null,
-                'performed_by'    => $r->requester?->name ?? '—',
-                'employee_name'   => $emp?->full_name ?? 'Không khấu trừ',
-                'timestamp'       => $r->created_at->timestamp,
-                'occurred_at'     => $r->created_at->format('d/m/Y H:i'),
-                'status'          => $r->status,
-                'rejection_reason'=> $r->rejection_reason,
+                'quantity' => (float) ($opData['quantity'] ?? 0),
+                'unit_symbol' => $ing?->unit?->symbol ?? '—',
+                'cost' => (float) (($opData['quantity'] ?? 0) * ($ing?->average_cost ?? 0)),
+                'notes' => $opData['notes'] ?? null,
+                'performed_by' => $r->requester?->name ?? '—',
+                'employee_name' => $emp?->full_name ?? 'Không khấu trừ',
+                'timestamp' => $r->created_at->timestamp,
+                'occurred_at' => $r->created_at->format('d/m/Y H:i'),
+                'status' => $r->status,
+                'rejection_reason' => $r->rejection_reason,
             ]);
         }
 
         $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
 
         return Inertia::render('inventory/Index', [
-            'ingredients'     => $ingredients,
-            'products'        => $products,
-            'units'           => $units,
-            'suppliers'       => $suppliers,
+            'ingredients' => $ingredients,
+            'products' => $products,
+            'units' => $units,
+            'suppliers' => $suppliers,
             'recentPurchases' => $recentPurchases,
-            'employees'       => $employees,
-            'recentWastes'    => $recentWastes,
+            'employees' => $employees,
+            'recentWastes' => $recentWastes,
         ]);
     }
 
@@ -433,21 +444,21 @@ class SupportController extends Controller
             ->with(['user'])
             ->get()
             ->map(fn ($e) => [
-                'id'                   => $e->id,
-                'employee_code'        => $e->employee_code,
-                'full_name'            => $e->full_name,
-                'email'                => $e->email,
-                'phone'                => $e->phone,
-                'job_title'            => $e->job_title,
-                'status'               => $e->status,
-                'role'                 => $e->user ? $e->user->roles()->pluck('name')->first() : 'Staff',
-                'date_of_birth'        => $e->date_of_birth ? $e->date_of_birth->toDateString() : '',
-                'address'              => $e->address,
-                'citizen_id_number'    => $e->citizen_id_number,
+                'id' => $e->id,
+                'employee_code' => $e->employee_code,
+                'full_name' => $e->full_name,
+                'email' => $e->email,
+                'phone' => $e->phone,
+                'job_title' => $e->job_title,
+                'status' => $e->status,
+                'role' => $e->user ? $e->user->roles()->pluck('name')->first() : 'Staff',
+                'date_of_birth' => $e->date_of_birth ? $e->date_of_birth->toDateString() : '',
+                'address' => $e->address,
+                'citizen_id_number' => $e->citizen_id_number,
                 'citizen_id_front_url' => $e->citizen_id_front_url,
-                'citizen_id_back_url'  => $e->citizen_id_back_url,
-                'hire_date'            => $e->hire_date ? $e->hire_date->toDateString() : '',
-                'base_salary'          => $e->base_salary,
+                'citizen_id_back_url' => $e->citizen_id_back_url,
+                'hire_date' => $e->hire_date ? $e->hire_date->toDateString() : '',
+                'base_salary' => $e->base_salary,
             ]);
 
         // Query or seed shifts dynamically
@@ -491,23 +502,23 @@ class SupportController extends Controller
             ->latest()
             ->get()
             ->map(fn ($lr) => [
-                'id'            => $lr->id,
-                'employee_id'   => $lr->employee_id,
+                'id' => $lr->id,
+                'employee_id' => $lr->employee_id,
                 'employee_name' => $lr->employee?->full_name ?? 'Không rõ',
-                'leave_type'    => $lr->leave_type,
-                'start_date'    => $lr->start_date->toDateString(),
-                'end_date'      => $lr->end_date->toDateString(),
-                'reason'        => $lr->reason,
-                'status'        => $lr->status,
-                'created_at'    => $lr->created_at->format('H:i d/m/Y'),
+                'leave_type' => $lr->leave_type,
+                'start_date' => $lr->start_date->toDateString(),
+                'end_date' => $lr->end_date->toDateString(),
+                'reason' => $lr->reason,
+                'status' => $lr->status,
+                'created_at' => $lr->created_at->format('H:i d/m/Y'),
             ]);
 
         return Inertia::render('employees/Index', [
-            'employees'     => $employees,
-            'shifts'        => $shifts,
-            'schedules'     => $schedules,
+            'employees' => $employees,
+            'shifts' => $shifts,
+            'schedules' => $schedules,
             'leaveRequests' => $leaveRequests,
-            'autoSchedule'  => (bool) $user->restaurant->auto_schedule,
+            'autoSchedule' => (bool) $user->restaurant->auto_schedule,
         ]);
     }
 
@@ -518,7 +529,7 @@ class SupportController extends Controller
     {
         $user = $request->user();
         $restaurant = $user->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             abort(404, 'Không tìm thấy nhà hàng.');
         }
 
@@ -569,21 +580,21 @@ class SupportController extends Controller
                     if ($availableEmployees->isNotEmpty()) {
                         // Trộn danh sách nhân viên để xếp lịch ngẫu nhiên nhưng đồng đều cho mỗi ngày
                         $shuffledEmployees = $availableEmployees->shuffle();
-                        
+
                         foreach ($activeShifts as $sIdx => $shift) {
                             // Phân phối tối đa 2 nhân viên cho mỗi ca trực (nếu có đủ nhân sự)
                             $empPerShift = $shuffledEmployees->count() >= 3 ? 2 : 1;
-                            
+
                             for ($j = 0; $j < $empPerShift; $j++) {
                                 $employeeIndex = ($sIdx * $empPerShift + $j) % $shuffledEmployees->count();
                                 $employee = $shuffledEmployees->get($employeeIndex);
 
                                 ScheduleAssignment::create([
                                     'restaurant_id' => $restaurant->id,
-                                    'employee_id'   => $employee->id,
-                                    'shift_id'      => $shift->id,
-                                    'scheduled_date'=> $dateStr,
-                                    'status'        => 'scheduled',
+                                    'employee_id' => $employee->id,
+                                    'shift_id' => $shift->id,
+                                    'scheduled_date' => $dateStr,
+                                    'status' => 'scheduled',
                                 ]);
                             }
                         }
@@ -605,74 +616,74 @@ class SupportController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name'              => ['required', 'string', 'max:255'],
-            'email'             => ['required', 'email', \Illuminate\Validation\Rule::unique('users')->where('restaurant_id', $user->restaurant_id)],
-            'phone'             => ['required', 'string', 'max:20'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', Rule::unique('users')->where('restaurant_id', $user->restaurant_id)],
+            'phone' => ['required', 'string', 'max:20'],
             'citizen_id_number' => ['required', 'string', 'max:20'],
-            'address'           => ['required', 'string', 'max:500'],
-            'date_of_birth'     => ['required', 'date', 'before:today'],
-            'citizen_id_front'  => ['required', 'image', 'max:2048'],
-            'citizen_id_back'   => ['required', 'image', 'max:2048'],
-            'hire_date'         => ['required', 'date'],
-            'base_salary'       => ['required', 'numeric', 'min:0'],
-            'role'              => ['required', 'string', 'in:cashier,kitchen,manager'],
-            'job_title'         => ['required', 'string', 'max:100'],
+            'address' => ['required', 'string', 'max:500'],
+            'date_of_birth' => ['required', 'date', 'before:today'],
+            'citizen_id_front' => ['required', 'image', 'max:2048'],
+            'citizen_id_back' => ['required', 'image', 'max:2048'],
+            'hire_date' => ['required', 'date'],
+            'base_salary' => ['required', 'numeric', 'min:0'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager'],
+            'job_title' => ['required', 'string', 'max:100'],
         ]);
 
         $frontUrl = null;
         if ($request->hasFile('citizen_id_front')) {
             $path = $request->file('citizen_id_front')->store('citizen_ids', 'public');
-            $frontUrl = '/storage/' . $path;
+            $frontUrl = '/storage/'.$path;
         }
 
         $backUrl = null;
         if ($request->hasFile('citizen_id_back')) {
             $path = $request->file('citizen_id_back')->store('citizen_ids', 'public');
-            $backUrl = '/storage/' . $path;
+            $backUrl = '/storage/'.$path;
         }
 
         // Tạo User mới cho nhân viên ở trạng thái Chờ xác nhận
         $tempPassword = Str::random(10);
         $newUser = User::create([
-            'name'               => $data['name'],
-            'email'              => $data['email'],
-            'password'           => bcrypt($tempPassword),
-            'phone'              => $data['phone'],
-            'restaurant_id'      => $user->restaurant_id,
-            'status'             => 'inactive',
-            'email_verified_at'  => null,
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => bcrypt($tempPassword),
+            'phone' => $data['phone'],
+            'restaurant_id' => $user->restaurant_id,
+            'status' => 'inactive',
+            'email_verified_at' => null,
         ]);
 
         // Gán Role qua Spatie
-        $role = \Spatie\Permission\Models\Role::firstOrCreate([
-            'name'       => $data['role'],
+        $role = Role::firstOrCreate([
+            'name' => $data['role'],
             'guard_name' => 'web',
         ]);
         $newUser->assignRole($role);
 
         // Tạo hồ sơ nhân viên Employee ở trạng thái Chờ xác nhận
         $newEmployee = Employee::create([
-            'restaurant_id'        => $user->restaurant_id,
-            'user_id'              => $newUser->id,
-            'employee_code'        => 'EMP-' . Str::upper(Str::random(5)),
-            'full_name'            => $data['name'],
-            'phone'                => $data['phone'],
-            'email'                => $data['email'],
-            'date_of_birth'        => $data['date_of_birth'],
-            'citizen_id_number'    => $data['citizen_id_number'],
+            'restaurant_id' => $user->restaurant_id,
+            'user_id' => $newUser->id,
+            'employee_code' => 'EMP-'.Str::upper(Str::random(5)),
+            'full_name' => $data['name'],
+            'phone' => $data['phone'],
+            'email' => $data['email'],
+            'date_of_birth' => $data['date_of_birth'],
+            'citizen_id_number' => $data['citizen_id_number'],
             'citizen_id_front_url' => $frontUrl,
-            'citizen_id_back_url'  => $backUrl,
-            'address'              => $data['address'],
-            'hire_date'            => $data['hire_date'],
-            'base_salary'          => $data['base_salary'],
-            'job_title'            => $data['job_title'],
-            'employment_type'      => 'full_time',
-            'status'               => 'inactive',
-            'role_id'              => $role->id,
+            'citizen_id_back_url' => $backUrl,
+            'address' => $data['address'],
+            'hire_date' => $data['hire_date'],
+            'base_salary' => $data['base_salary'],
+            'job_title' => $data['job_title'],
+            'employment_type' => 'full_time',
+            'status' => 'inactive',
+            'role_id' => $role->id,
         ]);
 
         // Tạo signed URL hạn dùng 3 ngày để xác nhận lời mời nhận việc
-        $verificationUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+        $verificationUrl = URL::temporarySignedRoute(
             'employees.verify',
             now()->addDays(3),
             ['user' => $newUser->id]
@@ -680,8 +691,8 @@ class SupportController extends Controller
 
         // Gửi email mời nhận việc & xác thực
         try {
-            \Illuminate\Support\Facades\Mail::to($data['email'])->send(
-                new \App\Mail\EmployeeInvitationMail(
+            Mail::to($data['email'])->send(
+                new EmployeeInvitationMail(
                     $data['name'],
                     $user->restaurant->name ?? 'Aventura Restaurant',
                     $data['job_title'],
@@ -690,7 +701,7 @@ class SupportController extends Controller
             );
         } catch (\Exception $e) {
             // Log error or silently fallback, but don't crash
-            logger()->error('Failed to send employee invitation email: ' . $e->getMessage());
+            logger()->error('Failed to send employee invitation email: '.$e->getMessage());
         }
 
         return back()
@@ -707,7 +718,7 @@ class SupportController extends Controller
             return redirect()->route('login')->with('success', 'Tài khoản của bạn đã được kích hoạt trước đó. Vui lòng đăng nhập.');
         }
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
+        DB::transaction(function () use ($user) {
             $user->update([
                 'status' => 'active',
                 'email_verified_at' => now(),
@@ -727,10 +738,10 @@ class SupportController extends Controller
     /**
      * Hiển thị trang chọn nhà hàng cho tài khoản đa chi nhánh/nhà hàng.
      */
-    public function chooseRestaurantPage(Request $request): Response|\Illuminate\Http\RedirectResponse
+    public function chooseRestaurantPage(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
-        
+
         $activeUsers = User::where('email', $user->email)
             ->where('status', 'active')
             ->with(['restaurant', 'roles'])
@@ -771,7 +782,7 @@ class SupportController extends Controller
             ->where('status', 'active')
             ->firstOrFail();
 
-        \Illuminate\Support\Facades\Auth::login($targetUser);
+        Auth::login($targetUser);
         $request->session()->regenerate();
 
         // Cập nhật lại session multi_tenant_users để duy trì trạng thái
@@ -799,6 +810,7 @@ class SupportController extends Controller
         }
 
         $msg = $newStatus === 'active' ? 'Đã kích hoạt tài khoản nhân viên.' : 'Đã vô hiệu hóa tài khoản nhân viên.';
+
         return back()->with('success', $msg);
     }
 
@@ -820,7 +832,7 @@ class SupportController extends Controller
         $citizenIdNumber = e($employee->citizen_id_number ?? 'Chưa khai báo');
         $jobTitle = e($employee->job_title ?? 'Chưa khai báo');
         $hireDate = $employee->hire_date ? $employee->hire_date->format('d/m/Y') : 'Chưa khai báo';
-        $baseSalary = number_format($employee->base_salary) . ' VND';
+        $baseSalary = number_format($employee->base_salary).' VND';
         $status = $employee->status === 'active' ? 'Đang hoạt động' : ($employee->status === 'inactive' ? 'Tạm ngưng' : 'Đã chấm dứt');
         $roleName = e($employee->user ? ($employee->user->roles()->pluck('name')->first() ?? 'Staff') : 'Staff');
 
@@ -1140,7 +1152,7 @@ class SupportController extends Controller
         </div>
 
         <div class='footer'>
-            Hồ sơ được trích xuất tự động từ hệ thống Aventura lúc " . now()->format('d/m/Y H:i:s') . ".<br/>
+            Hồ sơ được trích xuất tự động từ hệ thống Aventura lúc ".now()->format('d/m/Y H:i:s').".<br/>
             Bản quyền thuộc về nhà hàng {$restaurantName} & Aventura SaaS.
         </div>
     </div>
@@ -1160,33 +1172,33 @@ class SupportController extends Controller
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $request->validate([
-            'status'            => ['sometimes', 'in:active,inactive'],
-            'full_name'         => ['sometimes', 'string', 'max:255'],
-            'phone'             => ['sometimes', 'nullable', 'string', 'max:20'],
-            'job_title'         => ['sometimes', 'string', 'max:100'],
-            'role'              => ['sometimes', 'string', 'in:cashier,kitchen,manager'],
-            'date_of_birth'     => ['sometimes', 'nullable', 'date', 'before:today'],
-            'address'           => ['sometimes', 'nullable', 'string', 'max:500'],
+            'status' => ['sometimes', 'in:active,inactive'],
+            'full_name' => ['sometimes', 'string', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'job_title' => ['sometimes', 'string', 'max:100'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager'],
+            'date_of_birth' => ['sometimes', 'nullable', 'date', 'before:today'],
+            'address' => ['sometimes', 'nullable', 'string', 'max:500'],
             'citizen_id_number' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'citizen_id_front'  => ['sometimes', 'nullable', 'image', 'max:2048'],
-            'citizen_id_back'   => ['sometimes', 'nullable', 'image', 'max:2048'],
+            'citizen_id_front' => ['sometimes', 'nullable', 'image', 'max:2048'],
+            'citizen_id_back' => ['sometimes', 'nullable', 'image', 'max:2048'],
         ]);
 
         if ($request->hasFile('citizen_id_front')) {
             $path = $request->file('citizen_id_front')->store('citizen_ids', 'public');
-            $employee->citizen_id_front_url = '/storage/' . $path;
+            $employee->citizen_id_front_url = '/storage/'.$path;
         }
 
         if ($request->hasFile('citizen_id_back')) {
             $path = $request->file('citizen_id_back')->store('citizen_ids', 'public');
-            $employee->citizen_id_back_url = '/storage/' . $path;
+            $employee->citizen_id_back_url = '/storage/'.$path;
         }
 
         // Sync associated User Spatie roles and update role_id in employees
         if ($employee->user && isset($data['role'])) {
-            $role = \Spatie\Permission\Models\Role::firstOrCreate([
+            $role = Role::firstOrCreate([
                 'name' => $data['role'],
-                'guard_name' => 'web'
+                'guard_name' => 'web',
             ]);
             $employee->user->syncRoles([$role]);
             $employee->update(['role_id' => $role->id]);
@@ -1216,10 +1228,10 @@ class SupportController extends Controller
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $request->validate([
-            'name'         => ['sometimes', 'string', 'max:255'],
-            'price'        => ['sometimes', 'numeric', 'min:0'],
-            'category_id'  => ['nullable', 'exists:product_categories,id'],
-            'description'  => ['sometimes', 'required', 'string', 'min:5'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'price' => ['sometimes', 'numeric', 'min:0'],
+            'category_id' => ['nullable', 'exists:product_categories,id'],
+            'description' => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
         ]);
 
@@ -1264,18 +1276,18 @@ class SupportController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'unit_id'  => ['required', 'exists:units,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'unit_id' => ['required', 'exists:units,id'],
             'category' => ['nullable', 'string', 'max:100'],
         ]);
 
         Ingredient::create([
             'restaurant_id' => $user->restaurant_id,
-            'name'          => $data['name'],
-            'sku'           => 'ING-' . strtoupper(Str::random(6)),
-            'unit_id'       => $data['unit_id'],
+            'name' => $data['name'],
+            'sku' => 'ING-'.strtoupper(Str::random(6)),
+            'unit_id' => $data['unit_id'],
             'category_name' => $data['category'] ?? null,
-            'status'        => 'active',
+            'status' => 'active',
         ]);
 
         return back()->with('success', 'Đã thêm nguyên liệu mới vào kho.');
@@ -1290,12 +1302,12 @@ class SupportController extends Controller
 
         $data = $request->validate([
             'ingredient_id' => ['required', 'exists:ingredients,id'],
-            'quantity'      => ['required', 'numeric', 'min:0.001'],
-            'unit_cost'     => ['required', 'numeric', 'min:0'],
-            'supplier_id'   => ['nullable', 'exists:suppliers,id'],
-            'notes'         => ['nullable', 'string', 'max:500'],
-            'occurred_at'   => ['nullable', 'date'],
-            'invoice_file'  => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:2048'],
+            'quantity' => ['required', 'numeric', 'min:0.001'],
+            'unit_cost' => ['required', 'numeric', 'min:0'],
+            'supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'occurred_at' => ['nullable', 'date'],
+            'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:2048'],
         ]);
 
         $user = $request->user();
@@ -1303,7 +1315,7 @@ class SupportController extends Controller
         // Xử lý upload ảnh hóa đơn cứng (chứng từ)
         if ($request->hasFile('invoice_file')) {
             $path = $request->file('invoice_file')->store('invoices', 'public');
-            $data['invoice_file_url'] = '/storage/' . $path;
+            $data['invoice_file_url'] = '/storage/'.$path;
         }
 
         // Loại bỏ file object ra khỏi mảng dữ liệu phê duyệt để tránh lỗi serialize
@@ -1312,6 +1324,7 @@ class SupportController extends Controller
         // Yêu cầu phê duyệt chéo: Nhân viên kho / quản lý không được cộng thẳng, phải gửi Owner duyệt
         if (! $user->hasRole('owner')) {
             $this->approvalService->submitRequest('inventory_purchase', $data, $user);
+
             return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
@@ -1322,10 +1335,10 @@ class SupportController extends Controller
             ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]
         );
 
-        $newQty  = (float) $data['quantity'];
+        $newQty = (float) $data['quantity'];
         $newCost = (float) $data['unit_cost'];
-        $oldQty  = (float) $inventory->quantity_on_hand;
-        $oldAvg  = (float) $ingredient->average_cost;
+        $oldQty = (float) $inventory->quantity_on_hand;
+        $oldAvg = (float) $ingredient->average_cost;
 
         // Weighted average cost
         $newAvg = ($oldQty + $newQty) > 0
@@ -1333,25 +1346,25 @@ class SupportController extends Controller
             : $newCost;
 
         InventoryTransaction::create([
-            'restaurant_id'    => $user->restaurant_id,
-            'ingredient_id'    => $ingredient->id,
-            'inventory_id'     => $inventory->id,
-            'supplier_id'      => $data['supplier_id'] ?? null,
-            'performed_by'     => $user->id,
-            'type'             => 'purchase',
-            'direction'        => 'in',
-            'quantity'         => $newQty,
-            'unit_cost'        => $newCost,
-            'total_cost'       => $newQty * $newCost,
+            'restaurant_id' => $user->restaurant_id,
+            'ingredient_id' => $ingredient->id,
+            'inventory_id' => $inventory->id,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'performed_by' => $user->id,
+            'type' => 'purchase',
+            'direction' => 'in',
+            'quantity' => $newQty,
+            'unit_cost' => $newCost,
+            'total_cost' => $newQty * $newCost,
             'invoice_file_url' => $data['invoice_file_url'] ?? null,
-            'notes'            => $data['notes'] ?? null,
-            'occurred_at'      => $data['occurred_at'] ?? now(),
+            'notes' => $data['notes'] ?? null,
+            'occurred_at' => $data['occurred_at'] ?? now(),
         ]);
 
         $inventory->update([
-            'quantity_on_hand'     => $oldQty + $newQty,
+            'quantity_on_hand' => $oldQty + $newQty,
             'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
-            'last_cost'            => $newCost,
+            'last_cost' => $newCost,
         ]);
 
         $ingredient->update(['average_cost' => round($newAvg, 2)]);
@@ -1362,7 +1375,7 @@ class SupportController extends Controller
     /**
      * API Dự báo Nhập hàng bằng AI dựa trên lịch sử tiêu dùng (usage).
      */
-    public function aiForecast(Request $request): \Illuminate\Http\JsonResponse
+    public function aiForecast(Request $request): JsonResponse
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
@@ -1394,7 +1407,7 @@ class SupportController extends Controller
             foreach ($transactions as $t) {
                 $historyPayload[] = [
                     'date' => $t->date,
-                    'quantity' => (float)$t->qty
+                    'quantity' => (float) $t->qty,
                 ];
             }
 
@@ -1403,26 +1416,27 @@ class SupportController extends Controller
                 'ingredient_name' => $ing->name,
                 'sku' => $ing->sku,
                 'current_stock' => $currentStock,
-                'min_stock_level' => (float)($ing->min_stock_level ?? 0.0),
+                'min_stock_level' => (float) ($ing->min_stock_level ?? 0.0),
                 'unit_symbol' => $ing->unit?->symbol ?? 'đv',
-                'history' => $historyPayload
+                'history' => $historyPayload,
             ];
         }
 
         // Gửi request sang Python FastAPI microservice
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/inventory-forecast';
+        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003').'/api/analytics/inventory-forecast';
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(5)
+            $response = Http::timeout(5)
                 ->post($url, [
                     'ingredients' => $ingredientsData,
                 ]);
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (!empty($data['forecast'])) {
+                if (! empty($data['forecast'])) {
                     $forecastWithSource = array_map(function ($f) {
-                        $f['reason'] = $f['reason'] . " [Nguồn: Python AI Service]";
+                        $f['reason'] = $f['reason'].' [Nguồn: Python AI Service]';
+
                         return $f;
                     }, $data['forecast']);
 
@@ -1464,7 +1478,7 @@ class SupportController extends Controller
                 $suggestedPurchase = round(rand(100, 300), 2);
             }
 
-            $reason = "Dựa trên lịch sử tiêu thụ Phở bò tăng mạnh 12% vào thứ 7 và CN. Tồn kho hiện tại ({$currentStock} " . ($ing->unit?->symbol ?? '') . ") sắp chạm ngưỡng tối thiểu. [Nguồn: Laravel Fallback]";
+            $reason = "Dựa trên lịch sử tiêu thụ Phở bò tăng mạnh 12% vào thứ 7 và CN. Tồn kho hiện tại ({$currentStock} ".($ing->unit?->symbol ?? '').') sắp chạm ngưỡng tối thiểu. [Nguồn: Laravel Fallback]';
             $confidenceScore = round(92.0 + (rand(0, 70) / 10), 1);
 
             return [
@@ -1497,15 +1511,16 @@ class SupportController extends Controller
 
         $data = $request->validate([
             'ingredient_id' => ['required', 'exists:ingredients,id'],
-            'quantity'      => ['required', 'numeric', 'min:0.001'],
-            'employee_id'   => ['nullable', 'exists:employees,id'],
-            'notes'         => ['nullable', 'string', 'max:500'],
+            'quantity' => ['required', 'numeric', 'min:0.001'],
+            'employee_id' => ['nullable', 'exists:employees,id'],
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $user = $request->user();
 
         if (! $user->hasRole('owner')) {
             $this->approvalService->submitRequest('inventory_waste', $data, $user);
+
             return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
@@ -1515,21 +1530,21 @@ class SupportController extends Controller
             ->where('ingredient_id', $ingredient->id)
             ->first();
 
-        $wasteQty  = (float) $data['quantity'];
+        $wasteQty = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
         $transaction = InventoryTransaction::create([
             'restaurant_id' => $user->restaurant_id,
             'ingredient_id' => $ingredient->id,
-            'inventory_id'  => $inventory?->id,
-            'performed_by'  => $user->id,
-            'type'          => 'waste',
-            'direction'     => 'out',
-            'quantity'      => $wasteQty,
-            'unit_cost'     => (float) $ingredient->average_cost,
-            'total_cost'    => $wasteCost,
-            'notes'         => $data['notes'] ?? null,
-            'occurred_at'   => now(),
+            'inventory_id' => $inventory?->id,
+            'performed_by' => $user->id,
+            'type' => 'waste',
+            'direction' => 'out',
+            'quantity' => $wasteQty,
+            'unit_cost' => (float) $ingredient->average_cost,
+            'total_cost' => $wasteCost,
+            'notes' => $data['notes'] ?? null,
+            'occurred_at' => now(),
         ]);
 
         if ($inventory) {
@@ -1540,16 +1555,16 @@ class SupportController extends Controller
 
         // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
         if (! empty($data['employee_id']) && $wasteCost > 0) {
-            $employee = \App\Models\Employee::find($data['employee_id']);
+            $employee = Employee::find($data['employee_id']);
             if ($employee) {
                 $salaryService = app(SalaryService::class);
                 $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
                 $salaryService->addAdjustment($salary, [
-                    'employee_id'    => $employee->id,
-                    'type'           => 'inventory_loss',
-                    'amount'         => $wasteCost,
-                    'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ',
-                    'reference_id'   => $transaction->id,
+                    'employee_id' => $employee->id,
+                    'type' => 'inventory_loss',
+                    'amount' => $wasteCost,
+                    'reason' => "Hao hụt {$ingredient->name}: {$wasteQty} ".($ingredient->unit?->symbol ?? '').' — '.number_format($wasteCost).'đ',
+                    'reference_id' => $transaction->id,
                     'reference_type' => InventoryTransaction::class,
                 ]);
             }
@@ -1566,27 +1581,27 @@ class SupportController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'date'      => ['required', 'date', 'after_or_equal:today'],
+            'date' => ['required', 'date', 'after_or_equal:today'],
             'time_slot' => ['required', 'string'],
-            'phone'     => ['required', 'string', 'max:20'],
-            'notes'     => ['nullable', 'string'],
+            'phone' => ['required', 'string', 'max:20'],
+            'notes' => ['nullable', 'string'],
         ]);
 
         SupportTicket::create([
             'restaurant_id' => $user->restaurant_id,
-            'created_by'    => $user->id,
-            'code'          => 'DEMO-' . now()->format('ymd') . '-' . Str::upper(Str::random(4)),
-            'channel'       => 'tenant_portal',
-            'category'      => 'demo_booking',
-            'severity'      => 'low',
-            'priority'      => 'normal',
-            'status'        => 'open',
-            'title'         => 'Đặt lịch demo — ' . $data['date'] . ' ' . $data['time_slot'],
-            'description'   => "Số điện thoại: {$data['phone']}\nNgày: {$data['date']}\nKhung giờ: {$data['time_slot']}\nGhi chú: " . ($data['notes'] ?? 'Không có'),
-            'meta'          => ['source' => 'booking_demo', 'date' => $data['date'], 'time_slot' => $data['time_slot']],
+            'created_by' => $user->id,
+            'code' => 'DEMO-'.now()->format('ymd').'-'.Str::upper(Str::random(4)),
+            'channel' => 'tenant_portal',
+            'category' => 'demo_booking',
+            'severity' => 'low',
+            'priority' => 'normal',
+            'status' => 'open',
+            'title' => 'Đặt lịch demo — '.$data['date'].' '.$data['time_slot'],
+            'description' => "Số điện thoại: {$data['phone']}\nNgày: {$data['date']}\nKhung giờ: {$data['time_slot']}\nGhi chú: ".($data['notes'] ?? 'Không có'),
+            'meta' => ['source' => 'booking_demo', 'date' => $data['date'], 'time_slot' => $data['time_slot']],
         ]);
 
-        return back()->with('success', 'Đã đặt lịch demo thành công! Đội ngũ sẽ liên hệ qua số ' . $data['phone'] . ' trước giờ hẹn.');
+        return back()->with('success', 'Đã đặt lịch demo thành công! Đội ngũ sẽ liên hệ qua số '.$data['phone'].' trước giờ hẹn.');
     }
 
     /**
@@ -1604,7 +1619,7 @@ class SupportController extends Controller
 
         $existingIds = [];
         foreach ($data['shifts'] as $index => $s) {
-            $code = 'SHIFT_' . Str::upper(Str::slug($s['name'], '_')) . '_' . ($index + 1);
+            $code = 'SHIFT_'.Str::upper(Str::slug($s['name'], '_')).'_'.($index + 1);
 
             $shift = null;
             if (isset($s['id']) && is_numeric($s['id']) && $s['id'] < 1000000) {
@@ -1657,16 +1672,16 @@ class SupportController extends Controller
             ->where('full_name', $data['employee_name'])
             ->first();
 
-        if (!$employee) {
+        if (! $employee) {
             return back()->withErrors(['employee_name' => 'Nhân viên không tồn tại.']);
         }
 
         // Find shift (match name prefix)
         $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
-            ->where('name', 'like', $data['shift_name'] . '%')
+            ->where('name', 'like', $data['shift_name'].'%')
             ->first();
 
-        if (!$shift) {
+        if (! $shift) {
             return back()->withErrors(['shift_name' => 'Ca làm việc không tồn tại.']);
         }
 
@@ -1709,16 +1724,16 @@ class SupportController extends Controller
             ->where('full_name', $data['employee_name'])
             ->first();
 
-        if (!$employee) {
+        if (! $employee) {
             return back()->with('success', 'Hủy xếp ca thành công.');
         }
 
         // Find shift
         $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
-            ->where('name', 'like', $data['shift_name'] . '%')
+            ->where('name', 'like', $data['shift_name'].'%')
             ->first();
 
-        if (!$shift) {
+        if (! $shift) {
             return back()->with('success', 'Hủy xếp ca thành công.');
         }
 
@@ -1750,21 +1765,21 @@ class SupportController extends Controller
 
         $data = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
-            'leave_type'  => ['required', 'string', 'in:annual,sick,unpaid,emergency,resignation'],
-            'start_date'  => ['required', 'date'],
-            'end_date'    => ['required', 'date', 'after_or_equal:start_date'],
-            'reason'      => ['nullable', 'string', 'max:1000'],
+            'leave_type' => ['required', 'string', 'in:annual,sick,unpaid,emergency,resignation'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         LeaveRequest::create([
             'restaurant_id' => $user->restaurant_id,
-            'employee_id'   => $data['employee_id'],
-            'requested_by'  => $user->id,
-            'leave_type'    => $data['leave_type'],
-            'start_date'    => $data['start_date'],
-            'end_date'      => $data['end_date'],
-            'reason'        => $data['reason'] ?? '',
-            'status'        => 'pending',
+            'employee_id' => $data['employee_id'],
+            'requested_by' => $user->id,
+            'leave_type' => $data['leave_type'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
+            'reason' => $data['reason'] ?? '',
+            'status' => 'pending',
         ]);
 
         return back()->with('success', 'Nộp đơn xin nghỉ thành công.');
@@ -1792,9 +1807,9 @@ class SupportController extends Controller
                 // Tự động thay đổi lịch làm việc sang leave_approved (Đảm bảo hoạt động trên mọi DB)
                 $assignments = ScheduleAssignment::where('employee_id', $employee->id)->get();
                 foreach ($assignments as $assignment) {
-                    $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                    $dateStr = $assignment->scheduled_date instanceof Carbon
                         ? $assignment->scheduled_date->toDateString()
-                        : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+                        : Carbon::parse($assignment->scheduled_date)->toDateString();
 
                     if ($dateStr >= $leave->start_date->toDateString() && $dateStr <= $leave->end_date->toDateString()) {
                         $assignment->update(['status' => 'leave_approved']);
@@ -1835,7 +1850,7 @@ class SupportController extends Controller
         $leave->update([
             'status' => 'rejected',
             'approved_by' => $user->id,
-            'reason' => $leave->reason . "\n[Từ chối: " . $data['rejection_reason'] . "]",
+            'reason' => $leave->reason."\n[Từ chối: ".$data['rejection_reason'].']',
         ]);
 
         return back()->with('success', 'Đã từ chối đơn xin nghỉ.');

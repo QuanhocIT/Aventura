@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\NewsPost;
+use App\Models\Inventory;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\RestaurantRevenueSummary;
+use App\Models\RestaurantTable;
+use App\Models\ScheduleAssignment;
+use App\Models\WorkShift;
 use App\Services\ForecastService;
+use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,13 +20,13 @@ class DashboardController extends Controller
 
     public function index(): Response
     {
-        $user       = auth()->user();
+        $user = auth()->user();
         $restaurant = $user?->restaurant;
 
         if ($user && $user->hasRole('cashier')) {
             $tablesData = [];
             if ($restaurant) {
-                $tablesData = \App\Models\RestaurantTable::with('area')
+                $tablesData = RestaurantTable::with('area')
                     ->where('restaurant_id', $restaurant->id)
                     ->orderBy('name')
                     ->get()
@@ -33,40 +38,41 @@ class DashboardController extends Controller
                         'status' => $t->status,
                     ])->all();
             }
+
             return Inertia::render('cashier/Dashboard', [
                 'tablesData' => $tablesData,
             ]);
         }
 
-        $stats        = null;
+        $stats = null;
         $recentOrders = [];
-        $alerts       = [];
-        $revenueChartData  = [];
-        $channelChartData  = [];
+        $alerts = [];
+        $revenueChartData = [];
+        $channelChartData = [];
         $topProductsChartData = [];
         $operationFeed = [];
-        $tablesData    = [];
+        $tablesData = [];
         $lowStockInventory = [];
-        $forecastData  = null;
-        $healthScore   = null;
-        $shiftRevenue  = [];
-        $ownerSummary  = null;
+        $forecastData = null;
+        $healthScore = null;
+        $shiftRevenue = [];
+        $ownerSummary = null;
 
         if ($restaurant) {
             $rid = $restaurant->id;
 
-            $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            $todaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
                 ->whereDate('summary_date', today())->first();
             $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
                 ->whereDate('summary_date', today()->subDay())->first();
 
-            $ordersToday    = Order::where('restaurant_id', $rid)->whereDate('created_at', today());
-            $totalToday     = (clone $ordersToday)->count();
+            $ordersToday = Order::where('restaurant_id', $rid)->whereDate('created_at', today());
+            $totalToday = (clone $ordersToday)->count();
             $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
             $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
 
             // ── Xu hướng so hôm qua ─────────────────────────────────────────
-            $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);
+            $revenueToday = (float) ($todaySummary?->net_revenue ?? 0);
             $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
             $revTrend = $revenueYesterday > 0
                 ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
@@ -88,19 +94,19 @@ class DashboardController extends Controller
                 : 0.0;
 
             $stats = [
-                'products_count'    => $restaurant->products()->count(),
-                'employees_count'   => $restaurant->employees()->where('status', 'active')->count(),
-                'branches_count'    => $restaurant->branches()->count(),
-                'tables_count'      => $restaurant->tables()->count(),
-                'orders_today'      => $totalToday,
-                'revenue_today'     => $revenueToday,
-                'orders_completed'  => $completedToday,
-                'orders_cancelled'  => $cancelledToday,
+                'products_count' => $restaurant->products()->count(),
+                'employees_count' => $restaurant->employees()->where('status', 'active')->count(),
+                'branches_count' => $restaurant->branches()->count(),
+                'tables_count' => $restaurant->tables()->count(),
+                'orders_today' => $totalToday,
+                'revenue_today' => $revenueToday,
+                'orders_completed' => $completedToday,
+                'orders_cancelled' => $cancelledToday,
                 // Mới: xu hướng + chỉ số bổ sung
-                'revenue_trend'     => $revTrend,
-                'order_trend'       => $orderTrend,
+                'revenue_trend' => $revTrend,
+                'order_trend' => $orderTrend,
                 'profit_margin_today' => $profitMargin,
-                'completion_rate'   => $completionRate,
+                'completion_rate' => $completionRate,
             ];
 
             // ── Business Health Score (0–100) ────────────────────────────────
@@ -108,9 +114,9 @@ class DashboardController extends Controller
             $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
             $healthScore = (int) round(
                 min(100, max(0,
-                    ($completionRate       * 0.35) +
+                    ($completionRate * 0.35) +
                     (max(0, 100 - $cancellationRate * 4) * 0.20) +
-                    ($revenueGrowthScore   * 0.30) +
+                    ($revenueGrowthScore * 0.30) +
                     (min(100, $profitMargin * 1.5) * 0.15)
                 ))
             );
@@ -123,20 +129,20 @@ class DashboardController extends Controller
             $dailyStats = Order::where('restaurant_id', $rid)
                 ->where('status', 'completed')
                 ->where('created_at', '>=', $sevenDaysAgo)
-                ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
+                ->selectRaw('DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count')
                 ->groupBy('date')
                 ->get()
                 ->keyBy('date');
 
             for ($i = 6; $i >= 0; $i--) {
                 $targetDate = now()->subDays($i);
-                $dateStr    = $targetDate->format('Y-m-d');
-                $label      = $targetDate->format('d/m');
-                $dayStat    = $dailyStats->get($dateStr);
+                $dateStr = $targetDate->format('Y-m-d');
+                $label = $targetDate->format('d/m');
+                $dayStat = $dailyStats->get($dateStr);
                 $revenueChartData[] = [
-                    'date'        => $label,
-                    'revenue'     => $dayStat ? (float) $dayStat->revenue : 0,
-                    'orders'      => $dayStat ? (int) $dayStat->count : 0,
+                    'date' => $label,
+                    'revenue' => $dayStat ? (float) $dayStat->revenue : 0,
+                    'orders' => $dayStat ? (int) $dayStat->count : 0,
                     'is_forecast' => false,
                 ];
             }
@@ -150,31 +156,31 @@ class DashboardController extends Controller
             // ── Biểu đồ kênh bán hàng ───────────────────────────────────────
             $channelStats = Order::where('restaurant_id', $rid)
                 ->where('created_at', '>=', $sevenDaysAgo)
-                ->selectRaw("channel, COUNT(*) as count")
+                ->selectRaw('channel, COUNT(*) as count')
                 ->groupBy('channel')
                 ->get();
 
             $channelNames = [
-                'dine_in'  => 'Tại bàn',
+                'dine_in' => 'Tại bàn',
                 'takeaway' => 'Mang về',
                 'delivery' => 'Giao hàng',
-                'qr'       => 'Mã QR',
+                'qr' => 'Mã QR',
             ];
 
             $totalChannelsCount = $channelStats->sum('count');
             foreach ($channelStats as $cs) {
                 $channelChartData[] = [
-                    'channel'    => $cs->channel,
-                    'label'      => $channelNames[$cs->channel] ?? $cs->channel,
-                    'count'      => (int) $cs->count,
+                    'channel' => $cs->channel,
+                    'label' => $channelNames[$cs->channel] ?? $cs->channel,
+                    'count' => (int) $cs->count,
                     'percentage' => $totalChannelsCount > 0
                         ? round(($cs->count / $totalChannelsCount) * 100, 1) : 0,
                 ];
             }
 
             // ── Top 5 sản phẩm ───────────────────────────────────────────────
-            $topProductsChartData = \App\Models\OrderItem::query()
-                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+            $topProductsChartData = OrderItem::query()
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
                 ->join('products', 'order_items.product_id', '=', 'products.id')
                 ->where('orders.restaurant_id', $rid)
                 ->where('orders.status', 'completed')
@@ -185,15 +191,15 @@ class DashboardController extends Controller
                 ->take(5)
                 ->get()
                 ->map(fn ($item) => [
-                    'name'     => $item->name,
-                    'quantity' => (int)   $item->total_qty,
-                    'revenue'  => (float) $item->total_revenue,
+                    'name' => $item->name,
+                    'quantity' => (int) $item->total_qty,
+                    'revenue' => (float) $item->total_revenue,
                 ])
                 ->all();
 
             // ── Top sản phẩm hôm nay (cho owner tab) ────────────────────────
-            $topTodayProducts = \App\Models\OrderItem::query()
-                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+            $topTodayProducts = OrderItem::query()
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
                 ->join('products', 'order_items.product_id', '=', 'products.id')
                 ->where('orders.restaurant_id', $rid)
                 ->where('orders.status', 'completed')
@@ -204,14 +210,14 @@ class DashboardController extends Controller
                 ->take(3)
                 ->get()
                 ->map(fn ($r) => [
-                    'name'    => $r->name,
-                    'qty'     => (int)   $r->total_qty,
+                    'name' => $r->name,
+                    'qty' => (int) $r->total_qty,
                     'revenue' => (float) $r->total_revenue,
                 ])
                 ->all();
 
             // ── Doanh thu theo ca (7 ngày, heatmap) ─────────────────────────
-            $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
+            $shifts = WorkShift::where('restaurant_id', $rid)
                 ->where('status', 'active')
                 ->orderBy('start_time')
                 ->get();
@@ -220,9 +226,9 @@ class DashboardController extends Controller
             foreach ($shifts as $shift) {
                 $row = ['shift_name' => $shift->name, 'days' => []];
                 for ($d = 6; $d >= 0; $d--) {
-                    $day   = now()->subDays($d);
+                    $day = now()->subDays($d);
                     $start = $day->copy()->setTimeFromTimeString($shift->start_time);
-                    $end   = $shift->is_overnight
+                    $end = $shift->is_overnight
                         ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
                         : $day->copy()->setTimeFromTimeString($shift->end_time);
 
@@ -232,7 +238,7 @@ class DashboardController extends Controller
                         ->sum('total_amount');
 
                     $row['days'][] = [
-                        'date'    => $day->format('d/m'),
+                        'date' => $day->format('d/m'),
                         'revenue' => (float) $rev,
                     ];
                 }
@@ -246,9 +252,9 @@ class DashboardController extends Controller
                 ->where('created_at', '<', now()->subMinutes(30))->count();
             if ($stuckPending > 0) {
                 $alerts[] = [
-                    'type'    => 'warning',
+                    'type' => 'warning',
                     'message' => "{$stuckPending} đơn hàng đang chờ xử lý quá 30 phút",
-                    'href'    => '/orders?status=pending',
+                    'href' => '/orders?status=pending',
                 ];
             }
 
@@ -256,9 +262,9 @@ class DashboardController extends Controller
             if ($totalToday > 0 && ($cancelledToday / $totalToday) > 0.2) {
                 $pct = round(($cancelledToday / $totalToday) * 100);
                 $alerts[] = [
-                    'type'    => 'danger',
+                    'type' => 'danger',
                     'message' => "Tỉ lệ huỷ đơn hôm nay cao: {$pct}% ({$cancelledToday}/{$totalToday} đơn)",
-                    'href'    => '/orders?status=cancelled',
+                    'href' => '/orders?status=cancelled',
                 ];
             }
 
@@ -268,9 +274,9 @@ class DashboardController extends Controller
                 ->where('updated_at', '<', now()->subHour())->count();
             if ($stuckProcessing > 0) {
                 $alerts[] = [
-                    'type'    => 'info',
+                    'type' => 'info',
                     'message' => "{$stuckProcessing} đơn đang chế biến chưa được cập nhật trạng thái",
-                    'href'    => '/orders',
+                    'href' => '/orders',
                 ];
             }
 
@@ -281,38 +287,38 @@ class DashboardController extends Controller
                 if ($pctOfForecast < 70) {
                     $gap = round(100 - $pctOfForecast);
                     $alerts[] = [
-                        'type'    => 'warning',
-                        'ai'      => true,
+                        'type' => 'warning',
+                        'ai' => true,
                         'message' => "⚡ Doanh thu hôm nay thấp hơn dự báo {$gap}% — hãy kích hoạt khuyến mãi flash",
-                        'href'    => '/promotions',
+                        'href' => '/promotions',
                     ];
                 }
             }
 
             // Alert 5 (AI): Nhân viên chưa check-in dù đã qua giờ ca
-            $missingCheckIns = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+            $missingCheckIns = ScheduleAssignment::where('restaurant_id', $rid)
                 ->whereDate('scheduled_date', today())
                 ->where('status', 'scheduled')
                 ->whereHas('shift', fn ($q) => $q->where('start_time', '<=', now()->format('H:i:s')))
                 ->count();
             if ($missingCheckIns > 0) {
                 $alerts[] = [
-                    'type'    => 'warning',
-                    'ai'      => true,
+                    'type' => 'warning',
+                    'ai' => true,
                     'message' => "⚡ {$missingCheckIns} nhân viên chưa check-in dù đã qua giờ bắt đầu ca",
-                    'href'    => '/schedules',
+                    'href' => '/schedules',
                 ];
             }
 
             // ── Owner Summary (tab tổng quan) ────────────────────────────────
-            $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
+            $activeShifts = ScheduleAssignment::with(['employee', 'shift'])
                 ->where('restaurant_id', $rid)
                 ->whereDate('scheduled_date', today())
                 ->whereIn('status', ['checked_in', 'scheduled'])
                 ->get()
                 ->map(fn ($a) => [
-                    'name'   => $a->employee?->full_name ?? '—',
-                    'shift'  => $a->shift?->name ?? '—',
+                    'name' => $a->employee?->full_name ?? '—',
+                    'shift' => $a->shift?->name ?? '—',
                     'status' => $a->status,
                 ])
                 ->all();
@@ -324,13 +330,13 @@ class DashboardController extends Controller
 
             $ownerSummary = [
                 'top_products_today' => $topTodayProducts,
-                'active_shifts'      => $activeShifts,
+                'active_shifts' => $activeShifts,
                 'pending_over_20min' => $pendingOrders,
-                'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                'revenue_this_week' => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                     ->where('summary_type', 'daily')
                     ->whereBetween('summary_date', [today()->startOfWeek(), today()])
                     ->sum('net_revenue'),
-                'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                'revenue_last_week' => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                     ->where('summary_type', 'daily')
                     ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
                     ->sum('net_revenue'),
@@ -347,9 +353,9 @@ class DashboardController extends Controller
             ];
 
             foreach ($ordersForFeed as $o) {
-                $tblStr  = $o->table ? " tại Bàn {$o->table->name}" : "";
+                $tblStr = $o->table ? " tại Bàn {$o->table->name}" : '';
                 $chanStr = $channelLabels[$o->channel] ?? $o->channel;
-                $time    = $o->updated_at ?? $o->created_at;
+                $time = $o->updated_at ?? $o->created_at;
                 $statusMap = [
                     'pending' => ['Đơn mới chờ duyệt', 'order_pending', 'ShoppingCart', 'amber', '/orders?status=pending'],
                     'preparing' => ['Đang chuẩn bị món', 'order_preparing', 'Utensils', 'violet', '/orders'],
@@ -361,7 +367,7 @@ class DashboardController extends Controller
                     $feedItems[] = [
                         'type' => $type, 'title' => $title, 'icon' => $icon,
                         'color' => $color, 'link' => $link,
-                        'description' => "Đơn #{$o->order_number}{$tblStr} ({$chanStr} — " . number_format($o->total_amount) . "đ)",
+                        'description' => "Đơn #{$o->order_number}{$tblStr} ({$chanStr} — ".number_format($o->total_amount).'đ)',
                         'amount' => (float) $o->total_amount,
                         'time' => $time->diffForHumans(),
                         'timestamp' => $time->timestamp,
@@ -369,7 +375,7 @@ class DashboardController extends Controller
                 }
             }
 
-            $lowStocksForFeed = \App\Models\Inventory::query()
+            $lowStocksForFeed = Inventory::query()
                 ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
                 ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
                 ->where('inventories.restaurant_id', $rid)
@@ -383,13 +389,13 @@ class DashboardController extends Controller
                 $feedItems[] = [
                     'type' => 'stock_warning', 'title' => 'Cảnh báo hết nguyên liệu',
                     'icon' => 'AlertTriangle', 'color' => 'rose', 'link' => '/inventory',
-                    'description' => "\"{$item->ingredient_name}\" còn " . round($item->quantity_on_hand, 2) . " " . ($item->unit_name ?? 'đv'),
+                    'description' => "\"{$item->ingredient_name}\" còn ".round($item->quantity_on_hand, 2).' '.($item->unit_name ?? 'đv'),
                     'amount' => null, 'time' => $time->diffForHumans(),
-                    'timestamp' => \Carbon\Carbon::parse($time)->timestamp,
+                    'timestamp' => Carbon::parse($time)->timestamp,
                 ];
             }
 
-            $activeSchedulesForFeed = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
+            $activeSchedulesForFeed = ScheduleAssignment::with(['employee', 'shift'])
                 ->where('restaurant_id', $rid)->whereDate('scheduled_date', today())
                 ->whereNotNull('check_in_at')->latest('check_in_at')->take(4)->get();
 
@@ -398,7 +404,7 @@ class DashboardController extends Controller
                 $feedItems[] = [
                     'type' => 'shift_checkin', 'title' => 'Nhân sự vào ca',
                     'icon' => 'Users', 'color' => 'sky', 'link' => '/employees',
-                    'description' => "{$sa->employee?->full_name} check-in ca " . ($sa->shift?->name ?? '') . " lúc " . $time->format('H:i'),
+                    'description' => "{$sa->employee?->full_name} check-in ca ".($sa->shift?->name ?? '').' lúc '.$time->format('H:i'),
                     'amount' => null, 'time' => $time->diffForHumans(),
                     'timestamp' => $time->timestamp,
                 ];
@@ -408,7 +414,7 @@ class DashboardController extends Controller
             $operationFeed = array_slice($feedItems, 0, 8);
 
             // ── Table grid ───────────────────────────────────────────────────
-            $tablesData = \App\Models\RestaurantTable::with('area')
+            $tablesData = RestaurantTable::with('area')
                 ->where('restaurant_id', $rid)->orderBy('name')->get()
                 ->map(fn ($t) => [
                     'id' => $t->id, 'name' => $t->name,
@@ -417,7 +423,7 @@ class DashboardController extends Controller
                 ])->all();
 
             // ── Low stock ────────────────────────────────────────────────────
-            $lowStockInventory = \App\Models\Inventory::query()
+            $lowStockInventory = Inventory::query()
                 ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
                 ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
                 ->where('inventories.restaurant_id', $rid)
@@ -430,49 +436,49 @@ class DashboardController extends Controller
                     'id' => $item->id,
                     'ingredient_name' => $item->ingredient_name,
                     'quantity_on_hand' => (float) $item->quantity_on_hand,
-                    'min_stock_level'  => (float) $item->min_stock_level,
-                    'reorder_level'    => (float) $item->reorder_level,
-                    'unit_name'        => $item->unit_name ?? 'đv',
+                    'min_stock_level' => (float) $item->min_stock_level,
+                    'reorder_level' => (float) $item->reorder_level,
+                    'unit_name' => $item->unit_name ?? 'đv',
                 ])->all();
 
             // ── Recent orders ────────────────────────────────────────────────
             $recentOrders = Order::with('table')
                 ->where('restaurant_id', $rid)->latest()->take(5)->get()
                 ->map(fn (Order $o) => [
-                    'id'             => $o->id,
-                    'order_number'   => $o->order_number,
-                    'table_name'     => $o->table?->name ?? null,
-                    'total_amount'   => (float) $o->total_amount,
-                    'status'         => $o->status,
+                    'id' => $o->id,
+                    'order_number' => $o->order_number,
+                    'table_name' => $o->table?->name ?? null,
+                    'total_amount' => (float) $o->total_amount,
+                    'status' => $o->status,
                     'payment_status' => $o->payment_status,
-                    'channel'        => $o->channel,
-                    'created_at'     => $o->created_at?->format('H:i'),
+                    'channel' => $o->channel,
+                    'created_at' => $o->created_at?->format('H:i'),
                 ])->all();
         }
 
-        $onboardingStatus   = $user?->onboarding_status ?? [];
-        $onboardingComplete = !$user?->hasRole('owner') || (
-            !empty($onboardingStatus['day_1']['completed_at'])
-            && !empty($onboardingStatus['day_2']['completed_at'])
-            && !empty($onboardingStatus['day_3']['completed_at'])
+        $onboardingStatus = $user?->onboarding_status ?? [];
+        $onboardingComplete = ! $user?->hasRole('owner') || (
+            ! empty($onboardingStatus['day_1']['completed_at'])
+            && ! empty($onboardingStatus['day_2']['completed_at'])
+            && ! empty($onboardingStatus['day_3']['completed_at'])
         );
 
         return Inertia::render('Dashboard', [
-            'operationFeed'        => $operationFeed,
-            'tablesData'           => $tablesData,
-            'lowStockInventory'    => $lowStockInventory,
-            'stats'                => $stats,
-            'onboardingComplete'   => $onboardingComplete,
-            'recentOrders'         => $recentOrders,
-            'alerts'               => $alerts,
-            'revenueChartData'     => $revenueChartData,
-            'channelChartData'     => $channelChartData,
+            'operationFeed' => $operationFeed,
+            'tablesData' => $tablesData,
+            'lowStockInventory' => $lowStockInventory,
+            'stats' => $stats,
+            'onboardingComplete' => $onboardingComplete,
+            'recentOrders' => $recentOrders,
+            'alerts' => $alerts,
+            'revenueChartData' => $revenueChartData,
+            'channelChartData' => $channelChartData,
             'topProductsChartData' => $topProductsChartData,
             // Mới
-            'forecastData'         => $forecastData,
-            'healthScore'          => $healthScore,
-            'shiftRevenue'         => $shiftRevenue,
-            'ownerSummary'         => $ownerSummary,
+            'forecastData' => $forecastData,
+            'healthScore' => $healthScore,
+            'shiftRevenue' => $shiftRevenue,
+            'ownerSummary' => $ownerSummary,
         ]);
     }
 }

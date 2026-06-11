@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted } from 'vue';
+import { toast } from 'vue-sonner';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
@@ -9,7 +10,6 @@ import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import OnboardingTour from '@/components/OnboardingTour.vue';
 import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'vue-sonner';
 import echo from '@/lib/echo';
 import type { BreadcrumbItem } from '@/types';
 
@@ -27,9 +27,11 @@ const user = computed(() => (page.props.auth as any)?.user);
 
 function playNotificationSound() {
     try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioCtx = new (
+            window.AudioContext || (window as any).webkitAudioContext
+        )();
         const now = audioCtx.currentTime;
-        
+
         // Note 1: A5 (880Hz)
         const osc1 = audioCtx.createOscillator();
         const gain1 = audioCtx.createGain();
@@ -41,7 +43,7 @@ function playNotificationSound() {
         gain1.connect(audioCtx.destination);
         osc1.start(now);
         osc1.stop(now + 0.35);
-        
+
         // Note 2: C#6 (1109.73Hz)
         const osc2 = audioCtx.createOscillator();
         const gain2 = audioCtx.createGain();
@@ -58,14 +60,19 @@ function playNotificationSound() {
     }
 }
 
+const roles = computed(() => (page.props as any).roles ?? []);
+const isOwnerOrManager = computed(
+    () => roles.value.includes('owner') || roles.value.includes('manager'),
+);
+
 onMounted(() => {
     if (echo && user.value && user.value.restaurant_id) {
         echo.private(`restaurant.${user.value.restaurant_id}`)
             .listen('.qr-order.placed', (e: any) => {
                 playNotificationSound();
-                
+
                 const isThirdParty = !!e.order.third_party_source;
-                const toastTitle = isThirdParty 
+                const toastTitle = isThirdParty
                     ? `Đơn hàng mới từ đối tác ${e.order.third_party_source}!`
                     : `Khách tại bàn ${e.order.table_name || '—'} vừa gọi món qua QR!`;
 
@@ -75,13 +82,23 @@ onMounted(() => {
                         label: 'Xem đơn',
                         onClick: () => {
                             router.visit('/orders?status=pending');
-                        }
+                        },
                     },
                     duration: 10000,
                 });
 
                 if (window.location.pathname === '/orders') {
                     router.reload({ only: ['orders', 'summary'] });
+                }
+            })
+            .listen('.order.split', (e: any) => {
+                if (isOwnerOrManager.value) {
+                    playNotificationSound();
+
+                    toast.error(`Cảnh báo: Đơn hàng vừa bị tách!`, {
+                        description: `Bàn ${e.original_table_name || '—'} (${e.original_order_number}) tách sang Bàn ${e.new_table_name || '—'} (${e.new_order_number}) bởi ${e.split_by || 'Nhân viên'}`,
+                        duration: 10000,
+                    });
                 }
             });
     }

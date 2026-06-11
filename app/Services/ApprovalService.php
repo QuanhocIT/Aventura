@@ -7,7 +7,6 @@ use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
-use App\Models\Restaurant;
 use App\Models\Salary;
 use App\Models\User;
 use App\Notifications\ApprovalDecisionNotification;
@@ -24,12 +23,12 @@ class ApprovalService
     public function submitRequest(string $operationType, array $data, User $requester): ApprovalRequest
     {
         $request = ApprovalRequest::create([
-            'restaurant_id'  => $requester->restaurant_id,
-            'branch_id'      => $requester->branch_id,
-            'requester_id'   => $requester->id,
+            'restaurant_id' => $requester->restaurant_id,
+            'branch_id' => $requester->branch_id,
+            'requester_id' => $requester->id,
             'operation_type' => $operationType,
             'operation_data' => $data,
-            'status'         => 'pending',
+            'status' => 'pending',
         ]);
 
         // Thông báo Owner
@@ -53,7 +52,7 @@ class ApprovalService
             $this->executeOperation($approval);
 
             $approval->update([
-                'status'      => 'approved',
+                'status' => 'approved',
                 'reviewer_id' => $reviewer->id,
                 'reviewed_at' => now(),
             ]);
@@ -68,9 +67,9 @@ class ApprovalService
     public function reject(ApprovalRequest $approval, User $reviewer, string $reason): void
     {
         $approval->update([
-            'status'           => 'rejected',
-            'reviewer_id'      => $reviewer->id,
-            'reviewed_at'      => now(),
+            'status' => 'rejected',
+            'reviewer_id' => $reviewer->id,
+            'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
 
@@ -86,9 +85,9 @@ class ApprovalService
 
         match ($approval->operation_type) {
             'inventory_purchase' => $this->executePurchase($data, $approval->restaurant_id, $approval->requester_id),
-            'inventory_waste'    => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
-            'salary_adjustment'  => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
-            default              => null,
+            'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
+            'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
+            default => null,
         };
     }
 
@@ -101,35 +100,35 @@ class ApprovalService
             ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]
         );
 
-        $newQty  = (float) $data['quantity'];
+        $newQty = (float) $data['quantity'];
         $newCost = (float) $data['unit_cost'];
-        $oldQty  = (float) $inventory->quantity_on_hand;
-        $oldAvg  = (float) $ingredient->average_cost;
+        $oldQty = (float) $inventory->quantity_on_hand;
+        $oldAvg = (float) $ingredient->average_cost;
 
         $newAvg = ($oldQty + $newQty) > 0
             ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
             : $newCost;
 
         InventoryTransaction::create([
-            'restaurant_id'    => $restaurantId,
-            'ingredient_id'    => $ingredient->id,
-            'inventory_id'     => $inventory->id,
-            'supplier_id'      => $data['supplier_id'] ?? null,
-            'performed_by'     => $performedBy,
-            'type'             => 'purchase',
-            'direction'        => 'in',
-            'quantity'         => $newQty,
-            'unit_cost'        => $newCost,
-            'total_cost'       => $newQty * $newCost,
+            'restaurant_id' => $restaurantId,
+            'ingredient_id' => $ingredient->id,
+            'inventory_id' => $inventory->id,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'performed_by' => $performedBy,
+            'type' => 'purchase',
+            'direction' => 'in',
+            'quantity' => $newQty,
+            'unit_cost' => $newCost,
+            'total_cost' => $newQty * $newCost,
             'invoice_file_url' => $data['invoice_file_url'] ?? null,
-            'notes'            => $data['notes'] ?? null,
-            'occurred_at'      => $data['occurred_at'] ?? now(),
+            'notes' => $data['notes'] ?? null,
+            'occurred_at' => $data['occurred_at'] ?? now(),
         ]);
 
         $inventory->update([
-            'quantity_on_hand'     => $oldQty + $newQty,
+            'quantity_on_hand' => $oldQty + $newQty,
             'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
-            'last_cost'            => $newCost,
+            'last_cost' => $newCost,
         ]);
 
         $ingredient->update(['average_cost' => round($newAvg, 2)]);
@@ -144,21 +143,21 @@ class ApprovalService
             ->where('ingredient_id', $ingredient->id)
             ->first();
 
-        $wasteQty  = (float) $data['quantity'];
+        $wasteQty = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
         $transaction = InventoryTransaction::create([
             'restaurant_id' => $restaurantId,
             'ingredient_id' => $ingredient->id,
-            'inventory_id'  => $inventory?->id,
-            'performed_by'  => $performedBy,
-            'type'          => 'waste',
-            'direction'     => 'out',
-            'quantity'      => $wasteQty,
-            'unit_cost'     => (float) $ingredient->average_cost,
-            'total_cost'    => $wasteCost,
-            'notes'         => $data['notes'] ?? null,
-            'occurred_at'   => now(),
+            'inventory_id' => $inventory?->id,
+            'performed_by' => $performedBy,
+            'type' => 'waste',
+            'direction' => 'out',
+            'quantity' => $wasteQty,
+            'unit_cost' => (float) $ingredient->average_cost,
+            'total_cost' => $wasteCost,
+            'notes' => $data['notes'] ?? null,
+            'occurred_at' => now(),
         ]);
 
         if ($inventory) {
@@ -177,13 +176,13 @@ class ApprovalService
                 if ($penaltyAmount > 0) {
                     $salary = $this->salaryService->getOrCreateDraft($restaurantId, $employee, now()->toDateString());
                     $this->salaryService->addAdjustment($salary, [
-                        'employee_id'    => $employee->id,
-                        'type'           => 'inventory_loss',
-                        'amount'         => $penaltyAmount,
-                        'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ' . " (Đã khấu trừ " . $allowedRatio . "% định mức cho phép)",
-                        'reference_id'   => $transaction->id,
+                        'employee_id' => $employee->id,
+                        'type' => 'inventory_loss',
+                        'amount' => $penaltyAmount,
+                        'reason' => "Hao hụt {$ingredient->name}: {$wasteQty} ".($ingredient->unit?->symbol ?? '').' — '.number_format($wasteCost).'đ'.' (Đã khấu trừ '.$allowedRatio.'% định mức cho phép)',
+                        'reference_id' => $transaction->id,
                         'reference_type' => InventoryTransaction::class,
-                        'status'         => 'applied',
+                        'status' => 'applied',
                     ]);
                 }
             }
@@ -196,10 +195,10 @@ class ApprovalService
 
         $this->salaryService->addAdjustment($salary, [
             'employee_id' => $salary->employee_id,
-            'type'        => $data['type'],
-            'amount'      => $data['amount'],
-            'reason'      => $data['reason'],
-            'status'      => 'applied',
+            'type' => $data['type'],
+            'amount' => $data['amount'],
+            'reason' => $data['reason'],
+            'status' => 'applied',
         ]);
     }
 }

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\Inventory;
-use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\RestaurantRevenueSummary;
@@ -22,6 +21,7 @@ class AiIntegrationTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
 
     protected function setUp(): void
@@ -91,8 +91,8 @@ class AiIntegrationTest extends TestCase
                         'penalty_amount' => 0.0,
                         'risk_score' => 97.5,
                         'reason' => 'Sửa liên tiếp trên đơn #99',
-                    ]
-                ]
+                    ],
+                ],
             ], 200),
         ]);
 
@@ -133,7 +133,7 @@ class AiIntegrationTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure(['success', 'forecast']);
-        
+
         $forecast = $response->json('forecast');
         $this->assertNotEmpty($forecast);
         $this->assertEquals($ingredient->id, $forecast[0]['ingredient_id']);
@@ -170,9 +170,9 @@ class AiIntegrationTest extends TestCase
                         'predicted_usage_next_7_days' => 1100.0,
                         'suggested_purchase' => 200.0,
                         'confidence_score' => 95.5,
-                        'reason' => 'Xu hướng tiêu thụ cao'
-                    ]
-                ]
+                        'reason' => 'Xu hướng tiêu thụ cao',
+                    ],
+                ],
             ], 200),
         ]);
 
@@ -181,7 +181,7 @@ class AiIntegrationTest extends TestCase
 
         $response->assertOk();
         $forecast = $response->json('forecast');
-        
+
         $this->assertCount(1, $forecast);
         $this->assertEquals($ingredient->id, $forecast[0]['ingredient_id']);
         $this->assertStringContainsString('Python AI Service', $forecast[0]['reason']);
@@ -219,11 +219,11 @@ class AiIntegrationTest extends TestCase
                     'amount' => 18500000,
                     'confidence' => 'high',
                     'confidence_label' => 'Cao (Hồi quy AI)',
-                    'trend_factor' => 1.15
+                    'trend_factor' => 1.15,
                 ],
                 'next_7_days' => [
-                    ['date' => '01/06', 'revenue' => 18000000, 'is_forecast' => true]
-                ]
+                    ['date' => '01/06', 'revenue' => 18000000, 'is_forecast' => true],
+                ],
             ], 200),
         ]);
 

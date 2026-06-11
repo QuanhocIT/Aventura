@@ -2,15 +2,16 @@
 
 use App\Http\Controllers\SuperAdmin\AccountController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
-use App\Http\Controllers\SuperAdmin\DashboardController;
-use App\Http\Controllers\SuperAdmin\RestaurantController;
-use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
-use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use App\Http\Controllers\SuperAdmin\BannerController;
 use App\Http\Controllers\SuperAdmin\BillingController;
 use App\Http\Controllers\SuperAdmin\BillingOverrideController;
 use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
+use App\Http\Controllers\SuperAdmin\DashboardController;
+use App\Http\Controllers\SuperAdmin\ImpersonateController;
 use App\Http\Controllers\SuperAdmin\NewsPostController;
+use App\Http\Controllers\SuperAdmin\RestaurantController;
+use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
+use App\Http\Controllers\SuperAdmin\SupportPortalController;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
@@ -71,5 +72,5 @@ Route::prefix('super-admin')
         Route::get('news/{post}/content', [NewsPostController::class, 'getContent'])->name('news.content');
 
         // Impersonation
-        Route::post('impersonate/{user}', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'start'])->name('impersonate.start');
+        Route::post('impersonate/{user}', [ImpersonateController::class, 'start'])->name('impersonate.start');
     });

@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Models\WorkShift;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class RestaurantDemoSeeder extends Seeder
 {
@@ -33,7 +34,6 @@ class RestaurantDemoSeeder extends Seeder
         // sau đó load restaurant qua quan hệ thay vì hardcode code.
         $owner = User::where('email', 'owner@bepso.test')->firstOrFail();
         $restaurant = $owner->restaurant()->firstOrFail();
-
 
         $manager = $this->upsertStaffUser('manager@bepso.test', 'Manager Demo', '0900000002', 'manager', $restaurant);
         $cashier = $this->upsertStaffUser('cashier@bepso.test', 'Cashier Demo', '0900000003', 'cashier', $restaurant);
@@ -372,7 +372,7 @@ class RestaurantDemoSeeder extends Seeder
 
     protected function upsertEmployee(Restaurant $restaurant, RestaurantBranch $branch, User $user, string $code, string $jobTitle, string $roleName): Employee
     {
-        $role = \Spatie\Permission\Models\Role::firstOrCreate([
+        $role = Role::firstOrCreate([
             'name' => $roleName,
             'guard_name' => 'web',
         ]);

@@ -18,29 +18,29 @@ class MenuInsightService
         }
 
         $maxRevenue = (float) $products->max('total_revenue');
-        $maxQty     = (float) $products->max('total_qty');
-        $insights   = [];
+        $maxQty = (float) $products->max('total_qty');
+        $insights = [];
 
         foreach ($products as $p) {
-            $revenue  = (float) $p->total_revenue;
-            $qty      = (int)   $p->total_qty;
-            $price    = (float) $p->price;
-            $cost     = (float) ($p->cost_price ?? 0);
-            $margin   = $price > 0 && $cost > 0
+            $revenue = (float) $p->total_revenue;
+            $qty = (int) $p->total_qty;
+            $price = (float) $p->price;
+            $cost = (float) ($p->cost_price ?? 0);
+            $margin = $price > 0 && $cost > 0
                 ? round((($price - $cost) / $price) * 100, 1)
                 : null;
 
             // ── Cảnh báo biên lợi nhuận thấp ─────────────────────────────────
             if ($margin !== null && $margin < 25 && $qty > 0) {
                 $insights[] = [
-                    'type'       => 'low_margin',
-                    'severity'   => $margin < 10 ? 'critical' : 'warning',
-                    'product'    => $p->name,
+                    'type' => 'low_margin',
+                    'severity' => $margin < 10 ? 'critical' : 'warning',
+                    'product' => $p->name,
                     'product_id' => $p->product_id,
-                    'message'    => "Biên lợi nhuận <strong>{$p->name}</strong> chỉ <strong>{$margin}%</strong> — dưới ngưỡng an toàn 25%",
+                    'message' => "Biên lợi nhuận <strong>{$p->name}</strong> chỉ <strong>{$margin}%</strong> — dưới ngưỡng an toàn 25%",
                     'suggestion' => 'Tăng giá bán hoặc tối ưu chi phí nguyên liệu',
-                    'value'      => $margin,
-                    'unit'       => '%',
+                    'value' => $margin,
+                    'unit' => '%',
                 ];
             }
 
@@ -48,28 +48,28 @@ class MenuInsightService
             $weeklyAvg = round($qty / ($days / 7), 1);
             if ($weeklyAvg < 3 && $qty > 0) {
                 $insights[] = [
-                    'type'       => 'slow_moving',
-                    'severity'   => 'info',
-                    'product'    => $p->name,
+                    'type' => 'slow_moving',
+                    'severity' => 'info',
+                    'product' => $p->name,
                     'product_id' => $p->product_id,
-                    'message'    => "<strong>{$p->name}</strong> chỉ bán <strong>{$weeklyAvg} lần/tuần</strong> trong {$days} ngày qua",
+                    'message' => "<strong>{$p->name}</strong> chỉ bán <strong>{$weeklyAvg} lần/tuần</strong> trong {$days} ngày qua",
                     'suggestion' => 'Cân nhắc combo kích cầu hoặc ẩn khỏi menu nếu không sinh lời',
-                    'value'      => $weeklyAvg,
-                    'unit'       => 'lần/tuần',
+                    'value' => $weeklyAvg,
+                    'unit' => 'lần/tuần',
                 ];
             }
 
             // ── Sản phẩm bán chạy nhưng biên lợi thấp (star với vấn đề) ──────
             if ($margin !== null && $revenue > $maxRevenue * 0.3 && $margin < 30) {
                 $insights[] = [
-                    'type'       => 'high_volume_low_margin',
-                    'severity'   => 'warning',
-                    'product'    => $p->name,
+                    'type' => 'high_volume_low_margin',
+                    'severity' => 'warning',
+                    'product' => $p->name,
                     'product_id' => $p->product_id,
-                    'message'    => "<strong>{$p->name}</strong> bán chạy nhưng margin thấp ({$margin}%)",
+                    'message' => "<strong>{$p->name}</strong> bán chạy nhưng margin thấp ({$margin}%)",
                     'suggestion' => 'Đây là cơ hội lớn: tối ưu chi phí để tăng lợi nhuận đáng kể',
-                    'value'      => $margin,
-                    'unit'       => '%',
+                    'value' => $margin,
+                    'unit' => '%',
                 ];
             }
         }
@@ -91,19 +91,21 @@ class MenuInsightService
     {
         $products = $this->queryProductPerformance($restaurantId, $days);
 
-        if ($products->isEmpty()) return [];
+        if ($products->isEmpty()) {
+            return [];
+        }
 
         $medianRevenue = $this->median($products->pluck('total_revenue')->map(fn ($v) => (float) $v)->all());
-        $medianQty     = $this->median($products->pluck('total_qty')->map(fn ($v) => (int) $v)->all());
+        $medianQty = $this->median($products->pluck('total_qty')->map(fn ($v) => (int) $v)->all());
 
         return $products->map(fn ($p) => [
-            'name'          => $p->name,
-            'product_id'    => $p->product_id,
+            'name' => $p->name,
+            'product_id' => $p->product_id,
             'total_revenue' => (float) $p->total_revenue,
-            'total_qty'     => (int)   $p->total_qty,
-            'quadrant'      => $this->classifyBcg(
+            'total_qty' => (int) $p->total_qty,
+            'quadrant' => $this->classifyBcg(
                 (float) $p->total_revenue,
-                (int)   $p->total_qty,
+                (int) $p->total_qty,
                 $medianRevenue,
                 $medianQty
             ),
@@ -120,12 +122,12 @@ class MenuInsightService
         return $products
             ->filter(fn ($p) => (int) $p->total_qty > 0)
             ->map(fn ($p) => [
-                'name'       => $p->name,
-                'margin'     => (float) $p->price > 0 && (float) $p->cost_price > 0
+                'name' => $p->name,
+                'margin' => (float) $p->price > 0 && (float) $p->cost_price > 0
                     ? round(((float) $p->price - (float) $p->cost_price) / (float) $p->price * 100, 1)
                     : null,
-                'revenue'    => (float) $p->total_revenue,
-                'qty'        => (int)   $p->total_qty,
+                'revenue' => (float) $p->total_revenue,
+                'qty' => (int) $p->total_qty,
             ])
             ->filter(fn ($p) => $p['margin'] !== null)
             ->sortByDesc('revenue')
@@ -160,22 +162,25 @@ class MenuInsightService
     private function classifyBcg(float $revenue, int $qty, float $medianRevenue, float $medianQty): string
     {
         $highRevenue = $revenue >= $medianRevenue;
-        $highQty     = $qty >= $medianQty;
+        $highQty = $qty >= $medianQty;
 
         return match (true) {
-            $highRevenue && $highQty     => 'star',       // ⭐ Bán nhiều, doanh thu cao
-            $highRevenue && !$highQty    => 'cash_cow',   // 🐄 Ít bán nhưng doanh thu cao (đắt tiền)
-            !$highRevenue && $highQty    => 'question',   // ❓ Bán nhiều nhưng rẻ
-            default                      => 'dog',        // 🐶 Bán ít, doanh thu thấp
+            $highRevenue && $highQty => 'star',       // ⭐ Bán nhiều, doanh thu cao
+            $highRevenue && ! $highQty => 'cash_cow',   // 🐄 Ít bán nhưng doanh thu cao (đắt tiền)
+            ! $highRevenue && $highQty => 'question',   // ❓ Bán nhiều nhưng rẻ
+            default => 'dog',        // 🐶 Bán ít, doanh thu thấp
         };
     }
 
     private function median(array $values): float
     {
-        if (empty($values)) return 0;
+        if (empty($values)) {
+            return 0;
+        }
         sort($values);
         $count = count($values);
-        $mid   = (int) floor($count / 2);
+        $mid = (int) floor($count / 2);
+
         return $count % 2 === 0
             ? ($values[$mid - 1] + $values[$mid]) / 2
             : $values[$mid];

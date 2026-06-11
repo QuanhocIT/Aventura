@@ -164,8 +164,10 @@ const approvePromotion = (p: Promotion) => {
 // Run Market Basket Analysis
 const runBasketAnalysis = async () => {
     isAnalyzing.value = true;
+
     try {
         const res = await fetch('/api/promotions/basket-analysis');
+
         if (res.ok) {
             analysisResults.value = await res.json();
         } else {

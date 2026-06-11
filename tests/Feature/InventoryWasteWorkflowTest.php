@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
@@ -10,22 +11,27 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Unit;
 use App\Models\User;
-use App\Models\Employee;
-use Spatie\Permission\Models\Role;
-use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
 
 class InventoryWasteWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $manager;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Unit $unit;
+
     protected Ingredient $ingredient;
+
     protected Employee $employee;
 
     protected function setUp(): void
@@ -41,17 +47,17 @@ class InventoryWasteWorkflowTest extends TestCase
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ]);
         $this->manager->assignRole($managerRole);
 
@@ -59,7 +65,7 @@ class InventoryWasteWorkflowTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Hộp',
             'symbol' => 'hộp',
-            'type' => 'count'
+            'type' => 'count',
         ]);
 
         $this->ingredient = Ingredient::create([
@@ -69,7 +75,7 @@ class InventoryWasteWorkflowTest extends TestCase
             'name' => 'Sữa đặc',
             'sku' => 'SUA-DAC',
             'average_cost' => 15000,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $this->employee = Employee::create([
@@ -104,28 +110,28 @@ class InventoryWasteWorkflowTest extends TestCase
         InventoryTransaction::create([
             'restaurant_id' => $this->restaurant->id,
             'ingredient_id' => $this->ingredient->id,
-            'performed_by'  => $this->owner->id,
-            'type'          => 'waste',
-            'direction'     => 'out',
-            'quantity'      => 2.0,
-            'unit_cost'     => 15000,
-            'total_cost'    => 30000,
-            'notes'         => 'Sữa chua hỏng',
-            'occurred_at'   => now()->subMinutes(10),
+            'performed_by' => $this->owner->id,
+            'type' => 'waste',
+            'direction' => 'out',
+            'quantity' => 2.0,
+            'unit_cost' => 15000,
+            'total_cost' => 30000,
+            'notes' => 'Sữa chua hỏng',
+            'occurred_at' => now()->subMinutes(10),
         ]);
 
         // 2. Create a pending approval request (middle - index 1)
         $reqPending = ApprovalRequest::create([
             'restaurant_id' => $this->restaurant->id,
-            'requester_id'  => $this->manager->id,
-            'operation_type'=> 'inventory_waste',
-            'operation_data'=> [
+            'requester_id' => $this->manager->id,
+            'operation_type' => 'inventory_waste',
+            'operation_data' => [
                 'ingredient_id' => $this->ingredient->id,
-                'quantity'      => 1.0,
-                'employee_id'   => $this->employee->id,
-                'notes'         => 'Đổ sữa',
+                'quantity' => 1.0,
+                'employee_id' => $this->employee->id,
+                'notes' => 'Đổ sữa',
             ],
-            'status'        => 'pending',
+            'status' => 'pending',
         ]);
         $reqPending->created_at = now()->subMinutes(5);
         $reqPending->save();
@@ -133,14 +139,14 @@ class InventoryWasteWorkflowTest extends TestCase
         // 3. Create a rejected approval request (newest - index 0)
         $reqRejected = ApprovalRequest::create([
             'restaurant_id' => $this->restaurant->id,
-            'requester_id'  => $this->manager->id,
-            'operation_type'=> 'inventory_waste',
-            'operation_data'=> [
+            'requester_id' => $this->manager->id,
+            'operation_type' => 'inventory_waste',
+            'operation_data' => [
                 'ingredient_id' => $this->ingredient->id,
-                'quantity'      => 3.0,
-                'notes'         => 'Rau héo',
+                'quantity' => 3.0,
+                'notes' => 'Rau héo',
             ],
-            'status'        => 'rejected',
+            'status' => 'rejected',
             'rejection_reason' => 'Không đúng thực tế',
         ]);
         $reqRejected->created_at = now();

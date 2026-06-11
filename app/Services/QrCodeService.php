@@ -19,7 +19,7 @@ class QrCodeService
     {
         $svg = $this->renderSvg($data);
 
-        $path = 'qrcodes/' . $filename . '.svg';
+        $path = 'qrcodes/'.$filename.'.svg';
         Storage::disk('public')->put($path, $svg);
 
         return $path;
@@ -32,7 +32,7 @@ class QrCodeService
     {
         $renderer = new ImageRenderer(
             new RendererStyle($size),
-            new SvgImageBackEnd()
+            new SvgImageBackEnd
         );
 
         $writer = new Writer($renderer);

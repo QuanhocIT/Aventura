@@ -28,6 +28,7 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { toast } from 'vue-sonner';
 import NewsCard from '@/components/NewsCard.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,6 @@ import {
 } from '@/components/ui/card';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
-import { toast } from 'vue-sonner';
 
 interface Banner {
     id: number;
@@ -146,9 +146,11 @@ const defaultSlides = [
 
 const activeSlides = computed(() => {
     const dbBanners = props.banners?.hero ?? [];
+
     if (dbBanners.length === 0) {
         return defaultSlides;
     }
+
     return dbBanners.map((db, idx) => {
         const fallback = defaultSlides[idx % defaultSlides.length];
         const hasRealImage =
@@ -156,6 +158,7 @@ const activeSlides = computed(() => {
             !db.image_url.endsWith('.svg') &&
             !db.image_url.includes('hero-dashboard') &&
             !db.image_url.includes('hero-analytics');
+
         return {
             subtitle: db.subtitle || fallback.subtitle,
             title: db.title ? db.title : fallback.title,
@@ -177,10 +180,13 @@ const demoSpecialRequest = ref('');
 function submitDemoRequest() {
     if (!demoRestaurantName.value.trim()) {
         toast.error('Vui lòng nhập tên nhà hàng hoặc quán ăn của bạn.');
+
         return;
     }
+
     if (!demoPhoneNumber.value.trim()) {
         toast.error('Vui lòng nhập số điện thoại liên hệ.');
+
         return;
     }
 
@@ -209,6 +215,7 @@ function startHero() {
     if (activeSlides.value.length <= 1) {
         return;
     }
+
     heroTimer = setInterval(() => advanceHero('next'), 6000);
 }
 
@@ -872,7 +879,10 @@ const activeTestimonialIdx = ref(0);
 let testimonialAutoplayTimer: any = null;
 
 const startTestimonialAutoplay = () => {
-    if (testimonialAutoplayTimer) return;
+    if (testimonialAutoplayTimer) {
+        return;
+    }
+
     testimonialAutoplayTimer = setInterval(() => {
         nextTestimonial();
     }, 5000);
@@ -902,11 +912,16 @@ const resetTestimonialAutoplay = () => {
 };
 
 const getInitials = (name: string) => {
-    if (!name) return '';
+    if (!name) {
+        return '';
+    }
+
     const parts = name.trim().split(/\s+/);
+
     if (parts.length >= 2) {
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
+
     return name.slice(0, 2).toUpperCase();
 };
 
@@ -918,6 +933,7 @@ const getAvatarGradient = (idx: number) => {
         'bg-gradient-to-br from-sky-400 to-blue-500 text-white',
         'bg-gradient-to-br from-rose-400 to-pink-500 text-white',
     ];
+
     return gradients[idx % gradients.length];
 };
 

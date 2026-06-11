@@ -92,28 +92,37 @@ const resolveForm = useForm({
 
 // --- COMPUTED ---
 function isWithinDateFilter(dateStr: string): boolean {
-    if (dateFilter.value === 'all') return true;
+    if (dateFilter.value === 'all') {
+        return true;
+    }
+
     const d = new Date(dateStr);
     const now = new Date();
+
     if (dateFilter.value === 'today') {
         return d.toDateString() === now.toDateString();
     }
+
     if (dateFilter.value === 'week') {
         const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
+
         return d >= weekAgo;
     }
+
     if (dateFilter.value === 'month') {
         return (
             d.getMonth() === now.getMonth() &&
             d.getFullYear() === now.getFullYear()
         );
     }
+
     return true;
 }
 
 const filteredFeedbacks = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
+
     return props.feedbacks.filter((fb) => {
         const matchFilter =
             activeFilter.value === 'all' ||
@@ -121,9 +130,19 @@ const filteredFeedbacks = computed(() => {
             (activeFilter.value === 'resolved' &&
                 (fb.status === 'resolved' || fb.status === 'reviewed')) ||
             (activeFilter.value === 'critical' && fb.rating <= 2);
-        if (!matchFilter) return false;
-        if (!isWithinDateFilter(fb.created_at)) return false;
-        if (!q) return true;
+
+        if (!matchFilter) {
+            return false;
+        }
+
+        if (!isWithinDateFilter(fb.created_at)) {
+            return false;
+        }
+
+        if (!q) {
+            return true;
+        }
+
         return (
             (fb.submitted_by_name ?? '').toLowerCase().includes(q) ||
             (fb.content ?? '').toLowerCase().includes(q) ||
@@ -150,7 +169,9 @@ const openResolveModal = (fb: Feedback) => {
 };
 
 const submitResolve = () => {
-    if (!selectedFeedback.value) return;
+    if (!selectedFeedback.value) {
+        return;
+    }
 
     resolveForm.post(`/feedback/${selectedFeedback.value.id}/resolve`, {
         onSuccess: () => {

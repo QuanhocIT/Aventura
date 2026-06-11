@@ -3,10 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\InventoryFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -40,4 +39,3 @@ class Inventory extends Model
         return InventoryFactory::new();
     }
 }
-

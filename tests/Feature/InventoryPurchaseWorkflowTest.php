@@ -3,13 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\ScheduleAssignment;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\WorkShift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
@@ -22,10 +25,15 @@ class InventoryPurchaseWorkflowTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $staff;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Unit $unit;
+
     protected Ingredient $ingredient;
 
     protected function setUp(): void
@@ -50,12 +58,12 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         // Set up inventory staff
@@ -68,14 +76,14 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $this->staff->assignRole($staffRole);
 
         // Assign Employee and WorkShift so staff can bypass SetTenantContext
-        $employee = \App\Models\Employee::factory()->create([
+        $employee = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'user_id' => $this->staff->id,
             'role_id' => $staffRole->id,
             'status' => 'active',
         ]);
 
-        $shift = \App\Models\WorkShift::create([
+        $shift = WorkShift::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Ca Test',
@@ -86,7 +94,7 @@ class InventoryPurchaseWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\ScheduleAssignment::create([
+        ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'employee_id' => $employee->id,
@@ -100,7 +108,7 @@ class InventoryPurchaseWorkflowTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Kilogram',
             'symbol' => 'kg',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         // Set up Ingredient
@@ -111,7 +119,7 @@ class InventoryPurchaseWorkflowTest extends TestCase
             'name' => 'Thịt Bò Mỹ',
             'sku' => 'BEEF-US-01',
             'average_cost' => 100000,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         // Set up Inventory
@@ -155,7 +163,7 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $inventory = Inventory::where('restaurant_id', $this->restaurant->id)
             ->where('ingredient_id', $this->ingredient->id)
             ->first();
-        $this->assertEquals(10.0, (float)$inventory->quantity_on_hand);
+        $this->assertEquals(10.0, (float) $inventory->quantity_on_hand);
 
         // 2. An ApprovalRequest should be created in pending state
         $approval = ApprovalRequest::where('restaurant_id', $this->restaurant->id)
@@ -193,14 +201,14 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $inventory = Inventory::where('restaurant_id', $this->restaurant->id)
             ->where('ingredient_id', $this->ingredient->id)
             ->first();
-        $this->assertEquals(30.0, (float)$inventory->quantity_on_hand);
+        $this->assertEquals(30.0, (float) $inventory->quantity_on_hand);
 
         // 2. Average cost should be recalculated (weighted average)
         // old stock: 10 @ 100,000 = 1,000,000
         // new stock: 20 @ 130,000 = 2,600,000
         // total cost: 3,600,000 / 30 = 120,000
         $this->ingredient->refresh();
-        $this->assertEquals(120000.0, (float)$this->ingredient->average_cost);
+        $this->assertEquals(120000.0, (float) $this->ingredient->average_cost);
 
         // 3. Inventory Transaction must be recorded with invoice_file_url
         $transaction = InventoryTransaction::where('restaurant_id', $this->restaurant->id)
@@ -209,8 +217,8 @@ class InventoryPurchaseWorkflowTest extends TestCase
             ->first();
 
         $this->assertNotNull($transaction);
-        $this->assertEquals(20.0, (float)$transaction->quantity);
-        $this->assertEquals(130000.0, (float)$transaction->unit_cost);
+        $this->assertEquals(20.0, (float) $transaction->quantity);
+        $this->assertEquals(130000.0, (float) $transaction->unit_cost);
         $this->assertStringStartsWith('/storage/invoices/', $transaction->invoice_file_url);
 
         // No approval request should exist since it's the Owner
@@ -235,7 +243,7 @@ class InventoryPurchaseWorkflowTest extends TestCase
 
         // Stock is still 10.0
         $inventory = Inventory::where('restaurant_id', $this->restaurant->id)->first();
-        $this->assertEquals(10.0, (float)$inventory->quantity_on_hand);
+        $this->assertEquals(10.0, (float) $inventory->quantity_on_hand);
 
         // Owner approves
         $response = $this->actingAs($this->owner)->patch(route('approvals.approve', $approval));
@@ -249,11 +257,11 @@ class InventoryPurchaseWorkflowTest extends TestCase
 
         // 2. Stock must now be incremented (10 + 20 = 30)
         $inventory->refresh();
-        $this->assertEquals(30.0, (float)$inventory->quantity_on_hand);
+        $this->assertEquals(30.0, (float) $inventory->quantity_on_hand);
 
         // 3. Recalculated cost is 120,000
         $this->ingredient->refresh();
-        $this->assertEquals(120000.0, (float)$this->ingredient->average_cost);
+        $this->assertEquals(120000.0, (float) $this->ingredient->average_cost);
 
         // 4. Inventory Transaction recorded
         $transaction = InventoryTransaction::where('restaurant_id', $this->restaurant->id)
@@ -306,27 +314,27 @@ class InventoryPurchaseWorkflowTest extends TestCase
                     'suggested_purchase',
                     'confidence_score',
                     'reason',
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $data = $response->json();
         $this->assertTrue($data['success']);
-        
+
         $item = collect($data['forecast'])->firstWhere('ingredient_id', $this->ingredient->id);
         $this->assertNotNull($item);
         $this->assertEquals('Thịt Bò Mỹ', $item['ingredient_name']);
         $this->assertEquals('kg', $item['unit_symbol']);
-        $this->assertEquals(10.0, (float)$item['current_stock']);
+        $this->assertEquals(10.0, (float) $item['current_stock']);
         // 45kg used in 30 days -> 1.5kg daily usage
-        $this->assertEquals(1.5, (float)$item['avg_daily_usage']);
+        $this->assertEquals(1.5, (float) $item['avg_daily_usage']);
         // predicted 7 days = 1.5 * 7 * 1.1 = 11.55
-        $this->assertEquals(11.55, (float)$item['predicted_usage_next_7_days']);
+        $this->assertEquals(11.55, (float) $item['predicted_usage_next_7_days']);
         // suggested = 11.55 - 10.0 = 1.55
-        $this->assertEquals(1.55, (float)$item['suggested_purchase']);
-        $this->assertGreaterThanOrEqual(92.0, (float)$item['confidence_score']);
-        $this->assertLessThanOrEqual(99.0, (float)$item['confidence_score']);
-        
+        $this->assertEquals(1.55, (float) $item['suggested_purchase']);
+        $this->assertGreaterThanOrEqual(92.0, (float) $item['confidence_score']);
+        $this->assertLessThanOrEqual(99.0, (float) $item['confidence_score']);
+
         // Assert that mock reason contains 'Phở bò' (hardcoded name in the controller) and '10 kg' (current stock + unit)
         $this->assertStringContainsString('Phở bò', $item['reason']);
         $this->assertStringContainsString('10 kg', $item['reason']);

@@ -69,10 +69,13 @@ const insights = ref<MenuInsight[]>([]);
 async function loadInsights() {
     if (insightsLoaded.value) {
         showInsights.value = !showInsights.value;
+
         return;
     }
+
     insightsLoading.value = true;
     showInsights.value = true;
+
     try {
         const res = await fetch('/api/products/menu-insights');
         const data = await res.json();

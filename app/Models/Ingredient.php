@@ -3,14 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\IngredientFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Ingredient extends Model
 {
@@ -44,7 +43,7 @@ class Ingredient extends Model
     {
         return [
             'allowed_waste_ratio' => 'decimal:2',
-            'average_cost'        => 'decimal:2',
+            'average_cost' => 'decimal:2',
         ];
     }
 
@@ -53,4 +52,3 @@ class Ingredient extends Model
         return IngredientFactory::new();
     }
 }
-

@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
-use App\Models\Restaurant;
-use App\Models\RestaurantBranch;
+use App\Events\QrOrderPlaced;
 use App\Models\Area;
-use App\Models\RestaurantTable;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
-use App\Models\Order;
-use App\Events\QrOrderPlaced;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\RestaurantTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Models\Role;
@@ -21,9 +21,13 @@ class QrOrderSystemTest extends TestCase
     use RefreshDatabase;
 
     protected User $cashier;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected RestaurantTable $table;
+
     protected Product $product;
 
     protected function setUp(): void
@@ -32,12 +36,12 @@ class QrOrderSystemTest extends TestCase
 
         // Setup role and user
         $cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
-        
+
         $this->restaurant = Restaurant::factory()->create();
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
         ]);
-        
+
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
@@ -91,7 +95,7 @@ class QrOrderSystemTest extends TestCase
     {
         $response = $this->get(route('qr.order.show', [
             'restaurant' => $this->restaurant->id,
-            'table_token' => 'test-table-token-12345'
+            'table_token' => 'test-table-token-12345',
         ]));
 
         $response->assertOk();
@@ -101,7 +105,7 @@ class QrOrderSystemTest extends TestCase
     {
         $response = $this->get(route('qr.order.show', [
             'restaurant' => $this->restaurant->id,
-            'table_token' => 'invalid-token'
+            'table_token' => 'invalid-token',
         ]));
 
         $response->assertStatus(404);
@@ -113,16 +117,16 @@ class QrOrderSystemTest extends TestCase
 
         $response = $this->postJson(route('qr.order.submit', [
             'restaurant' => $this->restaurant->id,
-            'table_token' => 'test-table-token-12345'
+            'table_token' => 'test-table-token-12345',
         ]), [
             'note' => 'Ghi chú cho bếp',
             'items' => [
                 [
                     'product_id' => $this->product->id,
                     'quantity' => 1,
-                    'notes' => 'Không hành'
-                ]
-            ]
+                    'notes' => 'Không hành',
+                ],
+            ],
         ]);
 
         $response->assertOk();
@@ -148,7 +152,7 @@ class QrOrderSystemTest extends TestCase
 
         // Verify broadcast event was dispatched
         Event::assertDispatched(QrOrderPlaced::class, function ($event) {
-            return $event->order->restaurant_id === $this->restaurant->id 
+            return $event->order->restaurant_id === $this->restaurant->id
                 && $event->order->channel === 'qr';
         });
     }
@@ -173,7 +177,7 @@ class QrOrderSystemTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
             'status' => 'confirmed',

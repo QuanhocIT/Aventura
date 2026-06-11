@@ -2,13 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
-use App\Models\Restaurant;
-use App\Models\RestaurantBranch;
-use App\Models\Area;
-use App\Models\RestaurantTable;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\RestaurantTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -18,7 +17,9 @@ class TableOrderingSystemTest extends TestCase
     use RefreshDatabase;
 
     protected User $cashier;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
 
     protected function setUp(): void
@@ -108,8 +109,8 @@ class TableOrderingSystemTest extends TestCase
                     'product_id' => $product->id,
                     'quantity' => 2,
                     'notes' => 'Không đá',
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertRedirect(route('orders.index'));

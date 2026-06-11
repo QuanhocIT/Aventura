@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\User;
+use App\Notifications\SalaryDisputeNotification;
 use App\Services\ApprovalService;
 use App\Services\SalaryService;
 use Carbon\Carbon;
@@ -24,14 +26,14 @@ class SalaryController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
-        $user         = $request->user();
+        $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
         $period = $request->input('period', today()->format('Y-m'));
         [$year, $month] = explode('-', $period);
 
         $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth()->toDateString();
-        $periodEnd   = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
+        $periodEnd = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
 
         $salaries = Salary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -41,23 +43,23 @@ class SalaryController extends Controller
             ->get()
             ->map(function (Salary $s) {
                 return [
-                    'id'               => $s->id,
-                    'employee_name'    => $s->employee?->full_name ?? '—',
-                    'job_title'        => $s->employee?->job_title ?? '',
-                    'employment_type'  => $s->employee?->employment_type ?? '',
-                    'branch_id'        => $s->employee?->branch_id,
-                    'base_salary'      => (float) $s->base_salary,
-                    'bonus_amount'     => (float) $s->bonus_amount,
+                    'id' => $s->id,
+                    'employee_name' => $s->employee?->full_name ?? '—',
+                    'job_title' => $s->employee?->job_title ?? '',
+                    'employment_type' => $s->employee?->employment_type ?? '',
+                    'branch_id' => $s->employee?->branch_id,
+                    'base_salary' => (float) $s->base_salary,
+                    'bonus_amount' => (float) $s->bonus_amount,
                     'deduction_amount' => (float) $s->deduction_amount,
-                    'net_salary'       => (float) $s->net_salary,
-                    'status'           => $s->status,
-                    'paid_at'          => $s->paid_at?->format('d/m/Y H:i'),
-                    'adjustments'      => $s->adjustments->map(fn (SalaryAdjustment $a) => [
-                        'id'             => $a->id,
-                        'type'           => $a->type,
-                        'amount'         => (float) $a->amount,
-                        'reason'         => $a->reason,
-                        'status'         => $a->status,
+                    'net_salary' => (float) $s->net_salary,
+                    'status' => $s->status,
+                    'paid_at' => $s->paid_at?->format('d/m/Y H:i'),
+                    'adjustments' => $s->adjustments->map(fn (SalaryAdjustment $a) => [
+                        'id' => $a->id,
+                        'type' => $a->type,
+                        'amount' => (float) $a->amount,
+                        'reason' => $a->reason,
+                        'status' => $a->status,
                         'dispute_reason' => $a->dispute_reason,
                     ])->values(),
                 ];
@@ -65,20 +67,20 @@ class SalaryController extends Controller
             ->values();
 
         $totals = [
-            'total_payroll'    => (float) $salaries->sum('net_salary'),
+            'total_payroll' => (float) $salaries->sum('net_salary'),
             'total_deductions' => (float) $salaries->sum('deduction_amount'),
-            'total_bonuses'    => (float) $salaries->sum('bonus_amount'),
-            'headcount'        => $salaries->count(),
+            'total_bonuses' => (float) $salaries->sum('bonus_amount'),
+            'headcount' => $salaries->count(),
         ];
 
         // Lấy danh sách chi nhánh phục vụ bộ lọc ở Frontend
-        $branches = \App\Models\RestaurantBranch::where('restaurant_id', $restaurantId)->get(['id', 'name']);
+        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)->get(['id', 'name']);
 
         return Inertia::render('salaries/Index', [
-            'salaries'   => $salaries,
-            'totals'     => $totals,
-            'period'     => $period,
-            'branches'   => $branches,
+            'salaries' => $salaries,
+            'totals' => $totals,
+            'period' => $period,
+            'branches' => $branches,
             'canApprove' => $user->hasAnyRole(['owner', 'manager']),
         ]);
     }
@@ -101,7 +103,7 @@ class SalaryController extends Controller
         abort_if($salary->status === 'paid', 422);
 
         $salary->update([
-            'status'      => 'approved',
+            'status' => 'approved',
             'approved_by' => $request->user()->id,
         ]);
 
@@ -114,7 +116,7 @@ class SalaryController extends Controller
         abort_unless($salary->status === 'approved', 422);
 
         $salary->update([
-            'status'  => 'paid',
+            'status' => 'paid',
             'paid_at' => now(),
         ]);
 
@@ -127,7 +129,7 @@ class SalaryController extends Controller
         abort_if($salary->status === 'paid', 422);
 
         $data = $request->validate([
-            'type'   => ['required', 'in:bonus,penalty,violation'],
+            'type' => ['required', 'in:bonus,penalty,violation'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
@@ -136,12 +138,13 @@ class SalaryController extends Controller
             $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
                 'salary_id' => $salary->id,
             ]), $request->user());
+
             return back()->with('success', 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
         $this->salaryService->addAdjustment($salary, array_merge($data, [
             'employee_id' => $salary->employee_id,
-            'status'      => 'applied',
+            'status' => 'applied',
         ]));
 
         return back()->with('success', 'Đã thêm điều chỉnh lương.');
@@ -155,11 +158,11 @@ class SalaryController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'salary_ids'   => ['required', 'array'],
+            'salary_ids' => ['required', 'array'],
             'salary_ids.*' => ['required', 'exists:salaries,id'],
-            'type'         => ['required', 'in:bonus,penalty,violation'],
-            'amount'       => ['required', 'numeric', 'min:0.01'],
-            'reason'       => ['required', 'string', 'max:500'],
+            'type' => ['required', 'in:bonus,penalty,violation'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reason' => ['required', 'string', 'max:500'],
         ]);
 
         $salaries = Salary::withoutGlobalScopes()
@@ -169,22 +172,24 @@ class SalaryController extends Controller
 
         $count = 0;
         foreach ($salaries as $salary) {
-            if ($salary->status === 'paid') continue;
+            if ($salary->status === 'paid') {
+                continue;
+            }
 
-            if (!$request->user()->hasRole('owner')) {
+            if (! $request->user()->hasRole('owner')) {
                 $this->approvalService->submitRequest('salary_adjustment', [
                     'salary_id' => $salary->id,
-                    'type'      => $data['type'],
-                    'amount'    => $data['amount'],
-                    'reason'    => $data['reason'],
+                    'type' => $data['type'],
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
                 ], $request->user());
             } else {
                 $this->salaryService->addAdjustment($salary, [
                     'employee_id' => $salary->employee_id,
-                    'type'        => $data['type'],
-                    'amount'      => $data['amount'],
-                    'reason'      => $data['reason'],
-                    'status'      => 'applied',
+                    'type' => $data['type'],
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
+                    'status' => 'applied',
                 ]);
             }
             $count++;
@@ -211,7 +216,7 @@ class SalaryController extends Controller
         ]);
 
         $adjustment->update([
-            'status'         => 'disputed',
+            'status' => 'disputed',
             'dispute_reason' => $data['dispute_reason'],
         ]);
 
@@ -224,7 +229,7 @@ class SalaryController extends Controller
             ->first();
 
         if ($owner) {
-            $owner->notify(new \App\Notifications\SalaryDisputeNotification($adjustment, $request->user()));
+            $owner->notify(new SalaryDisputeNotification($adjustment, $request->user()));
         }
 
         return back()->with('success', 'Đã gửi khiếu nại cấn trừ lương thành công. Khoản phạt này đã tạm thời được đóng băng chờ Owner giải quyết.');

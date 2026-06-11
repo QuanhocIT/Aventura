@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Order;
+use App\Observers\OrderObserver;
+use App\Support\Tenant\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -15,8 +18,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Support\Tenant\TenantContext::class, function () {
-            return new \App\Support\Tenant\TenantContext();
+        $this->app->singleton(TenantContext::class, function () {
+            return new TenantContext;
         });
     }
 
@@ -33,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
             database_path('migrations/system'),
         ]);
 
-        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
+        Order::observe(OrderObserver::class);
 
         $this->configureDefaults();
     }

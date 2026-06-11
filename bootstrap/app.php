@@ -1,13 +1,20 @@
 <?php
 
 use App\Http\Middleware\CheckTenantSubscription;
+use App\Http\Middleware\ClearPermissionCache;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RequireSuperAdminTwoFactor;
 use App\Http\Middleware\SetTenantContext;
+use App\Http\Middleware\TenantQuotaMiddleware;
+use App\Http\Middleware\TenantRateLimit;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Support\Facades\Route;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
         then: function () {
-            \Illuminate\Support\Facades\Route::middleware('web')
+            Route::middleware('web')
                 ->group(base_path('routes/super-admin.php'));
         },
     )
@@ -35,17 +42,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'tenant.active'        => CheckTenantSubscription::class,
-            'tenant.subscription'  => CheckTenantSubscription::class,
-            'tenant.ratelimit'     => \App\Http\Middleware\TenantRateLimit::class,
-            'tenant.quota'         => \App\Http\Middleware\TenantQuotaMiddleware::class,
-            'role'                 => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'role.superadmin.2fa'  => \App\Http\Middleware\RequireSuperAdminTwoFactor::class,
-            'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
+            'tenant.active' => CheckTenantSubscription::class,
+            'tenant.subscription' => CheckTenantSubscription::class,
+            'tenant.ratelimit' => TenantRateLimit::class,
+            'tenant.quota' => TenantQuotaMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'role.superadmin.2fa' => RequireSuperAdminTwoFactor::class,
+            'permission' => PermissionMiddleware::class,
+            'permission.cache.clear' => ClearPermissionCache::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
-

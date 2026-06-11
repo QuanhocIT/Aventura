@@ -1,4 +1,5 @@
 <?php
+
 require 'vendor/autoload.php';
 $app = require 'bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
@@ -26,24 +27,24 @@ foreach ($dataTablesInSQL as $table => $expectedCount) {
     $results[$table] = [
         'expected' => $expectedCount,
         'actual' => $actualCount,
-        'match' => $match
+        'match' => $match,
     ];
-    if (!$match) {
+    if (! $match) {
         $allMatch = false;
     }
 }
 
 echo "Table Comparison:\n";
-echo str_repeat("-", 70) . "\n";
-printf("%-35s | %-12s | %-12s | %s\n", "Table", "Expected", "Actual", "Status");
-echo str_repeat("-", 70) . "\n";
+echo str_repeat('-', 70)."\n";
+printf("%-35s | %-12s | %-12s | %s\n", 'Table', 'Expected', 'Actual', 'Status');
+echo str_repeat('-', 70)."\n";
 
 foreach ($results as $table => $data) {
     $status = $data['match'] ? '✅ MATCH' : '❌ DIFFER';
     printf("%-35s | %-12d | %-12d | %s\n", $table, $data['expected'], $data['actual'], $status);
 }
 
-echo str_repeat("-", 70) . "\n\n";
+echo str_repeat('-', 70)."\n\n";
 
 if ($allMatch) {
     echo "✅ RESULT: All data tables match perfectly!\n";
@@ -52,7 +53,7 @@ if ($allMatch) {
     echo "❌ RESULT: Some tables have data mismatch!\n";
     echo "Differences found in:\n";
     foreach ($results as $table => $data) {
-        if (!$data['match']) {
+        if (! $data['match']) {
             echo "  - $table: Expected {$data['expected']}, but got {$data['actual']}\n";
         }
     }
