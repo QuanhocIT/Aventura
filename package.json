@@ -3,9 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PATH='C:\\laragon\\bin\\php\\php-8.3.16-Win32-vs16-x64;'+$env:PATH; vite build\"",
-        "build:ssr": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PATH='C:\\laragon\\bin\\php\\php-8.3.16-Win32-vs16-x64;'+$env:PATH; vite build; vite build --ssr\"",
-        "dev": "vite",
+        "build": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PATH='C:\\laragon\\bin\\php\\php-8.3.30-Win32-vs16-x64;'+$env:PATH; vite build\"",
+        "build:ssr": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PATH='C:\\laragon\\bin\\php\\php-8.3.30-Win32-vs16-x64;'+$env:PATH; vite build; vite build --ssr\"",
+        "dev": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PATH='C:\\laragon\\bin\\php\\php-8.3.30-Win32-vs16-x64;'+$env:PATH; vite\"",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix",
