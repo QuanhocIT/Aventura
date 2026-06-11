@@ -266,7 +266,41 @@ class InventoryManagementController extends Controller
             'notes'         => ['nullable', 'string', 'max:500'],
             'occurred_at'   => ['nullable', 'date'],
             'invoice_file'  => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:' . $maxSize],
+            'expiry_date'   => ['nullable', 'date'],
         ]);
+
+        $ingredientId = $data['ingredient_id'];
+        $unitCost = (float) $data['unit_cost'];
+
+        // 1. Profit Margin Validation
+        $recipes = \App\Models\ProductRecipe::where('ingredient_id', $ingredientId)
+            ->with('product')
+            ->get();
+
+        foreach ($recipes as $recipe) {
+            $product = $recipe->product;
+            if ($product) {
+                $ingredientUsageQty = (float) $recipe->quantity * (1 + ($recipe->waste_rate / 100));
+                $costForThisIngredient = $unitCost * $ingredientUsageQty;
+
+                if ($costForThisIngredient >= (float) $product->price) {
+                    return back()->withErrors(['unit_cost' => "Cảnh báo biên lợi nhuận: Giá nhập của nguyên liệu này khiến chi phí cấu thành sản phẩm \"{$product->name}\" vượt quá giá bán lẻ (" . number_format($product->price) . "đ)."]);
+                }
+            }
+        }
+
+        // 2. Expiration Date Validation
+        if (!empty($data['expiry_date'])) {
+            $expiry = \Carbon\Carbon::parse($data['expiry_date']);
+            $occurred = !empty($data['occurred_at']) ? \Carbon\Carbon::parse($data['occurred_at']) : now();
+
+            if ($expiry->diffInDays($occurred, false) > -3) {
+                return back()->withErrors(['expiry_date' => 'Ngày hết hạn phải sau ngày nhập hàng ít nhất 3 ngày.']);
+            }
+
+            $expiryStr = "[HSD: " . $expiry->format('d/m/Y') . "]";
+            $data['notes'] = empty($data['notes']) ? $expiryStr : $data['notes'] . " " . $expiryStr;
+        }
 
         $user = $request->user();
 

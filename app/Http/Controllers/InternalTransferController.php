@@ -158,7 +158,8 @@ class InternalTransferController extends Controller
 
         return response()->json([
             'recommendations' => $recommendations,
-            'branches' => $branches
+            'branches' => $branches,
+            'inventories' => $inventories
         ]);
     }
 

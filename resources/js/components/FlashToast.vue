@@ -44,6 +44,20 @@ addToast('info',   flash.info);
     },
     { deep: true }
 );
+
+watch(
+    () => (page.props as any).errors,
+    (errors) => {
+        if (errors && Object.keys(errors).length > 0) {
+            Object.values(errors).forEach((msg) => {
+                if (msg) {
+                    addToast('error', Array.isArray(msg) ? msg.join(', ') : String(msg));
+                }
+            });
+        }
+    },
+    { deep: true }
+);
 </script>
 
 <template>

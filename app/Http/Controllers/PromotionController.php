@@ -106,6 +106,10 @@ class PromotionController extends Controller
         $itemA = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_a_id']);
         $itemB = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_b_id']);
 
+        if ((float) $data['combo_price'] >= ((float) $itemA->price + (float) $itemB->price)) {
+            return back()->withErrors(['combo_price' => 'Giá combo phải rẻ hơn tổng giá bán lẻ của các món thành phần (' . number_format((float) $itemA->price + (float) $itemB->price) . 'đ).']);
+        }
+
         $comboCategory = ProductCategory::firstOrCreate(
             ['restaurant_id' => $restaurantId, 'name' => 'Combo'],
             [
@@ -150,6 +154,17 @@ class PromotionController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
+
+        if ($data['type'] === 'percent') {
+            if ($data['value'] < 1 || $data['value'] > 100) {
+                return back()->withErrors(['value' => 'Giá trị giảm giá phần trăm phải từ 1% đến 100%.']);
+            }
+        } else if ($data['type'] === 'fixed_amount') {
+            $minOrder = $data['min_order_amount'] ?? 0;
+            if ($data['value'] > $minOrder) {
+                return back()->withErrors(['value' => 'Số tiền giảm giá cố định không được lớn hơn giá trị đơn hàng tối thiểu.']);
+            }
+        }
 
         $restaurantId = $user->restaurant_id;
 
@@ -206,6 +221,17 @@ class PromotionController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
+
+        if ($data['type'] === 'percent') {
+            if ($data['value'] < 1 || $data['value'] > 100) {
+                return back()->withErrors(['value' => 'Giá trị giảm giá phần trăm phải từ 1% đến 100%.']);
+            }
+        } else if ($data['type'] === 'fixed_amount') {
+            $minOrder = $data['min_order_amount'] ?? 0;
+            if ($data['value'] > $minOrder) {
+                return back()->withErrors(['value' => 'Số tiền giảm giá cố định không được lớn hơn giá trị đơn hàng tối thiểu.']);
+            }
+        }
 
         if (!empty($data['code'])) {
             $exists = Promotion::where('restaurant_id', $promotion->restaurant_id)

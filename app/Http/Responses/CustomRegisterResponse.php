@@ -19,6 +19,8 @@ class CustomRegisterResponse implements RegisterResponseContract
             return redirect('/login');
         }
 
+        session()->flash('success', 'Đăng ký tài khoản thành công!');
+
         $planCode = Str::lower((string) $request->input('plan_code', 'free'));
         $plan = SubscriptionPlan::query()
             ->whereRaw('LOWER(code) = ?', [$planCode])

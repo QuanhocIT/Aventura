@@ -19,6 +19,8 @@ class CustomTwoFactorLoginResponse implements TwoFactorLoginResponseContract
 
         $user->forceFill(['last_login_at' => now()])->save();
 
+        session()->flash('success', 'Đăng nhập thành công!');
+
         return CustomLoginResponse::redirectForUser($user);
     }
 }

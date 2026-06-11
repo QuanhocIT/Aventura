@@ -29,9 +29,19 @@ class AttendanceController extends Controller
         if ($restaurant && $restaurant->latitude && $restaurant->longitude) {
             $clientLat = $request->input('latitude');
             $clientLng = $request->input('longitude');
+            $isMock = $request->input('is_mock');
+            $accuracy = $request->input('accuracy');
 
             if (is_null($clientLat) || is_null($clientLng)) {
                 return back()->withErrors(['email' => 'Check-in thất bại: Vui lòng bật vị trí (GPS) và cấp quyền truy cập để chấm công.']);
+            }
+
+            if ($isMock) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Phát hiện sử dụng vị trí giả lập (Mock Location). Chấm công bị từ chối.']);
+            }
+
+            if (!is_null($accuracy) && floatval($accuracy) > 100) {
+                return back()->withErrors(['email' => 'Check-in thất bại: Độ chính xác GPS quá thấp (' . round($accuracy) . 'm). Yêu cầu độ chính xác dưới 100m.']);
             }
 
             $earthRadius = 6371000; // in meters
@@ -115,13 +125,44 @@ class AttendanceController extends Controller
             }
         }
 
+        $now = now();
+        $shift = $sa->shift;
+        $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+        $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
+        
+        $isLate = $now->greaterThan($start);
+        $lateMinutes = $isLate ? $now->diffInMinutes($start) : 0;
+        $gracePeriod = $restaurant->grace_period_minutes ?? 0;
+        $isLateAndViolating = $isLate && $lateMinutes > $gracePeriod;
+
+        if ($isLateAndViolating) {
+            \App\Models\ViolationReport::create([
+                'restaurant_id'  => $sa->restaurant_id,
+                'branch_id'      => $sa->branch_id,
+                'employee_id'    => $sa->employee_id,
+                'reported_by'    => $employee->id,
+                'violation_type' => 'Đi trễ / Vấn đề vào ca',
+                'severity'       => 'low',
+                'description'    => "Đi trễ tự động: Check-in lúc " . $now->format('H:i') . " (Trễ " . $lateMinutes . " phút, ca bắt đầu lúc " . $start->format('H:i') . ", thời gian ân hạn " . $gracePeriod . " phút)",
+                'penalty_amount' => 0,
+                'occurred_at'    => $now,
+                'status'         => 'open',
+                'is_anonymous'   => false,
+            ]);
+        }
+
         $sa->update([
-            'check_in_at' => now(),
+            'check_in_at' => $now,
             'status' => 'checked_in',
             'check_in_photo_path' => $photoPath,
         ]);
 
-        return back()->with('success', 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!');
+        $successMsg = 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!';
+        if ($isLateAndViolating) {
+            $successMsg .= " Tuy nhiên, hệ thống ghi nhận bạn đi trễ {$lateMinutes} phút và đã tự động lập biên bản lỗi.";
+        }
+
+        return back()->with($isLateAndViolating ? 'info' : 'success', $successMsg);
     }
 
     /**
@@ -134,20 +175,102 @@ class AttendanceController extends Controller
             return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
         }
 
+        $restaurant = $employee->restaurant;
+
+        // Geolocation (GPS) Validation
+        if ($restaurant && $restaurant->latitude && $restaurant->longitude) {
+            $clientLat = $request->input('latitude');
+            $clientLng = $request->input('longitude');
+            $isMock = $request->input('is_mock');
+            $accuracy = $request->input('accuracy');
+
+            if (is_null($clientLat) || is_null($clientLng)) {
+                return back()->withErrors(['email' => 'Check-out thất bại: Vui lòng bật vị trí (GPS) và cấp quyền truy cập để chấm công.']);
+            }
+
+            if ($isMock) {
+                return back()->withErrors(['email' => 'Check-out thất bại: Phát hiện sử dụng vị trí giả lập (Mock Location). Chấm công bị từ chối.']);
+            }
+
+            if (!is_null($accuracy) && floatval($accuracy) > 100) {
+                return back()->withErrors(['email' => 'Check-out thất bại: Độ chính xác GPS quá thấp (' . round($accuracy) . 'm). Yêu cầu độ chính xác dưới 100m.']);
+            }
+
+            $earthRadius = 6371000; // in meters
+            $latFrom = deg2rad($restaurant->latitude);
+            $lonFrom = deg2rad($restaurant->longitude);
+            $latTo = deg2rad(floatval($clientLat));
+            $lonTo = deg2rad(floatval($clientLng));
+
+            $latDelta = $latTo - $latFrom;
+            $lonDelta = $lonTo - $lonFrom;
+
+            $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) +
+                cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+            $distance = $angle * $earthRadius;
+            
+            $allowedRadius = $restaurant->checkin_radius_meters ?? 100;
+            if ($distance > $allowedRadius) {
+                return back()->withErrors(['email' => 'Check-out thất bại: Bạn đang ở cách xa nhà hàng (' . round($distance) . 'm). Khoảng cách cho phép là dưới ' . $allowedRadius . 'm.']);
+            }
+        }
+
         $sa = ScheduleAssignment::where('employee_id', $employee->id)
             ->where('status', 'checked_in')
+            ->with('shift')
             ->first();
 
         if (!$sa) {
             return back()->withErrors(['email' => 'Không tìm thấy ca trực nào đang hoạt động để check-out.']);
         }
 
+        $now = now();
+        $shift = $sa->shift;
+        $isEarlyAndViolating = false;
+        $earlyMinutes = 0;
+        
+        if ($shift) {
+            $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+            
+            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+            } else {
+                $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
+            }
+
+            $isEarly = $now->lessThan($end);
+            $earlyMinutes = $isEarly ? $now->diffInMinutes($end) : 0;
+            // Cho phép về sớm tối đa 5 phút không bị phạt
+            $isEarlyAndViolating = $isEarly && $earlyMinutes > 5;
+            
+            if ($isEarlyAndViolating) {
+                \App\Models\ViolationReport::create([
+                    'restaurant_id'  => $sa->restaurant_id,
+                    'branch_id'      => $sa->branch_id,
+                    'employee_id'    => $sa->employee_id,
+                    'reported_by'    => $employee->id,
+                    'violation_type' => 'Về sớm / Vấn đề ra ca',
+                    'severity'       => 'low',
+                    'description'    => "Về sớm tự động: Check-out lúc " . $now->format('H:i') . " (Về sớm " . $earlyMinutes . " phút, ca kết thúc lúc " . $end->format('H:i') . ")",
+                    'penalty_amount' => 0,
+                    'occurred_at'    => $now,
+                    'status'         => 'open',
+                    'is_anonymous'   => false,
+                ]);
+            }
+        }
+
         $sa->update([
-            'check_out_at' => now(),
+            'check_out_at' => $now,
             'status' => 'completed',
         ]);
 
-        return back()->with('success', 'Bạn đã CHECK-OUT thành công. Cảm ơn bạn vì sự đóng góp tuyệt vời ngày hôm nay!');
+        $successMsg = 'Bạn đã CHECK-OUT thành công. Cảm ơn bạn vì sự đóng góp tuyệt vời ngày hôm nay!';
+        if ($isEarlyAndViolating) {
+            $successMsg .= " Tuy nhiên, hệ thống ghi nhận bạn đã về sớm {$earlyMinutes} phút và đã lập biên bản lỗi.";
+        }
+
+        return back()->with($isEarlyAndViolating ? 'info' : 'success', $successMsg);
     }
 
     /**
@@ -240,6 +363,29 @@ class AttendanceController extends Controller
         }
 
         return back()->with('success', 'Đã ghi nhận báo vắng thành công cho nhân viên.');
+    }
+
+    /**
+     * Tự động tạo Biên bản vi phạm kỷ luật khi có tuỳ chọn kèm theo.
+     */
+    private function createAutoViolation(Request $request, ScheduleAssignment $sa, string $violationType, string $description): void
+    {
+        $user = $request->user();
+        $penaltyAmount = (float) ($request->input('penalty_amount') ?? 0);
+
+        \App\Models\ViolationReport::create([
+            'restaurant_id'  => $sa->restaurant_id,
+            'branch_id'      => $sa->branch_id,
+            'employee_id'    => $sa->employee_id,
+            'reported_by'    => $user->id,
+            'violation_type' => $violationType,
+            'severity'       => 'low',
+            'description'    => $description,
+            'penalty_amount' => $penaltyAmount,
+            'occurred_at'    => $sa->scheduled_date ? Carbon::parse($sa->scheduled_date)->toDateString() . ' ' . now()->format('H:i:s') : now(),
+            'status'         => 'resolved', // Đã phê duyệt và áp dụng trực tiếp lên bảng lương nháp
+            'is_anonymous'   => false,
+        ]);
     }
 
 }

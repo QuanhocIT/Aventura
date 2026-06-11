@@ -29,8 +29,8 @@ class ShiftSwapController extends Controller
             'notes'                   => ['nullable', 'string', 'max:250'],
         ]);
 
-        $reqAssignment = ScheduleAssignment::findOrFail($data['requester_assignment_id']);
-        $recAssignment = ScheduleAssignment::findOrFail($data['receiver_assignment_id']);
+        $reqAssignment = ScheduleAssignment::with('shift')->findOrFail($data['requester_assignment_id']);
+        $recAssignment = ScheduleAssignment::with('shift')->findOrFail($data['receiver_assignment_id']);
 
         // Check ownership of requester assignment
         if ($reqAssignment->employee_id !== $employee->id) {
@@ -53,12 +53,25 @@ class ShiftSwapController extends Controller
             return back()->withErrors(['error' => 'Yêu cầu đổi ca này đang được xử lý, không thể tạo trùng lặp.']);
         }
 
+        $violatesRequester = $reqAssignment->shift && $recAssignment->shift
+            ? $this->hasRestViolation($employee->id, $recAssignment->scheduled_date, $recAssignment->shift, $reqAssignment->id)
+            : false;
+
+        $violatesReceiver = $reqAssignment->shift && $recAssignment->shift
+            ? $this->hasRestViolation($recAssignment->employee_id, $reqAssignment->scheduled_date, $reqAssignment->shift, $recAssignment->id)
+            : false;
+
+        $notes = $data['notes'] ?? 'Đề xuất đổi ca làm việc';
+        if ($violatesRequester || $violatesReceiver) {
+            $notes = "[⚠️ Vi phạm nghỉ 11h] " . $notes;
+        }
+
         $swap = ShiftSwap::create([
             'restaurant_id'           => $employee->restaurant_id,
             'requester_assignment_id' => $data['requester_assignment_id'],
             'receiver_assignment_id'  => $data['receiver_assignment_id'],
             'status'                  => 'pending',
-            'notes'                   => $data['notes'] ?? 'Đề xuất đổi ca làm việc',
+            'notes'                   => $notes,
         ]);
 
         $receiverUser = $recAssignment->employee?->user;
@@ -331,6 +344,57 @@ class ShiftSwapController extends Controller
         ];
 
         return $days[$day] ?? $day;
+    }
+
+    private function hasRestViolation($employeeId, $targetDate, $targetShift, $excludeAssignmentId): bool
+    {
+        $targetDateObj = Carbon::parse($targetDate);
+        $startProposed = Carbon::parse($targetDateObj->toDateString() . ' ' . $targetShift->start_time);
+        $endProposed = $targetShift->is_overnight 
+            ? Carbon::parse($targetDateObj->toDateString() . ' ' . $targetShift->end_time)->addDay()
+            : Carbon::parse($targetDateObj->toDateString() . ' ' . $targetShift->end_time);
+
+        // Lấy tất cả ca làm việc khác của nhân viên này xung quanh ngày đó (-1 ngày, +0 ngày, +1 ngày)
+        $adjacentAssignments = ScheduleAssignment::where('employee_id', $employeeId)
+            ->where('id', '!=', $excludeAssignmentId)
+            ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+            ->whereBetween('scheduled_date', [
+                $targetDateObj->copy()->subDays(1)->toDateString(),
+                $targetDateObj->copy()->addDays(1)->toDateString()
+            ])
+            ->with('shift')
+            ->get();
+
+        foreach ($adjacentAssignments as $aa) {
+            $shift = $aa->shift;
+            if (!$shift) continue;
+
+            $dateStr = $aa->scheduled_date instanceof Carbon ? $aa->scheduled_date->toDateString() : Carbon::parse($aa->scheduled_date)->toDateString();
+            $startExist = Carbon::parse($dateStr . ' ' . $shift->start_time);
+            $endExist = $shift->is_overnight
+                ? Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay()
+                : Carbon::parse($dateStr . ' ' . $shift->end_time);
+
+            // 1. Kiểm tra overlap (trùng ca)
+            if ($startProposed->lt($endExist) && $endProposed->gt($startExist)) {
+                return true;
+            }
+
+            // 2. Tính khoảng nghỉ
+            if ($endProposed->lte($startExist)) {
+                $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
+                if ($restHours < 11.0) {
+                    return true;
+                }
+            } elseif ($endExist->lte($startProposed)) {
+                $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
+                if ($restHours < 11.0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
 }

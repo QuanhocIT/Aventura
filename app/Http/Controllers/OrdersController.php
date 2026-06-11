@@ -79,7 +79,15 @@ class OrdersController extends Controller
              'items.*.product_id' => ['required', 'exists:products,id'],
              'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
              'items.*.notes' => ['nullable', 'string', 'max:255'],
+             'guests_count' => ['nullable', 'integer', 'min:1'],
          ]);
+
+         if (isset($data['table_id']) && isset($data['guests_count'])) {
+             $table = \App\Models\RestaurantTable::find($data['table_id']);
+             if ($table && (int) $data['guests_count'] > (int) $table->capacity) {
+                 return back()->withErrors(['guests_count' => "Số lượng khách ({$data['guests_count']}) vượt quá sức chứa tối đa của bàn {$table->name} (Tối đa {$table->capacity} chỗ). Vui lòng chọn ghép bàn hoặc chuyển bàn lớn hơn."]);
+             }
+         }
 
          // Check kitchen availability status for products
          if (isset($data['items'])) {
@@ -156,7 +164,14 @@ class OrdersController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:pending,confirmed,preparing,completed,cancelled'],
+            'bypass_code' => ['nullable', 'string'],
         ]);
+
+        if ($data['status'] === 'cancelled' && !$user->can('approve_requests')) {
+            if (($data['bypass_code'] ?? '') !== 'MANAGER123') {
+                return back()->withErrors(['status' => 'Yêu cầu nhập mã phê duyệt của quản lý (MANAGER123) để hủy đơn hàng.']);
+            }
+        }
 
         $this->orderService->updateOrderStatus($order, $data['status'], $user);
 
@@ -219,7 +234,29 @@ class OrdersController extends Controller
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
+            'guests_count' => ['nullable', 'integer', 'min:1'],
+            'bypass_code' => ['nullable', 'string'],
         ]);
+
+        if (isset($data['guests_count']) && $order->table_id) {
+            $table = \App\Models\RestaurantTable::find($order->table_id);
+            if ($table && (int) $data['guests_count'] > (int) $table->capacity) {
+                return back()->withErrors(['guests_count' => "Số lượng khách ({$data['guests_count']}) vượt quá sức chứa tối đa của bàn {$table->name} (Tối đa {$table->capacity} chỗ). Vui lòng chọn ghép bàn hoặc chuyển bàn lớn hơn."]);
+            }
+        }
+
+        if (isset($data['items'])) {
+            foreach ($data['items'] as $itemData) {
+                if (!empty($itemData['product_id'])) {
+                    $prod = \App\Models\Product::find($itemData['product_id']);
+                    if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] < (float) $prod->price) {
+                        if (!$user->can('approve_requests') && ($data['bypass_code'] ?? '') !== 'MANAGER123') {
+                            return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu nhập mã phê duyệt của quản lý (MANAGER123).']);
+                        }
+                    }
+                }
+            }
+        }
 
         // Order Locking: Cannot delete existing items or decrease quantity of existing items once they have been created (saved to DB)
         if (isset($data['items'])) {

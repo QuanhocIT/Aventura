@@ -21,6 +21,8 @@ class CustomLoginResponse implements LoginResponseContract
 
         $user->forceFill(['last_login_at' => now()])->save();
 
+        session()->flash('success', 'Đăng nhập thành công!');
+
         if (session()->has('multi_tenant_users') && count(session('multi_tenant_users')) > 1) {
             return redirect()->route('choose-restaurant');
         }

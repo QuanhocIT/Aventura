@@ -135,6 +135,26 @@ class ApprovalService
     {
         $salary = Salary::withoutGlobalScopes()->findOrFail($data['salary_id']);
 
+        if ($data['type'] === 'advance') {
+            $employee = $salary->employee;
+            if ($employee) {
+                $salaryMonth = \Carbon\Carbon::parse($salary->pay_period_start);
+                $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
+                $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
+
+                $existingAdvanceAmount = \App\Models\SalaryAdjustment::withoutGlobalScopes()
+                    ->where('salary_id', $salary->id)
+                    ->where('type', 'advance')
+                    ->where('status', 'applied')
+                    ->sum('amount');
+
+                $limit = $earnedWages * 0.50;
+                if (($existingAdvanceAmount + $data['amount']) > $limit) {
+                    throw new \Exception(sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Hạn mức tạm ứng tối đa: %sđ).', number_format($limit)));
+                }
+            }
+        }
+
         $this->salaryService->addAdjustment($salary, [
             'employee_id' => $salary->employee_id,
             'type'        => $data['type'],

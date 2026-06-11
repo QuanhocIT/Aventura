@@ -153,6 +153,26 @@ class SalaryService
     }
 
     /**
+     * Tính tiền lương tích lũy từ đầu tháng đến ngày hiện tại (hoặc ngày chỉ định).
+     */
+    public function calculateEarnedWagesForMonth(Employee $employee, string $date): float
+    {
+        $carbonDate = Carbon::parse($date);
+        $start = $carbonDate->copy()->startOfMonth()->toDateString();
+        $end = $carbonDate->toDateString();
+
+        $compType = $employee->compensation_type ?? 'fixed';
+        if ($compType === 'fixed') {
+            $daysInMonth = $carbonDate->daysInMonth;
+            $elapsedDays = $carbonDate->day;
+            $baseSalary = (float) ($employee->base_salary ?? 0);
+            return round(($baseSalary / $daysInMonth) * $elapsedDays, 2);
+        } else {
+            return $this->calculateDynamicBaseSalary($employee, $start, $end);
+        }
+    }
+
+    /**
      * Thêm điều chỉnh lương (bonus hoặc khấu trừ) rồi tính lại net_salary.
      */
     public function addAdjustment(Salary $salary, array $data): SalaryAdjustment
@@ -183,7 +203,7 @@ class SalaryService
         
         // Chỉ tính khấu trừ từ các adjustments có trạng thái 'applied'
         $deductions = (float) $adjustments
-            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation'])
+            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
             ->where('status', 'applied')
             ->sum('amount');
 

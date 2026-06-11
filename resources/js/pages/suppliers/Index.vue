@@ -338,6 +338,7 @@ const handleFileUpload = async (e: Event) => {
 const transferRecommendations = ref<any[]>([]);
 const transferLogs = ref<any[]>([]);
 const branches = ref<any[]>([]);
+const inventories = ref<any[]>([]);
 const loadingTransfers = ref(false);
 const showManualTransferModal = ref(false);
 
@@ -360,6 +361,7 @@ const fetchTransfers = async () => {
         const logData = await logRes.json();
         transferRecommendations.value = recData.recommendations || [];
         branches.value = recData.branches || [];
+        inventories.value = recData.inventories || [];
         transferLogs.value = logData.transfers || [];
     } catch (e) {
         console.error("Failed to fetch transfer data", e);
@@ -407,6 +409,45 @@ const submitManualTransfer = () => {
         }
     });
 };
+
+const selectedSourceInventory = computed(() => {
+    if (!transferForm.from_branch_id || !transferForm.ingredient_id) return null;
+    return inventories.value.find(
+        (i) => i.branch_id === Number(transferForm.from_branch_id) && i.ingredient_id === Number(transferForm.ingredient_id)
+    ) || null;
+});
+
+const selectedIngredientDetail = computed(() => {
+    if (!transferForm.ingredient_id) return null;
+    return props.ingredients.find((i) => i.id === Number(transferForm.ingredient_id)) || null;
+});
+
+const sourceStockOnHand = computed(() => {
+    return selectedSourceInventory.value ? Number(selectedSourceInventory.value.quantity_on_hand) : 0;
+});
+
+const transferQuantityWarning = computed(() => {
+    if (!transferForm.quantity || transferForm.quantity <= 0) return null;
+    const qty = Number(transferForm.quantity);
+    const stock = sourceStockOnHand.value;
+    
+    if (qty > stock) {
+        return {
+            type: 'error',
+            message: `Chi nhánh xuất không đủ tồn kho thực tế để chuyển (Tồn hiện có: ${stock.toFixed(3)}).`
+        };
+    }
+    
+    const minStock = selectedIngredientDetail.value ? Number(selectedIngredientDetail.value.min_stock_level) : 0;
+    if (stock - qty < minStock) {
+        return {
+            type: 'warning',
+            message: `Sau khi chuyển, tồn kho tại chi nhánh nguồn (${(stock - qty).toFixed(3)}) sẽ tụt dưới mức tồn tối thiểu (${minStock.toFixed(3)}).`
+        };
+    }
+    
+    return null;
+});
 </script>
 
 <template>
@@ -1067,7 +1108,12 @@ const submitManualTransfer = () => {
 
                         <!-- Quantity -->
                         <div class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Số lượng cần chuyển</Label>
+                            <div class="flex items-center justify-between">
+                                <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Số lượng cần chuyển</Label>
+                                <span class="text-xs text-muted-foreground font-semibold">
+                                    Tồn hiện có: <strong class="text-indigo-650 text-indigo-600 dark:text-indigo-400 font-extrabold">{{ sourceStockOnHand.toFixed(3) }}</strong>
+                                </span>
+                            </div>
                             <Input 
                                 v-model.number="transferForm.quantity"
                                 required
@@ -1075,6 +1121,14 @@ const submitManualTransfer = () => {
                                 step="0.001"
                                 min="0.001"
                             />
+                            <!-- Inline warnings/errors -->
+                            <div v-if="transferQuantityWarning" class="mt-1.5 rounded-xl border p-3 text-xs font-medium"
+                                 :class="transferQuantityWarning.type === 'error' ? 'bg-rose-50/50 border-rose-250 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400' : 'bg-amber-50/50 border-amber-250 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400'">
+                                <div class="flex items-start gap-2">
+                                    <AlertTriangle class="size-4 shrink-0 mt-0.5" :class="transferQuantityWarning.type === 'error' ? 'text-rose-500' : 'text-amber-500'" />
+                                    <span>{{ transferQuantityWarning.message }}</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Notes -->
@@ -1095,7 +1149,7 @@ const submitManualTransfer = () => {
                         </Button>
                         <Button 
                             type="submit" 
-                            :disabled="transferForm.processing"
+                            :disabled="transferForm.processing || (transferQuantityWarning && transferQuantityWarning.type === 'error')"
                             class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
                         >
                             {{ transferForm.processing ? 'Đang thực hiện...' : 'Thực hiện chuyển kho' }}

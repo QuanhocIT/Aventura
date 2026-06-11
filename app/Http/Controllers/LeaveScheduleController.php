@@ -198,6 +198,51 @@ class LeaveScheduleController extends Controller
         $offset = $days[$data['day']] ?? 0;
         $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
 
+        // 11-hour rest rule check
+        $startProposed = Carbon::parse($scheduledDate . ' ' . $shift->start_time);
+        $endProposed = $shift->is_overnight 
+            ? Carbon::parse($scheduledDate . ' ' . $shift->end_time)->addDay()
+            : Carbon::parse($scheduledDate . ' ' . $shift->end_time);
+
+        $adjacentAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('scheduled_date', '!=', $scheduledDate) // exclude the slot we are trying to set/update
+            ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+            ->whereBetween('scheduled_date', [
+                Carbon::parse($scheduledDate)->subDays(1)->toDateString(),
+                Carbon::parse($scheduledDate)->addDays(1)->toDateString()
+            ])
+            ->with('shift')
+            ->get();
+
+        foreach ($adjacentAssignments as $aa) {
+            $aaShift = $aa->shift;
+            if (!$aaShift) continue;
+
+            $dateStr = $aa->scheduled_date instanceof Carbon ? $aa->scheduled_date->toDateString() : Carbon::parse($aa->scheduled_date)->toDateString();
+            $startExist = Carbon::parse($dateStr . ' ' . $aaShift->start_time);
+            $endExist = $aaShift->is_overnight
+                ? Carbon::parse($dateStr . ' ' . $aaShift->end_time)->addDay()
+                : Carbon::parse($dateStr . ' ' . $aaShift->end_time);
+
+            // 1. Overlap Check
+            if ($startProposed->lt($endExist) && $endProposed->gt($startExist)) {
+                return back()->withErrors(['shift_name' => "Nhân viên {$employee->full_name} đã có ca làm việc trùng lặp trong thời gian này."]);
+            }
+
+            // 2. Rest hour check (11 hours)
+            if ($endProposed->lte($startExist)) {
+                $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
+                if ($restHours < 11.0) {
+                    return back()->withErrors(['shift_name' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc."]);
+                }
+            } elseif ($endExist->lte($startProposed)) {
+                $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
+                if ($restHours < 11.0) {
+                    return back()->withErrors(['shift_name' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc."]);
+                }
+            }
+        }
+
         // Save schedule
         ScheduleAssignment::updateOrCreate([
             'restaurant_id' => $user->restaurant_id,
@@ -275,6 +320,59 @@ class LeaveScheduleController extends Controller
             'reason'      => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $employee = Employee::where('restaurant_id', $user->restaurant_id)->findOrFail($data['employee_id']);
+
+        // 1. Overlapping Leave Check
+        $overlapping = LeaveRequest::where('restaurant_id', $user->restaurant_id)
+            ->where('employee_id', $employee->id)
+            ->where(function ($query) use ($data) {
+                $query->whereBetween('start_date', [$data['start_date'], $data['end_date']])
+                    ->orWhereBetween('end_date', [$data['start_date'], $data['end_date']])
+                    ->orWhere(function ($q) use ($data) {
+                        $q->where('start_date', '<=', $data['start_date'])
+                            ->where('end_date', '>=', $data['end_date']);
+                    });
+            })
+            ->exists();
+
+        if ($overlapping) {
+            return back()->withErrors(['start_date' => 'Yêu cầu nghỉ phép trùng lặp với đơn nghỉ phép đã đăng ký trước đó.']);
+        }
+
+        // 2. Department/Role Quota Check (Max 30% role limit)
+        $totalRoleEmployees = Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('role_id', $employee->role_id)
+            ->where('status', 'active')
+            ->count();
+
+        if ($totalRoleEmployees > 0) {
+            $startDate = \Carbon\Carbon::parse($data['start_date']);
+            $endDate = \Carbon\Carbon::parse($data['end_date']);
+
+            for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
+                $dateStr = $date->toDateString();
+
+                $onLeaveCount = LeaveRequest::where('restaurant_id', $user->restaurant_id)
+                    ->whereDate('start_date', '<=', $dateStr)
+                    ->whereDate('end_date', '>=', $dateStr)
+                    ->whereIn('status', ['approved', 'pending'])
+                    ->whereHas('employee', function ($q) use ($employee) {
+                        $q->where('role_id', $employee->role_id);
+                    })
+                    ->count();
+
+                if (($onLeaveCount + 1) / $totalRoleEmployees > 0.30) {
+                    return back()->withErrors(['start_date' => "Vượt quá giới hạn nghỉ phép đồng thời của bộ phận vào ngày {$date->format('d/m/Y')} (Tối đa 30% nhân sự bộ phận được nghỉ)."]);
+                }
+            }
+        }
+
+        // 3. Schedule Conflict Warning Check
+        $hasSchedules = ScheduleAssignment::where('employee_id', $employee->id)
+            ->whereDate('scheduled_date', '>=', $data['start_date'])
+            ->whereDate('scheduled_date', '<=', $data['end_date'])
+            ->exists();
+
         LeaveRequest::create([
             'restaurant_id' => $user->restaurant_id,
             'employee_id'   => $data['employee_id'],
@@ -286,7 +384,9 @@ class LeaveScheduleController extends Controller
             'status'        => 'pending',
         ]);
 
-        return back()->with('success', 'Nộp đơn xin nghỉ thành công.');
+        $warning = $hasSchedules ? ' Lưu ý: Nhân viên đã có ca trực được xếp trong thời gian này, vui lòng điều chỉnh/đổi ca trực.' : '';
+
+        return back()->with('success', 'Nộp đơn xin nghỉ thành công.' . $warning);
     }
 
     /**
@@ -397,6 +497,14 @@ class LeaveScheduleController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($leave->status === 'pending', 422);
+
+        // Self-Approval Prevention Check
+        abort_if(
+            $leave->requested_by === $user->id || 
+            ($leave->employee && $leave->employee->user_id === $user->id), 
+            403, 
+            'Bạn không thể tự phê duyệt đơn xin nghỉ của chính mình.'
+        );
 
         $leave->update([
             'status' => 'approved',
@@ -576,6 +684,15 @@ class LeaveScheduleController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($swap->status === 'accepted', 422);
+
+        // Self-Approval Prevention Check
+        $userEmployeeId = $user->employee?->id;
+        $requesterEmployeeId = $swap->requesterAssignment?->employee_id;
+        $receiverEmployeeId = $swap->receiverAssignment?->employee_id;
+
+        if ($userEmployeeId && ($userEmployeeId === $requesterEmployeeId || $userEmployeeId === $receiverEmployeeId)) {
+            abort(403, 'Bạn không thể phê duyệt yêu cầu đổi ca liên quan đến chính mình.');
+        }
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $user, $request) {
             $reqAssignment = $swap->requesterAssignment;

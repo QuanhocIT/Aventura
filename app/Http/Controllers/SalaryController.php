@@ -139,10 +139,38 @@ class SalaryController extends Controller
         abort_if($salary->status === 'paid', 422);
 
         $data = $request->validate([
-            'type'   => ['required', 'in:bonus,penalty,violation'],
+            'type'   => ['required', 'in:bonus,penalty,violation,advance'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
+
+        if ($data['type'] === 'advance') {
+            $employee = $salary->employee;
+            if (!$employee) {
+                return back()->withErrors(['amount' => 'Nhân viên không tồn tại.']);
+            }
+            $salaryMonth = Carbon::parse($salary->pay_period_start);
+            $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
+            $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
+            
+            $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
+                ->where('salary_id', $salary->id)
+                ->where('type', 'advance')
+                ->where('status', 'applied')
+                ->sum('amount');
+                
+            $pendingAdvanceAmount = \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                ->where('status', 'pending')
+                ->where('operation_type', 'salary_adjustment')
+                ->get()
+                ->filter(fn ($req) => ($req->operation_data['salary_id'] ?? null) == $salary->id && ($req->operation_data['type'] ?? null) === 'advance')
+                ->sum(fn ($req) => (float) ($req->operation_data['amount'] ?? 0));
+                
+            $limit = $earnedWages * 0.50;
+            if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
+                return back()->withErrors(['amount' => sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ, Đã tạm ứng/đang chờ: %sđ).', number_format($earnedWages), number_format($limit), number_format($existingAdvanceAmount + $pendingAdvanceAmount))]);
+            }
+        }
 
         if (! $request->user()->can('approve_requests')) {
             $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
@@ -169,7 +197,7 @@ class SalaryController extends Controller
         $data = $request->validate([
             'salary_ids'   => ['required', 'array'],
             'salary_ids.*' => ['required', 'exists:salaries,id'],
-            'type'         => ['required', 'in:bonus,penalty,violation'],
+            'type'         => ['required', 'in:bonus,penalty,violation,advance'],
             'amount'       => ['required', 'numeric', 'min:0.01'],
             'reason'       => ['required', 'string', 'max:500'],
         ]);
@@ -178,6 +206,37 @@ class SalaryController extends Controller
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->whereIn('id', $data['salary_ids'])
             ->get();
+
+        // Check advances limits first
+        if ($data['type'] === 'advance') {
+            foreach ($salaries as $salary) {
+                if ($salary->status === 'paid') continue;
+                $employee = $salary->employee;
+                if ($employee) {
+                    $salaryMonth = Carbon::parse($salary->pay_period_start);
+                    $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
+                    $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
+                    
+                    $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('salary_id', $salary->id)
+                        ->where('type', 'advance')
+                        ->where('status', 'applied')
+                        ->sum('amount');
+                        
+                    $pendingAdvanceAmount = \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                        ->where('status', 'pending')
+                        ->where('operation_type', 'salary_adjustment')
+                        ->get()
+                        ->filter(fn ($req) => ($req->operation_data['salary_id'] ?? null) == $salary->id && ($req->operation_data['type'] ?? null) === 'advance')
+                        ->sum(fn ($req) => (float) ($req->operation_data['amount'] ?? 0));
+                        
+                    $limit = $earnedWages * 0.50;
+                    if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
+                        return back()->withErrors(['amount' => sprintf('Yêu cầu tạm ứng cho nhân viên %s vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ).', $employee->full_name, number_format($earnedWages), number_format($limit))]);
+                    }
+                }
+            }
+        }
 
         $count = 0;
         foreach ($salaries as $salary) {

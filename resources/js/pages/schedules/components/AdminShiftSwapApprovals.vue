@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { RefreshCw, Ban, X } from 'lucide-vue-next';
+import { RefreshCw, Ban, X, AlertTriangle } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,6 +90,9 @@ const submitRejectSwap = () => {
                                     <div class="text-[10px] text-slate-400 mt-0.5 font-mono">{{ sw.receiver_date }}</div>
                                 </td>
                                 <td class="p-3.5 text-slate-500 font-medium">
+                                    <div v-if="sw.notes && sw.notes.includes('[⚠️ Vi phạm nghỉ 11h]')" class="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1 mb-1.5 animate-pulse">
+                                        <AlertTriangle class="w-3.5 h-3.5" /> Vi phạm nghỉ 11h!
+                                    </div>
                                     {{ sw.notes || '—' }}
                                 </td>
                                 <td class="p-3.5 text-right flex items-center justify-end gap-1.5">

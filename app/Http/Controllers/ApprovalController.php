@@ -60,9 +60,15 @@ class ApprovalController extends Controller
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
 
-        $this->approvalService->approve($approval, $request->user());
+        // Self-Approval Prevention Check
+        abort_if($approval->requester_id === $request->user()->id, 403, 'Bạn không thể tự phê duyệt yêu cầu của chính mình.');
 
-        return back()->with('success', 'Đã phê duyệt yêu cầu.');
+        try {
+            $this->approvalService->approve($approval, $request->user());
+            return back()->with('success', 'Đã phê duyệt yêu cầu.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
     }
 
     public function reject(Request $request, ApprovalRequest $approval): RedirectResponse

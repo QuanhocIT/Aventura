@@ -1143,6 +1143,16 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
                                 </span>
                             </div>
 
+                            <!-- Cảnh báo cấn trừ lương khi lệch âm quỹ -->
+                            <div v-if="cashDifference < 0" class="rounded-xl border border-rose-250 bg-rose-50/30 p-3 text-xs font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400">
+                                <div class="flex items-start gap-2">
+                                    <AlertTriangle class="size-4 shrink-0 mt-0.5 text-rose-500" />
+                                    <span>
+                                        <strong>Lưu ý vi phạm tài chính:</strong> Số tiền mặt đếm két thực tế đang thiếu hụt so với sổ sách là <strong class="font-mono">{{ vnd(Math.abs(cashDifference)) }}</strong>. Khoản thiếu hụt này sẽ tự động đề xuất tạo cấn trừ phạt trực tiếp vào bảng lương nháp tháng này của bạn sau khi Quản lý hoặc Chủ cửa hàng phê duyệt phiếu chốt ca.
+                                    </span>
+                                </div>
+                            </div>
+
                             <!-- Chi phí phát sinh -->
                             <div class="space-y-1.5 flex flex-col">
                                 <Label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Chi phí phát sinh trong ca (nếu có)</Label>

@@ -323,6 +323,7 @@ class SupplierController extends Controller
 
                 if ($qtyMismatch || $priceMismatch) {
                     $hasDiscrepancy = true;
+                    $variancePercent = $item->price_per_unit > 0 ? (abs($invoicePrice - $item->price_per_unit) / $item->price_per_unit) * 100 : 0;
                     $discrepancies[] = [
                         'ingredient_id' => $item->ingredient_id,
                         'ingredient_name' => $item->ingredient?->name ?? 'Unknown',
@@ -330,6 +331,8 @@ class SupplierController extends Controller
                         'received_qty' => $receivedQty,
                         'listed_price' => (float) $item->price_per_unit,
                         'invoice_price' => $invoicePrice,
+                        'variance_percent' => round($variancePercent, 2),
+                        'requires_owner' => $variancePercent > 10,
                     ];
                 }
 
@@ -887,6 +890,15 @@ class SupplierController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
+
+        // Price variance owner approval enforcement (> 10%)
+        if ($purchaseOrder->is_discrepant && is_array($purchaseOrder->discrepancy_details)) {
+            foreach ($purchaseOrder->discrepancy_details as $disc) {
+                if (!empty($disc['requires_owner']) && !$request->user()->hasRole('owner')) {
+                    return back()->withErrors(['error' => 'Đơn hàng có biến động giá vượt quá 10% so với giá thỏa thuận, yêu cầu Chủ nhà hàng (Owner) phê duyệt giải ngân.']);
+                }
+            }
+        }
 
         $purchaseOrder->update([
             'payment_status' => 'paid',
