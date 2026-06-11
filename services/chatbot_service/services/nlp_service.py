@@ -275,7 +275,97 @@ def reload_cache() -> None:
     _build_cache()
 
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
+def test_query_detail(user_input: str) -> dict:
+    """Chạy full matching pipeline và trả về breakdown điểm từng tín hiệu — dùng cho Playground."""
+    _ensure_cache()
+
+    if not _knowledge_rows or _char_vectorizer is None:
+        return {
+            "found": False,
+            "confidence": 0.0,
+            "char_score": 0.0,
+            "word_score": 0.0,
+            "bm25_score": 0.0,
+            "keyword_score": 0.0,
+            "threshold_used": SIMILARITY_THRESHOLD,
+            "matched_question": None,
+            "category": None,
+            "answer": None,
+        }
+
+    q_norm = _normalize(user_input)
+    q_tokens = _tokenize(user_input)
+    user_words = set(q_tokens)
+
+    n = len(_corpus_ids)
+
+    # 1) Char TF-IDF
+    char_vec = _char_vectorizer.transform([q_norm])
+    char_sims = cosine_similarity(char_vec, _char_matrix).flatten()
+
+    # 2) Word TF-IDF
+    try:
+        word_vec = _word_vectorizer.transform([q_norm])
+        word_sims = cosine_similarity(word_vec, _word_matrix).flatten()
+    except Exception:
+        word_sims = np.zeros(n)
+
+    # 3) BM25
+    try:
+        bm25_raw = np.array(_bm25.get_scores(q_tokens), dtype=float)
+        local_max = float(np.max(bm25_raw)) if np.max(bm25_raw) > 0 else 1.0
+        bm25_norm = bm25_raw / local_max
+    except Exception:
+        bm25_norm = np.zeros(n)
+
+    # 4) Keyword overlap
+    kw_scores = np.zeros(n)
+    for i, kw_list in enumerate(_corpus_keywords):
+        if not kw_list:
+            continue
+        matches = sum(
+            1 for kw in kw_list
+            if kw in user_words or any(kw in w for w in user_words)
+        )
+        kw_scores[i] = min(matches / max(len(kw_list), 1), 1.0)
+
+    final_scores = (
+        0.35 * char_sims
+        + 0.25 * word_sims
+        + 0.25 * bm25_norm
+        + 0.15 * kw_scores
+    )
+
+    best_idx = int(np.argmax(final_scores))
+    best_score = float(final_scores[best_idx])
+
+    # Threshold (with dynamic adjustment)
+    threshold_str = get_system_setting("chatbot_similarity_threshold", str(SIMILARITY_THRESHOLD))
+    try:
+        threshold = float(threshold_str)
+    except Exception:
+        threshold = SIMILARITY_THRESHOLD
+    effective_threshold = threshold
+    if bm25_norm[best_idx] > 0.6 or kw_scores[best_idx] > 0.5:
+        effective_threshold = max(threshold - 0.05, 0.18)
+
+    found = best_score >= effective_threshold
+    row = next((r for r in _knowledge_rows if r["id"] == _corpus_ids[best_idx]), None) if found else None
+
+    return {
+        "found": found,
+        "confidence": round(best_score, 4),
+        "char_score": round(float(char_sims[best_idx]), 4),
+        "word_score": round(float(word_sims[best_idx]), 4),
+        "bm25_score": round(float(bm25_norm[best_idx]), 4),
+        "keyword_score": round(float(kw_scores[best_idx]), 4),
+        "threshold_used": round(effective_threshold, 4),
+        "matched_question": _corpus_questions[best_idx],
+        "category": row["category"] if row else None,
+        "answer": row["answer"] if row else None,
+    }
+
+
 
 def _fallback_response() -> dict:
     try:

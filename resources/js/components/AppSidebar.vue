@@ -4,6 +4,7 @@ import { usePage } from '@inertiajs/vue3';
 import {
     LayoutGrid,
     Bot,
+    Brain,
     Building2,
     BadgeDollarSign,
     ClipboardCheck,
@@ -118,7 +119,8 @@ const superAdminNav: NavItem[] = [
     { title: 'Giám sát Dịch vụ', href: '/super-admin/service-monitor', icon: Activity },
     { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
-    { title: 'Chatbot AI',      href: '/super-admin/chatbot',   icon: Bot },
+    { title: 'Chatbot AI',      href: '/super-admin/chatbot',             icon: Bot },
+    { title: 'Chatbot Diagnostics', href: '/super-admin/chatbot-diagnostics', icon: Brain },
     { title: 'Tin tức',         href: '/super-admin/news',      icon: Newspaper },
     { title: 'Chiến dịch Quảng bá', href: '/super-admin/campaigns', icon: Megaphone },
     { title: 'Cấu hình hệ thống', href: '/super-admin/settings', icon: Settings },

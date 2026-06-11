@@ -96,6 +96,16 @@ Route::prefix('super-admin')
         Route::delete('chatbot/{knowledge}', [ChatbotKnowledgeController::class, 'destroy'])->name('chatbot.destroy');
         Route::post('chatbot/reload-cache', [ChatbotKnowledgeController::class, 'reloadCache'])->name('chatbot.reload-cache');
 
+        // Chatbot Diagnostics & Retraining
+        Route::get('chatbot-diagnostics', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'index'])->name('chatbot-diagnostics.index');
+        Route::post('chatbot-diagnostics/retrain', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'retrain'])->name('chatbot-diagnostics.retrain');
+        Route::post('chatbot-diagnostics/test-query', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'testQuery'])->name('chatbot-diagnostics.test-query');
+        Route::post('chatbot-diagnostics/{query}/resolve', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'markResolved'])->name('chatbot-diagnostics.resolve');
+        Route::post('chatbot-diagnostics/{query}/unresolve', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'markUnresolved'])->name('chatbot-diagnostics.unresolve');
+        Route::post('chatbot-diagnostics/bulk-resolve', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'bulkResolve'])->name('chatbot-diagnostics.bulk-resolve');
+        Route::delete('chatbot-diagnostics/delete-resolved', [\App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController::class, 'deleteResolved'])->name('chatbot-diagnostics.delete-resolved');
+
+
         // News / Blog Management
         Route::get('news', [NewsPostController::class, 'index'])->name('news.index');
         Route::post('news', [NewsPostController::class, 'store'])->name('news.store');

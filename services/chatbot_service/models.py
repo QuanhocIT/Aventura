@@ -49,3 +49,29 @@ class HealthResponse(BaseModel):
     status: str
     knowledge_count: int
     cache_age_seconds: Optional[float] = None
+
+
+class LogUnansweredRequest(BaseModel):
+    query: str
+    best_score: float = 0.0
+    session_id: Optional[str] = None
+    user_id: Optional[int] = None
+    restaurant_id: Optional[int] = None
+    source: str = "widget"
+
+
+class TestQueryRequest(BaseModel):
+    query: str
+
+
+class TestQueryResponse(BaseModel):
+    found: bool
+    confidence: float
+    matched_question: Optional[str] = None
+    category: Optional[str] = None
+    answer: Optional[str] = None
+    char_score: float = 0.0
+    word_score: float = 0.0
+    bm25_score: float = 0.0
+    keyword_score: float = 0.0
+    threshold_used: float = 0.0

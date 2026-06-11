@@ -166,6 +166,46 @@ class ChatbotService
         }
     }
 
+    public function testQuery(string $query): array
+    {
+        if (empty($this->baseUrl)) {
+            return ['error' => 'Python service URL chưa được cấu hình.'];
+        }
+
+        try {
+            $response = Http::timeout(5)->post($this->baseUrl.'/test-query', [
+                'query' => $query,
+            ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return ['error' => 'Python service trả lỗi: '.$response->status()];
+        } catch (\Throwable $e) {
+            return ['error' => 'Không kết nối được Python service: '.$e->getMessage()];
+        }
+    }
+
+    public function getHealth(): array
+    {
+        if (empty($this->baseUrl)) {
+            return ['status' => 'unavailable', 'knowledge_count' => 0, 'cache_age_seconds' => null];
+        }
+
+        try {
+            $response = Http::timeout(3)->get($this->baseUrl.'/health');
+            if ($response->successful()) {
+                return $response->json();
+            }
+        } catch (\Throwable) {
+            // silence
+        }
+
+        return ['status' => 'error', 'knowledge_count' => 0, 'cache_age_seconds' => null];
+    }
+
+
     private function unavailableResponse(): array
     {
         return [

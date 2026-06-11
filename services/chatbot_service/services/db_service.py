@@ -74,6 +74,43 @@ def record_feedback(knowledge_id: int, helpful: bool) -> None:
         conn.close()
 
 
+def log_unanswered_query(
+    query: str,
+    best_score: float,
+    session_id: str | None,
+    user_id: int | None,
+    restaurant_id: int | None,
+    source: str,
+) -> None:
+    """Ghi nhận câu hỏi không được trả lời vào DB — upsert theo hash câu hỏi."""
+    import hashlib
+    clean_query = query.strip()[:500]
+    query_hash = hashlib.sha256(clean_query.lower().encode("utf-8")).hexdigest()[:64]
+
+    conn = _get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO chatbot_unanswered_queries
+                    (query, query_hash, best_score, session_id, user_id, restaurant_id, source,
+                     occurrence_count, last_seen_at, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 1, NOW(), NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    occurrence_count = occurrence_count + 1,
+                    best_score       = GREATEST(best_score, VALUES(best_score)),
+                    last_seen_at     = NOW(),
+                    updated_at       = NOW()
+                """,
+                (clean_query, query_hash, best_score, session_id, user_id, restaurant_id, source),
+            )
+        conn.commit()
+    except Exception as e:
+        logger.warning("log_unanswered_query failed: %s", e)
+    finally:
+        conn.close()
+
+
 def get_system_setting(key: str, default: str) -> str:
     """Get a system setting value by key, fallback to a default."""
     conn = _get_connection()

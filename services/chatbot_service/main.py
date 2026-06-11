@@ -9,9 +9,11 @@ from models import (
     FeedbackRequest, FeedbackResponse,
     HealthResponse,
     AdvisorChatRequest,
+    LogUnansweredRequest,
+    TestQueryRequest, TestQueryResponse,
 )
 from services import nlp_service
-from services.db_service import increment_view, record_feedback
+from services.db_service import increment_view, record_feedback, log_unanswered_query
 import time
 
 logging.basicConfig(
@@ -70,6 +72,19 @@ def chat(payload: ChatRequest):
     if result["found"] and result.get("knowledge_id"):
         try:
             increment_view(result["knowledge_id"])
+        except Exception:
+            pass
+    elif not result["found"]:
+        # Ghi nhận câu hỏi không trả lời được vào bảng diagnostics
+        try:
+            log_unanswered_query(
+                query=message,
+                best_score=result["confidence"],
+                session_id=payload.session_id,
+                user_id=None,
+                restaurant_id=None,
+                source=payload.source,
+            )
         except Exception:
             pass
 
@@ -145,4 +160,36 @@ def reload_cache():
         return {"success": True, "knowledge_count": len(_knowledge_rows)}
     except Exception as e:
         logger.error("reload-cache error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/log-unanswered")
+def log_unanswered(payload: LogUnansweredRequest):
+    """Laravel gọi endpoint này để ghi nhận câu hỏi không có câu trả lời kèm user context."""
+    try:
+        log_unanswered_query(
+            query=payload.query,
+            best_score=payload.best_score,
+            session_id=payload.session_id,
+            user_id=payload.user_id,
+            restaurant_id=payload.restaurant_id,
+            source=payload.source,
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.warning("log-unanswered error: %s", e)
+        return {"success": False}
+
+
+@app.post("/test-query", response_model=TestQueryResponse)
+def test_query(payload: TestQueryRequest):
+    """Chạy matching và trả về điểm phân tích chi tiết — dùng cho Playground của Superadmin."""
+    if not payload.query or not payload.query.strip():
+        raise HTTPException(status_code=422, detail="Query không được để trống.")
+
+    try:
+        result = nlp_service.test_query_detail(payload.query.strip())
+        return TestQueryResponse(**result)
+    except Exception as e:
+        logger.error("test-query error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

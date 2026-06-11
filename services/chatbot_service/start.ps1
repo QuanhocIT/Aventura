@@ -10,9 +10,9 @@ if ($pidLine) {
     }
 }
 
-$pythonPath = "C:\laragon\bin\python\python-3.10\python.exe"
 $serviceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $serviceDir
+$pythonPath = ".\venv\Scripts\python.exe"
 
 Write-Host "Starting chatbot service at http://0.0.0.0:8002 ..."
 & $pythonPath -m uvicorn main:app --host 0.0.0.0 --port 8002 --reload

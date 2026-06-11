@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
-    Bot, ChevronDown, ChevronUp, Edit2, Eye, MessageSquare,
+    Bot, ChevronDown, ChevronUp, Edit2, Eye, FlaskConical, MessageSquare,
     Plus, RefreshCcw, ThumbsUp, Trash2, X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -207,6 +207,12 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <Link href="/super-admin/chatbot-diagnostics">
+                    <Button variant="outline" size="sm">
+                        <FlaskConical class="mr-1.5 size-3.5" />
+                        Diagnostics
+                    </Button>
+                </Link>
                 <Button variant="outline" size="sm" @click="reloadCache">
                     <RefreshCcw class="mr-1.5 size-3.5" />
                     Reload Cache
