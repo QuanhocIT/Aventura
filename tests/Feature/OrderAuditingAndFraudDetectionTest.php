@@ -390,4 +390,86 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
         $this->assertEquals(92.5, $dbAlert['risk_score']);
         $this->assertStringContainsString('Nguyễn Thị Thu', $dbAlert['description']);
     }
+
+    public function test_cashier_cannot_decrease_quantity_of_locked_order(): void
+    {
+        // 1. Create a confirmed (locked) order
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table1->id,
+            'created_by' => $this->cashier->id,
+            'order_number' => 'ORD-9999',
+            'subtotal' => 100000,
+            'total_amount' => 100000,
+            'status' => 'confirmed', // locked status
+            'payment_status' => 'unpaid'
+        ]);
+
+        $item = OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 2,
+            'unit_price' => 50000,
+            'line_total' => 100000
+        ]);
+
+        // 2. Try to decrease quantity (from 2 to 1) as cashier
+        $response = $this->actingAs($this->cashier)->patch(route('orders.update', $order), [
+            'items' => [
+                [
+                    'id' => $item->id,
+                    'unit_price' => 50000,
+                    'quantity' => 1
+                ]
+            ]
+        ]);
+
+        // 3. Assert it returns errors / validation fails
+        $response->assertSessionHasErrors();
+        $item->refresh();
+        $this->assertEquals(2.0, (float)$item->quantity); // remains 2
+    }
+
+    public function test_cashier_can_increase_quantity_of_locked_order(): void
+    {
+        // 1. Create a confirmed (locked) order
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table1->id,
+            'created_by' => $this->cashier->id,
+            'order_number' => 'ORD-9998',
+            'subtotal' => 100000,
+            'total_amount' => 100000,
+            'status' => 'confirmed', // locked status
+            'payment_status' => 'unpaid'
+        ]);
+
+        $item = OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 2,
+            'unit_price' => 50000,
+            'line_total' => 100000
+        ]);
+
+        // 2. Try to increase quantity (from 2 to 3) as cashier
+        $response = $this->actingAs($this->cashier)->patch(route('orders.update', $order), [
+            'items' => [
+                [
+                    'id' => $item->id,
+                    'unit_price' => 50000,
+                    'quantity' => 3
+                ]
+            ]
+        ]);
+
+        // 3. Assert it succeeds
+        $response->assertSessionHasNoErrors();
+        $item->refresh();
+        $this->assertEquals(3.0, (float)$item->quantity); // increases to 3
+    }
 }

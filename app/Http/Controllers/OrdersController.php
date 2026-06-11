@@ -452,6 +452,22 @@ class OrdersController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
         ]);
 
+        // Fraud prevention: Lock order once sent to kitchen (status is not pending)
+        if ($order->status !== 'pending' && !$request->user()->hasRole('owner')) {
+            if (isset($data['items'])) {
+                foreach ($data['items'] as $itemData) {
+                    $item = \App\Models\OrderItem::where('order_id', $order->id)
+                        ->find($itemData['id']);
+
+                    if ($item && (float) $itemData['quantity'] < (float) $item->quantity) {
+                        return back()->withErrors([
+                            'items' => 'Đơn hàng đã được chuyển bếp và khóa. Bạn không thể xóa hoặc giảm số lượng món ăn, chỉ có thể tăng thêm.'
+                        ]);
+                    }
+                }
+            }
+        }
+
         $oldValues = [
             'subtotal' => (float) $order->subtotal,
             'discount_amount' => (float) $order->discount_amount,
