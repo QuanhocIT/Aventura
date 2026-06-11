@@ -7,7 +7,7 @@ import {
     Play, PlusCircle, Radio, RefreshCcw, Send,
     Siren, Square, Ticket, Trash2, XCircle, Zap,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,7 @@ type PaginatorLink = { url: string | null; label: string; active: boolean };
 type Paginator<T> = { data: T[]; links: PaginatorLink[]; current_page: number; last_page: number; total: number; per_page: number };
 
 type TicketReplyRow = { id: number; user_name: string; is_internal: boolean; message: string; created_at: string };
-type TicketRow = { id: number; code: string; restaurant: string; title: string; category: string; severity: string; priority: string; status: string; assignee: string | null; assigned_to: number | null; created_by: string; created_at: string; replies: TicketReplyRow[]; description?: string };
+type TicketRow = { id: number; code: string; restaurant: string; title: string; category: string; severity: string; priority: string; status: string; assignee: string | null; assigned_to: number | null; created_by: string; created_at: string; replies: TicketReplyRow[]; description?: string; created_at_raw: string; sla_due_at: string | null; first_response_at: string | null; escalated_at: string | null; sla_status: 'fulfilled' | 'pending' | 'warning' | 'breached'; restaurant_plan: string; restaurant_plan_code: string; };
 type AlertRow = { id: number; title: string; metric_key: string; metric_value: string | number | null; threshold: string | number | null; status: string; triggered_at: string | null };
 type RuleRow = { id: number; name: string; metric_key: string; operator: string; threshold: number | string; cooldown_minutes: number; is_active: boolean; channels: string[] };
 type AnnouncementRow = { id: number; title: string; message: string; status: string; level: string; audience: string; published_at: string | null };
@@ -34,6 +34,7 @@ type TicketFormData = { restaurant_id: string | null; category: string; title: s
 const props = defineProps<{
     stats: Record<string, number>;
     monitoring: { failed_jobs: number; pending_jobs: number; queue_backlog: number; api_error_rate: number; api_error_total: number; api_request_total: number; slow_queries: number; pulse_exceptions: number; infra: { cpu: number | null; ram: number | null; source: string } };
+    sla_stats: { total_checked: number; sla_breached: number; sla_warning: number; sla_fulfill_rate: number };
     tickets: Paginator<TicketRow>;
     alerts: Paginator<AlertRow>;
     rules: Paginator<RuleRow>;
@@ -326,6 +327,105 @@ function deleteRule(rule: RuleRow) {
 function toggleRule(rule: RuleRow) {
     router.patch(`/super-admin/support/rules/${rule.id}/toggle`, {}, { preserveScroll: true });
 }
+
+// SLA & Escalation Monitor Client Logic
+const currentTick = ref(Date.now());
+let timerId: any = null;
+
+onMounted(() => {
+    timerId = setInterval(() => {
+        currentTick.value = Date.now();
+    }, 30000); // refresh every 30 seconds
+});
+
+onUnmounted(() => {
+    if (timerId) clearInterval(timerId);
+});
+
+const isRecalculatingSla = ref(false);
+function recalculateSla() {
+    isRecalculatingSla.value = true;
+    router.post('/super-admin/support/sla/recalculate', {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            isRecalculatingSla.value = false;
+        }
+    });
+}
+
+const isEscalatingTicket = ref<number | null>(null);
+function escalateTicket(ticketId: number) {
+    isEscalatingTicket.value = ticketId;
+    router.post(`/super-admin/support/tickets/${ticketId}/escalate`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            isEscalatingTicket.value = null;
+        }
+    });
+}
+
+function getSlaRemainingTime(ticket: TicketRow) {
+    if (ticket.first_response_at) {
+        const firstResponse = new Date(ticket.first_response_at).getTime();
+        const due = ticket.sla_due_at ? new Date(ticket.sla_due_at).getTime() : 0;
+        
+        if (due === 0) return { label: 'N/A', status: 'pending', color: 'text-slate-500 font-semibold' };
+        
+        const diffMs = due - firstResponse;
+        const diffMins = Math.round(diffMs / 60000);
+        
+        if (diffMins >= 0) {
+            return {
+                label: `Phản hồi sớm ${formatMins(diffMins)}`,
+                status: 'fulfilled',
+                color: 'text-emerald-600 dark:text-emerald-400 font-bold'
+            };
+        } else {
+            return {
+                label: `Phản hồi trễ ${formatMins(Math.abs(diffMins))}`,
+                status: 'breached',
+                color: 'text-rose-600 dark:text-rose-400 font-bold'
+            };
+        }
+    }
+
+    if (!ticket.sla_due_at) {
+        return { label: 'Chưa cấu hình SLA', status: 'pending', color: 'text-slate-400 font-semibold' };
+    }
+
+    const due = new Date(ticket.sla_due_at).getTime();
+    const diffMs = due - currentTick.value;
+    const diffMins = Math.round(diffMs / 60000);
+
+    if (diffMins < 0) {
+        return {
+            label: `Trễ hạn ${formatMins(Math.abs(diffMins))}`,
+            status: 'breached',
+            color: 'text-rose-600 dark:text-rose-400 font-black animate-pulse'
+        };
+    }
+
+    if (diffMins <= 60) {
+        return {
+            label: `Gần trễ hạn (${diffMins} phút)`,
+            status: 'warning',
+            color: 'text-amber-500 dark:text-amber-400 font-bold animate-pulse'
+        };
+    }
+
+    return {
+        label: `Còn ${formatMins(diffMins)}`,
+        status: 'pending',
+        color: 'text-slate-600 dark:text-slate-300 font-semibold'
+    };
+}
+
+function formatMins(mins: number): string {
+    if (mins < 60) return `${mins} phút`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return remainingMins > 0 ? `${hours} giờ ${remainingMins} phút` : `${hours} giờ`;
+}
 </script>
 
 <template>
@@ -474,6 +574,16 @@ function toggleRule(rule: RuleRow) {
                         <span>Hỗ Trợ</span>
                         <span v-if="(stats.tickets_open ?? 0) > 0" class="flex h-5 items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-black text-white ml-1 shadow-sm shadow-rose-500/30">
                             {{ stats.tickets_open }}
+                        </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="sla" class="h-10 px-5 rounded-xl text-xs font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm data-[state=active]:text-indigo-600 dark:data-[state=active]:text-white transition-all flex items-center gap-2 relative">
+                        <Clock class="size-4 shrink-0" />
+                        <span>Giám Sát SLA</span>
+                        <span v-if="(sla_stats.sla_warning ?? 0) > 0" class="flex h-5 items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black text-white ml-1 shadow-sm shadow-amber-500/30 animate-pulse">
+                            {{ sla_stats.sla_warning }}
+                        </span>
+                        <span v-if="(sla_stats.sla_breached ?? 0) > 0" class="flex h-5 items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-black text-white ml-1 shadow-sm shadow-rose-500/30">
+                            {{ sla_stats.sla_breached }}
                         </span>
                     </TabsTrigger>
                     <TabsTrigger value="broadcast" class="h-10 px-5 rounded-xl text-xs font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm data-[state=active]:text-indigo-600 dark:data-[state=active]:text-white transition-all flex items-center gap-2">
@@ -1039,6 +1149,241 @@ function toggleRule(rule: RuleRow) {
                             </CardContent>
                         </Card>
                     </div>
+                </div>
+            </TabsContent>
+
+            <!-- ============================================================ -->
+            <!-- TAB: SLA MONITORING                                          -->
+            <!-- ============================================================ -->
+            <TabsContent value="sla" class="space-y-6 outline-none anim-slide-up">
+                <!-- SLA KPI Stats Cards -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <!-- Fulfill Rate -->
+                    <Card class="border-0 overflow-hidden relative group bg-gradient-to-br from-emerald-500/5 to-teal-500/10 hover:shadow-lg transition-all duration-300 rounded-2xl border-t border-emerald-500/20">
+                        <div class="absolute -right-4 -bottom-4 size-24 rounded-full bg-emerald-500/10 blur-xl" />
+                        <CardContent class="flex items-center justify-between p-5 relative z-10">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Tỉ lệ đạt SLA</p>
+                                <p class="mt-2 text-3xl font-black text-slate-800 dark:text-white">{{ sla_stats.sla_fulfill_rate }}%</p>
+                            </div>
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                <CheckCircle2 class="size-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Warning Count -->
+                    <Card class="border-0 overflow-hidden relative group bg-gradient-to-br from-amber-500/5 to-orange-500/10 hover:shadow-lg transition-all duration-300 rounded-2xl border-t border-amber-500/20">
+                        <div class="absolute -right-4 -bottom-4 size-24 rounded-full bg-amber-500/10 blur-xl" />
+                        <CardContent class="flex items-center justify-between p-5 relative z-10">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Cảnh báo SLA</p>
+                                <p class="mt-2 text-3xl font-black text-amber-600 dark:text-amber-400">{{ sla_stats.sla_warning }}</p>
+                            </div>
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300">
+                                <Clock class="size-5 animate-pulse" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Breached Count -->
+                    <Card class="border-0 overflow-hidden relative group bg-gradient-to-br from-rose-500/5 to-red-500/10 hover:shadow-lg transition-all duration-300 rounded-2xl border-t border-rose-500/20">
+                        <div class="absolute -right-4 -bottom-4 size-24 rounded-full bg-rose-500/10 blur-xl" />
+                        <CardContent class="flex items-center justify-between p-5 relative z-10">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Ticket Trễ Hạn (SLA Breach)</p>
+                                <p class="mt-2 text-3xl font-black text-rose-600 dark:text-rose-400">{{ sla_stats.sla_breached }}</p>
+                            </div>
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
+                                <AlertTriangle class="size-5 animate-bounce-gentle" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Total Checked -->
+                    <Card class="border-0 overflow-hidden relative group bg-gradient-to-br from-indigo-500/5 to-purple-500/10 hover:shadow-lg transition-all duration-300 rounded-2xl border-t border-indigo-500/20">
+                        <div class="absolute -right-4 -bottom-4 size-24 rounded-full bg-indigo-500/10 blur-xl" />
+                        <CardContent class="flex items-center justify-between p-5 relative z-10">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Tổng ticket kiểm tra</p>
+                                <p class="mt-2 text-3xl font-black text-slate-800 dark:text-white">{{ sla_stats.total_checked }}</p>
+                            </div>
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+                                <Ticket class="size-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Main SLA Content layout -->
+                <div class="grid gap-6 xl:grid-cols-4 items-start">
+                    <!-- Left column: SLA Rules Configuration Sidecard -->
+                    <Card class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md overflow-hidden">
+                        <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                            <CardTitle class="flex items-center gap-2 text-base font-black">
+                                <Clock class="size-5 text-indigo-500" />
+                                Quy Định SLA Cấp Gói
+                            </CardTitle>
+                            <CardDescription class="text-xs font-semibold text-slate-400">
+                                Cam kết thời gian phản hồi đầu tiên (First Response SLA)
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent class="p-5 space-y-4">
+                            <div class="flex flex-col gap-3.5">
+                                <!-- Enterprise -->
+                                <div class="flex flex-col gap-1 p-3 rounded-xl border border-rose-500/10 bg-rose-500/5 dark:bg-rose-950/10">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs font-black text-rose-700 dark:text-rose-400">Doanh Nghiệp (Enterprise)</p>
+                                        <Badge class="bg-rose-500 text-white font-bold text-xs hover:bg-rose-600">2 Giờ</Badge>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Tự động Leo thang cảnh báo khẩn sau 1 giờ</p>
+                                </div>
+                                <!-- Pro -->
+                                <div class="flex flex-col gap-1 p-3 rounded-xl border border-amber-500/10 bg-amber-500/5 dark:bg-amber-950/10">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs font-black text-amber-700 dark:text-amber-400">Chuyên Nghiệp (Pro)</p>
+                                        <Badge class="bg-amber-500 text-white font-bold text-xs hover:bg-amber-600">12 Giờ</Badge>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Hỗ trợ nhanh ưu tiên phản hồi tiêu chuẩn</p>
+                                </div>
+                                <!-- Starter -->
+                                <div class="flex flex-col gap-1 p-3 rounded-xl border border-indigo-500/10 bg-indigo-500/5 dark:bg-indigo-950/10">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs font-black text-indigo-700 dark:text-indigo-400">Cơ Bản (Starter)</p>
+                                        <Badge class="bg-indigo-500 text-white font-bold text-xs hover:bg-indigo-600">24 Giờ</Badge>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Phản hồi tiêu chuẩn thông thường</p>
+                                </div>
+                                <!-- Free -->
+                                <div class="flex flex-col gap-1 p-3 rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs font-black text-slate-700 dark:text-slate-300">Miễn Phí (Free)</p>
+                                        <Badge class="bg-slate-500 text-white font-bold text-xs hover:bg-slate-600">48 Giờ</Badge>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Hỗ trợ cộng đồng &amp; tài liệu HD</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="w-full h-10 rounded-xl font-bold border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 flex items-center justify-center gap-2"
+                                    :disabled="isRecalculatingSla"
+                                    @click="recalculateSla"
+                                >
+                                    <RefreshCcw :class="['size-4', isRecalculatingSla && 'animate-spin']" />
+                                    <span>Tính Toán Lại SLA</span>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Right column: Real-time SLA Table -->
+                    <Card class="xl:col-span-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md overflow-hidden">
+                        <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                            <CardTitle class="flex items-center gap-2 text-base font-black">
+                                <Activity class="size-5 text-indigo-500 animate-pulse" />
+                                Bảng Theo Dõi SLA Thời Gian Thực
+                            </CardTitle>
+                            <CardDescription class="text-xs font-semibold text-slate-400">
+                                Danh sách các ticket hỗ trợ kèm thời gian đếm ngược cam kết phản hồi
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent class="p-0">
+                            <div class="overflow-x-auto">
+                                <table class="w-full border-collapse text-left">
+                                    <thead>
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 text-xs font-bold text-slate-500">
+                                            <th class="p-4">Mã</th>
+                                            <th class="p-4">Nhà Hàng</th>
+                                            <th class="p-4">Gói dịch vụ</th>
+                                            <th class="p-4">Tiêu Đề</th>
+                                            <th class="p-4">Thời Gian Còn Lại</th>
+                                            <th class="p-4 text-center">Leo Thang</th>
+                                            <th class="p-4 text-right">Hành Động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <tr
+                                            v-for="ticket in tickets.data.filter(t => t.sla_due_at !== null)"
+                                            :key="ticket.id"
+                                            class="text-xs font-medium hover:bg-slate-50/30 dark:hover:bg-slate-900/20 transition-all duration-200 animate-fade-in"
+                                        >
+                                            <td class="p-4 font-mono font-bold">{{ ticket.code }}</td>
+                                            <td class="p-4">
+                                                <div class="font-bold text-slate-800 dark:text-slate-200">{{ ticket.restaurant }}</div>
+                                            </td>
+                                            <td class="p-4">
+                                                <Badge
+                                                    :class="[
+                                                        'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
+                                                        ticket.restaurant_plan_code === 'enterprise' ? 'bg-rose-500/10 text-rose-600 border border-rose-500/20 dark:text-rose-400' :
+                                                        ticket.restaurant_plan_code === 'pro' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:text-amber-400' :
+                                                        ticket.restaurant_plan_code === 'starter' ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 dark:text-indigo-400' :
+                                                        'bg-slate-500/10 text-slate-600 border border-slate-500/20 dark:text-slate-400'
+                                                    ]"
+                                                >
+                                                    {{ ticket.restaurant_plan }}
+                                                </Badge>
+                                            </td>
+                                            <td class="p-4">
+                                                <div class="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[200px]" :title="ticket.title">
+                                                    {{ ticket.title }}
+                                                </div>
+                                            </td>
+                                            <td class="p-4">
+                                                <div :class="getSlaRemainingTime(ticket).color">
+                                                    {{ getSlaRemainingTime(ticket).label }}
+                                                </div>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                <Badge
+                                                    v-if="ticket.escalated_at"
+                                                    class="bg-rose-500/10 text-rose-600 border border-rose-500/20 font-black rounded-full text-[9px] tracking-wide"
+                                                    title="Đã kích hoạt cảnh báo leo thang khẩn cấp"
+                                                >
+                                                    ĐÃ LEO THANG
+                                                </Badge>
+                                                <span v-else class="text-slate-400 text-[10px]">Chưa</span>
+                                            </td>
+                                            <td class="p-4 text-right">
+                                                <div class="flex items-center justify-end gap-2">
+                                                    <!-- Manual Escalation Trigger for Enterprise -->
+                                                    <Button
+                                                        v-if="ticket.restaurant_plan_code === 'enterprise' && !ticket.first_response_at && !ticket.escalated_at"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        class="h-7 px-2.5 rounded-lg border border-rose-500/20 text-rose-600 hover:bg-rose-500/5 font-bold"
+                                                        :disabled="isEscalatingTicket === ticket.id"
+                                                        @click="escalateTicket(ticket.id)"
+                                                    >
+                                                        <Zap class="size-3 shrink-0" />
+                                                        <span>Leo thang</span>
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        class="h-7 px-2.5 rounded-lg border border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 font-bold"
+                                                        @click="activeTab = 'tickets'; toggleTicketDetail(ticket.id)"
+                                                    >
+                                                        <Eye class="size-3 shrink-0" />
+                                                        <span>Xem chi tiết</span>
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="tickets.data.filter(t => t.sla_due_at !== null).length === 0">
+                                            <td colspan="7" class="p-8 text-center text-slate-400">
+                                                Không có dữ liệu SLA nào.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </TabsContent>
 

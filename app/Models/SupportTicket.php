@@ -16,13 +16,41 @@ class SupportTicket extends Model
 
     protected $guarded = [];
 
+    protected $appends = ['sla_status'];
+
     protected function casts(): array
     {
         return [
             'first_response_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'sla_due_at' => 'datetime',
+            'escalated_at' => 'datetime',
             'meta' => 'array',
         ];
+    }
+
+    public function getSlaStatusAttribute(): string
+    {
+        if ($this->first_response_at) {
+            if ($this->sla_due_at && $this->first_response_at->gt($this->sla_due_at)) {
+                return 'breached';
+            }
+            return 'fulfilled';
+        }
+
+        if (!$this->sla_due_at) {
+            return 'pending';
+        }
+
+        if (now()->gt($this->sla_due_at)) {
+            return 'breached';
+        }
+
+        if (now()->addHour()->gt($this->sla_due_at)) {
+            return 'warning';
+        }
+
+        return 'pending';
     }
 
     public function restaurant(): BelongsTo

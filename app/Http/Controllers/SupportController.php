@@ -109,7 +109,7 @@ class SupportController extends Controller
             $priority = 'p1';
         }
 
-        SupportTicket::create([
+        $ticket = new SupportTicket([
             'restaurant_id' => $user->restaurant_id,
             'created_by' => $user->id,
             'code' => 'TKT-' . now()->format('ymd') . '-' . Str::upper(Str::random(5)),
@@ -122,6 +122,8 @@ class SupportController extends Controller
             'description' => $data['description'],
             'meta' => ['source' => 'tenant_support_center'],
         ]);
+        $ticket->sla_due_at = app(\App\Services\SlaService::class)->calculateSlaDueAt($ticket);
+        $ticket->save();
 
         return back()->with('success', 'Đã gửi yêu cầu hỗ trợ thành công. Đội ngũ kỹ thuật đã được thông báo.');
     }

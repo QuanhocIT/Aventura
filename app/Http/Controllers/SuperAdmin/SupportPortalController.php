@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\SlaService;
+use App\Mail\SupportTicketEscalationMail;
 
 class SupportPortalController extends Controller
 {
@@ -43,6 +45,7 @@ class SupportPortalController extends Controller
         return Inertia::render('super-admin/support/Index', [
             'stats' => $this->supportPortal->dashboardMetrics(),
             'monitoring' => $this->supportPortal->monitoringSnapshot(),
+            'sla_stats' => app(SlaService::class)->getSlaMetrics(),
             'tickets' => $ticketQuery->paginate(15, ['*'], 'tickets_page')->withQueryString()->through(fn ($ticket) => [
                 'id' => $ticket->id,
                 'code' => $ticket->code,
@@ -56,10 +59,17 @@ class SupportPortalController extends Controller
                 'assigned_to' => $ticket->assigned_to,
                 'created_by' => $ticket->creator?->name ?? 'He thong',
                 'created_at' => $ticket->created_at->format('d/m/Y H:i'),
+                'created_at_raw' => $ticket->created_at->toIso8601String(),
+                'sla_due_at' => $ticket->sla_due_at ? $ticket->sla_due_at->toIso8601String() : null,
+                'first_response_at' => $ticket->first_response_at ? $ticket->first_response_at->toIso8601String() : null,
+                'escalated_at' => $ticket->escalated_at ? $ticket->escalated_at->toIso8601String() : null,
+                'sla_status' => $ticket->sla_status,
+                'restaurant_plan' => $ticket->restaurant?->plan?->name ?? 'Miễn Phí',
+                'restaurant_plan_code' => $ticket->restaurant?->plan?->code ?? 'free',
                 'replies' => $ticket->replies->map(fn ($reply) => [
                     'id' => $reply->id,
                     'user_name' => $reply->user?->name ?? 'He thong',
-                    'is_internal' => (bool) $reply->is_internal,
+                    'is_staff' => (bool) $reply->is_internal,
                     'message' => $reply->message,
                     'created_at' => $reply->created_at->format('d/m/Y H:i'),
                 ]),
@@ -130,7 +140,7 @@ class SupportPortalController extends Controller
             }
         }
 
-        SupportTicket::create([
+        $ticket = new SupportTicket([
             'restaurant_id' => $data['restaurant_id'] ?? null,
             'created_by' => $request->user()?->id,
             'code' => 'TKT-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
@@ -143,6 +153,8 @@ class SupportPortalController extends Controller
             'description' => $data['description'],
             'meta' => ['source' => 'super_admin_portal'],
         ]);
+        $ticket->sla_due_at = app(SlaService::class)->calculateSlaDueAt($ticket);
+        $ticket->save();
 
         broadcast(new DashboardMetricsUpdated('ticket_created'))->toOthers();
 
@@ -443,5 +455,40 @@ class SupportPortalController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="support-export-'.now()->format('YmdHis').'.csv"',
         ]);
+    }
+
+    public function recalculateSla(Request $request): RedirectResponse
+    {
+        $tickets = SupportTicket::whereNull('first_response_at')
+            ->whereNotIn('status', ['resolved', 'closed'])
+            ->get();
+        
+        $slaService = app(SlaService::class);
+        foreach ($tickets as $ticket) {
+            $ticket->update([
+                'sla_due_at' => $slaService->calculateSlaDueAt($ticket),
+            ]);
+        }
+        
+        return back()->with('success', 'Đã tính toán lại thời hạn SLA cho toàn bộ ticket đang mở.');
+    }
+
+    public function escalateTicket(Request $request, SupportTicket $ticket): RedirectResponse
+    {
+        $superAdmins = User::whereHas('roles', function ($query) {
+            $query->where('name', 'super_admin');
+        })->get();
+
+        foreach ($superAdmins as $admin) {
+            if ($admin->email) {
+                \Illuminate\Support\Facades\Mail::to($admin->email)->send(new SupportTicketEscalationMail($ticket, $admin));
+            }
+        }
+
+        $ticket->update([
+            'escalated_at' => now(),
+        ]);
+
+        return back()->with('success', 'Đã kích hoạt leo thang SLA và gửi cảnh báo khẩn cấp.');
     }
 }

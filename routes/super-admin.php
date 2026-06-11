@@ -84,6 +84,8 @@ Route::prefix('super-admin')
         Route::delete('support/rules/{rule}', [SupportPortalController::class, 'destroyRule'])->name('support.rules.destroy');
         Route::patch('support/rules/{rule}/toggle', [SupportPortalController::class, 'toggleRule'])->name('support.rules.toggle');
         Route::post('support/alerts/run', [SupportPortalController::class, 'runAlertCheck'])->name('support.alerts.run');
+        Route::post('support/tickets/{ticket}/escalate', [SupportPortalController::class, 'escalateTicket'])->name('support.tickets.escalate');
+        Route::post('support/sla/recalculate', [SupportPortalController::class, 'recalculateSla'])->name('support.sla.recalculate');
 
         // Banner Management
         Route::get('banners', [BannerController::class, 'index'])->name('banners.index');
