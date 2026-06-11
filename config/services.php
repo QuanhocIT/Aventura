@@ -51,4 +51,8 @@ return [
         'api_key' => env('BREVO_API_KEY', ''),
     ],
 
+    'analytics' => [
+        'url' => env('ANALYTICS_SERVICE_URL', 'http://localhost:8003'),
+    ],
+
 ];

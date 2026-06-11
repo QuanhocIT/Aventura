@@ -50,7 +50,7 @@ class FetchAiFraudAlertsJob implements ShouldQueue
         }
 
         // 2. Call Python FastAPI microservice
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/fraud-detection';
+        $url = config('services.analytics.url') . '/api/analytics/fraud-detection';
 
         try {
             $response = Http::timeout(10)

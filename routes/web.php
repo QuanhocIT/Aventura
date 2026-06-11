@@ -24,8 +24,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('api/billing/apply-coupon', [CheckoutController::class, 'applyCoupon'])->name('billing.apply-coupon');
 
     // Multi-tenant restaurant selector
-    Route::get('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
-    Route::post('choose-restaurant', [\App\Http\Controllers\SupportController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
+    Route::get('choose-restaurant', [\App\Http\Controllers\RestaurantChooserController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
+    Route::post('choose-restaurant', [\App\Http\Controllers\RestaurantChooserController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
 
     // Impersonation Stop
     Route::post('impersonate/stop', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'stop'])->name('impersonate.stop');
@@ -58,7 +58,13 @@ Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show'
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SupportController;
+use App\Http\Controllers\ProductManagementController;
+use App\Http\Controllers\InventoryManagementController;
+use App\Http\Controllers\EmployeeManagementController;
+use App\Http\Controllers\LeaveScheduleController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\FeedbackController;
@@ -77,43 +83,43 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('support/tickets/{ticket}/replies', [SupportController::class, 'storeReply'])->name('support.tickets.replies.store');
 
     // Functional Pages for Guided Tours
-    Route::get('products', [SupportController::class, 'productsPage'])->name('products.index');
+    Route::get('products', [ProductManagementController::class, 'productsPage'])->name('products.index');
     Route::get('api/products/menu-insights', [\App\Http\Controllers\MenuInsightController::class, 'index'])->name('products.menu-insights');
-    Route::post('products', [SupportController::class, 'storeProduct'])->name('products.store')->middleware('tenant.quota:dishes');
-    Route::patch('products/{product}', [SupportController::class, 'updateProduct'])->name('products.update');
-    Route::delete('products/{product}', [SupportController::class, 'destroyProduct'])->name('products.destroy');
-    Route::post('product-categories', [SupportController::class, 'storeCategory'])->name('product-categories.store');
-    Route::delete('product-categories/{category}', [SupportController::class, 'destroyCategory'])->name('product-categories.destroy');
+    Route::post('products', [ProductManagementController::class, 'storeProduct'])->name('products.store')->middleware('tenant.quota:dishes');
+    Route::patch('products/{product}', [ProductManagementController::class, 'updateProduct'])->name('products.update');
+    Route::delete('products/{product}', [ProductManagementController::class, 'destroyProduct'])->name('products.destroy');
+    Route::post('product-categories', [ProductManagementController::class, 'storeCategory'])->name('product-categories.store');
+    Route::delete('product-categories/{category}', [ProductManagementController::class, 'destroyCategory'])->name('product-categories.destroy');
 
-    Route::get('inventory', [SupportController::class, 'inventoryPage'])->name('inventory.index');
-    Route::get('api/inventory/ai-forecast', [SupportController::class, 'aiForecast'])->name('inventory.ai-forecast');
-    Route::post('inventory/ingredients', [SupportController::class, 'storeIngredient'])->name('inventory.ingredients.store');
-    Route::post('inventory/recipes', [SupportController::class, 'storeRecipe'])->name('inventory.recipes.store');
-    Route::post('inventory/purchases', [SupportController::class, 'storePurchase'])->name('inventory.purchases.store');
-    Route::post('inventory/waste', [SupportController::class, 'storeWaste'])->name('inventory.waste.store');
+    Route::get('inventory', [InventoryManagementController::class, 'inventoryPage'])->name('inventory.index');
+    Route::get('api/inventory/ai-forecast', [InventoryManagementController::class, 'aiForecast'])->name('inventory.ai-forecast');
+    Route::post('inventory/ingredients', [InventoryManagementController::class, 'storeIngredient'])->name('inventory.ingredients.store');
+    Route::post('inventory/recipes', [InventoryManagementController::class, 'storeRecipe'])->name('inventory.recipes.store');
+    Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
+    Route::post('inventory/waste', [InventoryManagementController::class, 'storeWaste'])->name('inventory.waste.store');
 
-    Route::get('employees', [SupportController::class, 'employeesPage'])->name('employees.index');
-    Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
-    Route::patch('employees/{employee}', [SupportController::class, 'updateEmployee'])->name('employees.update');
-    Route::patch('employees/{employee}/toggle-status', [SupportController::class, 'toggleEmployeeStatus'])->name('employees.toggle-status');
-    Route::get('employees/{employee}/export-profile', [SupportController::class, 'exportEmployeeProfile'])->name('employees.export-profile');
-    Route::post('employees/shifts/sync', [SupportController::class, 'syncShifts'])->name('employees.shifts.sync');
-    Route::post('employees/schedules', [SupportController::class, 'storeAssignment'])->name('employees.schedules.store');
-    Route::post('employees/schedules/delete', [SupportController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
-    Route::post('employees/schedules/toggle-auto', [SupportController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
-    Route::post('employees/schedules/copy-last-week', [SupportController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
-    Route::post('employees/leaves', [SupportController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
-    Route::get('employees/leaves/{leave}/replacements', [SupportController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
-    Route::patch('employees/leaves/{leave}/approve', [SupportController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
-    Route::patch('employees/leaves/{leave}/reject', [SupportController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
+    Route::get('employees', [EmployeeManagementController::class, 'employeesPage'])->name('employees.index');
+    Route::post('employees', [EmployeeManagementController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
+    Route::patch('employees/{employee}', [EmployeeManagementController::class, 'updateEmployee'])->name('employees.update');
+    Route::patch('employees/{employee}/toggle-status', [EmployeeManagementController::class, 'toggleEmployeeStatus'])->name('employees.toggle-status');
+    Route::get('employees/{employee}/export-profile', [EmployeeManagementController::class, 'exportEmployeeProfile'])->name('employees.export-profile');
+    Route::post('employees/shifts/sync', [EmployeeManagementController::class, 'syncShifts'])->name('employees.shifts.sync');
+    Route::post('employees/schedules', [LeaveScheduleController::class, 'storeAssignment'])->name('employees.schedules.store');
+    Route::post('employees/schedules/delete', [LeaveScheduleController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
+    Route::post('employees/schedules/toggle-auto', [LeaveScheduleController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
+    Route::post('employees/schedules/copy-last-week', [LeaveScheduleController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
+    Route::post('employees/leaves', [LeaveScheduleController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
+    Route::get('employees/leaves/{leave}/replacements', [LeaveScheduleController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
+    Route::patch('employees/leaves/{leave}/approve', [LeaveScheduleController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
+    Route::patch('employees/leaves/{leave}/reject', [LeaveScheduleController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
 
     // Chấm công & Lịch biểu
     Route::get('schedules', [ScheduleController::class, 'index'])->name('schedules.index');
-    Route::post('schedules/check-in', [ScheduleController::class, 'checkIn'])->name('schedules.check-in');
-    Route::post('schedules/check-out', [ScheduleController::class, 'checkOut'])->name('schedules.check-out');
-    Route::post('schedules/check-in-employee', [ScheduleController::class, 'checkInEmployee'])->name('schedules.check-in-employee');
-    Route::post('schedules/check-out-employee', [ScheduleController::class, 'checkOutEmployee'])->name('schedules.check-out-employee');
-    Route::post('schedules/absent-employee', [ScheduleController::class, 'markAbsentEmployee'])->name('schedules.absent-employee');
+    Route::post('schedules/check-in', [AttendanceController::class, 'checkIn'])->name('schedules.check-in');
+    Route::post('schedules/check-out', [AttendanceController::class, 'checkOut'])->name('schedules.check-out');
+    Route::post('schedules/check-in-employee', [AttendanceController::class, 'checkInEmployee'])->name('schedules.check-in-employee');
+    Route::post('schedules/check-out-employee', [AttendanceController::class, 'checkOutEmployee'])->name('schedules.check-out-employee');
+    Route::post('schedules/absent-employee', [AttendanceController::class, 'markAbsentEmployee'])->name('schedules.absent-employee');
     Route::post('schedules/register', [ScheduleController::class, 'register'])->name('schedules.register');
     Route::post('schedules/toggle-leader', [ScheduleController::class, 'toggleShiftLeader'])->name('schedules.toggle-leader');
     Route::post('schedules/settings', [ScheduleController::class, 'updateSettings'])->name('schedules.update-settings');
@@ -122,14 +128,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('schedules/export', [ScheduleController::class, 'export'])->name('schedules.export');
 
     // Shift Swapping
-    Route::post('schedules/swap/request', [ScheduleController::class, 'requestSwap'])->name('schedules.swap.request');
-    Route::post('schedules/swap/{swap}/accept', [ScheduleController::class, 'acceptSwap'])->name('schedules.swap.accept');
-    Route::post('schedules/swap/{swap}/cancel', [ScheduleController::class, 'cancelSwap'])->name('schedules.swap.cancel');
-    Route::patch('schedules/swap/{swap}/approve', [SupportController::class, 'approveSwap'])->name('schedules.swap.approve');
-    Route::patch('schedules/swap/{swap}/reject', [SupportController::class, 'rejectSwap'])->name('schedules.swap.reject');
-    Route::get('schedules/swap-suggestions', [ScheduleController::class, 'getSwapSuggestions'])->name('schedules.swap-suggestions');
-    Route::get('notifications', [ScheduleController::class, 'getNotifications'])->name('notifications.index');
-    Route::post('notifications/{id}/read', [ScheduleController::class, 'markNotificationAsRead'])->name('notifications.read');
+    Route::post('schedules/swap/request', [ShiftSwapController::class, 'requestSwap'])->name('schedules.swap.request');
+    Route::post('schedules/swap/{swap}/accept', [ShiftSwapController::class, 'acceptSwap'])->name('schedules.swap.accept');
+    Route::post('schedules/swap/{swap}/cancel', [ShiftSwapController::class, 'cancelSwap'])->name('schedules.swap.cancel');
+    Route::patch('schedules/swap/{swap}/approve', [LeaveScheduleController::class, 'approveSwap'])->name('schedules.swap.approve');
+    Route::patch('schedules/swap/{swap}/reject', [LeaveScheduleController::class, 'rejectSwap'])->name('schedules.swap.reject');
+    Route::get('schedules/swap-suggestions', [ShiftSwapController::class, 'getSwapSuggestions'])->name('schedules.swap-suggestions');
+    Route::get('notifications', [ShiftSwapController::class, 'getNotifications'])->name('notifications.index');
+    Route::post('notifications/{id}/read', [ShiftSwapController::class, 'markNotificationAsRead'])->name('notifications.read');
 
 
     // Quản lý Khách hàng (CRM Mini) & Bảo mật tài sản số
@@ -242,14 +248,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('suppliers/orders/{purchaseOrder}/release-escrow', [\App\Http\Controllers\SupplierController::class, 'releaseEscrow'])->name('suppliers.orders.release-escrow');
     Route::post('suppliers/orders/{purchaseOrder}/refund-escrow', [\App\Http\Controllers\SupplierController::class, 'refundEscrow'])->name('suppliers.orders.refund-escrow');
     Route::get('suppliers/{supplier}/ingredients/{ingredient}/price-analytics', [\App\Http\Controllers\SupplierController::class, 'priceAnalytics'])->name('suppliers.price-analytics');
-    Route::get('suppliers/{supplier}/sla', [\App\Http\Controllers\SupplierController::class, 'getSlaMetrics'])->name('suppliers.sla');
+    Route::get('suppliers/{supplier}/sla', [\App\Http\Controllers\SupplierPortalController::class, 'getSlaMetrics'])->name('suppliers.sla');
     Route::post('suppliers/auto-replenish', [\App\Http\Controllers\SupplierController::class, 'triggerAutoReplenish'])->name('suppliers.auto-replenish');
     Route::post('suppliers/ocr-invoice', [\App\Http\Controllers\SupplierController::class, 'ocrInvoice'])->name('suppliers.ocr-invoice');
 
     // Điều phối và chuyển kho nội bộ liên chi nhánh
-    Route::get('api/inventory/transfer-recommendations', [\App\Http\Controllers\SupplierController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
-    Route::post('api/inventory/internal-transfers', [\App\Http\Controllers\SupplierController::class, 'storeInternalTransfer'])->name('inventory.internal-transfers');
-    Route::get('api/inventory/internal-transfers', [\App\Http\Controllers\SupplierController::class, 'listInternalTransfers'])->name('inventory.internal-transfers.list');
+    Route::get('api/inventory/transfer-recommendations', [\App\Http\Controllers\InternalTransferController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
+    Route::post('api/inventory/internal-transfers', [\App\Http\Controllers\InternalTransferController::class, 'storeInternalTransfer'])->name('inventory.internal-transfers');
+    Route::get('api/inventory/internal-transfers', [\App\Http\Controllers\InternalTransferController::class, 'listInternalTransfers'])->name('inventory.internal-transfers.list');
 
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
     Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'index'])->name('rfps.index');
@@ -259,11 +265,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Portal Chuỗi cung ứng (Dành cho nhà cung cấp)
     Route::prefix('supplier')->name('supplier.')->group(function () {
-        Route::get('dashboard', [\App\Http\Controllers\SupplierController::class, 'supplierDashboard'])->name('dashboard');
-        Route::get('catalog', [\App\Http\Controllers\SupplierController::class, 'supplierCatalog'])->name('catalog');
-        Route::post('catalog', [\App\Http\Controllers\SupplierController::class, 'storeCatalogItem'])->name('catalog.store');
-        Route::get('orders', [\App\Http\Controllers\SupplierController::class, 'supplierOrders'])->name('orders');
-        Route::post('orders/{purchaseOrder}/status', [\App\Http\Controllers\SupplierController::class, 'updateOrderStatus'])->name('orders.update-status');
+        Route::get('dashboard', [\App\Http\Controllers\SupplierPortalController::class, 'supplierDashboard'])->name('dashboard');
+        Route::get('catalog', [\App\Http\Controllers\SupplierPortalController::class, 'supplierCatalog'])->name('catalog');
+        Route::post('catalog', [\App\Http\Controllers\SupplierPortalController::class, 'storeCatalogItem'])->name('catalog.store');
+        Route::get('orders', [\App\Http\Controllers\SupplierPortalController::class, 'supplierOrders'])->name('orders');
+        Route::post('orders/{purchaseOrder}/status', [\App\Http\Controllers\SupplierPortalController::class, 'updateOrderStatus'])->name('orders.update-status');
         Route::get('rfps', [\App\Http\Controllers\RfpController::class, 'supplierIndex'])->name('rfps');
         Route::post('rfps/{rfp}/bid', [\App\Http\Controllers\RfpController::class, 'supplierSubmitBid'])->name('rfps.bid');
     });
@@ -297,7 +303,7 @@ Route::middleware('throttle:60,1')->group(function () {
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới
-Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])
+Route::get('employees/verify/{user}', [EmployeeManagementController::class, 'verifyEmployee'])
     ->name('employees.verify')
     ->middleware('signed');
 

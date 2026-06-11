@@ -98,7 +98,7 @@ class InventoryReplenishService
         }
 
         // 4. Call FastAPI
-        $baseUrl = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003');
+        $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/inventory-forecast";
         $forecastResults = null;
 

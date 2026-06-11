@@ -148,8 +148,8 @@ class ServiceMonitorService
                     (int) config('database.redis.default.port', 6379)
                 ];
             case 'reverb':
-                $host = config('reverb.apps.apps.0.options.host') ?: env('REVERB_HOST', '127.0.0.1');
-                $port = config('reverb.apps.apps.0.options.port') ?: env('REVERB_PORT', 8080);
+                $host = config('reverb.apps.apps.0.options.host') ?: config('reverb.servers.reverb.host', '127.0.0.1');
+                $port = config('reverb.apps.apps.0.options.port') ?: config('reverb.servers.reverb.port', 8080);
                 return [$host, (int) $port];
             case 'meilisearch':
                 $url = config('scout.meilisearch.host', 'http://localhost:7700');

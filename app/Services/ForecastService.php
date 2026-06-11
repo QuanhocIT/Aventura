@@ -37,7 +37,7 @@ class ForecastService
                 ];
             }
 
-            $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/revenue-forecast';
+            $url = config('services.analytics.url') . '/api/analytics/revenue-forecast';
 
             try {
                 $response = \Illuminate\Support\Facades\Http::timeout(3)

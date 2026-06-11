@@ -828,7 +828,7 @@ class SupplierController extends Controller
         $file = $request->file('invoice_file');
         $poContext = $request->input('po_items');
 
-        $baseUrl = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003');
+        $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/ocr-invoice";
 
         try {
@@ -985,7 +985,7 @@ class SupplierController extends Controller
         }
 
         // 6. Call Python FastAPI
-        $baseUrl = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003');
+        $baseUrl = config('services.analytics.url');
         $recommendations = null;
 
         try {

@@ -443,7 +443,7 @@ class PromotionController extends Controller
         }
 
         // 2. Gửi request sang Python FastAPI microservice (port 8003)
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/basket-analysis';
+        $url = config('services.analytics.url') . '/api/analytics/basket-analysis';
 
         try {
             $response = Http::timeout(4) // Timeout ngắn 4 giây
@@ -570,7 +570,7 @@ class PromotionController extends Controller
         }
 
         // 1. Gửi request sang Python FastAPI cổng 8003
-        $url = env('ANALYTICS_SERVICE_URL', 'http://localhost:8003') . '/api/analytics/upsell-suggestion';
+        $url = config('services.analytics.url') . '/api/analytics/upsell-suggestion';
 
         try {
             $response = Http::timeout(2) // Timeout cực ngắn 2s để đảm bảo trải nghiệm POS
