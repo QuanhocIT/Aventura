@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     ShoppingCart,
     CheckCircle2,
     Clock,
     XCircle,
     ChefHat,
-    Banknote,
-    Filter,
     CalendarDays,
     RefreshCw,
     AlertCircle,
@@ -16,7 +15,6 @@ import {
     Layers,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import axios from 'axios';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,11 +39,19 @@ type Order = {
     third_party_source: string | null;
     table_name: string | null;
     area_name: string | null;
+    subtotal?: number;
+    discount_amount?: number;
     total_amount: number;
     items_count: number;
     created_at: string;
     completed_at: string | null;
-    items?: { id: number; product_name: string; quantity: number; status: string; notes: string | null }[];
+    items?: {
+        id: number;
+        product_name: string;
+        quantity: number;
+        status: string;
+        notes: string | null;
+    }[];
 };
 
 type Summary = {
@@ -60,7 +66,12 @@ type Summary = {
 const props = defineProps<{
     orders: Order[];
     summary: Summary;
-    filters: { status: string; date: string; search?: string; history?: boolean };
+    filters: {
+        status: string;
+        date: string;
+        search?: string;
+        history?: boolean;
+    };
     activeShiftStats?: {
         shift_name: string;
         check_in_at: string;
@@ -78,6 +89,43 @@ const viewMode = ref(props.filters.history ? 'history' : 'today');
 const expandedOrderId = ref<number | null>(null);
 const isSimulating = ref(false);
 const updatingItemStatus = ref<number | null>(null);
+
+const page = usePage();
+const isCashier = computed(() => {
+    const roles = (page.props.auth?.user as any)?.roles || [];
+
+    return roles.includes('cashier');
+});
+
+const voucherCodes = ref<Record<number, string>>({});
+
+const handleApplyVoucher = async (orderId: number) => {
+    const code = voucherCodes.value[orderId];
+
+    if (!code || !code.trim()) {
+        toast.error('Vui lòng nhập mã giảm giá.');
+
+        return;
+    }
+
+    try {
+        const response = await axios.post('/api/promotions/apply', {
+            order_id: orderId,
+            code: code.trim(),
+        });
+        toast.success(
+            response.data.message || 'Áp dụng mã giảm giá thành công!',
+        );
+        voucherCodes.value[orderId] = '';
+        router.reload({ only: ['orders'] });
+    } catch (e: any) {
+        console.error(e);
+        const errorMsg =
+            e.response?.data?.message ||
+            'Có lỗi xảy ra khi áp dụng mã giảm giá.';
+        toast.error(errorMsg);
+    }
+};
 
 const applyFilters = () => {
     router.get(
@@ -109,8 +157,12 @@ const clearSearch = () => {
 
 const simulateThirdParty = async (source: 'GrabFood' | 'ShopeeFood') => {
     isSimulating.value = true;
+
     try {
-        const response = await axios.post('/api/orders/third-party/simulate', { source });
+        const response = await axios.post('/api/orders/third-party/simulate', {
+            source,
+        });
+
         if (response.data.success) {
             toast.success(response.data.message);
             router.reload({ only: ['orders', 'summary'] });
@@ -125,8 +177,12 @@ const simulateThirdParty = async (source: 'GrabFood' | 'ShopeeFood') => {
 
 const updateOrderItemStatus = async (item: any, newStatus: string) => {
     updatingItemStatus.value = item.id;
+
     try {
-        const response = await axios.patch(`/orders/items/${item.id}/status`, { status: newStatus });
+        const response = await axios.patch(`/orders/items/${item.id}/status`, {
+            status: newStatus,
+        });
+
         if (response.data.success) {
             toast.success(response.data.message);
             router.reload({ only: ['orders'] });
@@ -198,11 +254,26 @@ const channelLabel: Record<string, string> = {
 };
 
 const itemStatusConfig: Record<string, { label: string; class: string }> = {
-    pending: { label: 'Chờ chế biến', class: 'bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400' },
-    sent: { label: 'Đã gửi bếp', class: 'bg-sky-50 text-sky-700 border-sky-200/50 dark:bg-sky-950/20 dark:text-sky-400' },
-    preparing: { label: 'Đang nấu', class: 'bg-violet-50 text-violet-750 border-violet-200/50 dark:bg-violet-950/20 dark:text-violet-400' },
-    served: { label: 'Đã phục vụ', class: 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400' },
-    cancelled: { label: 'Đã hủy', class: 'bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400' },
+    pending: {
+        label: 'Chờ chế biến',
+        class: 'bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400',
+    },
+    sent: {
+        label: 'Đã gửi bếp',
+        class: 'bg-sky-50 text-sky-700 border-sky-200/50 dark:bg-sky-950/20 dark:text-sky-400',
+    },
+    preparing: {
+        label: 'Đang nấu',
+        class: 'bg-violet-50 text-violet-750 border-violet-200/50 dark:bg-violet-950/20 dark:text-violet-400',
+    },
+    served: {
+        label: 'Đã phục vụ',
+        class: 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400',
+    },
+    cancelled: {
+        label: 'Đã hủy',
+        class: 'bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400',
+    },
 };
 
 const formatCurrency = (v: number) =>
@@ -221,19 +292,25 @@ const currentVerifyingOrder = ref<Order | null>(null);
 const confirmQrOrder = async (order: Order) => {
     currentVerifyingOrder.value = order;
     isFetchingAi.value = true;
-    
+
     try {
-        await axios.patch(`/orders/${order.id}/status`, { status: 'confirmed' });
-        
-        const itemNames = order.items ? order.items.map(i => i.product_name).filter(Boolean) : [];
-        const response = await axios.post('/api/promotions/upsell-suggestion', {
-            items: itemNames
+        await axios.patch(`/orders/${order.id}/status`, {
+            status: 'confirmed',
         });
-        
-        aiSuggestionText.value = response.data.suggestion || 'Hãy chọn thêm các món ăn đặc sắc từ thực đơn.';
+
+        const itemNames = order.items
+            ? order.items.map((i) => i.product_name).filter(Boolean)
+            : [];
+        const response = await axios.post('/api/promotions/upsell-suggestion', {
+            items: itemNames,
+        });
+
+        aiSuggestionText.value =
+            response.data.suggestion ||
+            'Hãy chọn thêm các món ăn đặc sắc từ thực đơn.';
         aiRecommendedItem.value = response.data.recommended_item || '';
         aiSource.value = response.data.source || 'Hệ thống';
-        
+
         isAiModalOpen.value = true;
     } catch (e: any) {
         console.error(e);
@@ -310,96 +387,166 @@ const nextStatus: Record<string, string | null> = {
         </div>
 
         <!-- Developer Sandbox / Simulator & Shift Performance Widget -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
             <!-- Shift Performance Widget -->
-            <Card class="md:col-span-2 rounded-2xl border border-violet-100/50 bg-white/60 dark:border-slate-800 dark:bg-slate-900/40 shadow-xs relative overflow-hidden backdrop-blur-md">
-                <CardHeader class="pb-3 flex flex-row items-center justify-between">
+            <Card
+                class="relative overflow-hidden rounded-2xl border border-violet-100/50 bg-white/60 shadow-xs backdrop-blur-md md:col-span-2 dark:border-slate-800 dark:bg-slate-900/40"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-3"
+                >
                     <div>
-                        <CardTitle class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            <Sparkles class="size-4 text-violet-600 animate-pulse" />
+                        <CardTitle
+                            class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100"
+                        >
+                            <Sparkles
+                                class="size-4 animate-pulse text-violet-600"
+                            />
                             Hiệu Suất Ca Làm Việc
                         </CardTitle>
                         <CardDescription class="text-[10px] text-slate-400">
-                            Số liệu doanh thu và năng suất làm việc của bạn trong ca trực hiện tại.
+                            Số liệu doanh thu và năng suất làm việc của bạn
+                            trong ca trực hiện tại.
                         </CardDescription>
                     </div>
-                    <span 
+                    <span
                         v-if="activeShiftStats"
                         class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
                     >
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        <span
+                            class="h-1.5 w-1.5 animate-ping rounded-full bg-emerald-500"
+                        ></span>
                         Ca: {{ activeShiftStats.shift_name }}
                     </span>
                 </CardHeader>
                 <CardContent class="pb-4">
-                    <div v-if="activeShiftStats" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Đã Check-in</p>
-                            <p class="text-base font-black text-slate-800 dark:text-slate-200 mt-1 font-mono">
+                    <div
+                        v-if="activeShiftStats"
+                        class="grid grid-cols-2 gap-4 sm:grid-cols-4"
+                    >
+                        <div
+                            class="dark:border-slate-850 rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:bg-slate-950/20"
+                        >
+                            <p
+                                class="text-[9px] font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Đã Check-in
+                            </p>
+                            <p
+                                class="mt-1 font-mono text-base font-black text-slate-800 dark:text-slate-200"
+                            >
                                 {{ activeShiftStats.check_in_at }}
                             </p>
                         </div>
-                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Đơn Hoàn Thành</p>
-                            <p class="text-base font-black text-slate-800 dark:text-slate-200 mt-1 font-mono">
+                        <div
+                            class="dark:border-slate-850 rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:bg-slate-950/20"
+                        >
+                            <p
+                                class="text-[9px] font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Đơn Hoàn Thành
+                            </p>
+                            <p
+                                class="mt-1 font-mono text-base font-black text-slate-800 dark:text-slate-200"
+                            >
                                 {{ activeShiftStats.total_orders }}
                             </p>
                         </div>
-                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tiền Mặt</p>
-                            <p class="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
-                                {{ formatCurrency(activeShiftStats.cash_revenue) }}
+                        <div
+                            class="dark:border-slate-850 rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:bg-slate-950/20"
+                        >
+                            <p
+                                class="text-[9px] font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Tiền Mặt
+                            </p>
+                            <p
+                                class="mt-1.5 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                            >
+                                {{
+                                    formatCurrency(
+                                        activeShiftStats.cash_revenue,
+                                    )
+                                }}
                             </p>
                         </div>
-                        <div class="rounded-xl bg-slate-50/50 p-2.5 border border-slate-100 dark:bg-slate-950/20 dark:border-slate-850">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chuyển Khoản</p>
-                            <p class="text-xs font-bold text-violet-600 dark:text-violet-400 mt-1.5 font-mono">
-                                {{ formatCurrency(activeShiftStats.transfer_revenue) }}
+                        <div
+                            class="dark:border-slate-850 rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:bg-slate-950/20"
+                        >
+                            <p
+                                class="text-[9px] font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Chuyển Khoản
+                            </p>
+                            <p
+                                class="mt-1.5 font-mono text-xs font-bold text-violet-600 dark:text-violet-400"
+                            >
+                                {{
+                                    formatCurrency(
+                                        activeShiftStats.transfer_revenue,
+                                    )
+                                }}
                             </p>
                         </div>
                     </div>
-                    <div v-else class="flex flex-col items-center justify-center py-4 text-center">
-                        <AlertCircle class="size-6 text-slate-300 dark:text-slate-700" />
-                        <p class="text-xs font-semibold text-slate-500 mt-1 dark:text-slate-400">Bạn chưa check-in ca trực hôm nay.</p>
-                        <p class="text-[10px] text-slate-400">Chuyển sang tab Lịch biểu/Chấm công để check-in và bắt đầu theo dõi doanh thu.</p>
+                    <div
+                        v-else
+                        class="flex flex-col items-center justify-center py-4 text-center"
+                    >
+                        <AlertCircle
+                            class="size-6 text-slate-300 dark:text-slate-700"
+                        />
+                        <p
+                            class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                        >
+                            Bạn chưa check-in ca trực hôm nay.
+                        </p>
+                        <p class="text-[10px] text-slate-400">
+                            Chuyển sang tab Lịch biểu/Chấm công để check-in và
+                            bắt đầu theo dõi doanh thu.
+                        </p>
                     </div>
                 </CardContent>
             </Card>
 
             <!-- Developer Sandbox / Simulator -->
-            <Card class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/20 p-4 dark:border-slate-800 dark:bg-slate-950/5 flex flex-col justify-between shadow-xs">
+            <Card
+                class="flex flex-col justify-between rounded-2xl border border-dashed border-slate-200 bg-slate-50/20 p-4 shadow-xs dark:border-slate-800 dark:bg-slate-950/5"
+            >
                 <div>
-                    <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <h3
+                        class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                    >
                         <Layers class="size-3.5 text-violet-500" />
                         Simulator Sandbox
                     </h3>
-                    <p class="text-[9px] text-slate-400 mt-1 leading-relaxed">
-                        Mô phỏng đơn hàng từ ứng dụng bên thứ ba (GrabFood, ShopeeFood) được gửi đến hệ thống để nhân viên tiếp nhận.
+                    <p class="mt-1 text-[9px] leading-relaxed text-slate-400">
+                        Mô phỏng đơn hàng từ ứng dụng bên thứ ba (GrabFood,
+                        ShopeeFood) được gửi đến hệ thống để nhân viên tiếp
+                        nhận.
                     </p>
                 </div>
-                <div class="grid grid-cols-2 gap-2 mt-4">
-                    <Button 
-                        size="sm" 
-                        variant="outline" 
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
                         :disabled="isSimulating"
                         @click="simulateThirdParty('GrabFood')"
-                        class="rounded-xl text-[10px] py-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50/20 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-900/40 dark:text-emerald-400"
+                        class="rounded-xl border-emerald-200 bg-emerald-50/20 py-1.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-900/40 dark:text-emerald-400"
                     >
                         + GrabFood
                     </Button>
-                    <Button 
-                        size="sm" 
-                        variant="outline" 
+                    <Button
+                        size="sm"
+                        variant="outline"
                         :disabled="isSimulating"
                         @click="simulateThirdParty('ShopeeFood')"
-                        class="rounded-xl text-[10px] py-1.5 font-bold border-orange-200 text-orange-700 bg-orange-50/20 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/40 dark:text-orange-400"
+                        class="rounded-xl border-orange-200 bg-orange-50/20 py-1.5 text-[10px] font-bold text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/40 dark:text-orange-400"
                     >
                         + ShopeeFood
                     </Button>
                 </div>
             </Card>
-
         </div>
 
         <!-- Summary KPIs -->
@@ -466,12 +613,18 @@ const nextStatus: Record<string, string | null> = {
         </div>
 
         <!-- Filter bar for Search and History -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-card border border-border p-4 rounded-xl shadow-sm">
+        <div
+            class="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-2">
                 <Button
                     variant="outline"
                     size="sm"
-                    :class="viewMode === 'today' ? 'bg-violet-50 text-violet-750 border-violet-200/50 hover:bg-violet-100 hover:text-violet-850 dark:bg-violet-950/20 dark:text-violet-400' : ''"
+                    :class="
+                        viewMode === 'today'
+                            ? 'text-violet-750 hover:text-violet-850 border-violet-200/50 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/20 dark:text-violet-400'
+                            : ''
+                    "
                     @click="toggleViewMode('today')"
                 >
                     Đơn Hôm Nay
@@ -479,26 +632,32 @@ const nextStatus: Record<string, string | null> = {
                 <Button
                     variant="outline"
                     size="sm"
-                    :class="viewMode === 'history' ? 'bg-violet-50 text-violet-750 border-violet-200/50 hover:bg-violet-100 hover:text-violet-850 dark:bg-violet-950/20 dark:text-violet-400' : ''"
+                    :class="
+                        viewMode === 'history'
+                            ? 'text-violet-750 hover:text-violet-850 border-violet-200/50 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/20 dark:text-violet-400'
+                            : ''
+                    "
                     @click="toggleViewMode('history')"
                 >
                     Lịch Sử Đơn Hàng
                 </Button>
             </div>
-            
-            <div class="relative flex-1 max-w-sm">
-                <Search class="absolute left-3 top-3 size-4 text-muted-foreground" />
+
+            <div class="relative max-w-sm flex-1">
+                <Search
+                    class="absolute top-3 left-3 size-4 text-muted-foreground"
+                />
                 <input
                     type="text"
                     v-model="searchQuery"
                     placeholder="Tìm theo mã đơn, bàn, đối tác..."
                     @keyup.enter="applyFilters"
-                    class="h-10 w-full rounded-md border border-input bg-background pl-9 pr-8 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    class="h-10 w-full rounded-md border border-input bg-background pr-8 pl-9 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 />
                 <button
                     v-if="searchQuery"
                     @click="clearSearch"
-                    class="absolute right-3 top-3 text-muted-foreground hover:text-foreground text-xs font-semibold"
+                    class="absolute top-3 right-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
                 >
                     Xóa
                 </button>
@@ -547,11 +706,14 @@ const nextStatus: Record<string, string | null> = {
                     <div
                         v-for="o in orders"
                         :key="o.id"
-                        class="border-b border-slate-100 dark:border-slate-800 last:border-0"
+                        class="border-b border-slate-100 last:border-0 dark:border-slate-800"
                     >
                         <!-- Order Main Row -->
                         <div
-                            @click="expandedOrderId = expandedOrderId === o.id ? null : o.id"
+                            @click="
+                                expandedOrderId =
+                                    expandedOrderId === o.id ? null : o.id
+                            "
                             class="flex cursor-pointer items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
                         >
                             <!-- Order info -->
@@ -571,7 +733,9 @@ const nextStatus: Record<string, string | null> = {
                                         v-else
                                         class="rounded-md border bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                                     >
-                                        {{ channelLabel[o.channel] ?? o.channel }}
+                                        {{
+                                            channelLabel[o.channel] ?? o.channel
+                                        }}
                                     </span>
                                     <span
                                         v-if="o.table_name"
@@ -579,7 +743,9 @@ const nextStatus: Record<string, string | null> = {
                                     >
                                         {{ o.table_name
                                         }}{{
-                                            o.area_name ? ` · ${o.area_name}` : ''
+                                            o.area_name
+                                                ? ` · ${o.area_name}`
+                                                : ''
                                         }}
                                     </span>
                                 </div>
@@ -603,14 +769,19 @@ const nextStatus: Record<string, string | null> = {
                                 </p>
                                 <span
                                     class="text-[10px] font-semibold"
-                                    :class="paymentConfig[o.payment_status]?.color"
+                                    :class="
+                                        paymentConfig[o.payment_status]?.color
+                                    "
                                 >
                                     {{ paymentConfig[o.payment_status]?.label }}
                                 </span>
                             </div>
 
                             <!-- Status + next action -->
-                            <div class="flex shrink-0 items-center gap-2" @click.stop>
+                            <div
+                                class="flex shrink-0 items-center gap-2"
+                                @click.stop
+                            >
                                 <span
                                     class="rounded-full px-2 py-1 text-[10px] font-semibold"
                                     :class="statusConfig[o.status]?.bg"
@@ -618,19 +789,28 @@ const nextStatus: Record<string, string | null> = {
                                     {{ statusConfig[o.status]?.label }}
                                 </span>
                                 <button
-                                    v-if="nextStatus[o.status]"
+                                    v-if="
+                                        nextStatus[o.status] &&
+                                        (nextStatus[o.status] !== 'completed' ||
+                                            isCashier)
+                                    "
                                     @click="
-                                        handleStatusUpdate(o, nextStatus[o.status]!)
+                                        handleStatusUpdate(
+                                            o,
+                                            nextStatus[o.status]!,
+                                        )
                                     "
                                     class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700"
                                 >
                                     {{
                                         nextStatus[o.status] === 'confirmed'
                                             ? 'Xác nhận'
-                                            : nextStatus[o.status] === 'preparing'
+                                            : nextStatus[o.status] ===
+                                                'preparing'
                                               ? 'Chuyển bếp'
-                                              : nextStatus[o.status] === 'completed'
-                                                ? 'Hoàn thành'
+                                              : nextStatus[o.status] ===
+                                                  'completed'
+                                                ? 'Thanh toán'
                                                 : ''
                                     }}
                                 </button>
@@ -640,25 +820,33 @@ const nextStatus: Record<string, string | null> = {
                         <!-- Expanded Items List -->
                         <div
                             v-if="expandedOrderId === o.id"
-                            class="bg-slate-50/40 p-4 border-t border-slate-100 dark:bg-slate-900/10 dark:border-slate-800"
+                            class="border-t border-slate-100 bg-slate-50/40 p-4 dark:border-slate-800 dark:bg-slate-900/10"
                         >
-                            <h4 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Chi tiết món ăn</h4>
+                            <h4
+                                class="mb-2 text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Chi tiết món ăn
+                            </h4>
                             <div class="space-y-2">
                                 <div
                                     v-for="item in o.items"
                                     :key="item.id"
-                                    class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-xs"
+                                    class="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900"
                                 >
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                        <span
+                                            class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >
                                             {{ item.product_name }}
                                         </span>
-                                        <span class="text-xs text-slate-500 font-mono">
+                                        <span
+                                            class="font-mono text-xs text-slate-500"
+                                        >
                                             x{{ item.quantity }}
                                         </span>
                                         <span
                                             v-if="item.notes"
-                                            class="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md dark:text-amber-400 dark:bg-amber-950/20"
+                                            class="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
                                         >
                                             Ghi chú: {{ item.notes }}
                                         </span>
@@ -666,36 +854,140 @@ const nextStatus: Record<string, string | null> = {
                                     <div class="flex items-center gap-2">
                                         <!-- Item Status Badge -->
                                         <span
-                                            class="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-                                            :class="itemStatusConfig[item.status]?.class || 'bg-slate-50 text-slate-700'"
+                                            class="rounded-full border px-2 py-0.5 text-[9px] font-bold"
+                                            :class="
+                                                itemStatusConfig[item.status]
+                                                    ?.class ||
+                                                'bg-slate-50 text-slate-700'
+                                            "
                                         >
-                                            {{ itemStatusConfig[item.status]?.label || item.status }}
+                                            {{
+                                                itemStatusConfig[item.status]
+                                                    ?.label || item.status
+                                            }}
                                         </span>
-                                        
+
                                         <!-- Item Status Actions -->
-                                        <div class="flex gap-1" v-if="item.status !== 'served' && item.status !== 'cancelled' && o.status !== 'cancelled' && o.status !== 'completed'">
+                                        <div
+                                            class="flex gap-1"
+                                            v-if="
+                                                item.status !== 'served' &&
+                                                item.status !== 'cancelled' &&
+                                                o.status !== 'cancelled' &&
+                                                o.status !== 'completed'
+                                            "
+                                        >
                                             <Button
-                                                v-if="item.status === 'pending' || item.status === 'sent'"
+                                                v-if="
+                                                    item.status === 'pending' ||
+                                                    item.status === 'sent'
+                                                "
                                                 size="sm"
                                                 variant="outline"
-                                                :disabled="updatingItemStatus === item.id"
-                                                @click="updateOrderItemStatus(item, 'preparing')"
-                                                class="h-6 rounded-lg text-[9px] px-2 font-semibold border-violet-200 text-violet-750 hover:bg-violet-50 dark:border-violet-900/45 dark:text-violet-400"
+                                                :disabled="
+                                                    updatingItemStatus ===
+                                                    item.id
+                                                "
+                                                @click="
+                                                    updateOrderItemStatus(
+                                                        item,
+                                                        'preparing',
+                                                    )
+                                                "
+                                                class="text-violet-750 h-6 rounded-lg border-violet-200 px-2 text-[9px] font-semibold hover:bg-violet-50 dark:border-violet-900/45 dark:text-violet-400"
                                             >
                                                 Chế biến
                                             </Button>
                                             <Button
-                                                v-if="item.status === 'preparing'"
+                                                v-if="
+                                                    item.status === 'preparing'
+                                                "
                                                 size="sm"
                                                 variant="outline"
-                                                :disabled="updatingItemStatus === item.id"
-                                                @click="updateOrderItemStatus(item, 'served')"
-                                                class="h-6 rounded-lg text-[9px] px-2 font-semibold border-emerald-250 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/45 dark:text-emerald-400"
+                                                :disabled="
+                                                    updatingItemStatus ===
+                                                    item.id
+                                                "
+                                                @click="
+                                                    updateOrderItemStatus(
+                                                        item,
+                                                        'served',
+                                                    )
+                                                "
+                                                class="border-emerald-250 h-6 rounded-lg px-2 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/45 dark:text-emerald-400"
                                             >
                                                 Phục vụ
                                             </Button>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Voucher & Order Summary Section for Cashiers or if Discount exists -->
+                            <div
+                                class="mt-4 flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+                            >
+                                <div class="flex flex-col gap-1 text-xs">
+                                    <div
+                                        class="flex w-48 justify-between text-slate-500"
+                                    >
+                                        <span>Tạm tính:</span>
+                                        <span class="font-mono font-semibold">{{
+                                            formatCurrency(
+                                                o.subtotal || o.total_amount,
+                                            )
+                                        }}</span>
+                                    </div>
+                                    <div
+                                        v-if="o.discount_amount"
+                                        class="flex w-48 justify-between font-mono font-semibold text-emerald-600 dark:text-emerald-400"
+                                    >
+                                        <span>Giảm giá:</span>
+                                        <span
+                                            >-{{
+                                                formatCurrency(
+                                                    o.discount_amount,
+                                                )
+                                            }}</span
+                                        >
+                                    </div>
+                                    <div
+                                        class="flex w-48 justify-between font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        <span>Tổng cộng:</span>
+                                        <span
+                                            class="font-mono text-sm text-violet-600 dark:text-violet-400"
+                                            >{{
+                                                formatCurrency(o.total_amount)
+                                            }}</span
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Apply Voucher input for cashiers on non-completed/non-cancelled orders -->
+                                <div
+                                    v-if="
+                                        isCashier &&
+                                        o.status !== 'completed' &&
+                                        o.status !== 'cancelled'
+                                    "
+                                    class="flex w-full max-w-sm items-center gap-2 sm:w-auto"
+                                >
+                                    <input
+                                        type="text"
+                                        v-model="voucherCodes[o.id]"
+                                        placeholder="Nhập mã giảm giá..."
+                                        class="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none sm:w-40"
+                                        @keyup.enter="handleApplyVoucher(o.id)"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        class="text-violet-750 h-8 rounded-lg border-violet-200 px-3 text-xs font-semibold hover:bg-violet-50 dark:border-violet-900/40 dark:text-violet-400"
+                                        @click="handleApplyVoucher(o.id)"
+                                    >
+                                        Áp dụng
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -724,35 +1016,63 @@ const nextStatus: Record<string, string | null> = {
 
         <!-- AI Upselling Dialog -->
         <Dialog v-model:open="isAiModalOpen">
-            <DialogContent class="sm:max-w-[480px] rounded-2xl border border-violet-100 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 shadow-2xl">
-                <DialogHeader class="pb-3 flex flex-col items-center text-center">
-                    <div class="h-14 w-14 rounded-2xl bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400 flex items-center justify-center mb-3 shadow-inner border border-violet-100/50 animate-pulse">
+            <DialogContent
+                class="rounded-2xl border border-violet-100 bg-white/95 shadow-2xl backdrop-blur-md sm:max-w-[480px] dark:border-slate-800 dark:bg-slate-900/95"
+            >
+                <DialogHeader
+                    class="flex flex-col items-center pb-3 text-center"
+                >
+                    <div
+                        class="mb-3 flex h-14 w-14 animate-pulse items-center justify-center rounded-2xl border border-violet-100/50 bg-violet-50 text-violet-600 shadow-inner dark:bg-violet-950/50 dark:text-violet-400"
+                    >
                         <Sparkles class="size-7" />
                     </div>
-                    <DialogTitle class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    <DialogTitle
+                        class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+                    >
                         Trợ Lý AI Kích Cầu (Upselling)
                     </DialogTitle>
-                    <DialogDescription class="text-xs text-slate-500 mt-1 dark:text-slate-400">
-                        Gợi ý tư vấn thêm đồ uống/món ăn kèm cho khách hàng dựa trên phân tích giỏ hàng.
+                    <DialogDescription
+                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        Gợi ý tư vấn thêm đồ uống/món ăn kèm cho khách hàng dựa
+                        trên phân tích giỏ hàng.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div class="py-4 space-y-4">
+                <div class="space-y-4 py-4">
                     <!-- Info box -->
-                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30">
-                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">ĐƠN HÀNG XÁC NHẬN</p>
-                        <p class="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">
-                            Bàn {{ currentVerifyingOrder?.table_name || '—' }} ({{ currentVerifyingOrder?.order_number }})
+                    <div
+                        class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30"
+                    >
+                        <p
+                            class="text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                        >
+                            ĐƠN HÀNG XÁC NHẬN
                         </p>
-                        
-                        <div class="h-px bg-slate-200 dark:bg-slate-800 my-2.5"></div>
-                        
-                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">MÓN ĐÃ GỌI</p>
-                        <div class="flex flex-wrap gap-1.5 mt-1">
-                            <span 
-                                v-for="item in currentVerifyingOrder?.items" 
+                        <p
+                            class="mt-1 text-sm font-bold text-slate-800 dark:text-slate-200"
+                        >
+                            Bàn
+                            {{ currentVerifyingOrder?.table_name || '—' }} ({{
+                                currentVerifyingOrder?.order_number
+                            }})
+                        </p>
+
+                        <div
+                            class="my-2.5 h-px bg-slate-200 dark:bg-slate-800"
+                        ></div>
+
+                        <p
+                            class="mb-1 text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                        >
+                            MÓN ĐÃ GỌI
+                        </p>
+                        <div class="mt-1 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="item in currentVerifyingOrder?.items"
                                 :key="item.id"
-                                class="inline-block px-2.5 py-1 bg-white border border-slate-200 text-xs rounded-lg text-slate-700 font-medium dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300"
+                                class="inline-block rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                             >
                                 {{ item.product_name }} x{{ item.quantity }}
                             </span>
@@ -760,31 +1080,47 @@ const nextStatus: Record<string, string | null> = {
                     </div>
 
                     <!-- Suggestion content -->
-                    <div class="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white p-5 shadow-md relative overflow-hidden">
-                        <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full blur-lg"></div>
-                        
+                    <div
+                        class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-md"
+                    >
+                        <div
+                            class="absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-white/10 blur-lg"
+                        ></div>
+
                         <div class="flex items-start gap-3.5">
-                            <div class="shrink-0 p-2 bg-white/20 rounded-xl mt-0.5">
+                            <div
+                                class="mt-0.5 shrink-0 rounded-xl bg-white/20 p-2"
+                            >
                                 <Sparkles class="size-5 text-white" />
                             </div>
                             <div class="space-y-1.5">
-                                <p class="text-[10px] text-white/70 font-bold tracking-wider uppercase">GỢI Ý TỪ AI</p>
-                                <p class="text-sm font-semibold leading-relaxed tracking-wide italic">
+                                <p
+                                    class="text-[10px] font-bold tracking-wider text-white/70 uppercase"
+                                >
+                                    GỢI Ý TỪ AI
+                                </p>
+                                <p
+                                    class="text-sm leading-relaxed font-semibold tracking-wide italic"
+                                >
                                     "{{ aiSuggestionText }}"
                                 </p>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="text-[10px] text-right text-slate-400">
-                        Thuật toán: <span class="font-semibold text-slate-500 dark:text-slate-300">{{ aiSource }}</span>
+
+                    <div class="text-right text-[10px] text-slate-400">
+                        Thuật toán:
+                        <span
+                            class="font-semibold text-slate-500 dark:text-slate-300"
+                            >{{ aiSource }}</span
+                        >
                     </div>
                 </div>
 
-                <DialogFooter class="sm:justify-end gap-2">
-                    <Button 
+                <DialogFooter class="gap-2 sm:justify-end">
+                    <Button
                         @click="isAiModalOpen = false"
-                        class="rounded-xl px-5 bg-slate-900 hover:bg-slate-800 text-white font-semibold dark:bg-slate-800 dark:hover:bg-slate-750"
+                        class="dark:hover:bg-slate-750 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800 dark:bg-slate-800"
                     >
                         Đóng gợi ý
                     </Button>

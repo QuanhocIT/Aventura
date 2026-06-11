@@ -2,9 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\QrOrderPlaced;
+use App\Models\Area;
+use App\Models\AuditLog;
+use App\Models\Inventory;
+use App\Models\InventoryReservation;
+use App\Models\InventoryTransaction;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\RestaurantTable;
+use App\Models\ScheduleAssignment;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,7 +31,7 @@ class OrdersController extends Controller
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
-        $categories = \App\Models\ProductCategory::where('restaurant_id', $restaurantId)
+        $categories = ProductCategory::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->get()
             ->map(fn ($c) => [
@@ -23,7 +39,7 @@ class OrdersController extends Controller
                 'name' => $c->name,
             ]);
 
-        $products = \App\Models\Product::where('restaurant_id', $restaurantId)
+        $products = Product::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->where('is_available', true)
             ->with(['category'])
@@ -38,10 +54,10 @@ class OrdersController extends Controller
             ]);
 
         // Auto-generate 20 tables in 1 area if there are no tables for this restaurant
-        $tableCount = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)->count();
+        $tableCount = RestaurantTable::where('restaurant_id', $restaurantId)->count();
         if ($tableCount === 0) {
             $branchId = $user->branch_id;
-            $area = \App\Models\Area::firstOrCreate([
+            $area = Area::firstOrCreate([
                 'restaurant_id' => $restaurantId,
                 'name' => 'Khu vực chính',
             ], [
@@ -55,24 +71,24 @@ class OrdersController extends Controller
             $letters = ['A', 'B', 'C', 'D'];
             foreach ($letters as $letter) {
                 for ($i = 1; $i <= 5; $i++) {
-                    $names[] = $letter . $i;
+                    $names[] = $letter.$i;
                 }
             }
 
             foreach ($names as $name) {
-                \App\Models\RestaurantTable::create([
+                RestaurantTable::create([
                     'restaurant_id' => $restaurantId,
                     'branch_id' => $branchId,
                     'area_id' => $area->id,
                     'name' => $name,
                     'capacity' => 4,
                     'status' => 'available',
-                    'qr_token' => \Illuminate\Support\Str::random(32),
+                    'qr_token' => Str::random(32),
                 ]);
             }
         }
 
-        $tables = \App\Models\RestaurantTable::where('restaurant_id', $restaurantId)
+        $tables = RestaurantTable::where('restaurant_id', $restaurantId)
             ->whereNull('deleted_at')
             ->orderBy('name')
             ->get()
@@ -88,98 +104,103 @@ class OrdersController extends Controller
             'categories' => $categories,
             'tables' => $tables,
         ]);
-     }
- 
-     /**
-      * Lưu đơn hàng mới từ giao diện POS bán hàng SPA.
-      */
-     public function store(Request $request): RedirectResponse
-     {
-         $user = $request->user();
-         $restaurantId = $user->restaurant_id;
-         $branchId = $user->branch_id;
- 
-         $data = $request->validate([
-             'table_id' => ['nullable', 'exists:restaurant_tables,id'],
-             'note' => ['nullable', 'string', 'max:500'],
-             'items' => ['required', 'array', 'min:1'],
-             'items.*.product_id' => ['required', 'exists:products,id'],
-             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-             'items.*.notes' => ['nullable', 'string', 'max:255'],
-         ]);
- 
-         \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $user, $data) {
-             // Sinh mã hóa đơn duy nhất
-             $orderNumber = 'ORD-' . strtoupper(uniqid());
+    }
 
-             // Pre-load tất cả products trong 1 query thay vì N queries trong loop
-             $productIds = array_column($data['items'], 'product_id');
-             $products = \App\Models\Product::where('restaurant_id', $restaurantId)
-                 ->whereIn('id', $productIds)
-                 ->get()
-                 ->keyBy('id');
+    /**
+     * Lưu đơn hàng mới từ giao diện POS bán hàng SPA.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+        $branchId = $user->branch_id;
 
-             // Tính tổng tiền tạm tính
-             $subtotal = 0;
-             $itemsToCreate = [];
+        $data = $request->validate([
+            'table_id' => ['nullable', 'exists:restaurant_tables,id'],
+            'note' => ['nullable', 'string', 'max:500'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.notes' => ['nullable', 'string', 'max:255'],
+        ]);
 
-             foreach ($data['items'] as $itemData) {
-                 $product = $products->get($itemData['product_id'])
-                     ?? abort(422, 'Sản phẩm không tìm thấy: ' . $itemData['product_id']);
-                 $lineTotal = (float) $product->price * (float) $itemData['quantity'];
-                 $subtotal += $lineTotal;
+        DB::transaction(function () use ($restaurantId, $branchId, $user, $data) {
+            // Sinh mã hóa đơn duy nhất
+            $orderNumber = 'ORD-'.strtoupper(uniqid());
 
-                 $itemsToCreate[] = [
-                     'restaurant_id' => $restaurantId,
-                     'product_id' => $product->id,
-                     'quantity' => (float) $itemData['quantity'],
-                     'unit_price' => (float) $product->price,
-                     'discount_amount' => 0,
-                     'line_total' => $lineTotal,
-                     'status' => 'pending',
-                     'notes' => $itemData['notes'] ?? null,
-                 ];
-             }
- 
-             $order = Order::create([
-                 'restaurant_id' => $restaurantId,
-                 'branch_id' => $branchId,
-                 'table_id' => $data['table_id'] ?? null,
-                 'created_by' => $user->id,
-                 'order_number' => $orderNumber,
-                 'channel' => $data['table_id'] ? 'dine_in' : 'takeaway',
-                 'status' => 'pending',
-                 'payment_status' => 'unpaid',
-                 'subtotal' => $subtotal,
-                 'discount_amount' => 0,
-                 'total_amount' => $subtotal,
-                 'note' => $data['note'] ?? null,
-             ]);
- 
-             foreach ($itemsToCreate as $item) {
-                 $item['order_id'] = $order->id;
-                 \App\Models\OrderItem::create($item);
-             }
- 
-             // Ghi log kiểm toán
-             \App\Models\AuditLog::log('order_created', 'created', $order, null, [
-                 'total_amount' => (float) $order->total_amount,
-                 'items_count' => count($itemsToCreate)
-             ]);
-         });
- 
-         return redirect()->route('orders.index')->with('success', 'Đã gửi đơn hàng mới xuống nhà bếp thành công!');
-     }
- 
-     public function index(Request $request): Response
+            // Pre-load tất cả products trong 1 query thay vì N queries trong loop
+            $productIds = array_column($data['items'], 'product_id');
+            $products = Product::where('restaurant_id', $restaurantId)
+                ->whereIn('id', $productIds)
+                ->get()
+                ->keyBy('id');
+
+            // Tính tổng tiền tạm tính
+            $subtotal = 0;
+            $itemsToCreate = [];
+
+            foreach ($data['items'] as $itemData) {
+                $product = $products->get($itemData['product_id'])
+                    ?? abort(422, 'Sản phẩm không tìm thấy: '.$itemData['product_id']);
+                $lineTotal = (float) $product->price * (float) $itemData['quantity'];
+                $subtotal += $lineTotal;
+
+                $itemsToCreate[] = [
+                    'restaurant_id' => $restaurantId,
+                    'product_id' => $product->id,
+                    'quantity' => (float) $itemData['quantity'],
+                    'unit_price' => (float) $product->price,
+                    'discount_amount' => 0,
+                    'line_total' => $lineTotal,
+                    'status' => 'pending',
+                    'notes' => $itemData['notes'] ?? null,
+                ];
+            }
+
+            $order = Order::create([
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $branchId,
+                'table_id' => $data['table_id'] ?? null,
+                'created_by' => $user->id,
+                'order_number' => $orderNumber,
+                'channel' => $data['table_id'] ? 'dine_in' : 'takeaway',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'subtotal' => $subtotal,
+                'discount_amount' => 0,
+                'total_amount' => $subtotal,
+                'note' => $data['note'] ?? null,
+            ]);
+
+            foreach ($itemsToCreate as $item) {
+                $item['order_id'] = $order->id;
+                OrderItem::create($item);
+            }
+
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)
+                    ->update(['status' => 'occupied']);
+            }
+
+            // Ghi log kiểm toán
+            AuditLog::log('order_created', 'created', $order, null, [
+                'total_amount' => (float) $order->total_amount,
+                'items_count' => count($itemsToCreate),
+            ]);
+        });
+
+        return redirect()->route('orders.index')->with('success', 'Đã gửi đơn hàng mới xuống nhà bếp thành công!');
+    }
+
+    public function index(Request $request): Response
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
         $statusFilter = $request->get('status', 'all');
-        $dateFilter   = $request->get('date', today()->toDateString());
-        $search       = $request->get('search');
-        $isHistory    = $request->get('history') === 'true';
+        $dateFilter = $request->get('date', today()->toDateString());
+        $search = $request->get('search');
+        $isHistory = $request->get('history') === 'true';
 
         $query = Order::where('restaurant_id', $restaurantId)
             ->with(['table.area', 'items.product'])
@@ -192,10 +213,10 @@ class OrdersController extends Controller
             // Tìm kiếm theo số đơn hàng, tên bàn, hoặc đối tác giao hàng bên thứ ba
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
-                  ->orWhere('third_party_source', 'like', "%{$search}%")
-                  ->orWhereHas('table', function ($sq) use ($search) {
-                      $sq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('third_party_source', 'like', "%{$search}%")
+                    ->orWhereHas('table', function ($sq) use ($search) {
+                        $sq->where('name', 'like', "%{$search}%");
+                    });
             });
             if ($request->has('date')) {
                 $query->whereDate('created_at', $request->get('date'));
@@ -209,19 +230,21 @@ class OrdersController extends Controller
         }
 
         $orders = $query->get()->map(fn ($o) => [
-            'id'                 => $o->id,
-            'order_number'       => $o->order_number,
-            'status'             => $o->status,
-            'payment_status'     => $o->payment_status,
-            'channel'            => $o->channel,
+            'id' => $o->id,
+            'order_number' => $o->order_number,
+            'status' => $o->status,
+            'payment_status' => $o->payment_status,
+            'channel' => $o->channel,
             'third_party_source' => $o->third_party_source,
-            'table_name'         => $o->table?->name,
-            'area_name'          => $o->table?->area?->name,
-            'total_amount'       => (float) $o->total_amount,
-            'items_count'        => $o->items->count(),
-            'created_at'         => $o->created_at->format('H:i'),
-            'completed_at'       => $o->completed_at?->format('H:i'),
-            'items'              => $o->items->map(fn ($item) => [
+            'table_name' => $o->table?->name,
+            'area_name' => $o->table?->area?->name,
+            'subtotal' => (float) $o->subtotal,
+            'discount_amount' => (float) $o->discount_amount,
+            'total_amount' => (float) $o->total_amount,
+            'items_count' => $o->items->count(),
+            'created_at' => $o->created_at->format('H:i'),
+            'completed_at' => $o->completed_at?->format('H:i'),
+            'items' => $o->items->map(fn ($item) => [
                 'id' => $item->id,
                 'product_name' => $item->product?->name,
                 'quantity' => (float) $item->quantity,
@@ -231,33 +254,33 @@ class OrdersController extends Controller
         ]);
 
         $summary = [
-            'total'     => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->count(),
-            'pending'   => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'pending')->count(),
+            'total' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->count(),
+            'pending' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'pending')->count(),
             'preparing' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'preparing')->count(),
             'completed' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'completed')->count(),
             'cancelled' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'cancelled')->count(),
-            'revenue'   => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'completed')->sum('total_amount'),
+            'revenue' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->where('status', 'completed')->sum('total_amount'),
         ];
 
         // Tính toán doanh thu hiệu suất trong ca của nhân viên hiện tại
         $activeShiftStats = null;
         $employee = $user->employee;
         if ($employee) {
-            $activeAssignment = \App\Models\ScheduleAssignment::where('employee_id', $employee->id)
+            $activeAssignment = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'checked_in')
                 ->with('shift')
                 ->first();
 
             if ($activeAssignment && $activeAssignment->shift) {
                 $shift = $activeAssignment->shift;
-                $dateStr = $activeAssignment->scheduled_date instanceof \Carbon\Carbon
+                $dateStr = $activeAssignment->scheduled_date instanceof Carbon
                     ? $activeAssignment->scheduled_date->toDateString()
-                    : \Carbon\Carbon::parse($activeAssignment->scheduled_date)->toDateString();
+                    : Carbon::parse($activeAssignment->scheduled_date)->toDateString();
 
-                $startDt = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
+                $startDt = Carbon::parse($dateStr.' '.$shift->start_time);
                 $endDt = $shift->is_overnight
-                    ? \Carbon\Carbon::parse(\Carbon\Carbon::parse($dateStr)->addDay()->toDateString() . ' ' . $shift->end_time)
-                    : \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+                    ? Carbon::parse(Carbon::parse($dateStr)->addDay()->toDateString().' '.$shift->end_time)
+                    : Carbon::parse($dateStr.' '.$shift->end_time);
 
                 $shiftOrders = Order::where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
@@ -267,7 +290,7 @@ class OrdersController extends Controller
                 $totalRevenue = (clone $shiftOrders)->sum('total_amount');
 
                 $orderIds = (clone $shiftOrders)->pluck('id');
-                $payments = \App\Models\Payment::where('restaurant_id', $restaurantId)
+                $payments = Payment::where('restaurant_id', $restaurantId)
                     ->where('status', 'paid')
                     ->whereIn('order_id', $orderIds->all())
                     ->get(['payment_method', 'amount']);
@@ -276,26 +299,26 @@ class OrdersController extends Controller
                 $transferRevenue = (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount');
 
                 $activeShiftStats = [
-                    'shift_name'       => $shift->name,
-                    'check_in_at'      => $activeAssignment->check_in_at ? \Carbon\Carbon::parse($activeAssignment->check_in_at)->format('H:i') : '—',
-                    'total_orders'     => $totalOrders,
-                    'total_revenue'    => (float) $totalRevenue,
-                    'cash_revenue'     => $cashRevenue,
+                    'shift_name' => $shift->name,
+                    'check_in_at' => $activeAssignment->check_in_at ? Carbon::parse($activeAssignment->check_in_at)->format('H:i') : '—',
+                    'total_orders' => $totalOrders,
+                    'total_revenue' => (float) $totalRevenue,
+                    'cash_revenue' => $cashRevenue,
                     'transfer_revenue' => $transferRevenue,
                 ];
             }
         }
 
         return Inertia::render('orders/Index', [
-            'orders'            => $orders,
-            'summary'           => $summary,
-            'filters'           => [
-                'status'  => $statusFilter,
-                'date'    => $dateFilter,
-                'search'  => $search,
-                'history' => $isHistory
+            'orders' => $orders,
+            'summary' => $summary,
+            'filters' => [
+                'status' => $statusFilter,
+                'date' => $dateFilter,
+                'search' => $search,
+                'history' => $isHistory,
             ],
-            'activeShiftStats'  => $activeShiftStats,
+            'activeShiftStats' => $activeShiftStats,
         ]);
     }
 
@@ -311,7 +334,11 @@ class OrdersController extends Controller
         $oldStatus = $order->status;
         $newStatus = $data['status'];
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $user, $oldStatus, $newStatus) {
+        if ($newStatus === 'completed') {
+            abort_unless($user->hasRole('cashier'), 403, 'Chỉ tài khoản có vai trò Thu ngân mới được phép thực hiện thanh toán.');
+        }
+
+        DB::transaction(function () use ($order, $user, $oldStatus, $newStatus) {
             // Nếu chuyển thành completed và trạng thái cũ khác completed
             if ($newStatus === 'completed' && $oldStatus !== 'completed') {
                 $order->load(['items.product.recipes.ingredient.unit']);
@@ -328,7 +355,7 @@ class OrdersController extends Controller
                             $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
 
                             // Tìm hoặc tạo bản ghi kho cho chi nhánh và nguyên liệu
-                            $inventory = \App\Models\Inventory::firstOrCreate([
+                            $inventory = Inventory::firstOrCreate([
                                 'restaurant_id' => $order->restaurant_id,
                                 'branch_id' => $order->branch_id,
                                 'ingredient_id' => $recipe->ingredient_id,
@@ -348,7 +375,7 @@ class OrdersController extends Controller
                             ]);
 
                             // Tạo giao dịch nhập/xuất kho (loại usage, hướng out)
-                            \App\Models\InventoryTransaction::create([
+                            InventoryTransaction::create([
                                 'restaurant_id' => $order->restaurant_id,
                                 'branch_id' => $order->branch_id,
                                 'ingredient_id' => $recipe->ingredient_id,
@@ -365,7 +392,7 @@ class OrdersController extends Controller
                             ]);
 
                             // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
-                            \App\Models\InventoryReservation::where('order_id', $order->id)
+                            InventoryReservation::where('order_id', $order->id)
                                 ->where('ingredient_id', $recipe->ingredient_id)
                                 ->where('status', 'holding')
                                 ->update(['status' => 'committed']);
@@ -375,21 +402,53 @@ class OrdersController extends Controller
 
                 // Cập nhật payment_status thành paid khi hoàn thành đơn
                 $order->payment_status = 'paid';
+
+                // Tạo bản ghi thanh toán (Payment) để cộng vào doanh thu
+                Payment::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'order_id' => $order->id,
+                    'processed_by' => $user->id,
+                    'payment_method' => 'cash',
+                    'status' => 'paid',
+                    'amount' => $order->total_amount,
+                    'paid_at' => now(),
+                ]);
+
+                // Giải phóng bàn ăn
+                if ($order->table_id) {
+                    RestaurantTable::where('id', $order->table_id)
+                        ->update(['status' => 'available']);
+                }
+            }
+
+            // Nếu chuyển thành confirmed và trạng thái cũ khác confirmed
+            if ($newStatus === 'confirmed' && $oldStatus !== 'confirmed') {
+                if ($order->table_id) {
+                    RestaurantTable::where('id', $order->table_id)
+                        ->update(['status' => 'occupied']);
+                }
             }
 
             // Nếu chuyển thành cancelled và trạng thái cũ khác cancelled
             if ($newStatus === 'cancelled' && $oldStatus !== 'cancelled') {
                 // Giải phóng các bản ghi giữ kho đệm (inventory_reservations) từ holding sang released
-                \App\Models\InventoryReservation::where('order_id', $order->id)
+                InventoryReservation::where('order_id', $order->id)
                     ->where('status', 'holding')
                     ->update(['status' => 'released']);
 
                 // Ghi nhận nhật ký kiểm toán tĩnh
-                \App\Models\AuditLog::log('order_cancelled', 'deleted', $order, ['status' => $oldStatus], ['status' => 'cancelled']);
+                AuditLog::log('order_cancelled', 'deleted', $order, ['status' => $oldStatus], ['status' => 'cancelled']);
+
+                // Giải phóng bàn ăn
+                if ($order->table_id) {
+                    RestaurantTable::where('id', $order->table_id)
+                        ->update(['status' => 'available']);
+                }
             }
 
             $order->update([
-                'status'       => $newStatus,
+                'status' => $newStatus,
                 'completed_at' => $newStatus === 'completed' ? now() : $order->completed_at,
                 'cancelled_at' => $newStatus === 'cancelled' ? now() : $order->cancelled_at,
                 'payment_status' => $order->payment_status,
@@ -416,14 +475,14 @@ class OrdersController extends Controller
         $user = $request->user();
         $oldAmount = (float) $order->total_amount;
 
-        $newOrder = \Illuminate\Support\Facades\DB::transaction(function () use ($order, $data, $user) {
+        $newOrder = DB::transaction(function () use ($order, $data, $user) {
             // 1. Tạo đơn hàng mới ở bàn trống
             $newOrder = Order::create([
                 'restaurant_id' => $order->restaurant_id,
                 'branch_id' => $order->branch_id,
                 'table_id' => $data['table_id'],
                 'created_by' => $user->id,
-                'order_number' => $order->order_number . '-SPLIT-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4)),
+                'order_number' => $order->order_number.'-SPLIT-'.Str::upper(Str::random(4)),
                 'channel' => $order->channel,
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
@@ -433,9 +492,14 @@ class OrdersController extends Controller
                 'is_override_split_penalty' => false,
             ]);
 
+            if ($newOrder->table_id) {
+                RestaurantTable::where('id', $newOrder->table_id)
+                    ->update(['status' => 'occupied']);
+            }
+
             // 2. Chuyển các món ăn chỉ định sang đơn mới
             foreach ($data['items'] as $itemData) {
-                $originalItem = \App\Models\OrderItem::where('order_id', $order->id)
+                $originalItem = OrderItem::where('order_id', $order->id)
                     ->findOrFail($itemData['order_item_id']);
 
                 $splitQty = (float) $itemData['quantity'];
@@ -451,7 +515,7 @@ class OrdersController extends Controller
                         'line_total' => ($origQty - $splitQty) * $originalItem->unit_price,
                     ]);
 
-                    \App\Models\OrderItem::create([
+                    OrderItem::create([
                         'restaurant_id' => $order->restaurant_id,
                         'order_id' => $newOrder->id,
                         'product_id' => $originalItem->product_id,
@@ -481,15 +545,15 @@ class OrdersController extends Controller
         });
 
         // 4. Ghi Audit Log cho cả 2 đơn
-        \App\Models\AuditLog::log('order_split', 'created', $newOrder, null, [
+        AuditLog::log('order_split', 'created', $newOrder, null, [
             'total_amount' => (float) $newOrder->total_amount,
-            'split_from_order_id' => $order->id
+            'split_from_order_id' => $order->id,
         ]);
 
-        \App\Models\AuditLog::log('order_updated', 'updated', $order, [
-            'total_amount' => $oldAmount
+        AuditLog::log('order_updated', 'updated', $order, [
+            'total_amount' => $oldAmount,
         ], [
-            'total_amount' => (float) $order->total_amount
+            'total_amount' => (float) $order->total_amount,
         ]);
 
         return back()->with('success', 'Đã tách đơn hàng ra bàn trống thành công. Giao dịch này đã được đánh dấu đỏ cảnh báo.');
@@ -509,10 +573,10 @@ class OrdersController extends Controller
             'is_red_flagged' => false, // Gỡ đánh dấu đỏ
         ]);
 
-        \App\Models\AuditLog::log('order_split_override', 'updated', $order, [
-            'is_override_split_penalty' => false
+        AuditLog::log('order_split_override', 'updated', $order, [
+            'is_override_split_penalty' => false,
         ], [
-            'is_override_split_penalty' => true
+            'is_override_split_penalty' => true,
         ]);
 
         return back()->with('success', 'Đã phê duyệt đối soát đơn tách. Khoản phạt âm tiền của ca làm việc đã được vô hiệu hóa.');
@@ -535,15 +599,15 @@ class OrdersController extends Controller
         ]);
 
         // Fraud prevention: Lock order once sent to kitchen (status is not pending)
-        if ($order->status !== 'pending' && !$request->user()->hasRole('owner')) {
+        if ($order->status !== 'pending' && ! $request->user()->hasRole('owner')) {
             if (isset($data['items'])) {
                 foreach ($data['items'] as $itemData) {
-                    $item = \App\Models\OrderItem::where('order_id', $order->id)
+                    $item = OrderItem::where('order_id', $order->id)
                         ->find($itemData['id']);
 
                     if ($item && (float) $itemData['quantity'] < (float) $item->quantity) {
                         return back()->withErrors([
-                            'items' => 'Đơn hàng đã được chuyển bếp và khóa. Bạn không thể xóa hoặc giảm số lượng món ăn, chỉ có thể tăng thêm.'
+                            'items' => 'Đơn hàng đã được chuyển bếp và khóa. Bạn không thể xóa hoặc giảm số lượng món ăn, chỉ có thể tăng thêm.',
                         ]);
                     }
                 }
@@ -557,10 +621,10 @@ class OrdersController extends Controller
             'items' => $order->items->map(fn ($item) => ['id' => $item->id, 'unit_price' => (float) $item->unit_price, 'quantity' => (float) $item->quantity])->toArray(),
         ];
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $data) {
+        DB::transaction(function () use ($order, $data) {
             if (isset($data['items'])) {
                 foreach ($data['items'] as $itemData) {
-                    $item = \App\Models\OrderItem::where('order_id', $order->id)
+                    $item = OrderItem::where('order_id', $order->id)
                         ->findOrFail($itemData['id']);
 
                     $item->update([
@@ -573,7 +637,7 @@ class OrdersController extends Controller
 
             $subtotal = $order->items()->sum('line_total');
             $discount = isset($data['discount_amount']) ? (float) $data['discount_amount'] : $order->discount_amount;
-            
+
             $order->update([
                 'subtotal' => $subtotal,
                 'discount_amount' => $discount,
@@ -602,12 +666,12 @@ class OrdersController extends Controller
         foreach ($oldValues['items'] as $index => $oldItem) {
             $newItem = collect($newValues['items'])->firstWhere('id', $oldItem['id']);
             if ($newItem && $oldItem['unit_price'] !== $newItem['unit_price']) {
-                \App\Models\AuditLog::log('price_modified', 'updated', $order, [
+                AuditLog::log('price_modified', 'updated', $order, [
                     'item_id' => $oldItem['id'],
-                    'unit_price' => $oldItem['unit_price']
+                    'unit_price' => $oldItem['unit_price'],
                 ], [
                     'item_id' => $newItem['id'],
-                    'unit_price' => $newItem['unit_price']
+                    'unit_price' => $newItem['unit_price'],
                 ]);
                 $changed = true;
             }
@@ -615,7 +679,7 @@ class OrdersController extends Controller
 
         // 3. Sửa đơn tổng quát
         if ($changed || $oldValues['subtotal'] !== $newValues['subtotal']) {
-            \App\Models\AuditLog::log('order_updated', 'updated', $order, $oldValues, $newValues);
+            AuditLog::log('order_updated', 'updated', $order, $oldValues, $newValues);
         }
 
         return back()->with('success', 'Đã cập nhật thông tin đơn hàng và ghi nhận nhật ký kiểm toán.');
@@ -624,7 +688,7 @@ class OrdersController extends Controller
     /**
      * Cập nhật trạng thái chuẩn bị món ăn cho từng món trong đơn.
      */
-    public function updateItemStatus(Request $request, \App\Models\OrderItem $item): \Illuminate\Http\JsonResponse
+    public function updateItemStatus(Request $request, OrderItem $item): JsonResponse
     {
         abort_if($item->restaurant_id !== $request->user()->restaurant_id, 403);
 
@@ -638,15 +702,15 @@ class OrdersController extends Controller
         if ($status === 'sent') {
             $updateData['sent_to_kitchen_at'] = now();
         } elseif ($status === 'preparing') {
-            if (!$item->sent_to_kitchen_at) {
+            if (! $item->sent_to_kitchen_at) {
                 $updateData['sent_to_kitchen_at'] = now();
             }
             $updateData['prepared_at'] = now();
         } elseif ($status === 'served') {
-            if (!$item->sent_to_kitchen_at) {
+            if (! $item->sent_to_kitchen_at) {
                 $updateData['sent_to_kitchen_at'] = now();
             }
-            if (!$item->prepared_at) {
+            if (! $item->prepared_at) {
                 $updateData['prepared_at'] = now();
             }
             $updateData['served_at'] = now();
@@ -660,14 +724,14 @@ class OrdersController extends Controller
             'item' => [
                 'id' => $item->id,
                 'status' => $item->status,
-            ]
+            ],
         ]);
     }
 
     /**
      * Mô phỏng đơn hàng từ ứng dụng bên thứ ba (GrabFood, ShopeeFood).
      */
-    public function simulateThirdPartyOrder(Request $request): \Illuminate\Http\JsonResponse
+    public function simulateThirdPartyOrder(Request $request): JsonResponse
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
@@ -675,16 +739,16 @@ class OrdersController extends Controller
 
         $source = $request->input('source', 'GrabFood');
 
-        $order = \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $source) {
-            $orderNumber = 'ORD-' . strtoupper(substr($source, 0, 4)) . '-' . strtoupper(uniqid());
+        $order = DB::transaction(function () use ($restaurantId, $branchId, $source) {
+            $orderNumber = 'ORD-'.strtoupper(substr($source, 0, 4)).'-'.strtoupper(uniqid());
 
-            $product = \App\Models\Product::where('restaurant_id', $restaurantId)
+            $product = Product::where('restaurant_id', $restaurantId)
                 ->where('is_active', true)
                 ->where('is_available', true)
                 ->inRandomOrder()
                 ->first();
 
-            if (!$product) {
+            if (! $product) {
                 abort(422, 'Không có món ăn hoạt động nào để mô phỏng.');
             }
 
@@ -703,11 +767,11 @@ class OrdersController extends Controller
                 'subtotal' => $lineTotal,
                 'discount_amount' => 0,
                 'total_amount' => $lineTotal,
-                'note' => 'Đơn hàng tự động mô phỏng từ ' . $source,
+                'note' => 'Đơn hàng tự động mô phỏng từ '.$source,
                 'created_by' => null,
             ]);
 
-            \App\Models\OrderItem::create([
+            OrderItem::create([
                 'restaurant_id' => $restaurantId,
                 'order_id' => $order->id,
                 'product_id' => $product->id,
@@ -719,7 +783,7 @@ class OrdersController extends Controller
                 'notes' => 'Giao hàng nhanh',
             ]);
 
-            \App\Models\AuditLog::log('order_created', 'created', $order, null, [
+            AuditLog::log('order_created', 'created', $order, null, [
                 'total_amount' => (float) $order->total_amount,
                 'items_count' => 1,
                 'channel' => 'delivery',
@@ -730,7 +794,7 @@ class OrdersController extends Controller
         });
 
         // Phát tín hiệu Real-time cho máy POS/Tablet của nhân viên
-        event(new \App\Events\QrOrderPlaced($order));
+        event(new QrOrderPlaced($order));
 
         return response()->json([
             'success' => true,
@@ -739,7 +803,7 @@ class OrdersController extends Controller
                 'id' => $order->id,
                 'order_number' => $order->order_number,
                 'third_party_source' => $source,
-            ]
+            ],
         ]);
     }
 }
