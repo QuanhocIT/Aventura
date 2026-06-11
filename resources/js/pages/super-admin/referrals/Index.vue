@@ -23,7 +23,12 @@ type WithdrawalRequest = {
 };
 
 defineProps<{
-    withdrawalRequests: WithdrawalRequest[];
+    withdrawalRequests: {
+        data: WithdrawalRequest[];
+        links: any[];
+        total: number;
+        last_page: number;
+    };
     commissionPercentage: number;
 }>();
 
@@ -178,7 +183,7 @@ const formatCurrency = (value: number) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                        <tr v-for="req in withdrawalRequests" :key="req.id" class="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30">
+                        <tr v-for="req in withdrawalRequests.data" :key="req.id" class="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30">
                             <td class="p-4">
                                 <div class="font-bold text-foreground">{{ req.user_name }}</div>
                                 <div class="text-[11px] text-muted-foreground">{{ req.user_email }}</div>
@@ -216,13 +221,24 @@ const formatCurrency = (value: number) => {
                                 </div>
                             </td>
                         </tr>
-                        <tr v-if="withdrawalRequests.length === 0">
+                        <tr v-if="withdrawalRequests.data.length === 0">
                             <td colspan="6" class="p-8 text-center text-muted-foreground font-medium italic">
                                 Không có yêu cầu rút tiền nào trên hệ thống.
                             </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Pagination -->
+            <div v-if="withdrawalRequests.last_page > 1" class="flex justify-center gap-1 border-t p-4 mt-2">
+                <a
+                    v-for="link in withdrawalRequests.links"
+                    :key="link.label"
+                    :href="link.url ?? '#'"
+                    v-html="link.label"
+                    :class="['px-3 py-1 rounded text-sm border', link.active ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted bg-background text-foreground', !link.url ? 'opacity-40 pointer-events-none' : '']"
+                />
             </div>
         </div>
     </div>

@@ -77,7 +77,7 @@ class BillingController extends Controller
         return Inertia::render('super-admin/billing/Index', [
             'filters'     => $request->only(['restaurant_id', 'status', 'type', 'search']),
             'restaurants' => $restaurants,
-            'invoices'    => $invoiceQuery->paginate(15, ['*'], 'invoices_page')->withQueryString()->through(fn ($invoice) => [
+            'invoices'    => $invoiceQuery->paginate(10, ['*'], 'invoices_page')->withQueryString()->through(fn ($invoice) => [
                 'id'             => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
                 'restaurant'     => $invoice->restaurant?->name ?? '',
@@ -88,7 +88,7 @@ class BillingController extends Controller
                 'due_on'         => $invoice->due_on?->format('d/m/Y'),
                 'sent_at'        => $invoice->sent_at?->format('d/m/Y H:i'),
             ]),
-            'webhooks'    => $webhookQuery->paginate(15, ['*'], 'webhooks_page')->withQueryString()->through(fn ($webhook) => [
+            'webhooks'    => $webhookQuery->paginate(10, ['*'], 'webhooks_page')->withQueryString()->through(fn ($webhook) => [
                 'id'               => $webhook->id,
                 'provider'         => $webhook->provider,
                 'status'           => $webhook->status,
@@ -96,7 +96,7 @@ class BillingController extends Controller
                 'event_type'       => $webhook->event_type,
                 'processed_at'     => $webhook->processed_at?->format('d/m/Y H:i'),
             ]),
-            'adjustments' => $adjustmentQuery->paginate(15, ['*'], 'adjustments_page')->withQueryString()->through(fn ($adjustment) => [
+            'adjustments' => $adjustmentQuery->paginate(10, ['*'], 'adjustments_page')->withQueryString()->through(fn ($adjustment) => [
                 'id'              => $adjustment->id,
                 'restaurant'      => $adjustment->restaurant?->name ?? '',
                 'type'            => $adjustment->type,

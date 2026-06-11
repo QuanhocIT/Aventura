@@ -50,7 +50,7 @@ class GarbageCollectorController extends Controller
 
         $orphans = $orphansQuery->with('restaurant')
             ->latest()
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('super-admin/GarbageCollector', [

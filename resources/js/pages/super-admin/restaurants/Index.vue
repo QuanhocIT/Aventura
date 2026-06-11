@@ -23,7 +23,9 @@ const props = defineProps<{
             is_inactive_flagged?: boolean;
             last_active_at?: string;
         }>;
-        links: any[]; meta: any;
+        links: any[];
+        total: number;
+        last_page: number;
     };
     plans: Array<{ id: number; code: string; name: string }>;
     filters: { status?: string; plan?: string; search?: string; flagged?: string };
@@ -129,7 +131,7 @@ const statusLabel: Record<string, string> = {
             <div>
                 <h1 class="text-2xl font-bold">Quản lý nhà hàng</h1>
                 <p class="text-sm text-muted-foreground">
-                    Tổng cộng {{ restaurants.meta?.total ?? 0 }} nhà hàng
+                    Tổng cộng {{ restaurants.total ?? 0 }} nhà hàng
                 </p>
             </div>
             <Button @click="showCreate = true" class="gap-2">
@@ -324,7 +326,7 @@ const statusLabel: Record<string, string> = {
                 </table>
 
                 <!-- Pagination -->
-                <div v-if="restaurants.meta?.last_page > 1" class="flex justify-center gap-1 border-t p-4">
+                <div v-if="restaurants.last_page > 1" class="flex justify-center gap-1 border-t p-4">
                     <Link
                         v-for="link in restaurants.links"
                         :key="link.label"

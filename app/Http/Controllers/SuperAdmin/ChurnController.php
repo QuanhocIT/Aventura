@@ -60,7 +60,7 @@ class ChurnController extends Controller
 
         // Sort by health score ascending (lowest first, meaning highest churn risk first)
         $restaurants = $query->orderBy('health_score', 'asc')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString()
             ->through(function ($restaurant) {
                 // Calculate dynamic breakdown for details modal/popover

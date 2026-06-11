@@ -50,7 +50,7 @@ class RestaurantController extends Controller
             );
         }
 
-        $restaurants = $query->latest()->paginate(15)->withQueryString();
+        $restaurants = $query->latest()->paginate(10)->withQueryString();
 
         $stats = [
             'total'     => Restaurant::count(),
@@ -344,7 +344,7 @@ class RestaurantController extends Controller
         $paginator = $restaurant->subscriptions()
             ->with('plan')
             ->latest()
-            ->paginate(15);
+            ->paginate(10);
 
         $data = $paginator->getCollection()->map(fn ($s) => [
             'id'         => $s->id,

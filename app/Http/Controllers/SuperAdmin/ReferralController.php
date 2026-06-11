@@ -22,8 +22,9 @@ class ReferralController extends Controller
         $withdrawalRequests = WithdrawalRequest::query()
             ->with('user:id,name,email,commission_balance')
             ->latest('id')
-            ->get()
-            ->map(fn ($req) => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn ($req) => [
                 'id' => $req->id,
                 'user_name' => $req->user?->name ?? 'Người dùng đã xóa',
                 'user_email' => $req->user?->email ?? '—',

@@ -46,7 +46,7 @@ class SupportPortalController extends Controller
             'stats' => $this->supportPortal->dashboardMetrics(),
             'monitoring' => $this->supportPortal->monitoringSnapshot(),
             'sla_stats' => app(SlaService::class)->getSlaMetrics(),
-            'tickets' => $ticketQuery->paginate(15, ['*'], 'tickets_page')->withQueryString()->through(fn ($ticket) => [
+            'tickets' => $ticketQuery->paginate(10, ['*'], 'tickets_page')->withQueryString()->through(fn ($ticket) => [
                 'id' => $ticket->id,
                 'code' => $ticket->code,
                 'restaurant' => $ticket->restaurant?->name ?? 'He thong',
@@ -83,7 +83,7 @@ class SupportPortalController extends Controller
                 'status' => $alert->status,
                 'triggered_at' => optional($alert->triggered_at)->format('d/m/Y H:i'),
             ]),
-            'rules' => SystemAlertRule::query()->orderBy('name')->paginate(20, ['*'], 'rules_page')->withQueryString()->through(fn ($rule) => [
+            'rules' => SystemAlertRule::query()->orderBy('name')->paginate(10, ['*'], 'rules_page')->withQueryString()->through(fn ($rule) => [
                 'id' => $rule->id,
                 'name' => $rule->name,
                 'metric_key' => $rule->metric_key,
@@ -93,7 +93,7 @@ class SupportPortalController extends Controller
                 'is_active' => $rule->is_active,
                 'channels' => $rule->channels ?? [],
             ]),
-            'announcements' => SupportAnnouncement::query()->latest()->paginate(8, ['*'], 'announcements_page')->withQueryString()->through(fn ($announcement) => [
+            'announcements' => SupportAnnouncement::query()->latest()->paginate(10, ['*'], 'announcements_page')->withQueryString()->through(fn ($announcement) => [
                 'id' => $announcement->id,
                 'title' => $announcement->title,
                 'message' => $announcement->message,
@@ -102,7 +102,7 @@ class SupportPortalController extends Controller
                 'audience' => $announcement->audience,
                 'published_at' => optional($announcement->published_at)->format('d/m/Y H:i'),
             ]),
-            'articles' => KnowledgeBaseArticle::query()->latest()->paginate(8, ['*'], 'articles_page')->withQueryString()->through(fn ($article) => [
+            'articles' => KnowledgeBaseArticle::query()->latest()->paginate(10, ['*'], 'articles_page')->withQueryString()->through(fn ($article) => [
                 'id' => $article->id,
                 'title' => $article->title,
                 'category' => $article->category,

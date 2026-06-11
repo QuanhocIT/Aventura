@@ -27,7 +27,9 @@ const props = defineProps<{
             restaurant_id: number | null; has_2fa: boolean;
             last_login_at: string | null; email_verified: boolean; created_at: string;
         }>;
-        links: any[]; meta: any;
+        links: any[];
+        total: number;
+        last_page: number;
     };
     filters: { search?: string; role?: string; status?: string };
 }>();
@@ -168,7 +170,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
             <div>
                 <h1 class="text-2xl font-bold">Quản lý tài khoản</h1>
                 <p class="text-sm text-muted-foreground">
-                    Tổng cộng {{ accounts.meta?.total ?? 0 }} tài khoản chủ doanh nghiệp
+                    Tổng cộng {{ accounts.total ?? 0 }} tài khoản chủ doanh nghiệp
                 </p>
             </div>
             <a
@@ -187,7 +189,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                     <UserCheck class="size-8 text-green-500" />
                     <div>
                         <p class="text-xs text-muted-foreground">Đang hoạt động</p>
-                        <p class="text-2xl font-bold text-green-600">{{ accounts.meta?.total ?? 0 }}</p>
+                        <p class="text-2xl font-bold text-green-600">{{ accounts.total ?? 0 }}</p>
                     </div>
                 </CardContent>
             </Card>
@@ -394,7 +396,7 @@ const totalWith2FA   = computed(() => props.accounts.data.filter(a => a.has_2fa)
                 </table>
 
                 <!-- Pagination -->
-                <div v-if="accounts.meta?.last_page > 1" class="flex justify-center gap-1 border-t p-4">
+                <div v-if="accounts.last_page > 1" class="flex justify-center gap-1 border-t p-4">
                     <a
                         v-for="link in accounts.links"
                         :key="link.label"

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight, FileText, Filter, Search } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
@@ -25,7 +25,9 @@ const props = defineProps<{
             new_values: Record<string, any> | null;
             created_at: string;
         }>;
-        links: any[]; meta: any;
+        links: any[];
+        total: number;
+        last_page: number;
     };
     restaurants: Array<{ id: number; name: string }>;
     filters: { restaurant_id?: string; event?: string; action?: string; from?: string; to?: string };
@@ -269,7 +271,7 @@ const hasActiveFilter = () =>
                 </table>
 
                 <!-- Pagination -->
-                <div v-if="logs.meta?.last_page > 1" class="flex justify-center gap-1 border-t p-4">
+                <div v-if="logs.last_page > 1" class="flex justify-center gap-1 border-t p-4">
                     <a
                         v-for="link in logs.links"
                         :key="link.label"

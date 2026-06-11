@@ -35,7 +35,7 @@ class NewsPostController extends Controller
             };
         }
 
-        $posts = $query->paginate(20)->withQueryString()
+        $posts = $query->paginate(10)->withQueryString()
             ->through(fn (NewsPost $p) => [
                 'id'                 => $p->id,
                 'title'              => $p->title,

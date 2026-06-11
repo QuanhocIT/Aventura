@@ -30,7 +30,7 @@ class CouponController extends Controller
             });
         }
 
-        $coupons = $query->paginate(20)->withQueryString()->through(fn ($c) => [
+        $coupons = $query->paginate(10)->withQueryString()->through(fn ($c) => [
             'id'             => $c->id,
             'code'           => $c->code,
             'description'    => $c->description,

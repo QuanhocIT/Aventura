@@ -162,10 +162,10 @@ async function saveMaintenanceMessage() {
 }
 
 function getLatencyColor(ms: number): string {
-    if (ms <= 10) return 'text-cyan-400 font-bold';
-    if (ms <= 50) return 'text-emerald-400';
-    if (ms <= 150) return 'text-amber-400';
-    return 'text-rose-500 font-bold animate-pulse';
+    if (ms <= 10) return 'text-cyan-600 dark:text-cyan-400 font-bold';
+    if (ms <= 50) return 'text-emerald-600 dark:text-emerald-400';
+    if (ms <= 150) return 'text-amber-600 dark:text-amber-400';
+    return 'text-rose-600 dark:text-rose-500 font-bold animate-pulse';
 }
 
 function formatTime(timeStr: string | null): string {
@@ -178,24 +178,22 @@ function formatTime(timeStr: string | null): string {
 <template>
     <Head title="DevOps - Giám sát Dịch vụ" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full font-sans text-zinc-100">
+    <div class="flex flex-col gap-6 p-6">
         <!-- Header -->
-        <div class="flex flex-wrap items-center justify-between gap-4 border-b pb-5 border-zinc-800">
+        <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-50 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                    Giám sát Dịch vụ &amp; Microservices
-                </h1>
-                <p class="text-sm text-zinc-400 flex items-center gap-1.5 mt-1">
+                <h1 class="text-2xl font-bold">Giám sát Dịch vụ &amp; Microservices</h1>
+                <p class="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
                     <Activity class="size-4 text-indigo-500 animate-pulse" />
                     Theo dõi trạng thái cổng, đo độ trễ và quản lý chế độ bảo trì riêng biệt.
                 </p>
             </div>
             
-            <div class="flex gap-2">
+            <div class="flex items-center gap-2">
                 <Button 
                     @click="checkLiveStatuses" 
                     :disabled="isPinging" 
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+                    class="gap-2"
                 >
                     <RefreshCw :class="['size-4', { 'animate-spin': isPinging }]" />
                     Kiểm tra trạng thái ngay
@@ -203,7 +201,7 @@ function formatTime(timeStr: string | null): string {
                 <a 
                     href="/status" 
                     target="_blank"
-                    class="inline-flex items-center justify-center rounded-xl border border-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 transition-all cursor-pointer"
+                    class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors cursor-pointer"
                 >
                     Mở Status Page công khai
                 </a>
@@ -211,42 +209,48 @@ function formatTime(timeStr: string | null): string {
         </div>
 
         <!-- Quick Summary Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
-                <CardHeader class="pb-3 flex flex-row items-center justify-between">
-                    <CardTitle class="text-xs font-bold uppercase tracking-wider text-zinc-500">Hoạt động bình thường</CardTitle>
-                    <CheckCircle class="size-5 text-emerald-500" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-black">
-                        {{ localServices.filter(s => s.last_status === 'online' && !s.is_maintenance).length }}
-                        <span class="text-sm font-medium text-zinc-500">/ {{ localServices.length }} dịch vụ</span>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-emerald-50 p-2.5 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
+                        <CheckCircle class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Hoạt động bình thường</span>
+                        <span class="text-xl font-bold tracking-tight">
+                            {{ localServices.filter(s => s.last_status === 'online' && !s.is_maintenance).length }}
+                            <span class="text-xs font-normal text-muted-foreground">/ {{ localServices.length }} dịch vụ</span>
+                        </span>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
-                <CardHeader class="pb-3 flex flex-row items-center justify-between">
-                    <CardTitle class="text-xs font-bold uppercase tracking-wider text-zinc-500">Đang bảo trì (Maintenance)</CardTitle>
-                    <Hammer class="size-5 text-amber-500" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-black text-amber-500">
-                        {{ localServices.filter(s => s.is_maintenance).length }}
-                        <span class="text-sm font-medium text-zinc-500">phân hệ tạm dừng</span>
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-amber-50 p-2.5 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
+                        <Hammer class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Đang bảo trì</span>
+                        <span class="text-xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
+                            {{ localServices.filter(s => s.is_maintenance).length }}
+                            <span class="text-xs font-normal text-muted-foreground">phân hệ tạm dừng</span>
+                        </span>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md">
-                <CardHeader class="pb-3 flex flex-row items-center justify-between">
-                    <CardTitle class="text-xs font-bold uppercase tracking-wider text-zinc-500">Gặp sự cố (Offline)</CardTitle>
-                    <XCircle class="size-5 text-rose-500" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-black text-rose-500">
-                        {{ localServices.filter(s => s.last_status === 'offline' && !s.is_maintenance).length }}
-                        <span class="text-sm font-medium text-zinc-500">dịch vụ gián đoạn</span>
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-lg bg-rose-50 p-2.5 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                        <XCircle class="size-5" />
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Gặp sự cố (Offline)</span>
+                        <span class="text-xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
+                            {{ localServices.filter(s => s.last_status === 'offline' && !s.is_maintenance).length }}
+                            <span class="text-xs font-normal text-muted-foreground">dịch vụ gián đoạn</span>
+                        </span>
                     </div>
                 </CardContent>
             </Card>
@@ -257,19 +261,19 @@ function formatTime(timeStr: string | null): string {
             <Card 
                 v-for="service in localServices" 
                 :key="service.id" 
-                class="bg-zinc-950/40 border-zinc-900 backdrop-blur-md overflow-hidden hover:border-zinc-800 transition-all flex flex-col justify-between"
+                class="overflow-hidden hover:bg-muted/5 transition-colors flex flex-col justify-between"
             >
                 <div>
                     <!-- Card Header / Status Indicator -->
-                    <div class="p-5 border-b border-zinc-900 flex items-start justify-between gap-4">
+                    <div class="p-5 border-b flex items-start justify-between gap-4">
                         <div class="space-y-1">
                             <div class="flex items-center gap-2">
-                                <h3 class="font-bold text-base text-zinc-100">{{ service.name }}</h3>
-                                <span class="bg-zinc-900 text-zinc-400 border border-zinc-800 rounded px-1.5 py-0.5 text-[10px] font-mono">
+                                <h3 class="font-bold text-base text-foreground">{{ service.name }}</h3>
+                                <span class="bg-muted text-muted-foreground border rounded px-1.5 py-0.5 text-[10px] font-mono">
                                     {{ service.service_key }}
                                 </span>
                             </div>
-                            <div class="text-xs text-zinc-500 flex items-center gap-1.5 font-mono">
+                            <div class="text-xs text-muted-foreground flex items-center gap-1.5 font-mono">
                                 <Server class="size-3" />
                                 <span>{{ service.host }}:{{ service.port }}</span>
                             </div>
@@ -277,24 +281,24 @@ function formatTime(timeStr: string | null): string {
 
                         <!-- Status badge with pulsing glow effect -->
                         <div class="flex items-center gap-2">
-                            <span v-if="service.is_maintenance" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-md shadow-amber-500/5">
+                            <span v-if="service.is_maintenance" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200/50">
                                 <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75"></span>
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                                 </span>
                                 Bảo trì
                             </span>
-                            <span v-else-if="service.last_status === 'online'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-md shadow-emerald-500/5">
+                            <span v-else-if="service.last_status === 'online'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200/50">
                                 <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
                                 Online
                             </span>
-                            <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20 shadow-md shadow-rose-500/5">
+                            <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200/50">
                                 <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                                 </span>
                                 Offline
                             </span>
@@ -305,30 +309,30 @@ function formatTime(timeStr: string | null): string {
                     <div class="p-5 space-y-4 text-sm">
                         <!-- Metrics info -->
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-3">
-                                <div class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Độ trễ (Latency)</div>
+                            <div class="bg-muted/50 border rounded-xl p-3">
+                                <div class="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Độ trễ (Latency)</div>
                                 <div class="text-lg font-black mt-1 font-mono">
                                     <span v-if="service.last_status === 'online'" :class="getLatencyColor(service.last_latency)">
                                         {{ service.last_latency }}ms
                                     </span>
-                                    <span v-else class="text-zinc-600">—</span>
+                                    <span v-else class="text-muted-foreground">—</span>
                                 </div>
                             </div>
                             
-                            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-3">
-                                <div class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Lần cuối kiểm tra</div>
-                                <div class="text-xs font-semibold text-zinc-300 mt-2 flex items-center gap-1">
-                                    <Clock class="size-3 text-zinc-500" />
+                            <div class="bg-muted/50 border rounded-xl p-3">
+                                <div class="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Lần cuối kiểm tra</div>
+                                <div class="text-xs font-semibold text-foreground mt-2 flex items-center gap-1">
+                                    <Clock class="size-3 text-muted-foreground" />
                                     {{ formatTime(service.last_checked_at) }}
                                 </div>
                             </div>
                         </div>
 
                         <!-- Maintenance Mode Switch -->
-                        <div class="flex items-center justify-between border-t border-zinc-900 pt-4">
+                        <div class="flex items-center justify-between border-t pt-4">
                             <div class="space-y-0.5">
-                                <span class="text-xs font-bold text-zinc-300">Chế độ bảo trì (Maintenance Mode)</span>
-                                <p class="text-[11px] text-zinc-500 leading-relaxed">
+                                <span class="text-xs font-bold text-foreground">Chế độ bảo trì (Maintenance Mode)</span>
+                                <p class="text-[11px] text-muted-foreground leading-relaxed">
                                     Tắt riêng lẻ tính năng này mà không cần đóng ứng dụng Laravel.
                                 </p>
                             </div>
@@ -341,14 +345,14 @@ function formatTime(timeStr: string | null): string {
                                     @change="toggleMaintenance(service)" 
                                     class="sr-only peer"
                                 >
-                                <div class="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-100 after:border-zinc-300 after:border after:rounded-full after:height-5 after:width-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                <div class="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                             </label>
                         </div>
 
                         <!-- Custom Warning Message Area -->
-                        <div class="bg-zinc-900/20 border border-zinc-900/60 rounded-xl p-4 space-y-2.5">
+                        <div class="bg-muted/30 border rounded-xl p-4 space-y-2.5">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10px] uppercase font-bold text-zinc-400 flex items-center gap-1">
+                                <span class="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                                     <MessageSquare class="size-3" />
                                     Thông báo hiển thị cho người dùng
                                 </span>
@@ -356,12 +360,12 @@ function formatTime(timeStr: string | null): string {
                                     variant="ghost" 
                                     size="sm" 
                                     @click="openEditMessageModal(service)"
-                                    class="h-6 text-[10px] text-indigo-400 hover:text-indigo-300 hover:bg-zinc-800 rounded px-2"
+                                    class="h-6 text-[10px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-muted rounded px-2"
                                 >
                                     Chỉnh sửa
                                 </Button>
                             </div>
-                            <p class="text-xs text-zinc-400 italic leading-relaxed">
+                            <p class="text-xs text-muted-foreground italic leading-relaxed">
                                 "{{ service.maintenance_message || 'Không có thông báo riêng...' }}"
                             </p>
                         </div>
@@ -371,13 +375,13 @@ function formatTime(timeStr: string | null): string {
                 <!-- Footer error log if offline -->
                 <div 
                     v-if="service.last_status === 'offline' && service.error_message" 
-                    class="bg-rose-950/15 border-t border-zinc-900 px-5 py-3.5"
+                    class="bg-rose-50 dark:bg-rose-950/15 border-t px-5 py-3.5"
                 >
-                    <div class="text-[10px] uppercase font-bold text-rose-500 tracking-wider flex items-center gap-1 mb-1">
+                    <div class="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1 mb-1">
                         <Terminal class="size-3 text-rose-500 animate-pulse" />
                         Nhật ký lỗi hệ thống
                     </div>
-                    <div class="text-[11px] font-mono text-rose-300/80 break-words leading-relaxed">
+                    <div class="text-[11px] font-mono text-rose-700 dark:text-rose-300/80 break-words leading-relaxed">
                         {{ service.error_message }}
                     </div>
                 </div>
@@ -386,31 +390,31 @@ function formatTime(timeStr: string | null): string {
 
         <!-- Custom Edit Message Dialog -->
         <Dialog v-model:open="showEditMessageDialog">
-            <DialogContent class="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-md">
+            <DialogContent class="max-w-md">
                 <DialogHeader>
-                    <DialogTitle class="text-lg font-bold">Chỉnh sửa thông báo bảo trì</DialogTitle>
-                    <DialogDescription class="text-xs text-zinc-400">
+                    <DialogTitle>Chỉnh sửa thông báo bảo trì</DialogTitle>
+                    <DialogDescription>
                         Thông báo này sẽ được hiển thị trực tiếp cho khách hàng (tenants) khi phân hệ tương ứng bị ngắt hoặc đưa vào chế độ bảo trì.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div class="space-y-4 py-4">
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-zinc-400">Tên phân hệ</Label>
+                        <Label>Tên phân hệ</Label>
                         <Input 
                             :value="editingService?.name" 
                             disabled 
-                            class="bg-zinc-900 border-zinc-800 text-zinc-500 cursor-not-allowed rounded-lg"
+                            class="bg-muted cursor-not-allowed text-muted-foreground"
                         />
                     </div>
                     
                     <div class="space-y-1.5">
-                        <Label for="warning-text" class="text-xs font-bold text-zinc-300">Nội dung thông báo hiển thị</Label>
+                        <Label for="warning-text">Nội dung thông báo hiển thị</Label>
                         <textarea
                             id="warning-text"
                             v-model="maintenanceMessageText"
                             rows="4"
-                            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                            class="w-full bg-background border rounded-lg p-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
                             placeholder="Nhập thông báo hiển thị..."
                             maxlength="500"
                         ></textarea>
@@ -421,14 +425,12 @@ function formatTime(timeStr: string | null): string {
                     <Button 
                         variant="ghost" 
                         @click="showEditMessageDialog = false"
-                        class="text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 rounded-xl"
                     >
                         Hủy
                     </Button>
                     <Button 
                         @click="saveMaintenanceMessage" 
                         :disabled="isSavingMessage"
-                        class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl"
                     >
                         {{ isSavingMessage ? 'Đang lưu...' : 'Lưu thay đổi' }}
                     </Button>

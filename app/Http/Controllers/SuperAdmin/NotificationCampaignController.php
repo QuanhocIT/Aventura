@@ -20,7 +20,7 @@ class NotificationCampaignController extends Controller
     {
         $campaigns = NotificationCampaign::with('creator', 'targetPlan')
             ->latest()
-            ->paginate(15)
+            ->paginate(10)
             ->through(fn ($c) => [
                 'id' => $c->id,
                 'title' => $c->title,

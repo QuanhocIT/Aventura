@@ -36,7 +36,7 @@ class AuditLogController extends Controller
             $query->where('created_at', '<=', $request->to . ' 23:59:59');
         }
 
-        $logs = $query->paginate(25)->withQueryString();
+        $logs = $query->paginate(10)->withQueryString();
 
         return Inertia::render('super-admin/audit-log/Index', [
             'logs'        => $logs->through(fn ($l) => [

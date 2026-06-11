@@ -36,7 +36,7 @@ class AccountController extends Controller
             $query->where('status', $request->status);
         }
 
-        $accounts = $query->latest()->paginate(20)->withQueryString();
+        $accounts = $query->latest()->paginate(10)->withQueryString();
 
         return Inertia::render('super-admin/accounts/Index', [
             'accounts' => $accounts->through(fn ($u) => [
