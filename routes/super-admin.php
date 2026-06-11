@@ -13,6 +13,7 @@ use App\Http\Controllers\SuperAdmin\RestaurantController;
 use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
 use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
+use App\Http\Controllers\SuperAdmin\ChurnController;
 
 
 Route::prefix('super-admin')
@@ -149,5 +150,10 @@ Route::prefix('super-admin')
         // Global System Settings
         Route::get('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'index'])->name('settings.index');
         Route::post('settings', [\App\Http\Controllers\SuperAdmin\SystemSettingController::class, 'update'])->name('settings.update');
+
+        // Churn Prediction & Customer Success Dashboard
+        Route::get('churn-prediction', [ChurnController::class, 'index'])->name('churn.index');
+        Route::post('churn-prediction/recalculate', [ChurnController::class, 'recalculate'])->name('churn.recalculate');
+        Route::post('churn-prediction/trigger-email/{restaurant}', [ChurnController::class, 'triggerEmail'])->name('churn.trigger-email');
     });
 

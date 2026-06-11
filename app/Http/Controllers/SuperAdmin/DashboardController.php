@@ -233,6 +233,23 @@ class DashboardController extends Controller
             'churn_rate' => round(($cancelledThisMonth / $activeBase) * 100, 2),
         ], $aiInsights);
 
+        $churnRiskAlerts = Restaurant::where('churn_risk_level', 'high')
+            ->whereIn('status', ['active', 'suspended'])
+            ->with(['plan', 'owner'])
+            ->orderBy('health_score', 'asc')
+            ->take(5)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'code' => $r->code,
+                'health_score' => $r->health_score,
+                'churn_risk_reason' => $r->churn_risk_reason,
+                'owner_name' => $r->owner?->name ?? '-',
+                'owner_email' => $r->owner?->email ?? $r->email ?? '-',
+                'owner_phone' => $r->owner?->phone ?? $r->phone ?? '-',
+            ]);
+
         return Inertia::render('super-admin/Dashboard', [
             'stats' => $stats,
             'saasMetrics' => [
@@ -279,6 +296,7 @@ class DashboardController extends Controller
                 'monitoring' => $this->supportPortal->monitoringSnapshot(),
                 'stats' => $this->supportPortal->dashboardMetrics(),
             ],
+            'churnRiskAlerts' => $churnRiskAlerts,
         ]);
     }
 

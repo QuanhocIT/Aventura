@@ -61,6 +61,9 @@ class Restaurant extends Model
             'storage_warning_sent_at' => 'datetime',
             'sandbox_mode'            => 'boolean',
             'sandbox_seeded_at'       => 'datetime',
+            'health_score'            => 'integer',
+            'churn_risk_flagged_at'   => 'datetime',
+            'last_health_checked_at'  => 'datetime',
         ];
     }
 

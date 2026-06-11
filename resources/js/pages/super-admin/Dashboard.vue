@@ -147,9 +147,21 @@ const props = defineProps<{
             alerts_open: number;
         };
     };
+    churnRiskAlerts?: Array<{
+        id: number;
+        name: string;
+        code: string;
+        health_score: number;
+        churn_risk_reason: string;
+        owner_name: string;
+        owner_email: string;
+        owner_phone: string;
+    }>;
 }>();
 
+
 const selectedKpiIdx = ref(0);
+
 
 // --- F2: Cập nhật real-time qua Reverb/Echo — làm mới các chỉ số thay đổi nhanh
 // (ticket mở, cảnh báo ngưỡng...) mà không cần tải lại trang ---
@@ -790,6 +802,32 @@ function cohortCellStyle(value: number | null): string {
                         <span v-if="alert.triggered_at" class="text-[10px] font-semibold text-muted-foreground font-mono">{{ alert.triggered_at }}</span>
                     </div>
                     <p class="text-[11px] text-muted-foreground font-medium leading-relaxed">{{ alert.message }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cảnh báo sớm Churn (At-risk Alerts) -->
+        <div v-if="churnRiskAlerts && churnRiskAlerts.length" class="bg-rose-500/[0.06] border border-rose-500/20 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                    <AlertTriangle class="size-4 text-rose-500 animate-bounce" />
+                    <h3 class="font-black text-xs uppercase tracking-wider">Cảnh báo rủi ro rời bỏ cao (Early Churn Warning)</h3>
+                </div>
+                <Link href="/super-admin/churn-prediction" class="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">
+                    Xử lý &amp; Xem tất cả &rarr;
+                </Link>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div v-for="risk in churnRiskAlerts" :key="risk.id" class="bg-card border border-rose-200 dark:border-rose-950/80 rounded-xl p-3 shadow-xs space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-extrabold text-xs text-slate-800 dark:text-slate-200">{{ risk.name }}</span>
+                        <Badge variant="destructive" class="text-[9px] px-1.5 py-0.5 font-black bg-rose-600 text-white leading-none">Điểm: {{ risk.health_score }}</Badge>
+                    </div>
+                    <p class="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-medium">{{ risk.churn_risk_reason }}</p>
+                    <div class="flex items-center justify-between text-[9px] text-muted-foreground pt-1.5 border-t border-border/40 font-semibold">
+                        <span>Lh: {{ risk.owner_name }}</span>
+                        <span>Sđt: {{ risk.owner_phone }}</span>
+                    </div>
                 </div>
             </div>
         </div>
