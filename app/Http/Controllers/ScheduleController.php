@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
+use App\Models\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -248,10 +249,42 @@ class ScheduleController extends Controller
             }
         }
 
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'start' => substr($s->start_time, 0, 5),
+                'end' => substr($s->end_time, 0, 5),
+            ]);
+
+        $employees = Employee::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->where('id', '!=', $employee->id)
+            ->get(['id', 'full_name', 'job_title', 'employee_code']);
+
+        $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
+            ->latest()
+            ->get()
+            ->map(fn ($lr) => [
+                'id'            => $lr->id,
+                'leave_type'    => $lr->leave_type,
+                'start_date'    => $lr->start_date instanceof Carbon ? $lr->start_date->toDateString() : Carbon::parse($lr->start_date)->toDateString(),
+                'end_date'      => $lr->end_date instanceof Carbon ? $lr->end_date->toDateString() : Carbon::parse($lr->end_date)->toDateString(),
+                'reason'        => $lr->reason,
+                'status'        => $lr->status,
+                'created_at'    => $lr->created_at->format('H:i d/m/Y'),
+            ]);
+
         return Inertia::render('schedules/Index', [
             'isAdmin' => false,
             'myWeeklySchedules' => $myWeeklySchedules,
             'todayActiveAssignment' => $todayActiveAssignment,
+            'shifts' => $shifts,
+            'employees' => $employees,
+            'leaveRequests' => $leaveRequests,
+            'myEmployeeId' => $employee->id,
         ]);
     }
 
@@ -405,6 +438,45 @@ class ScheduleController extends Controller
         ]);
 
         return back()->with('success', 'Đã ghi nhận báo vắng thành công cho nhân viên.');
+    }
+
+    /**
+     * Nhân viên tự đăng ký ca làm việc.
+     */
+    public function register(Request $request): RedirectResponse
+    {
+        $employee = $request->user()->employee;
+        if (!$employee) {
+            return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
+        }
+
+        $data = $request->validate([
+            'shift_id'       => ['required', 'exists:work_shifts,id'],
+            'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
+        ]);
+
+        $restaurantId = $request->user()->restaurant_id;
+
+        // Kiểm tra xem đã có lịch làm việc cho ca này ngày này chưa để tránh trùng lặp
+        $exists = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('shift_id', $data['shift_id'])
+            ->whereDate('scheduled_date', $data['scheduled_date'])
+            ->exists();
+
+        if ($exists) {
+            return back()->withErrors(['scheduled_date' => 'Bạn đã đăng ký hoặc được xếp ca làm việc này vào ngày đã chọn.']);
+        }
+
+        ScheduleAssignment::create([
+            'restaurant_id'  => $restaurantId,
+            'employee_id'    => $employee->id,
+            'shift_id'       => $data['shift_id'],
+            'scheduled_date' => $data['scheduled_date'],
+            'status'         => 'scheduled',
+            'notes'          => 'Tự đăng ký ca làm việc',
+        ]);
+
+        return back()->with('success', 'Đăng ký ca làm việc thành công.');
     }
 
     /**

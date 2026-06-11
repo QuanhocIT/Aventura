@@ -20,6 +20,9 @@ import {
     RefreshCw,
     HelpCircle,
     MessageSquare,
+    ShieldAlert,
+    Send,
+    FileText,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -115,6 +118,16 @@ type PropType = {
         can_check_in: boolean;
         can_check_out: boolean;
     } | null;
+    leaveRequests?: Array<{
+        id: number;
+        leave_type: string;
+        start_date: string;
+        end_date: string;
+        reason: string;
+        status: string;
+        created_at: string;
+    }>;
+    myEmployeeId?: number;
 };
 
 const props = defineProps<PropType>();
@@ -328,6 +341,101 @@ const refreshAdminData = () => {
 
 const handleDateChange = () => {
     router.get('/schedules', { date: adminDate.value });
+};
+
+// --- EMPLOYEE SELF SERVICE PORTAL STATE & ACTIONS ---
+const selfServiceTab = ref<'register' | 'leave' | 'complaint'>('register');
+
+// Shift Registration Form state
+const regDate = ref(new Date().toISOString().split('T')[0]);
+const regShiftId = ref('');
+const regProcessing = ref(false);
+const regErrors = ref<Record<string, string>>({});
+
+const submitShiftRegistration = () => {
+    if (!regDate.value || !regShiftId.value) return;
+    regProcessing.value = true;
+    regErrors.value = {};
+    router.post('/schedules/register', {
+        scheduled_date: regDate.value,
+        shift_id: regShiftId.value,
+    }, {
+        onSuccess: () => {
+            regErrors.value = {};
+        },
+        onError: (err) => {
+            regErrors.value = err;
+        },
+        onFinish: () => {
+            regProcessing.value = false;
+        }
+    });
+};
+
+// Leave Request Form state
+const leaveType = ref('emergency');
+const leaveStartDate = ref(new Date().toISOString().split('T')[0]);
+const leaveEndDate = ref(new Date().toISOString().split('T')[0]);
+const leaveReason = ref('');
+const leaveProcessing = ref(false);
+const leaveErrors = ref<Record<string, string>>({});
+
+const submitLeaveRequest = () => {
+    if (!leaveStartDate.value || !leaveEndDate.value) return;
+    leaveProcessing.value = true;
+    leaveErrors.value = {};
+    router.post('/employees/leaves', {
+        employee_id: props.myEmployeeId,
+        leave_type: leaveType.value,
+        start_date: leaveStartDate.value,
+        end_date: leaveEndDate.value,
+        reason: leaveReason.value,
+    }, {
+        onSuccess: () => {
+            leaveReason.value = '';
+            leaveErrors.value = {};
+        },
+        onError: (err) => {
+            leaveErrors.value = err;
+        },
+        onFinish: () => {
+            leaveProcessing.value = false;
+        }
+    });
+};
+
+// Complaint Form state
+const complaintEmployeeId = ref('');
+const complaintViolationType = ref('');
+const complaintOccurredAt = ref(new Date().toISOString().split('T')[0]);
+const complaintDescription = ref('');
+const complaintProcessing = ref(false);
+const complaintErrors = ref<Record<string, string>>({});
+
+const submitComplaint = () => {
+    if (!complaintEmployeeId.value || !complaintViolationType.value || !complaintOccurredAt.value || !complaintDescription.value) return;
+    complaintProcessing.value = true;
+    complaintErrors.value = {};
+    router.post('/violations', {
+        employee_id: complaintEmployeeId.value,
+        violation_type: complaintViolationType.value,
+        occurred_at: complaintOccurredAt.value,
+        description: complaintDescription.value,
+        is_anonymous: true,
+    }, {
+        onSuccess: () => {
+            complaintEmployeeId.value = '';
+            complaintViolationType.value = '';
+            complaintDescription.value = '';
+            complaintErrors.value = {};
+        },
+        onError: (err) => {
+            complaintErrors.value = err;
+        },
+        onFinish: () => {
+            complaintProcessing.value = false;
+        }
+    });
 };
 
 // --- LATE INDICATOR ---
@@ -1323,9 +1431,363 @@ const printRoster = () => {
                             </p>
                         </div>
                     </CardContent>
-                </Card>
             </div>
         </div>
+
+        <!-- ========================================== -->
+        <!-- 2.1 EMPLOYEE SELF SERVICE PORTAL (NEW)     -->
+        <!-- ========================================== -->
+        <Card v-else class="mt-6 shadow-md border-indigo-100 dark:border-slate-800">
+            <CardHeader class="border-b pb-3 bg-slate-50/50 dark:bg-slate-900/20">
+                <div class="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                        <CardTitle class="flex items-center gap-2 text-base text-indigo-600 dark:text-indigo-400">
+                            <Sparkles class="size-5" />
+                            Cổng Tự Phục Vụ Nhân Viên (Self-Service)
+                        </CardTitle>
+                        <CardDescription>
+                            Đăng ký ca trực cá nhân, gửi đơn xin nghỉ trực tuyến và hòm thư khiếu nại nội bộ an toàn.
+                        </CardDescription>
+                    </div>
+                    
+                    <!-- Tabs switcher -->
+                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200/50 bg-slate-100 p-0.5 dark:border-slate-850 dark:bg-slate-950">
+                        <button
+                            type="button"
+                            @click="selfServiceTab = 'register'"
+                            :class="[
+                                'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
+                                selfServiceTab === 'register'
+                                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            ]"
+                        >
+                            <Calendar class="inline size-3.5 mr-1" />
+                            Đăng ký ca làm
+                        </button>
+                        <button
+                            type="button"
+                            @click="selfServiceTab = 'leave'"
+                            :class="[
+                                'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
+                                selfServiceTab === 'leave'
+                                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            ]"
+                        >
+                            <FileText class="inline size-3.5 mr-1" />
+                            Làm đơn trực tuyến
+                        </button>
+                        <button
+                            type="button"
+                            @click="selfServiceTab = 'complaint'"
+                            :class="[
+                                'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
+                                selfServiceTab === 'complaint'
+                                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            ]"
+                        >
+                            <ShieldAlert class="inline size-3.5 mr-1" />
+                            Khiếu nại nội bộ (Ẩn danh)
+                        </button>
+                    </div>
+                </div>
+            </CardHeader>
+
+            <CardContent class="p-6">
+                <!-- TAB 1: SHIFT REGISTRATION -->
+                <div v-if="selfServiceTab === 'register'" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Registration Form -->
+                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
+                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Đăng ký lịch làm việc mới</h3>
+                            <form @submit.prevent="submitShiftRegistration" class="space-y-4">
+                                <div class="space-y-1.5">
+                                    <Label for="reg-date" class="text-xs font-bold text-slate-500">Chọn ngày trực:</Label>
+                                    <Input
+                                        id="reg-date"
+                                        type="date"
+                                        v-model="regDate"
+                                        required
+                                        class="h-9 text-xs"
+                                    />
+                                    <p v-if="regErrors.scheduled_date" class="text-[11px] text-rose-500 font-bold mt-1">{{ regErrors.scheduled_date }}</p>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="reg-shift" class="text-xs font-bold text-slate-500">Chọn ca trực:</Label>
+                                    <select
+                                        id="reg-shift"
+                                        v-model="regShiftId"
+                                        required
+                                        class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
+                                    >
+                                        <option value="" disabled>-- Vui lòng chọn ca --</option>
+                                        <option v-for="s in shifts" :key="s.id" :value="s.id">
+                                            {{ s.name }} ({{ s.start }} - {{ s.end }})
+                                        </option>
+                                    </select>
+                                    <p v-if="regErrors.shift_id" class="text-[11px] text-rose-500 font-bold mt-1">{{ regErrors.shift_id }}</p>
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    :disabled="regProcessing"
+                                    class="w-full h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5"
+                                >
+                                    <Send class="size-3.5" />
+                                    Gửi yêu cầu đăng ký ca
+                                </Button>
+                            </form>
+                        </div>
+
+                        <!-- Available shifts guide list -->
+                        <div class="md:col-span-2">
+                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Danh sách các ca trực của nhà hàng</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div
+                                    v-for="s in shifts"
+                                    :key="s.id"
+                                    class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <span class="size-2 rounded-full bg-indigo-600"></span>
+                                        <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200">{{ s.name }}</h4>
+                                    </div>
+                                    <p class="mt-2 text-xs font-mono text-slate-500">Giờ trực: {{ s.start }} - {{ s.end }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: LEAVE & RESIGNATION REQUESTS -->
+                <div v-if="selfServiceTab === 'leave'" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Leave Form -->
+                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
+                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Làm đơn xin nghỉ trực tuyến</h3>
+                            <form @submit.prevent="submitLeaveRequest" class="space-y-4">
+                                <div class="space-y-1.5">
+                                    <Label for="leave-type" class="text-xs font-bold text-slate-500">Loại đơn yêu cầu:</Label>
+                                    <select
+                                        id="leave-type"
+                                        v-model="leaveType"
+                                        required
+                                        class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
+                                    >
+                                        <option value="emergency">Xin nghỉ đột xuất (Khẩn cấp)</option>
+                                        <option value="resignation">Đơn xin thôi việc (Nghỉ việc)</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1.5">
+                                        <Label for="leave-start" class="text-xs font-bold text-slate-500">Từ ngày:</Label>
+                                        <Input
+                                            id="leave-start"
+                                            type="date"
+                                            v-model="leaveStartDate"
+                                            required
+                                            class="h-9 text-xs"
+                                        />
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <Label for="leave-end" class="text-xs font-bold text-slate-500">Đến ngày:</Label>
+                                        <Input
+                                            id="leave-end"
+                                            type="date"
+                                            v-model="leaveEndDate"
+                                            required
+                                            class="h-9 text-xs"
+                                        />
+                                    </div>
+                                </div>
+                                <p v-if="leaveErrors.end_date" class="text-[11px] text-rose-500 font-bold mt-1">{{ leaveErrors.end_date }}</p>
+
+                                <div class="space-y-1.5">
+                                    <Label for="leave-reason" class="text-xs font-bold text-slate-500">Lý do xin nghỉ:</Label>
+                                    <textarea
+                                        id="leave-reason"
+                                        v-model="leaveReason"
+                                        placeholder="Ghi rõ lý do tại đây..."
+                                        rows="3"
+                                        required
+                                        class="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-ring focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                                    ></textarea>
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    :disabled="leaveProcessing"
+                                    class="w-full h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5"
+                                >
+                                    <Send class="size-3.5" />
+                                    Gửi đơn yêu cầu
+                                </Button>
+                            </form>
+                        </div>
+
+                        <!-- History of requests -->
+                        <div class="md:col-span-2">
+                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Lịch sử gửi đơn trực tuyến</h3>
+                            <div v-if="leaveRequests?.length" class="overflow-x-auto border rounded-xl bg-white dark:bg-slate-950 dark:border-slate-800">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 border-b dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                            <th class="p-3">Loại đơn</th>
+                                            <th class="p-3">Thời gian xin nghỉ</th>
+                                            <th class="p-3">Lý do</th>
+                                            <th class="p-3">Trạng thái</th>
+                                            <th class="p-3">Ngày gửi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <tr v-for="lr in leaveRequests" :key="lr.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                                            <td class="p-3 font-bold text-slate-800 dark:text-slate-200">
+                                                {{ lr.leave_type === 'emergency' ? 'Nghỉ đột xuất' : lr.leave_type === 'resignation' ? 'Thôi việc' : lr.leave_type }}
+                                            </td>
+                                            <td class="p-3 font-mono">
+                                                {{ lr.start_date }} - {{ lr.end_date }}
+                                            </td>
+                                            <td class="p-3 max-w-[200px] truncate" :title="lr.reason">
+                                                {{ lr.reason }}
+                                            </td>
+                                            <td class="p-3">
+                                                <span
+                                                    class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                    :class="[
+                                                        lr.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400' :
+                                                        lr.status === 'approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400' :
+                                                        'bg-rose-100 text-rose-800 dark:bg-rose-950/20 dark:text-rose-400'
+                                                    ]"
+                                                >
+                                                    {{ lr.status === 'pending' ? 'Chờ duyệt' : lr.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối' }}
+                                                </span>
+                                            </td>
+                                            <td class="p-3 text-slate-400 font-mono">{{ lr.created_at }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div v-else class="py-12 text-center text-slate-400 border border-dashed rounded-xl dark:border-slate-800">
+                                <FileText class="size-8 mx-auto mb-2 opacity-50" />
+                                Chưa có đơn xin nghỉ nào được nộp.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: INTERNAL COMPLAINTS -->
+                <div v-if="selfServiceTab === 'complaint'" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Complaint Form -->
+                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
+                            <div class="mb-4 flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-500 uppercase select-none">
+                                <ShieldAlert class="size-4 shrink-0" />
+                                <span>Hòm thư tố cáo ẩn danh bảo mật</span>
+                            </div>
+                            <form @submit.prevent="submitComplaint" class="space-y-4">
+                                <div class="space-y-1.5">
+                                    <Label for="comp-employee" class="text-xs font-bold text-slate-500">Đối tượng bị khiếu nại:</Label>
+                                    <select
+                                        id="comp-employee"
+                                        v-model="complaintEmployeeId"
+                                        required
+                                        class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
+                                    >
+                                        <option value="" disabled>-- Chọn nhân viên vi phạm --</option>
+                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">
+                                            {{ emp.full_name }} [{{ emp.employee_code }} - {{ emp.job_title }}]
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="comp-type" class="text-xs font-bold text-slate-500">Loại sai phạm:</Label>
+                                    <select
+                                        id="comp-type"
+                                        v-model="complaintViolationType"
+                                        required
+                                        class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
+                                    >
+                                        <option value="" disabled>-- Vui lòng chọn --</option>
+                                        <option value="Bòn rút tiền mặt / Gian lận ngân quỹ">Bòn rút tiền mặt / Gian lận ngân quỹ</option>
+                                        <option value="Bớt xén nguyên vật liệu kho / Ăn cắp tài sản">Bớt xén nguyên vật liệu kho / Ăn cắp tài sản</option>
+                                        <option value="Thái độ phục vụ bạo lực / Gây gổ">Thái độ phục vụ bạo lực / Gây gổ</option>
+                                        <option value="Đi muộn về sớm / Trốn ca làm việc">Đi muộn về sớm / Trốn ca làm việc</option>
+                                        <option value="Cấu kết người ngoài / Tiết lộ thông tin kinh doanh">Cấu kết người ngoài / Tiết lộ thông tin kinh doanh</option>
+                                        <option value="Hành vi không trung thực khác">Hành vi không trung thực khác</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="comp-date" class="text-xs font-bold text-slate-500">Ngày xảy ra sự việc:</Label>
+                                    <Input
+                                        id="comp-date"
+                                        type="date"
+                                        v-model="complaintOccurredAt"
+                                        required
+                                        class="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="comp-desc" class="text-xs font-bold text-slate-500">Mô tả hành vi chi tiết:</Label>
+                                    <textarea
+                                        id="comp-desc"
+                                        v-model="complaintDescription"
+                                        placeholder="Cung cấp rõ thời gian, hành vi cụ thể và bằng chứng..."
+                                        rows="3"
+                                        required
+                                        class="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-ring focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                                    ></textarea>
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    :disabled="complaintProcessing"
+                                    class="w-full h-9 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-1.5"
+                                >
+                                    <Send class="size-3.5" />
+                                    Gửi khiếu nại bảo mật (Ẩn danh)
+                                </Button>
+                            </form>
+                        </div>
+
+                        <!-- Anonymity assurance card -->
+                        <div class="md:col-span-2 flex flex-col justify-center">
+                            <div class="p-6 rounded-2xl border border-rose-100 bg-rose-50/50 dark:border-rose-900/30 dark:bg-rose-950/15 max-w-xl mx-auto space-y-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400">
+                                        <ShieldCheck class="size-6" />
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-rose-800 dark:text-rose-350">Cam kết Bảo mật Thông tin 100%</h4>
+                                        <p class="text-xs text-rose-600/80 dark:text-rose-400/80">Hòm thư tố cáo ẩn danh an toàn tuyệt đối</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 space-y-2">
+                                    <p>
+                                        Hệ thống nhà hàng Aventura thiết lập cơ chế <strong>Giám sát chéo ẩn danh</strong> để bảo vệ nhân viên khỏi sự trù dập hoặc thiên vị.
+                                    </p>
+                                    <p>
+                                        Khi bạn gửi đơn tố cáo sai phạm nội bộ này:
+                                    </p>
+                                    <ul class="list-disc pl-5 space-y-1">
+                                        <li>Tên và thông tin cá nhân của bạn sẽ được ẩn hoàn toàn trước mọi người xem (kể cả Manager hay Owner).</li>
+                                        <li>Dữ liệu được mã hóa để chỉ có thuật toán AI phân loại trước khi báo cáo.</li>
+                                        <li>Hành động của bạn góp phần xây dựng môi trường làm việc trong sạch, lành mạnh và công bằng.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- ========================================== -->
         <!-- 3. ADMIN PORTAL MODAL: MANUAL CHECK-IN/OUT -->

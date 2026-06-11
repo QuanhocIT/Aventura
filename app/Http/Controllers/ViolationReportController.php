@@ -39,7 +39,7 @@ class ViolationReportController extends Controller
                 'employee_name' => $r->employee?->full_name ?? 'Không xác định',
                 'employee_code' => $r->employee?->employee_code ?? 'N/A',
                 'job_title' => $r->employee?->job_title ?? 'N/A',
-                'reported_by_name' => $r->is_anonymous ? 'Ẩn danh (Bảo vệ AI)' : ($r->reportedBy?->name ?? 'Không xác định'),
+                'reported_by_name' => 'Ẩn danh (Bảo mật hệ thống)',
                 'violation_type' => $r->violation_type,
                 'severity' => $r->severity,
                 'description' => $r->description,

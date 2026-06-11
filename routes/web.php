@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
 
     // Chấm công & Lịch biểu
     Route::get('schedules', [ScheduleController::class, 'index'])->name('schedules.index');
+    Route::post('schedules/register', [ScheduleController::class, 'register'])->name('schedules.register');
     Route::post('schedules/check-in', [ScheduleController::class, 'checkIn'])->name('schedules.check-in');
     Route::post('schedules/check-out', [ScheduleController::class, 'checkOut'])->name('schedules.check-out');
     Route::post('schedules/check-in-employee', [ScheduleController::class, 'checkInEmployee'])->name('schedules.check-in-employee');
