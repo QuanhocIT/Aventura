@@ -220,6 +220,10 @@ class SupportController extends Controller
             'status' => 'active',
         ]);
 
+        // Invalidate cache sản phẩm/danh mục của nhà hàng này
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_categories");
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_products");
+
         return back()->with('success', 'Đã thêm nhóm món ăn mới.');
     }
 
@@ -260,6 +264,9 @@ class SupportController extends Controller
             'track_inventory' => true,
         ]);
 
+        // Invalidate cache danh sách sản phẩm của nhà hàng này
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_products");
+
         return back()->with('success', 'Đã thêm món ăn mới vào thực đơn.');
     }
 
@@ -272,13 +279,16 @@ class SupportController extends Controller
 
         $user = $request->user();
 
+        // Fix N+1: load toàn bộ inventory của nhà hàng một lần, key by ingredient_id để tra cứu O(1)
+        $inventoryMap = Inventory::where('restaurant_id', $user->restaurant_id)
+            ->get()
+            ->keyBy('ingredient_id');
+
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
             ->with(['unit'])
             ->get()
-            ->map(function ($ing) use ($user) {
-                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
-                    ->where('ingredient_id', $ing->id)
-                    ->first();
+            ->map(function ($ing) use ($inventoryMap) {
+                $inventory = $inventoryMap->get($ing->id);
                 return [
                     'id'            => $ing->id,
                     'sku'           => $ing->sku,
@@ -357,11 +367,16 @@ class SupportController extends Controller
 
         $recentWastes = collect();
 
+        // Fix N+1: bulk load SalaryAdjustment cho tất cả waste transactions một lần
+        $wasteTransactionIds = $recentWasteTransactions->pluck('id');
+        $salaryAdjustmentMap = \App\Models\SalaryAdjustment::whereIn('reference_id', $wasteTransactionIds)
+            ->where('reference_type', InventoryTransaction::class)
+            ->with('employee:id,full_name')
+            ->get()
+            ->keyBy('reference_id');
+
         foreach ($recentWasteTransactions as $t) {
-            $salaryAdjustment = \App\Models\SalaryAdjustment::where('reference_id', $t->id)
-                ->where('reference_type', InventoryTransaction::class)
-                ->with('employee:id,full_name')
-                ->first();
+            $salaryAdjustment = $salaryAdjustmentMap->get($t->id);
 
             $recentWastes->push([
                 'id'              => $t->id,
@@ -380,14 +395,18 @@ class SupportController extends Controller
             ]);
         }
 
-        foreach ($recentWasteApprovals as $r) {
-            if ($r->status === 'approved') {
-                continue;
-            }
+        // Fix N+1: bulk load Ingredient và Employee cho pending approvals
+        $pendingApprovals = $recentWasteApprovals->filter(fn ($r) => $r->status !== 'approved');
+        $approvalIngredientIds = $pendingApprovals->map(fn ($r) => $r->operation_data['ingredient_id'] ?? null)->filter()->unique()->values();
+        $approvalEmployeeIds   = $pendingApprovals->map(fn ($r) => $r->operation_data['employee_id'] ?? null)->filter()->unique()->values();
 
+        $approvalIngredients = Ingredient::whereIn('id', $approvalIngredientIds)->with('unit')->get()->keyBy('id');
+        $approvalEmployees   = Employee::whereIn('id', $approvalEmployeeIds)->get(['id', 'full_name'])->keyBy('id');
+
+        foreach ($pendingApprovals as $r) {
             $opData = $r->operation_data;
-            $ing = Ingredient::find($opData['ingredient_id'] ?? null);
-            $emp = !empty($opData['employee_id']) ? Employee::find($opData['employee_id']) : null;
+            $ing    = $approvalIngredients->get($opData['ingredient_id'] ?? null);
+            $emp    = !empty($opData['employee_id']) ? $approvalEmployees->get($opData['employee_id']) : null;
 
             $recentWastes->push([
                 'id'              => $r->id,
@@ -1356,6 +1375,9 @@ class SupportController extends Controller
 
         $product->update($data);
 
+        // Invalidate cache danh sách sản phẩm của nhà hàng này
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_products");
+
         return back()->with('success', 'Đã cập nhật thông tin món ăn.');
     }
 
@@ -1369,6 +1391,9 @@ class SupportController extends Controller
 
         $product->delete();
 
+        // Invalidate cache danh sách sản phẩm của nhà hàng này
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_products");
+
         return back()->with('success', 'Đã xóa món ăn khỏi thực đơn.');
     }
 
@@ -1381,6 +1406,10 @@ class SupportController extends Controller
         abort_if($category->restaurant_id !== $user->restaurant_id, 403);
 
         $category->delete();
+
+        // Invalidate cache cả categories lẫn products (vì category_id có thể được hiển thị trong sản phẩm)
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_categories");
+        \Illuminate\Support\Facades\Cache::forget("restaurant_{$user->restaurant_id}_products");
 
         return back()->with('success', 'Đã xóa nhóm món ăn.');
     }
