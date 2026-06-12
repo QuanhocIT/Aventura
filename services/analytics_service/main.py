@@ -11,7 +11,8 @@ from models import (
     InventoryForecastRequest, 
     RevenueForecastRequest,
     PriceAnalyticsRequest,
-    TransferRecommendationsRequest
+    TransferRecommendationsRequest,
+    WeatherMenuForecastRequest
 )
 
 
@@ -394,7 +395,7 @@ def perform_price_analytics(request: PriceAnalyticsRequest):
         "recommendation": recommendation
     }
 
-@app.post("/api/analytics/inventory-forecast")
+@app.post("/api/analytics/inventory-forecast-replenish")
 def forecast_inventory(request: InventoryForecastRequest):
     forecasts = []
     
@@ -545,6 +546,76 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
         })
 
     return {"recommendations": recommendations}
+
+
+@app.post("/api/analytics/weather-menu-forecast")
+def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
+    forecast_results = []
+    
+    for day in request.forecast_days:
+        cond = day.condition.lower()
+        temp = day.temperature
+        
+        day_recommendations = []
+        
+        for prod in request.products:
+            cat_name = prod.category_name.lower()
+            prod_name = prod.product_name.lower()
+            
+            multiplier = 1.0
+            reason = ""
+            
+            # 1. Hot / Spicy / Soup items (Hotpot, Lẩu, Súp, Soup, Nướng, Grill)
+            is_hot_item = any(x in cat_name or x in prod_name for x in ["lẩu", "nướng", "súp", "soup", "hotpot", "grill", "lẩu gà", "bò nướng"])
+            # 2. Cold items (Cold drinks, Beer, Ice cream, Sinh tố, Nước giải khát)
+            is_cold_item = any(x in cat_name or x in prod_name for x in ["uống", "nước", "bia", "drink", "beer", "kem", "ice", "sinh tố", "trà chanh", "nước ngọt"])
+            
+            if "rainy" in cond or "mưa" in cond or temp < 22:
+                if is_hot_item:
+                    multiplier = 1.35 + (22 - temp) * 0.01  # colder -> more hotpot demand
+                    reason = f"Thời tiết {day.condition} ({temp}°C) dự báo làm tăng nhu cầu các món ấm/nóng như {prod.product_name} khoảng {round((multiplier-1)*100)}%."
+                elif is_cold_item:
+                    multiplier = max(0.6, 0.8 - (22 - temp) * 0.01)
+                    reason = f"Trời lạnh/mưa làm giảm nhu cầu dùng đồ uống lạnh {prod.product_name} khoảng {round((1-multiplier)*100)}%."
+                    
+            elif "sunny" in cond or "nắng" in cond or temp > 30:
+                if is_cold_item:
+                    multiplier = 1.45 + (temp - 30) * 0.02  # hotter -> more drinks demand
+                    reason = f"Trời nắng nóng ({temp}°C) thúc đẩy nhu cầu nước giải khát, bia lạnh như {prod.product_name} tăng mạnh khoảng {round((multiplier-1)*100)}%."
+                elif is_hot_item:
+                    multiplier = max(0.6, 0.7 - (temp - 30) * 0.02)
+                    reason = f"Thời tiết nắng nóng làm giảm sức hút của các món lẩu/nóng như {prod.product_name} khoảng {round((1-multiplier)*100)}%."
+            
+            elif "windy" in cond or "gió" in cond:
+                if is_hot_item:
+                    multiplier = 1.15
+                    reason = f"Trời lộng gió mát mẻ làm tăng nhẹ lượng tiêu thụ {prod.product_name} (+15%)."
+            
+            # If changed, record recommendation
+            if abs(multiplier - 1.0) > 0.01:
+                day_recommendations.append({
+                    "product_id": prod.product_id,
+                    "product_name": prod.product_name,
+                    "category_name": prod.category_name,
+                    "avg_daily_sales": prod.avg_daily_sales,
+                    "predicted_sales": round(prod.avg_daily_sales * multiplier, 2),
+                    "change_pct": round((multiplier - 1.0) * 100.0, 1),
+                    "suggested_multiplier": round(multiplier, 2),
+                    "reason": reason
+                })
+                
+        forecast_results.append({
+            "date": day.date,
+            "condition": day.condition,
+            "temperature": day.temperature,
+            "recommendations": day_recommendations
+        })
+        
+    return {
+        "success": True,
+        "forecast": forecast_results
+    }
+
 
 
 

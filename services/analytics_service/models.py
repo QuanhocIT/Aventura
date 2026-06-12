@@ -78,4 +78,22 @@ class TransferRecommendationsRequest(BaseModel):
     inventories: List[BranchInventoryData]
 
 
+# --- AI Weather-based Menu Forecasting ---
+class WeatherDayData(BaseModel):
+    date: str
+    condition: str  # sunny, rainy, cloudy, windy, cold
+    temperature: float
+
+class ProductSalesData(BaseModel):
+    product_id: int
+    product_name: str
+    category_name: str
+    avg_daily_sales: float
+
+class WeatherMenuForecastRequest(BaseModel):
+    forecast_days: List[WeatherDayData]
+    products: List[ProductSalesData]
+
+
+
 

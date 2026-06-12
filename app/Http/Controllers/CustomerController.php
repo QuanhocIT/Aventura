@@ -57,6 +57,8 @@ class CustomerController extends Controller
                 'date_of_birth' => $c->date_of_birth ? $c->date_of_birth->toDateString() : '',
                 'notes' => $c->notes,
                 'loyalty_points' => (int) $c->loyalty_points,
+                'membership_level' => $c->membership_level ?? 'silver',
+                'total_spent' => (float) ($c->total_spent ?? 0),
                 'last_order_at' => $c->last_order_at ? Carbon::parse($c->last_order_at)->format('H:i d/m/Y') : 'Chưa có',
                 'created_at' => $c->created_at->format('d/m/Y'),
             ]);
@@ -180,6 +182,8 @@ class CustomerController extends Controller
                 'phone' => $customer->phone,
                 'email' => $customer->email,
                 'loyalty_points' => $customer->loyalty_points,
+                'membership_level' => $customer->membership_level ?? 'silver',
+                'total_spent' => (float) ($customer->total_spent ?? 0),
             ]
         ]);
     }

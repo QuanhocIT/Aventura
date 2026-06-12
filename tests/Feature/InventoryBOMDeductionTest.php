@@ -260,7 +260,8 @@ class InventoryBOMDeductionTest extends TestCase
 
         // Update status to cancelled
         $response = $this->actingAs($cashier)->patch(route('orders.update-status', $order), [
-            'status' => 'cancelled'
+            'status' => 'cancelled',
+            'bypass_code' => 'MANAGER123'
         ]);
 
         $response->assertSessionHasNoErrors();

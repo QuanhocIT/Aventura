@@ -230,17 +230,24 @@ class RfpController extends Controller
             ]);
 
             // 3. Map bid items to PO items
+            $itemNames = $bid->items->map(fn($item) => $item->rfpItem->ingredient_name)->toArray();
+            
+            $ingredientsByName = Ingredient::where('restaurant_id', $rfp->restaurant_id)
+                ->whereIn('name', $itemNames)
+                ->get()
+                ->keyBy('name');
+
+            $fallbackIngredient = Ingredient::where('restaurant_id', $rfp->restaurant_id)
+                ->where('supplier_id', $bid->supplier_id)
+                ->first();
+
             foreach ($bid->items as $bidItem) {
                 // Try to map to an existing ingredient in restaurant inventory by name match
-                $ingredient = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                    ->where('name', $bidItem->rfpItem->ingredient_name)
-                    ->first();
+                $ingredient = $ingredientsByName->get($bidItem->rfpItem->ingredient_name);
 
                 // If not found, map to the first ingredient associated with this supplier as fallback
                 if (!$ingredient) {
-                    $ingredient = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                        ->where('supplier_id', $bid->supplier_id)
-                        ->first();
+                    $ingredient = $fallbackIngredient;
                 }
 
                 if (!$ingredient) {

@@ -107,9 +107,23 @@ class BannerController extends Controller
             'items.*.sort_order' => 'required|integer|min:0',
         ]);
 
-        foreach ($data['items'] as $item) {
-            SiteBanner::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data) {
+            $ids = collect($data['items'])->pluck('id')->toArray();
+            $cases = [];
+            $bindings = [];
+            foreach ($data['items'] as $item) {
+                $cases[] = "WHEN id = ? THEN ?";
+                $bindings[] = (int) $item['id'];
+                $bindings[] = (int) $item['sort_order'];
+            }
+            $casesStr = implode(' ', $cases);
+            $bindings = array_merge($bindings, $ids);
+            
+            \Illuminate\Support\Facades\DB::update(
+                "UPDATE site_banners SET sort_order = CASE {$casesStr} END WHERE id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")",
+                $bindings
+            );
+        });
 
         AuditLog::create([
             'restaurant_id' => null,

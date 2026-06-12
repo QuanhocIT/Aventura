@@ -11,6 +11,7 @@ import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastC
 import ChannelShareChart from '@/components/dashboard/charts/ChannelShareChart.vue';
 import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
 import AIInsightsCard from '@/components/dashboard/charts/AIInsightsCard.vue';
+import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
 import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
 
@@ -185,12 +186,15 @@ const roles = computed(() => (page.props as any).roles ?? []);
                     </div>
                 </div>
                 <div>
-                    <AIInsightsCard
-                        :forecast-data="props.forecastData"
-                        :stats="props.stats"
-                        :top-products-chart-data="props.topProductsChartData"
-                        :channel-chart-data="props.channelChartData"
-                    />
+                    <div class="space-y-6">
+                        <AIInsightsCard
+                            :forecast-data="props.forecastData"
+                            :stats="props.stats"
+                            :top-products-chart-data="props.topProductsChartData"
+                            :channel-chart-data="props.channelChartData"
+                        />
+                        <WeatherForecastCard />
+                    </div>
                 </div>
             </div>
 

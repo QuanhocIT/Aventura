@@ -26,6 +26,10 @@ class RestaurantController extends Controller
                 'timezone' => $restaurant->timezone,
                 'currency' => $restaurant->currency,
                 'logo_url' => $restaurant->logo_url,
+                'qr_bank_id' => $restaurant->qr_bank_id,
+                'qr_account_number' => $restaurant->qr_account_number,
+                'qr_account_name' => $restaurant->qr_account_name,
+                'qr_enabled' => (bool) $restaurant->qr_enabled,
             ] : null,
             'status' => $request->session()->get('status'),
         ]);
@@ -46,7 +50,13 @@ class RestaurantController extends Controller
             'address'  => ['nullable', 'string', 'max:500'],
             'tax_code' => ['nullable', 'string', 'max:50'],
             'logo'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'qr_bank_id' => ['nullable', 'string', 'max:50'],
+            'qr_account_number' => ['nullable', 'string', 'max:50'],
+            'qr_account_name' => ['nullable', 'string', 'max:255'],
+            'qr_enabled' => ['nullable', 'boolean'],
         ]);
+
+        $data['qr_enabled'] = $request->boolean('qr_enabled');
 
         if ($request->hasFile('logo')) {
             if ($restaurant->logo_url) {

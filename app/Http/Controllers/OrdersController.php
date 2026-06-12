@@ -168,8 +168,14 @@ class OrdersController extends Controller
         ]);
 
         if ($data['status'] === 'cancelled' && !$user->can('approve_requests')) {
-            if (($data['bypass_code'] ?? '') !== 'MANAGER123') {
-                return back()->withErrors(['status' => 'Yêu cầu nhập mã phê duyệt của quản lý (MANAGER123) để hủy đơn hàng.']);
+            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('key_name', 'manager_bypass_code')
+                ->value('value');
+            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+
+            if (($data['bypass_code'] ?? '') !== $expectedCode) {
+                return back()->withErrors(['status' => 'Yêu cầu nhập mã phê duyệt của quản lý để hủy đơn hàng.']);
             }
         }
 
@@ -246,12 +252,21 @@ class OrdersController extends Controller
         }
 
         if (isset($data['items'])) {
+            $productIds = collect($data['items'])->pluck('product_id')->filter()->unique()->toArray();
+            $products = \App\Models\Product::whereIn('id', $productIds)->get()->keyBy('id');
+
             foreach ($data['items'] as $itemData) {
                 if (!empty($itemData['product_id'])) {
-                    $prod = \App\Models\Product::find($itemData['product_id']);
+                    $prod = $products->get($itemData['product_id']);
                     if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] < (float) $prod->price) {
-                        if (!$user->can('approve_requests') && ($data['bypass_code'] ?? '') !== 'MANAGER123') {
-                            return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu nhập mã phê duyệt của quản lý (MANAGER123).']);
+                        $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                            ->where('restaurant_id', $user->restaurant_id)
+                            ->where('key_name', 'manager_bypass_code')
+                            ->value('value');
+                        $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+
+                        if (!$user->can('approve_requests') && ($data['bypass_code'] ?? '') !== $expectedCode) {
+                            return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu nhập mã phê duyệt của quản lý.']);
                         }
                     }
                 }

@@ -360,10 +360,16 @@ class PromotionController extends Controller
 
         if ($suspicious) {
             $bypassCode = $data['bypass_code'] ?? null;
-            if ($bypassCode !== 'MANAGER123') {
+            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                ->where('restaurant_id', $restaurantId)
+                ->where('key_name', 'manager_bypass_code')
+                ->value('value');
+            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+
+            if ($bypassCode !== $expectedCode) {
                 return response()->json([
                     'status' => 'requires_bypass',
-                    'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý (MANAGER123) để tiếp tục.'
+                    'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý để tiếp tục.'
                 ], 422);
             }
 

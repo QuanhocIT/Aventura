@@ -16,6 +16,7 @@ Route::middleware('throttle:30,1')->group(function () {
 });
 
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
+Route::post('api/webhooks/payments/vietqr', \App\Http\Controllers\OrderPaymentWebhookController::class)->name('api.webhooks.payments.vietqr');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
     Route::get('billing/history', [CheckoutController::class, 'history'])->name('billing.history');
@@ -85,6 +86,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Functional Pages for Guided Tours
     Route::get('products', [ProductManagementController::class, 'productsPage'])->name('products.index');
     Route::get('api/products/menu-insights', [\App\Http\Controllers\MenuInsightController::class, 'index'])->name('products.menu-insights');
+    Route::get('api/analytics/weather-menu-forecast', [\App\Http\Controllers\WeatherForecastController::class, 'index'])->name('analytics.weather-forecast');
     Route::post('products', [ProductManagementController::class, 'storeProduct'])->name('products.store')->middleware('tenant.quota:dishes');
     Route::patch('products/{product}', [ProductManagementController::class, 'updateProduct'])->name('products.update');
     Route::delete('products/{product}', [ProductManagementController::class, 'destroyProduct'])->name('products.destroy');
@@ -300,6 +302,8 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('customer/order/{restaurant}/{token}', [\App\Http\Controllers\Customer\QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
     Route::post('customer/order/{restaurant}/{token}', [\App\Http\Controllers\Customer\QROrderController::class, 'submitOrder'])->name('customer.qr-order.submit');
     Route::post('api/customer/track-behavior', [\App\Http\Controllers\CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
+    Route::get('api/orders/{order}/payment-qr', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
+    Route::get('api/orders/{order}/payment-status', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới

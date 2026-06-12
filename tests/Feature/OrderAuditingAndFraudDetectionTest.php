@@ -346,6 +346,10 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
     public function test_ai_fraud_detection_rules_yield_flagged_alerts(): void
     {
+        \Illuminate\Support\Facades\Http::fake([
+            '*/api/analytics/fraud-detection' => \Illuminate\Support\Facades\Http::response(null, 500),
+        ]);
+
         // Perform a price modification to generate an audit log
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,

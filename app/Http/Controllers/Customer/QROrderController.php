@@ -125,6 +125,7 @@ class QROrderController extends Controller
                     'order_id' => $to->order_id,
                     'order_number' => $to->order?->order_number,
                     'order_status' => $to->order?->status,
+                    'payment_status' => $to->order?->payment_status,
                     'items_status' => $itemsStatus,
                     'created_at' => $to->created_at->toIso8601String(),
                 ];

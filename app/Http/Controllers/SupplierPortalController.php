@@ -295,12 +295,17 @@ class SupplierPortalController extends Controller
         // Price Volatility per ingredient
         $priceVolatility = [];
         $ingredients = Ingredient::where('supplier_id', $supplier->id)->get();
+        $ingredientIds = $ingredients->pluck('id')->toArray();
+        $histories = SupplierPriceHistory::where('supplier_id', $supplier->id)
+            ->whereIn('ingredient_id', $ingredientIds)
+            ->orderBy('effective_date')
+            ->get()
+            ->groupBy('ingredient_id');
+
         foreach ($ingredients as $ing) {
-            $prices = SupplierPriceHistory::where('supplier_id', $supplier->id)
-                ->where('ingredient_id', $ing->id)
-                ->orderBy('effective_date')
-                ->pluck('price')
-                ->toArray();
+            $prices = isset($histories[$ing->id])
+                ? $histories[$ing->id]->pluck('price')->toArray()
+                : [];
 
             $count = count($prices);
             if ($count > 1) {

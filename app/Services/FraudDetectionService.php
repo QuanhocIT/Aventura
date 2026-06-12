@@ -119,7 +119,8 @@ class FraudDetectionService
         // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
         // We use a lock flag to avoid dispatching multiple duplicate jobs simultaneously
         $lockKey = "fraud_alerts_job_dispatched:{$this->restaurantId}";
-        if (!\Illuminate\Support\Facades\Cache::has($lockKey)) {
+        $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
+        if (!$isOffline && !\Illuminate\Support\Facades\Cache::has($lockKey)) {
             \Illuminate\Support\Facades\Cache::put($lockKey, true, 60); // 1 minute lock
             dispatch(new \App\Jobs\FetchAiFraudAlertsJob($this->restaurantId, $this->periodStart, $this->periodEnd));
 

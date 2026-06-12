@@ -24,6 +24,10 @@ class FetchAiFraudAlertsJob implements ShouldQueue
 
     public function handle(): void
     {
+        if (Cache::has('analytics_service_offline')) {
+            return;
+        }
+
         $cacheKey = "fraud_alerts:{$this->restaurantId}:{$this->periodStart}:{$this->periodEnd}";
 
         // 1. Fetch audit logs from DB
@@ -93,6 +97,8 @@ class FetchAiFraudAlertsJob implements ShouldQueue
                 Log::warning("FetchAiFraudAlertsJob: FastAPI returned non-successful response", ['status' => $response->status()]);
             }
         } catch (\Throwable $e) {
+            // Cache the offline status for 5 minutes (300 seconds)
+            Cache::put('analytics_service_offline', true, 300);
             Log::error("FetchAiFraudAlertsJob: Failed to call Python microservice: " . $e->getMessage());
         }
     }

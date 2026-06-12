@@ -706,14 +706,18 @@ class EmployeeManagementController extends Controller
         ]);
 
         $existingIds = [];
+        $shiftIds = collect($data['shifts'])->pluck('id')->filter()->toArray();
+        $existingShifts = WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('id', $shiftIds)
+            ->get()
+            ->keyBy('id');
+
         foreach ($data['shifts'] as $index => $s) {
             $code = 'SHIFT_' . Str::upper(Str::slug($s['name'], '_')) . '_' . ($index + 1);
 
             $shift = null;
             if (isset($s['id']) && is_numeric($s['id']) && $s['id'] < 1000000) {
-                $shift = WorkShift::where('restaurant_id', $user->restaurant_id)
-                    ->where('id', $s['id'])
-                    ->first();
+                $shift = $existingShifts->get($s['id']);
             }
 
             if ($shift) {

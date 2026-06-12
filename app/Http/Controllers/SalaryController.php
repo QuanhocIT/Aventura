@@ -159,12 +159,12 @@ class SalaryController extends Controller
                 ->where('status', 'applied')
                 ->sum('amount');
                 
-            $pendingAdvanceAmount = \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+            $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
                 ->where('status', 'pending')
                 ->where('operation_type', 'salary_adjustment')
-                ->get()
-                ->filter(fn ($req) => ($req->operation_data['salary_id'] ?? null) == $salary->id && ($req->operation_data['type'] ?? null) === 'advance')
-                ->sum(fn ($req) => (float) ($req->operation_data['amount'] ?? 0));
+                ->where('operation_data->salary_id', $salary->id)
+                ->where('operation_data->type', 'advance')
+                ->sum('operation_data->amount');
                 
             $limit = $earnedWages * 0.50;
             if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
@@ -223,12 +223,12 @@ class SalaryController extends Controller
                         ->where('status', 'applied')
                         ->sum('amount');
                         
-                    $pendingAdvanceAmount = \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                    $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
                         ->where('status', 'pending')
                         ->where('operation_type', 'salary_adjustment')
-                        ->get()
-                        ->filter(fn ($req) => ($req->operation_data['salary_id'] ?? null) == $salary->id && ($req->operation_data['type'] ?? null) === 'advance')
-                        ->sum(fn ($req) => (float) ($req->operation_data['amount'] ?? 0));
+                        ->where('operation_data->salary_id', $salary->id)
+                        ->where('operation_data->type', 'advance')
+                        ->sum('operation_data->amount');
                         
                     $limit = $earnedWages * 0.50;
                     if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {

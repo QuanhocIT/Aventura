@@ -23,6 +23,10 @@ type RestaurantData = {
     timezone: string;
     currency: string;
     logo_url: string | null;
+    qr_bank_id: string | null;
+    qr_account_number: string | null;
+    qr_account_name: string | null;
+    qr_enabled: boolean;
 };
 
 defineProps<{
@@ -201,6 +205,69 @@ defineOptions({
                         />
                         <InputError :message="errors.tax_code" />
                         <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.</p>
+                    </div>
+
+                    <!-- Cấu hình Ngân hàng thụ hưởng nhận chuyển khoản QR -->
+                    <div class="border-t border-neutral-100 dark:border-neutral-800 pt-6 space-y-4 text-left">
+                        <h3 class="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Cấu hình Thanh toán QR</h3>
+                        
+                        <div class="flex items-center space-x-2">
+                            <input 
+                                id="qr_enabled" 
+                                name="qr_enabled" 
+                                type="checkbox"
+                                value="1"
+                                :checked="restaurant.qr_enabled" 
+                                class="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900 size-4 cursor-pointer"
+                            />
+                            <Label for="qr_enabled" class="text-xs font-bold text-neutral-700 cursor-pointer">Kích hoạt thanh toán VietQR động cho khách hàng tại bàn</Label>
+                        </div>
+                        <InputError :message="errors.qr_enabled" />
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid gap-2">
+                                <Label for="qr_bank_id" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Ngân hàng</Label>
+                                <select 
+                                    id="qr_bank_id" 
+                                    name="qr_bank_id" 
+                                    class="w-full h-9 rounded-xl border border-neutral-200 bg-white text-xs px-3 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200"
+                                >
+                                    <option value="">-- Chọn ngân hàng --</option>
+                                    <option value="mbbank" :selected="restaurant.qr_bank_id === 'mbbank'">MB Bank</option>
+                                    <option value="vietcombank" :selected="restaurant.qr_bank_id === 'vietcombank'">Vietcombank</option>
+                                    <option value="techcombank" :selected="restaurant.qr_bank_id === 'techcombank'">Techcombank</option>
+                                    <option value="bidv" :selected="restaurant.qr_bank_id === 'bidv'">BIDV</option>
+                                    <option value="vietinbank" :selected="restaurant.qr_bank_id === 'vietinbank'">Vietinbank</option>
+                                    <option value="acb" :selected="restaurant.qr_bank_id === 'acb'">ACB</option>
+                                    <option value="sacombank" :selected="restaurant.qr_bank_id === 'sacombank'">Sacombank</option>
+                                </select>
+                                <InputError :message="errors.qr_bank_id" />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <Label for="qr_account_number" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Số tài khoản</Label>
+                                <Input
+                                    id="qr_account_number"
+                                    name="qr_account_number"
+                                    :default-value="restaurant.qr_account_number ?? ''"
+                                    placeholder="Ví dụ: 0123456789"
+                                    class="w-full block font-mono rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                />
+                                <InputError :message="errors.qr_account_number" />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <Label for="qr_account_name" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tên chủ tài khoản</Label>
+                                <Input
+                                    id="qr_account_name"
+                                    name="qr_account_name"
+                                    :default-value="restaurant.qr_account_name ?? ''"
+                                    placeholder="VIET COMBANK"
+                                    class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                />
+                                <InputError :message="errors.qr_account_name" />
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Read-only info -->

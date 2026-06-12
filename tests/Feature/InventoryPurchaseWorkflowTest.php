@@ -267,6 +267,10 @@ class InventoryPurchaseWorkflowTest extends TestCase
 
     public function test_ai_forecast_endpoint_returns_valid_projections(): void
     {
+        \Illuminate\Support\Facades\Http::fake([
+            '*/api/analytics/inventory-forecast' => \Illuminate\Support\Facades\Http::response(null, 500),
+        ]);
+
         // Setup past consumption transactions to simulate AI learning
         InventoryTransaction::create([
             'restaurant_id' => $this->restaurant->id,

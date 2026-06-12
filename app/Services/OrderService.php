@@ -60,6 +60,22 @@ class OrderService
                 ];
             }
 
+            $discountAmount = 0;
+            $note = $data['note'] ?? null;
+            if (!empty($data['customer_id'])) {
+                $cust = \App\Models\Customer::find($data['customer_id']);
+                if ($cust) {
+                    $lvl = $cust->membership_level ?? 'silver';
+                    if ($lvl === 'diamond') {
+                        $discountAmount = round($subtotal * 0.10, 2);
+                        $note = ($note ? $note . ' ' : '') . "[Ưu đãi Hội viên Kim Cương -10%]";
+                    } elseif ($lvl === 'gold') {
+                        $discountAmount = round($subtotal * 0.05, 2);
+                        $note = ($note ? $note . ' ' : '') . "[Ưu đãi Hội viên Vàng -5%]";
+                    }
+                }
+            }
+
             $order = $this->orderRepository->create([
                 'restaurant_id' => $restaurantId,
                 'branch_id' => $branchId,
@@ -71,9 +87,9 @@ class OrderService
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
                 'subtotal' => $subtotal,
-                'discount_amount' => 0,
-                'total_amount' => $subtotal,
-                'note' => $data['note'] ?? null,
+                'discount_amount' => $discountAmount,
+                'total_amount' => max(0.00, $subtotal - $discountAmount),
+                'note' => $note,
             ]);
 
             foreach ($itemsToCreate as $item) {
@@ -306,6 +322,19 @@ class OrderService
             $subtotal = $order->items()->sum('line_total');
             $discount = isset($data['discount_amount']) ? (float) $data['discount_amount'] : $order->discount_amount;
 
+            // Apply loyalty discount if customer is attached and discount is not manually specified
+            if (!isset($data['discount_amount']) && $order->customer_id) {
+                $cust = \App\Models\Customer::find($order->customer_id);
+                if ($cust) {
+                    $lvl = $cust->membership_level ?? 'silver';
+                    if ($lvl === 'diamond') {
+                        $discount = round($subtotal * 0.10, 2);
+                    } elseif ($lvl === 'gold') {
+                        $discount = round($subtotal * 0.05, 2);
+                    }
+                }
+            }
+
             $order->update([
                 'subtotal' => $subtotal,
                 'discount_amount' => $discount,
@@ -378,6 +407,25 @@ class OrderService
     {
         DB::transaction(function () use ($order, $data, $user) {
             $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
+
+            // Apply membership discount on payment if customer is attached and not already discounted
+            if ($customer && !str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
+                $lvl = $customer->membership_level ?? 'silver';
+                $loyaltyDiscount = 0.0;
+                if ($lvl === 'diamond') {
+                    $loyaltyDiscount = round($order->subtotal * 0.10, 2);
+                } elseif ($lvl === 'gold') {
+                    $loyaltyDiscount = round($order->subtotal * 0.05, 2);
+                }
+                
+                if ($loyaltyDiscount > 0) {
+                    $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
+                    $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
+                    $order->note = ($order->note ? $order->note . ' ' : '') . "[Ưu đãi Hội viên " . ($lvl === 'diamond' ? 'Kim Cương' : 'Vàng') . ": -" . number_format($loyaltyDiscount) . "đ]";
+                    $order->save();
+                }
+            }
+
             $redeemedPoints = isset($data['redeem_points']) ? (int) $data['redeem_points'] : 0;
             $redeemDiscount = 0.0;
 

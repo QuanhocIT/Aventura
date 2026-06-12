@@ -18,8 +18,18 @@ class SendScheduledDashboardReports extends Command
 
         $dueSubscriptions = DashboardReportSubscription::query()
             ->where('is_active', true)
-            ->get()
-            ->filter(fn (DashboardReportSubscription $subscription) => $subscription->isDue($now));
+            ->where(function ($query) use ($now) {
+                $query->whereNull('last_sent_at')
+                    ->orWhere(function ($q) use ($now) {
+                        $q->where('frequency', 'monthly')
+                            ->where('last_sent_at', '<', $now->copy()->subMonthNoOverflow());
+                    })
+                    ->orWhere(function ($q) use ($now) {
+                        $q->where('frequency', 'weekly')
+                            ->where('last_sent_at', '<', $now->copy()->subWeek());
+                    });
+            })
+            ->get();
 
         if ($dueSubscriptions->isEmpty()) {
             $this->info('Không có báo cáo định kỳ nào đến hạn gửi.');

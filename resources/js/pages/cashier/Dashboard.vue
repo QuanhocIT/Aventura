@@ -288,6 +288,10 @@ onMounted(() => {
             .listen('.product.stock_updated', () => {
                 toast('Trạng thái món ăn trên thực đơn vừa thay đổi!');
                 router.reload({ only: ['products'] });
+            })
+            .listen('.order.paid', (data: any) => {
+                toast(`Đơn hàng #${data.order_number} đã được thanh toán qua VietQR thành công!`);
+                router.reload({ only: ['tablesData', 'qrOrders'] });
             });
 
         window.Echo.channel(`kitchen.${restaurantId.value}`)
@@ -1587,7 +1591,7 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                     👤 {{ foundCustomer.full_name }}
                                 </span>
                                 <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
-                                    SĐT: {{ foundCustomer.phone }} • Điểm hiện tại: {{ foundCustomer.loyalty_points }} pt
+                                    SĐT: {{ foundCustomer.phone }} • Hạng: {{ foundCustomer.membership_level === 'diamond' ? '💎 Kim Cương (-10%)' : foundCustomer.membership_level === 'gold' ? '⭐ Vàng (-5%)' : '🥈 Bạc' }} • Điểm: {{ foundCustomer.loyalty_points }} pt
                                 </span>
                                 <span class="text-[9px] text-slate-400 mt-1">
                                     + Cộng thêm: {{ Math.floor((activeTable?.active_order?.total_amount ?? 0) / 10000) }} pt (10k = 1pt)

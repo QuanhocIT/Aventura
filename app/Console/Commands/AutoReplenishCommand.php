@@ -18,9 +18,9 @@ class AutoReplenishCommand extends Command
         $restaurantId = $this->option('restaurant');
 
         if ($restaurantId) {
-            $restaurants = Restaurant::where('id', $restaurantId)->get();
+            $restaurants = Restaurant::where('id', $restaurantId)->with('users')->get();
         } else {
-            $restaurants = Restaurant::where('status', 'active')->get();
+            $restaurants = Restaurant::where('status', 'active')->with('users')->get();
         }
 
         if ($restaurants->isEmpty()) {
@@ -32,9 +32,7 @@ class AutoReplenishCommand extends Command
             $this->info("Bắt đầu xử lý dự báo cho nhà hàng: {$restaurant->name} (ID: {$restaurant->id})");
 
             // Find an owner or manager to associate as the PO creator (defaulting to the first owner/system user)
-            $owner = User::where('restaurant_id', $restaurant->id)
-                ->where('status', 'active')
-                ->first();
+            $owner = $restaurant->users->where('status', 'active')->first();
 
             if (!$owner) {
                 $this->warn("Bỏ qua nhà hàng {$restaurant->name}: Không tìm thấy tài khoản quản trị hoạt động.");

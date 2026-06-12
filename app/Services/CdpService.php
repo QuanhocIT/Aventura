@@ -57,6 +57,18 @@ class CdpService
         $frequencyCount = $orders->count();
         $monetaryAmount = (float) $orders->sum('total_amount');
 
+        // Update total spent and membership level based on thresholds
+        $level = 'silver';
+        if ($monetaryAmount >= 5000000) {
+            $level = 'diamond';
+        } elseif ($monetaryAmount >= 2000000) {
+            $level = 'gold';
+        }
+        $customer->update([
+            'total_spent' => $monetaryAmount,
+            'membership_level' => $level,
+        ]);
+
         // Recency calculation
         $lastOrder = $orders->sortByDesc('completed_at')->first();
         $recencyDays = 999;

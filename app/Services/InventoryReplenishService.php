@@ -67,12 +67,14 @@ class InventoryReplenishService
         }
 
         // 3. Prepare payload
+        $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->get()
+            ->keyBy('ingredient_id');
+
         $payload = [];
         foreach ($ingredients as $ing) {
             // Get current stock
-            $inventory = Inventory::where('restaurant_id', $restaurantId)
-                ->where('ingredient_id', $ing->id)
-                ->first();
+            $inventory = $inventories->get($ing->id);
             $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
 
             // Prepare history payload
@@ -99,7 +101,7 @@ class InventoryReplenishService
 
         // 4. Call FastAPI
         $baseUrl = config('services.analytics.url');
-        $url = "{$baseUrl}/api/analytics/inventory-forecast";
+        $url = "{$baseUrl}/api/analytics/inventory-forecast-replenish";
         $forecastResults = null;
 
         try {
@@ -134,12 +136,15 @@ class InventoryReplenishService
         // Group replenishment items by supplier
         $replenishBySupplier = []; // [supplier_id][] = ['ingredient_id' => x, 'qty' => y, 'price' => z]
 
+        $ingredientIds = collect($forecasts)->pluck('ingredient_id')->toArray();
+        $ingredients = Ingredient::whereIn('id', $ingredientIds)->get()->keyBy('id');
+
         foreach ($forecasts as $f) {
             if (!$f['needs_replenishment'] || $f['suggested_replenish_quantity'] <= 0) {
                 continue;
             }
 
-            $ingredient = Ingredient::find($f['ingredient_id']);
+            $ingredient = $ingredients->get($f['ingredient_id']);
             if (!$ingredient || !$ingredient->supplier_id) {
                 continue;
             }
@@ -161,10 +166,13 @@ class InventoryReplenishService
             return [];
         }
 
+        $supplierIds = array_keys($replenishBySupplier);
+        $suppliers = Supplier::whereIn('id', $supplierIds)->get()->keyBy('id');
+
         // Create POs
-        DB::transaction(function () use ($restaurantId, $replenishBySupplier, $creatorId, &$createdPos) {
+        DB::transaction(function () use ($restaurantId, $replenishBySupplier, $creatorId, $suppliers, &$createdPos) {
             foreach ($replenishBySupplier as $supplierId => $items) {
-                $supplier = Supplier::find($supplierId);
+                $supplier = $suppliers->get($supplierId);
                 if (!$supplier) continue;
 
                 $totalAmount = array_sum(array_column($items, 'total_cost'));

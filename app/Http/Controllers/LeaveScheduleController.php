@@ -61,27 +61,42 @@ class LeaveScheduleController extends Controller
                     $employeeShiftCounts[$emp->id] = 0;
                 }
 
+                // Eager load approved leaves and registrations for the entire week outside the day loop
+                $approvedLeavesThisWeek = LeaveRequest::where('restaurant_id', $restaurant->id)
+                    ->where('status', 'approved')
+                    ->where('start_date', '<=', $endOfWeek->toDateString())
+                    ->where('end_date', '>=', $startOfWeek->toDateString())
+                    ->get();
+
+                $registrationsThisWeek = ScheduleRegistration::where('restaurant_id', $restaurant->id)
+                    ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
+                    ->get()
+                    ->groupBy(function ($r) {
+                        return $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString();
+                    });
+
                 // Lặp qua 7 ngày trong tuần
                 for ($i = 0; $i < 7; $i++) {
                     $currentDate = $startOfWeek->copy()->addDays($i);
                     $dateStr = $currentDate->toDateString();
 
+                    // Track employee IDs assigned today to prevent double booking in-memory
+                    $assignedTodayEmployeeIds = [];
+
                     // Xác định xem nhân viên nào đang nghỉ phép (đã được duyệt) vào ngày này
-                    $onLeaveEmployeeIds = LeaveRequest::where('restaurant_id', $restaurant->id)
-                        ->where('status', 'approved')
-                        ->whereDate('start_date', '<=', $dateStr)
-                        ->whereDate('end_date', '>=', $dateStr)
-                        ->pluck('employee_id')
-                        ->toArray();
+                    $onLeaveEmployeeIds = $approvedLeavesThisWeek->filter(function ($leave) use ($dateStr) {
+                        $start = $leave->start_date instanceof Carbon ? $leave->start_date->toDateString() : Carbon::parse($leave->start_date)->toDateString();
+                        $end = $leave->end_date instanceof Carbon ? $leave->end_date->toDateString() : Carbon::parse($leave->end_date)->toDateString();
+                        return $start <= $dateStr && $end >= $dateStr;
+                    })->pluck('employee_id')->toArray();
 
                     $availableEmployees = $activeEmployees->reject(fn ($e) => in_array($e->id, $onLeaveEmployeeIds))->values();
 
                     if ($availableEmployees->isNotEmpty()) {
                         // Get availability registrations for today
-                        $registrationsToday = ScheduleRegistration::where('restaurant_id', $restaurant->id)
-                            ->whereDate('scheduled_date', $dateStr)
-                            ->get()
-                            ->groupBy('shift_id');
+                        $registrationsToday = isset($registrationsThisWeek[$dateStr])
+                            ? $registrationsThisWeek[$dateStr]->groupBy('shift_id')
+                            : collect();
 
                         foreach ($activeShifts as $shift) {
                             // Phân phối tối đa 2 nhân viên cho mỗi ca trực (nếu có đủ nhân sự)
@@ -89,7 +104,7 @@ class LeaveScheduleController extends Controller
                             $assignedForThisShift = [];
                             
                             for ($j = 0; $j < $empPerShift; $j++) {
-                                $candidates = $availableEmployees->reject(function ($e) use ($assignedForThisShift, $employeeShiftCounts, $shift, $dateStr) {
+                                $candidates = $availableEmployees->reject(function ($e) use ($assignedForThisShift, $employeeShiftCounts, $shift, $assignedTodayEmployeeIds) {
                                     // Already assigned to this shift today
                                     if (in_array($e->id, $assignedForThisShift)) {
                                         return true;
@@ -99,10 +114,7 @@ class LeaveScheduleController extends Controller
                                         return true;
                                     }
                                     // Already assigned to some shift today (prevent double booking)
-                                    $isAssignedToday = ScheduleAssignment::where('employee_id', $e->id)
-                                        ->whereDate('scheduled_date', $dateStr)
-                                        ->exists();
-                                    if ($isAssignedToday) {
+                                    if (in_array($e->id, $assignedTodayEmployeeIds)) {
                                         return true;
                                     }
                                     return false;
@@ -116,7 +128,7 @@ class LeaveScheduleController extends Controller
                                 // 1. Registered available for this shift (registered_available = true)
                                 // 2. Role balance: Prefer adding a different role to this shift if one is already assigned
                                 // 3. Lowest shift count so far in the week.
-                                $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts) {
+                                $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts, $availableEmployees) {
                                     $hasRegistered = isset($registrationsToday[$shift->id]) && $registrationsToday[$shift->id]->contains('employee_id', $cand->id);
                                     $registrationScore = $hasRegistered ? 0 : 1;
 
@@ -124,7 +136,7 @@ class LeaveScheduleController extends Controller
 
                                     $roleScore = 0;
                                     if (!empty($assignedForThisShift)) {
-                                        $assignedRoles = Employee::whereIn('id', $assignedForThisShift)->pluck('role_id')->toArray();
+                                        $assignedRoles = $availableEmployees->whereIn('id', $assignedForThisShift)->pluck('role_id')->toArray();
                                         if (in_array($cand->role_id, $assignedRoles)) {
                                             $roleScore = 1;
                                         }
@@ -145,6 +157,7 @@ class LeaveScheduleController extends Controller
                                     ]);
 
                                     $assignedForThisShift[] = $bestCandidate->id;
+                                    $assignedTodayEmployeeIds[] = $bestCandidate->id;
                                     $employeeShiftCounts[$bestCandidate->id] = ($employeeShiftCounts[$bestCandidate->id] ?? 0) + 1;
                                 }
                             }
@@ -349,17 +362,23 @@ class LeaveScheduleController extends Controller
             $startDate = \Carbon\Carbon::parse($data['start_date']);
             $endDate = \Carbon\Carbon::parse($data['end_date']);
 
+            $activeLeaves = LeaveRequest::where('restaurant_id', $user->restaurant_id)
+                ->whereIn('status', ['approved', 'pending'])
+                ->whereDate('start_date', '<=', $endDate->toDateString())
+                ->whereDate('end_date', '>=', $startDate->toDateString())
+                ->whereHas('employee', function ($q) use ($employee) {
+                    $q->where('role_id', $employee->role_id);
+                })
+                ->get();
+
             for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
                 $dateStr = $date->toDateString();
 
-                $onLeaveCount = LeaveRequest::where('restaurant_id', $user->restaurant_id)
-                    ->whereDate('start_date', '<=', $dateStr)
-                    ->whereDate('end_date', '>=', $dateStr)
-                    ->whereIn('status', ['approved', 'pending'])
-                    ->whereHas('employee', function ($q) use ($employee) {
-                        $q->where('role_id', $employee->role_id);
-                    })
-                    ->count();
+                $onLeaveCount = $activeLeaves->filter(function ($leave) use ($dateStr) {
+                    $start = $leave->start_date instanceof Carbon ? $leave->start_date->toDateString() : Carbon::parse($leave->start_date)->toDateString();
+                    $end = $leave->end_date instanceof Carbon ? $leave->end_date->toDateString() : Carbon::parse($leave->end_date)->toDateString();
+                    return $start <= $dateStr && $end >= $dateStr;
+                })->count();
 
                 if (($onLeaveCount + 1) / $totalRoleEmployees > 0.30) {
                     return back()->withErrors(['start_date' => "Vượt quá giới hạn nghỉ phép đồng thời của bộ phận vào ngày {$date->format('d/m/Y')} (Tối đa 30% nhân sự bộ phận được nghỉ)."]);
@@ -412,6 +431,28 @@ class LeaveScheduleController extends Controller
             ->with(['shift'])
             ->get();
 
+        // Lấy các ứng viên có cùng vai trò chuyên môn, đang hoạt động bên ngoài vòng lặp
+        $candidates = Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('role_id', $employee->role_id)
+            ->where('id', '!=', $employee->id)
+            ->where('status', 'active')
+            ->get();
+
+        // Pre-fetch all assignments and registrations in target date range to avoid in-loop queries
+        $allAssignments = ScheduleAssignment::whereBetween('scheduled_date', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->get()
+            ->groupBy(function ($a) {
+                return $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString();
+            });
+
+        $allRegistrations = ScheduleRegistration::whereBetween('scheduled_date', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->get()
+            ->groupBy(function ($r) {
+                $dateStr = $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString();
+                return $dateStr . '-' . $r->shift_id;
+            });
+
         $data = [];
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
@@ -421,23 +462,14 @@ class LeaveScheduleController extends Controller
                 ? $assignment->scheduled_date->toDateString()
                 : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
 
-            // Lấy các ứng viên có cùng vai trò chuyên môn, đang hoạt động và không trùng lịch trực ngày đó
-            $candidates = Employee::where('restaurant_id', $user->restaurant_id)
-                ->where('role_id', $employee->role_id)
-                ->where('id', '!=', $employee->id)
-                ->where('status', 'active')
-                ->get();
+            $scheduledEmployeeIds = isset($allAssignments[$dateStr])
+                ? $allAssignments[$dateStr]->pluck('employee_id')->toArray()
+                : [];
 
-            // Fetch scheduled and registered employee IDs for this date/shift in bulk
-            $scheduledEmployeeIds = ScheduleAssignment::whereDate('scheduled_date', $dateStr)
-                ->whereIn('status', ['scheduled', 'checked_in'])
-                ->pluck('employee_id')
-                ->toArray();
-
-            $registeredEmployeeIds = ScheduleRegistration::whereDate('scheduled_date', $dateStr)
-                ->where('shift_id', $shift->id)
-                ->pluck('employee_id')
-                ->toArray();
+            $regKey = $dateStr . '-' . $shift->id;
+            $registeredEmployeeIds = isset($allRegistrations[$regKey])
+                ? $allRegistrations[$regKey]->pluck('employee_id')->toArray()
+                : [];
 
             $suggestions = [];
             foreach ($candidates as $cand) {
@@ -529,6 +561,12 @@ class LeaveScheduleController extends Controller
                 $employee->delete();
             } else {
                 $replacements = $request->input('replacements', []);
+                $replacementEmpIds = array_filter(array_values($replacements));
+                $replacementEmployees = Employee::where('restaurant_id', $user->restaurant_id)
+                    ->whereIn('id', $replacementEmpIds)
+                    ->where('status', 'active')
+                    ->get()
+                    ->keyBy('id');
 
                 $assignments = ScheduleAssignment::where('employee_id', $employee->id)->get();
                 foreach ($assignments as $assignment) {
@@ -543,10 +581,7 @@ class LeaveScheduleController extends Controller
                         // Tạo lịch trực mới cho nhân viên thay thế (nếu có)
                         if (!empty($replacements[$assignment->id])) {
                             $replacementEmpId = $replacements[$assignment->id];
-                            $replacementEmp = Employee::where('restaurant_id', $user->restaurant_id)
-                                ->where('id', $replacementEmpId)
-                                ->where('status', 'active')
-                                ->first();
+                            $replacementEmp = $replacementEmployees->get($replacementEmpId);
 
                             if ($replacementEmp) {
                                 ScheduleAssignment::create([
@@ -641,6 +676,13 @@ class LeaveScheduleController extends Controller
 
         $copiedCount = 0;
 
+        // Fetch all approved leaves for the current week to avoid N+1 queries in the loop
+        $currentWeekLeaves = LeaveRequest::where('restaurant_id', $restaurantId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $endOfCurrentWeek->toDateString())
+            ->whereDate('end_date', '>=', $startOfCurrentWeek->toDateString())
+            ->get();
+
         foreach ($lastWeekAssignments as $assignment) {
             // Calculate corresponding day in current week
             $lastWeekDate = Carbon::parse($assignment->scheduled_date);
@@ -648,12 +690,13 @@ class LeaveScheduleController extends Controller
             $currentWeekDateStr = $startOfCurrentWeek->copy()->addDays($dayOffset)->toDateString();
 
             // Check if employee is on approved leave on that day
-            $isOnLeave = LeaveRequest::where('restaurant_id', $restaurantId)
-                ->where('employee_id', $assignment->employee_id)
-                ->where('status', 'approved')
-                ->whereDate('start_date', '<=', $currentWeekDateStr)
-                ->whereDate('end_date', '>=', $currentWeekDateStr)
-                ->exists();
+            $isOnLeave = $currentWeekLeaves->contains(function ($leave) use ($assignment, $currentWeekDateStr) {
+                $start = $leave->start_date instanceof Carbon ? $leave->start_date->toDateString() : Carbon::parse($leave->start_date)->toDateString();
+                $end = $leave->end_date instanceof Carbon ? $leave->end_date->toDateString() : Carbon::parse($leave->end_date)->toDateString();
+                return $leave->employee_id == $assignment->employee_id
+                    && $start <= $currentWeekDateStr
+                    && $end >= $currentWeekDateStr;
+            });
 
             if ($isOnLeave) {
                 continue; // Skip copying this assignment as they are on leave

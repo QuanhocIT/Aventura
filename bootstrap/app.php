@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/payments',
+            'api/webhooks/payments/vietqr',
         ]);
 
         $middleware->web(append: [

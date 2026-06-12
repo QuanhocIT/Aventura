@@ -176,8 +176,14 @@ class EmployeeShiftAndLeaveTest extends TestCase
 
     public function test_emergency_leave_auto_updates_schedules(): void
     {
+        $cashierUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+
         $employee = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'user_id' => $cashierUser->id,
             'role_id' => $this->cashierRole->id,
             'status' => 'active',
         ]);
@@ -212,7 +218,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
         $leave = LeaveRequest::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $employee->id,
-            'requested_by' => $this->owner->id,
+            'requested_by' => $cashierUser->id,
             'leave_type' => 'emergency',
             'start_date' => today()->toDateString(),
             'end_date' => today()->copy()->addDay()->toDateString(),
@@ -247,7 +253,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
         $leave = LeaveRequest::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $employee->id,
-            'requested_by' => $this->owner->id,
+            'requested_by' => $cashierUser->id,
             'leave_type' => 'resignation',
             'start_date' => today()->toDateString(),
             'end_date' => today()->toDateString(),

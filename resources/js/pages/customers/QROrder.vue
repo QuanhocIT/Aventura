@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import axios from 'axios';
 import {
     Utensils,
@@ -59,6 +59,7 @@ interface ActiveOrder {
     order_id: number | null;
     order_number: string | null;
     order_status: string | null;
+    payment_status: string | null;
     items_status: { name: string; quantity: number; status: string }[];
     created_at: string;
 }
@@ -85,6 +86,42 @@ const isCartOpen = ref(false);
 const isOrdering = ref(false);
 const customerName = ref('');
 const customerPhone = ref('');
+
+const customerLoyalty = ref<any>(null);
+const isSearchingLoyalty = ref(false);
+
+const lookupCustomerLoyalty = async () => {
+    const phone = customerPhone.value.trim();
+    if (phone.length < 10) {
+        customerLoyalty.value = null;
+        return;
+    }
+    isSearchingLoyalty.value = true;
+    try {
+        const res = await axios.get(`/api/customers/search?phone=${phone}`);
+        if (res.data.success) {
+            customerLoyalty.value = res.data.customer;
+            if (!customerName.value.trim() && res.data.customer.full_name) {
+                customerName.value = res.data.customer.full_name;
+            }
+            toast.success(`Đã nhận diện thành viên: ${res.data.customer.full_name}`);
+        } else {
+            customerLoyalty.value = null;
+        }
+    } catch (e) {
+        customerLoyalty.value = null;
+    } finally {
+        isSearchingLoyalty.value = false;
+    }
+};
+
+watch(customerPhone, () => {
+    if (customerPhone.value.trim().length >= 10) {
+        lookupCustomerLoyalty();
+    } else {
+        customerLoyalty.value = null;
+    }
+});
 
 // Behavior Tracking
 const sessionToken = ref('');
@@ -127,6 +164,84 @@ const modalNotes = ref('');
 // Interactions status
 const isCallingStaff = ref(false);
 const isRequestingPayment = ref(false);
+
+// VietQR Payment status
+const isQrPaymentModalOpen = ref(false);
+const paymentQrUrl = ref('');
+const paymentQrOrder = ref<any>(null);
+const paymentSuccess = ref(false);
+const paymentTimer = ref<any>(null);
+const isSimulatingPayment = ref(false);
+
+const openQrPaymentModal = async (order: any) => {
+    paymentQrOrder.value = order;
+    paymentQrUrl.value = '';
+    paymentSuccess.value = false;
+    isQrPaymentModalOpen.value = true;
+    
+    try {
+        const res = await axios.get(`/api/orders/${order.order_id}/payment-qr`);
+        if (res.data.success) {
+            paymentQrUrl.value = res.data.qr_url;
+            startPaymentPolling(order.order_id);
+        } else {
+            toast.error('Không thể tạo mã QR thanh toán.');
+        }
+    } catch (e) {
+        toast.error('Lỗi kết nối khi sinh mã QR.');
+    }
+};
+
+const closeQrPaymentModal = () => {
+    isQrPaymentModalOpen.value = false;
+    if (paymentTimer.value) {
+        clearInterval(paymentTimer.value);
+        paymentTimer.value = null;
+    }
+};
+
+const startPaymentPolling = (orderId: number) => {
+    if (paymentTimer.value) clearInterval(paymentTimer.value);
+    
+    paymentTimer.value = setInterval(async () => {
+        try {
+            const res = await axios.get(`/api/orders/${orderId}/payment-status`);
+            if (res.data.success && res.data.is_paid) {
+                paymentSuccess.value = true;
+                toast.success('Thanh toán thành công!');
+                clearInterval(paymentTimer.value);
+                paymentTimer.value = null;
+                
+                setTimeout(() => {
+                    closeQrPaymentModal();
+                    refetchActiveOrders();
+                }, 2000);
+            }
+        } catch (e) {
+            console.error('Error polling status:', e);
+        }
+    }, 3000);
+};
+
+const simulatePaymentSuccess = async () => {
+    if (!paymentQrOrder.value) return;
+    isSimulatingPayment.value = true;
+    try {
+        const res = await axios.post('/api/webhooks/payments/vietqr', {
+            description: `AVTORD${paymentQrOrder.value.order_id}`
+        });
+        if (res.data.success) {
+            toast.success('Gửi webhook giả lập thành công!');
+        } else {
+            toast.error(res.data.message || 'Lỗi giả lập thanh toán.');
+        }
+    } catch (e) {
+        toast.error('Lỗi khi gọi API webhook giả lập.');
+    } finally {
+        isSimulatingPayment.value = false;
+    }
+};
+
 
 // Feedback rating state
 const showFeedbackSection = ref(false);
@@ -420,6 +535,22 @@ onMounted(() => {
                         toast.error('Đơn hàng của bạn đã bị từ chối/hủy. Vui lòng liên hệ nhân viên.');
                     }
                 }
+            })
+            .listen('.order.paid', (e: any) => {
+                if (paymentQrOrder.value && e.order_id === paymentQrOrder.value.order_id) {
+                    paymentSuccess.value = true;
+                    if (paymentTimer.value) {
+                        clearInterval(paymentTimer.value);
+                        paymentTimer.value = null;
+                    }
+                    toast.success('Thanh toán thành công qua chuyển khoản!');
+                    setTimeout(() => {
+                        closeQrPaymentModal();
+                        refetchActiveOrders();
+                    }, 2000);
+                } else {
+                    refetchActiveOrders();
+                }
             });
             
         // Listen to stock changes
@@ -432,6 +563,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (countdownInterval) clearInterval(countdownInterval);
+    if (paymentTimer.value) clearInterval(paymentTimer.value);
     if (window.Echo) {
         window.Echo.leaveChannel(`table.${props.table.id}`);
         window.Echo.leaveChannel(`restaurant.${props.restaurant.id}`);
@@ -550,6 +682,22 @@ onUnmounted(() => {
                     </div>
                     <div v-else class="text-xxs text-slate-500 italic px-2">
                         Giỏ hàng: {{ order.cart_data.map(i => `${i.quantity}x ${i.name}`).join(', ') }}
+                    </div>
+                    
+                    <!-- Nút Thanh toán VietQR động -->
+                    <button
+                        v-if="order.status === 'confirmed' && order.order_id && order.payment_status === 'unpaid'"
+                        @click="openQrPaymentModal(order)"
+                        class="mt-2.5 w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xxs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10 active:scale-98 transition-all"
+                    >
+                        <CreditCard class="size-3.5" /> Thanh toán QR trực tuyến (VietQR)
+                    </button>
+                    <!-- Báo đã thanh toán -->
+                    <div
+                        v-else-if="order.status === 'confirmed' && order.payment_status === 'paid'"
+                        class="mt-2.5 w-full py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xxs flex items-center justify-center gap-1.5"
+                    >
+                        <Check class="size-3.5" /> Đã thanh toán hóa đơn
                     </div>
                 </div>
             </div>
@@ -732,6 +880,24 @@ onUnmounted(() => {
                                     class="w-full h-10 px-3 rounded-lg bg-slate-950 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-amber-500"
                                 />
                             </div>
+                        </div>
+                        
+                        <!-- Customer Loyalty Display Card -->
+                        <div v-if="customerLoyalty" class="mt-2.5 p-3.5 bg-slate-950 border border-amber-500/20 rounded-xl text-xxs text-left text-slate-400 space-y-1.5 animate-in fade-in duration-200">
+                            <p class="font-black text-slate-200 text-xs flex items-center gap-1">✨ Hội viên: {{ customerLoyalty.full_name }}</p>
+                            <div class="flex items-center justify-between mt-1 border-t border-slate-900 pt-1.5">
+                                <span>Hạng thẻ:</span>
+                                <span v-if="customerLoyalty.membership_level === 'diamond'" class="text-indigo-400 font-black">💎 Kim Cương (Giảm 10%)</span>
+                                <span v-else-if="customerLoyalty.membership_level === 'gold'" class="text-amber-400 font-black">⭐ Vàng (Giảm 5%)</span>
+                                <span v-else class="text-slate-400 font-bold">🥈 Bạc (Tích điểm)</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Điểm tích lũy:</span>
+                                <span class="text-amber-500 font-extrabold">{{ customerLoyalty.loyalty_points }} pt</span>
+                            </div>
+                            <p v-if="customerLoyalty.membership_level !== 'silver'" class="text-emerald-400 text-[10px] font-bold italic text-center mt-1">
+                                * Tự động giảm giá {{ customerLoyalty.membership_level === 'diamond' ? '10%' : '5%' }} khi đơn hàng được nhân viên xác nhận!
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -934,6 +1100,80 @@ onUnmounted(() => {
                     >
                         <Loader2 v-if="isSubmittingFeedback" class="size-4 animate-spin" />
                         <span v-else>Gửi Đánh Giá Trải Nghiệm</span>
+                    </button>
+                </footer>
+            </div>
+        </div>
+
+        <!-- ── VietQR Payment Modal ────────────────────────────────────────── -->
+        <div v-if="isQrPaymentModalOpen && paymentQrOrder" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden animate-zoom-in relative shadow-2xl">
+                <header class="p-4 border-b border-slate-850 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-200">Thanh toán chuyển khoản VietQR</h3>
+                        <p class="text-[10px] text-slate-500">Mã đơn: {{ paymentQrOrder.order_number }}</p>
+                    </div>
+                    <button @click="closeQrPaymentModal" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
+                        <X class="size-4" />
+                    </button>
+                </header>
+                
+                <div class="p-5 space-y-4 text-center">
+                    <!-- Success State -->
+                    <div v-if="paymentSuccess" class="py-6 space-y-3">
+                        <div class="size-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto text-3xl font-bold animate-bounce">
+                            ✓
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-100">Thanh toán thành công!</h4>
+                        <p class="text-xs text-slate-400">Đơn hàng của quý khách đã được hoàn tất thanh toán. Cảm ơn quý khách!</p>
+                    </div>
+                    
+                    <!-- Standard QR / Loading State -->
+                    <div v-else class="space-y-4">
+                        <div class="bg-white p-3 rounded-2xl inline-block shadow-lg relative">
+                            <div v-if="!paymentQrUrl" class="size-48 flex items-center justify-center">
+                                <Loader2 class="size-8 text-amber-500 animate-spin" />
+                            </div>
+                            <img v-else :src="paymentQrUrl" alt="VietQR Payment Code" class="size-48 object-contain" />
+                        </div>
+                        
+                        <!-- Account Details -->
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 text-left space-y-1.5 text-xxs">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Số tiền:</span>
+                                <span class="text-amber-400 font-extrabold text-sm">{{ formatCurrency(paymentQrOrder.total_amount) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Nội dung chuyển khoản:</span>
+                                <span class="text-slate-200 font-bold">AVTORD{{ paymentQrOrder.order_id }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Waiting Spinner -->
+                        <div class="flex items-center justify-center gap-2 text-xxs text-amber-400 font-semibold py-1 bg-amber-500/5 rounded-lg border border-amber-500/10">
+                            <Loader2 class="size-3.5 animate-spin" />
+                            <span>Đang chờ chuyển khoản từ ứng dụng ngân hàng...</span>
+                        </div>
+
+                        <p class="text-[10px] text-slate-500 text-left leading-relaxed">
+                            💡 **Hướng dẫn**: Mở ứng dụng ngân hàng quét mã QR trên để chuyển khoản tự động. Vui lòng giữ nguyên nội dung chuyển khoản để hệ thống ghi nhận ngay lập tức.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Bottom controls: Simulator button -->
+                <footer class="p-4 border-t border-slate-850 bg-slate-950/40 flex flex-col gap-2">
+                    <button 
+                        v-if="!paymentSuccess"
+                        @click="simulatePaymentSuccess"
+                        :disabled="isSimulatingPayment"
+                        class="w-full h-9 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-400 rounded-lg text-xxs font-bold border border-slate-700/60 flex items-center justify-center gap-1.5"
+                    >
+                        <Loader2 v-if="isSimulatingPayment" class="size-3 animate-spin" />
+                        <span>⚡ Giả lập thanh toán thành công (Test)</span>
+                    </button>
+                    <button @click="closeQrPaymentModal" class="w-full h-9 bg-slate-900 border border-slate-800 text-slate-400 text-xxs font-bold hover:bg-slate-850 rounded-lg">
+                        {{ paymentSuccess ? 'Đóng' : 'Hủy' }}
                     </button>
                 </footer>
             </div>

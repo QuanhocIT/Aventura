@@ -22,6 +22,27 @@ class InventoryService
     {
         $order->load(['items.product.recipes.ingredient.unit']);
 
+        $ingredientIds = [];
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if ($product && $product->track_inventory) {
+                foreach ($product->recipes as $recipe) {
+                    $ingredientIds[] = $recipe->ingredient_id;
+                }
+            }
+        }
+        $ingredientIds = array_unique($ingredientIds);
+
+        $lockedInventories = collect();
+        if (!empty($ingredientIds)) {
+            $lockedInventories = Inventory::where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->whereIn('ingredient_id', $ingredientIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('ingredient_id');
+        }
+
         foreach ($order->items as $item) {
             $product = $item->product;
             if ($product && $product->track_inventory) {
@@ -33,12 +54,8 @@ class InventoryService
                     // Lượng dùng = (định lượng * số lượng bán) * (1 + tỉ lệ hao hụt / 100)
                     $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
 
-                    // Sử dụng khóa bi quan (Pessimistic Locking) để tránh Race Condition
-                    $inventory = Inventory::where('restaurant_id', $order->restaurant_id)
-                        ->where('branch_id', $order->branch_id)
-                        ->where('ingredient_id', $recipe->ingredient_id)
-                        ->lockForUpdate()
-                        ->first();
+                    // Sử dụng khóa bi quan (Pessimistic Locking) từ bộ sưu tập đã được khóa hàng loạt
+                    $inventory = $lockedInventories->get($recipe->ingredient_id);
 
                     if (!$inventory) {
                         $inventory = Inventory::create([
@@ -49,6 +66,7 @@ class InventoryService
                             'theoretical_quantity' => 0,
                             'last_cost' => $recipe->ingredient->average_cost ?? 0,
                         ]);
+                        $lockedInventories->put($recipe->ingredient_id, $inventory);
                     }
 
                     $oldQty = (float) $inventory->quantity_on_hand;
