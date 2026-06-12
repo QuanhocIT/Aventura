@@ -23,6 +23,7 @@ class RequireSuperAdminTwoFactor
                 
                 // 3. Cho phép bỏ qua đối với trang bảo mật (security settings), các route Fortify 2FA, và đăng xuất
                 if ($request->routeIs('security.edit')
+                    || ($request->routeIs('profile.edit') && $request->query('tab') === 'security')
                     || $request->routeIs('logout')
                     || $request->is('logout')
                     || Str::contains($request->path(), 'two-factor')
@@ -31,7 +32,7 @@ class RequireSuperAdminTwoFactor
                 }
 
                 // 4. Chặn đứng truy cập và chuyển hướng về trang bảo mật bắt buộc cấu hình 2FA
-                return redirect()->route('security.edit')
+                return redirect()->route('profile.edit', ['tab' => 'security'])
                     ->with('error', 'Tài khoản Super Admin bắt buộc phải kích hoạt xác thực 2FA để tiếp tục truy cập các phân hệ khác của nền tảng.');
             }
         }

@@ -137,12 +137,12 @@ class SuperAdminAdvancedSecurityTest extends TestCase
 
         // Truy cập vào Super Admin Dashboard bị chặn và chuyển hướng
         $response = $this->get(route('superadmin.dashboard'));
-        $response->assertRedirect(route('security.edit'));
+        $response->assertRedirect(route('profile.edit', ['tab' => 'security']));
         $response->assertSessionHas('error');
 
         // Truy cập vào trang Security Settings được cho phép (cần xác nhận password trong session)
         $responseAllowed = $this->withSession(['auth.password_confirmed_at' => time()])
-            ->get(route('security.edit'));
+            ->get(route('profile.edit', ['tab' => 'security']));
         $responseAllowed->assertStatus(200);
     }
 

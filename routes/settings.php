@@ -16,7 +16,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('settings/restaurant', [RestaurantController::class, 'edit'])->name('restaurant.edit');
     Route::patch('settings/restaurant', [RestaurantController::class, 'update'])->name('restaurant.update');
 
-    Route::get('settings/referrals', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'edit'])->name('settings.referrals.edit');
+    Route::get('settings/referrals', function () {
+        return redirect()->route('profile.edit', ['tab' => 'referrals']);
+    })->name('settings.referrals.edit');
     Route::post('settings/referrals/withdraw', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'withdraw'])->name('settings.referrals.withdraw');
 
     // Sandbox & Demo Data
@@ -29,7 +31,9 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('settings/security', [SecurityController::class, 'edit'])->name('security.edit');
+    Route::get('settings/security', function () {
+        return redirect()->route('profile.edit', ['tab' => 'security']);
+    })->name('security.edit');
 
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')

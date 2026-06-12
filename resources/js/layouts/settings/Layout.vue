@@ -1,61 +1,81 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import Heading from '@/components/Heading.vue';
+import { User, Building2, Shield, Gift } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useCurrentUrl } from '@/composables/useCurrentUrl';
-import { toUrl } from '@/lib/utils';
-import { edit as editAppearance } from '@/routes/appearance';
-import { edit as editProfile } from '@/routes/profile';
-import { edit as editSecurity } from '@/routes/security';
-import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+import { usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
+const sidebarNavItems = [
     {
         title: 'Hồ sơ cá nhân',
-        href: editProfile(),
+        href: '/settings/profile?tab=profile',
+        icon: User,
     },
     {
         title: 'Nhà hàng',
         href: '/settings/restaurant',
+        icon: Building2,
     },
     {
         title: 'Bảo mật',
-        href: editSecurity(),
+        href: '/settings/profile?tab=security',
+        icon: Shield,
     },
     {
         title: 'Giới thiệu & Nhận thưởng',
-        href: '/settings/referrals',
-    },
-    {
-        title: 'Giao diện',
-        href: editAppearance(),
+        href: '/settings/profile?tab=referrals',
+        icon: Gift,
     },
 ];
 
-const { isCurrentOrParentUrl } = useCurrentUrl();
+const page = usePage();
+const currentUrl = computed(() => page.url);
+
+const isItemActive = (href: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const itemUrl = new URL(href, origin);
+    const currentUrlObj = new URL(currentUrl.value, origin);
+    
+    if (itemUrl.pathname === '/settings/profile') {
+        const itemTab = itemUrl.searchParams.get('tab') || 'profile';
+        const currentTab = currentUrlObj.searchParams.get('tab') || 'profile';
+        return currentUrlObj.pathname === itemUrl.pathname && currentTab === itemTab;
+    }
+    
+    return currentUrlObj.pathname === itemUrl.pathname;
+};
 </script>
 
 <template>
-    <div class="px-4 py-6">
-        <Heading
-            title="Settings"
-            description="Manage your profile and account settings"
-        />
+    <div class="px-6 py-8 max-w-7xl mx-auto space-y-8">
+        <div class="space-y-1">
+            <h1 class="text-3xl font-black tracking-tight text-neutral-900 dark:text-neutral-50 bg-gradient-to-r from-neutral-900 to-neutral-600 bg-clip-text text-transparent dark:from-neutral-50 dark:to-neutral-400">
+                Thiết lập hệ thống
+            </h1>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400">
+                Quản lý thông tin hồ sơ cá nhân, bảo mật tài khoản và cài đặt cửa hàng của bạn.
+            </p>
+        </div>
 
-        <div class="flex flex-col lg:flex-row lg:space-x-12">
-            <aside class="w-full max-w-xl lg:w-48">
+        <Separator class="bg-neutral-200/60 dark:bg-neutral-800/60" />
+
+        <div class="flex flex-col lg:flex-row gap-8 lg:gap-12">
+            <aside class="w-full lg:w-64 shrink-0">
                 <nav
-                    class="flex flex-col space-y-1 space-x-0"
+                    class="flex flex-row lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0 scrollbar-none"
                     aria-label="Settings"
                 >
                     <Button
                         v-for="item in sidebarNavItems"
-                        :key="toUrl(item.href)"
+                        :key="item.href"
                         variant="ghost"
                         :class="[
-                            'w-full justify-start',
-                            { 'bg-muted': isCurrentOrParentUrl(item.href) },
+                            'lg:w-full justify-start gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 font-bold text-xs uppercase tracking-wider',
+                            isItemActive(item.href)
+                                ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-md shadow-neutral-900/10 dark:shadow-none'
+                                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200',
                         ]"
                         as-child
                     >
@@ -67,10 +87,8 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
                 </nav>
             </aside>
 
-            <Separator class="my-6 lg:hidden" />
-
-            <div class="flex-1 md:max-w-2xl">
-                <section class="max-w-xl space-y-12">
+            <div class="flex-1 w-full max-w-3xl">
+                <section class="space-y-10 w-full">
                     <slot />
                 </section>
             </div>
