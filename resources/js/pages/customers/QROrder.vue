@@ -127,10 +127,16 @@ watch(customerPhone, () => {
 const sessionToken = ref('');
 
 function getOrGenerateSessionToken() {
-    let token = sessionStorage.getItem('cdp_session_token');
-    if (!token) {
-        token = 'sess_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
-        sessionStorage.setItem('cdp_session_token', token);
+    let token = null;
+    try {
+        token = sessionStorage.getItem('cdp_session_token');
+        if (!token) {
+            token = 'sess_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+            sessionStorage.setItem('cdp_session_token', token);
+        }
+    } catch (e) {
+        // Fallback for Safari private mode or if storage is blocked
+        token = 'sess_fallback_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
     }
     sessionToken.value = token;
 }
