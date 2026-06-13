@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\CustomerBehaviorLog;
 use App\Models\CustomerRfmAnalysis;
+use App\Models\MarketingCampaign;
+use App\Models\CustomerCampaignLog;
+use App\Models\Promotion;
 use App\Services\CdpService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -153,5 +157,89 @@ class CdpController extends Controller
             'success' => true,
             'message' => 'Hành vi đã được ghi nhận vào hệ thống CDP.',
         ]);
+    }
+
+    /**
+     * Create and store a new marketing campaign.
+     */
+    public function storeCampaign(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('manage_customers'), 403);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'segment' => ['required', 'string', 'max:100'],
+            'channel_type' => ['required', 'string', 'in:sms,zalo,discount'],
+            'voucher_code' => ['nullable', 'string', 'max:50'],
+            'message_template' => ['required', 'string'],
+        ]);
+
+        $restaurantId = $request->user()->restaurant_id;
+
+        // Query customers in the target segment
+        $query = Customer::where('restaurant_id', $restaurantId);
+        if ($data['segment'] !== 'all') {
+            $query->whereHas('rfmAnalysis', function ($q) use ($data) {
+                $q->where('rfm_segment', $data['segment']);
+            });
+        }
+        $customers = $query->get();
+        $targetCount = $customers->count();
+
+        return DB::transaction(function () use ($data, $restaurantId, $customers, $targetCount, $request) {
+            // If channel is discount/voucher, create a real promotion record
+            if ($data['channel_type'] === 'discount' && !empty($data['voucher_code'])) {
+                // Check if promotion with this code already exists for this restaurant
+                $exists = Promotion::where('restaurant_id', $restaurantId)
+                    ->where('code', $data['voucher_code'])
+                    ->exists();
+
+                if (!$exists) {
+                    Promotion::create([
+                        'restaurant_id' => $restaurantId,
+                        'name' => 'Chiến dịch: ' . $data['name'],
+                        'code' => $data['voucher_code'],
+                        'type' => 'percent',
+                        'value' => 20.00,
+                        'min_order_amount' => 0.00,
+                        'max_discount_amount' => 50000.00,
+                        'start_date' => now(),
+                        'end_date' => now()->addDays(30),
+                        'is_active' => true,
+                        'is_approved' => true,
+                        'created_by' => $request->user()->id,
+                        'approved_by' => $request->user()->id,
+                    ]);
+                }
+            }
+
+            // Create campaign record
+            $campaign = MarketingCampaign::create([
+                'restaurant_id' => $restaurantId,
+                'name' => $data['name'],
+                'segment' => $data['segment'],
+                'channel_type' => $data['channel_type'],
+                'voucher_code' => $data['voucher_code'],
+                'message_template' => $data['message_template'],
+                'target_count' => $targetCount,
+                'created_by' => $request->user()->id,
+            ]);
+
+            // Create log for each customer
+            foreach ($customers as $customer) {
+                CustomerCampaignLog::create([
+                    'campaign_id' => $campaign->id,
+                    'customer_id' => $customer->id,
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Chiến dịch "' . $campaign->name . '" đã được khởi chạy thành công tới ' . $targetCount . ' khách hàng.',
+                'campaign' => $campaign,
+            ]);
+        });
     }
 }

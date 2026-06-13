@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Sparkles, ArrowUpDown, ChevronDown, Clock, Search, Mail, Phone,
     Plus, Users, Trash2, Pencil, Calendar, AlertCircle, RefreshCw,
@@ -208,22 +209,42 @@ const handleRecalculate = () => {
     });
 };
 
+const isRunningCampaign = ref(false);
+
 const handleRunCampaign = () => {
-    if (campaignTargetCount.value === 0) return;
+    if (campaignTargetCount.value === 0 || isRunningCampaign.value) return;
     
-    // Generate mock voucher code if needed
+    isRunningCampaign.value = true;
     const code = voucherCodeInput.value.trim() || ('VOUCHER-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + selectedCampaignSegment.value.substring(0, 3).toUpperCase());
     const finalMessage = messageText.value.replace('[VOUCHER]', code);
+    const campaignName = `Chiến dịch ${selectedCampaignSegment.value === 'all' ? 'Tất cả' : selectedCampaignSegment.value} (${new Date().toLocaleDateString('vi-VN')})`;
 
-    showCampaignSuccessDetails.value = {
-        segmentLabel: selectedCampaignSegment.value === 'all' ? 'Tất cả khách hàng' : segmentConfig[selectedCampaignSegment.value as keyof typeof segmentConfig]?.label,
-        targetCount: campaignTargetCount.value,
-        type: campaignType.value === 'sms' ? 'Tin nhắn SMS Brandname' : (campaignType.value === 'zalo' ? 'Tin nhắn Zalo ZNS' : 'Kịch bản Voucher điện tử'),
-        message: finalMessage,
-        voucherCode: code,
-    };
-
-    showCampaignSuccessModal.value = true;
+    axios.post('/customers/cdp/campaigns', {
+        name: campaignName,
+        segment: selectedCampaignSegment.value,
+        channel_type: campaignType.value,
+        voucher_code: campaignType.value === 'discount' ? code : null,
+        message_template: finalMessage,
+    })
+    .then(response => {
+        if (response.data.success) {
+            showCampaignSuccessDetails.value = {
+                segmentLabel: selectedCampaignSegment.value === 'all' ? 'Tất cả khách hàng' : (segmentConfig[selectedCampaignSegment.value as keyof typeof segmentConfig]?.label || selectedCampaignSegment.value),
+                targetCount: response.data.campaign.target_count,
+                type: campaignType.value === 'sms' ? 'Tin nhắn SMS Brandname' : (campaignType.value === 'zalo' ? 'Tin nhắn Zalo ZNS' : 'Kịch bản Voucher điện tử'),
+                message: finalMessage,
+                voucherCode: code,
+            };
+            showCampaignSuccessModal.value = true;
+        }
+    })
+    .catch(error => {
+        console.error('Error running campaign:', error);
+        alert('Có lỗi xảy ra khi khởi chạy chiến dịch: ' + (error.response?.data?.message || error.message));
+    })
+    .finally(() => {
+        isRunningCampaign.value = false;
+    });
 };
 
 const triggerAutoVoucherCode = () => {
@@ -718,10 +739,12 @@ const triggerAutoVoucherCode = () => {
                         <div class="pt-3 border-t">
                             <Button 
                                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
-                                :disabled="campaignTargetCount === 0"
+                                :disabled="campaignTargetCount === 0 || isRunningCampaign"
                                 @click="handleRunCampaign"
                             >
-                                <Play class="size-4" /> Khởi chạy chiến dịch (gửi tới {{ campaignTargetCount }} khách hàng)
+                                <Play v-if="!isRunningCampaign" class="size-4" />
+                                <RefreshCw v-else class="size-4 animate-spin" />
+                                {{ isRunningCampaign ? 'Đang gửi tin...' : `Khởi chạy chiến dịch (gửi tới ${campaignTargetCount} khách hàng)` }}
                             </Button>
                         </div>
                     </CardContent>

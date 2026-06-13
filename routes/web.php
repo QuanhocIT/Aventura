@@ -151,6 +151,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('customers/cdp', [\App\Http\Controllers\CdpController::class, 'index'])->name('customers.cdp');
     Route::post('customers/cdp/recalculate', [\App\Http\Controllers\CdpController::class, 'recalculate'])->name('customers.cdp.recalculate');
     Route::get('customers/cdp/segment/{segment}', [\App\Http\Controllers\CdpController::class, 'segment'])->name('customers.cdp.segment');
+    Route::post('customers/cdp/campaigns', [\App\Http\Controllers\CdpController::class, 'storeCampaign'])->name('customers.cdp.campaigns');
 
     // Thiết lập Khuyến mãi & Chiến lược cấu hình Combo thông minh
     Route::get('promotions', [PromotionController::class, 'index'])->name('promotions.index');

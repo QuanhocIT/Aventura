@@ -4,8 +4,6 @@ import { Building2, ImagePlus, X } from 'lucide-vue-next';
 import { ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Card,
     CardContent,
@@ -13,6 +11,16 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 type RestaurantData = {
     name: string;
@@ -39,15 +47,28 @@ const logoPreview = ref<string | null>(null);
 
 function onLogoChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    if (logoPreview.value) URL.revokeObjectURL(logoPreview.value);
+
+    if (!file) {
+        return;
+    }
+
+    if (logoPreview.value) {
+        URL.revokeObjectURL(logoPreview.value);
+    }
+
     logoPreview.value = URL.createObjectURL(file);
 }
 
 function clearLogoSelection() {
-    if (logoPreview.value) URL.revokeObjectURL(logoPreview.value);
+    if (logoPreview.value) {
+        URL.revokeObjectURL(logoPreview.value);
+    }
+
     logoPreview.value = null;
-    if (logoInput.value) logoInput.value.value = '';
+
+    if (logoInput.value) {
+        logoInput.value.value = '';
+    }
 }
 
 defineOptions({
@@ -211,36 +232,38 @@ defineOptions({
                     <div class="border-t border-neutral-100 dark:border-neutral-800 pt-6 space-y-4 text-left">
                         <h3 class="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Cấu hình Thanh toán QR</h3>
                         
-                        <div class="flex items-center space-x-2">
-                            <input 
+                        <div class="flex items-center space-x-2.5">
+                            <Checkbox 
                                 id="qr_enabled" 
                                 name="qr_enabled" 
-                                type="checkbox"
                                 value="1"
                                 :checked="restaurant.qr_enabled" 
-                                class="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900 size-4 cursor-pointer"
+                                class="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 size-4 cursor-pointer"
                             />
-                            <Label for="qr_enabled" class="text-xs font-bold text-neutral-700 cursor-pointer">Kích hoạt thanh toán VietQR động cho khách hàng tại bàn</Label>
+                            <Label for="qr_enabled" class="text-xs font-bold text-neutral-700 dark:text-neutral-300 cursor-pointer select-none">Kích hoạt thanh toán VietQR động cho khách hàng tại bàn</Label>
                         </div>
                         <InputError :message="errors.qr_enabled" />
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="grid gap-2">
                                 <Label for="qr_bank_id" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Ngân hàng</Label>
-                                <select 
-                                    id="qr_bank_id" 
+                                <Select 
                                     name="qr_bank_id" 
-                                    class="w-full h-9 rounded-xl border border-neutral-200 bg-white text-xs px-3 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200"
+                                    :default-value="restaurant.qr_bank_id ?? ''"
                                 >
-                                    <option value="">-- Chọn ngân hàng --</option>
-                                    <option value="mbbank" :selected="restaurant.qr_bank_id === 'mbbank'">MB Bank</option>
-                                    <option value="vietcombank" :selected="restaurant.qr_bank_id === 'vietcombank'">Vietcombank</option>
-                                    <option value="techcombank" :selected="restaurant.qr_bank_id === 'techcombank'">Techcombank</option>
-                                    <option value="bidv" :selected="restaurant.qr_bank_id === 'bidv'">BIDV</option>
-                                    <option value="vietinbank" :selected="restaurant.qr_bank_id === 'vietinbank'">Vietinbank</option>
-                                    <option value="acb" :selected="restaurant.qr_bank_id === 'acb'">ACB</option>
-                                    <option value="sacombank" :selected="restaurant.qr_bank_id === 'sacombank'">Sacombank</option>
-                                </select>
+                                    <SelectTrigger class="w-full h-9 rounded-xl border border-neutral-200 bg-white text-xs px-3 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 flex items-center justify-between">
+                                        <SelectValue placeholder="Chọn ngân hàng" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="mbbank">MB Bank</SelectItem>
+                                        <SelectItem value="vietcombank">Vietcombank</SelectItem>
+                                        <SelectItem value="techcombank">Techcombank</SelectItem>
+                                        <SelectItem value="bidv">BIDV</SelectItem>
+                                        <SelectItem value="vietinbank">Vietinbank</SelectItem>
+                                        <SelectItem value="acb">ACB</SelectItem>
+                                        <SelectItem value="sacombank">Sacombank</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <InputError :message="errors.qr_bank_id" />
                             </div>
 

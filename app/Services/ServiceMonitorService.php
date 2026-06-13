@@ -172,6 +172,13 @@ class ServiceMonitorService
                     $parsed['host'] ?? '127.0.0.1',
                     (int) ($parsed['port'] ?? 8002)
                 ];
+            case 'analytics_service':
+                $url = config('services.analytics.url', 'http://localhost:8003');
+                $parsed = parse_url($url);
+                return [
+                    $parsed['host'] ?? '127.0.0.1',
+                    (int) ($parsed['port'] ?? 8003)
+                ];
             default:
                 return ['127.0.0.1', 0];
         }
@@ -246,6 +253,7 @@ class ServiceMonitorService
                 (object)['service_key' => 'meilisearch', 'name' => 'Meilisearch Engine', 'port' => 7700, 'is_maintenance' => false, 'maintenance_message' => 'Meilisearch offline'],
                 (object)['service_key' => 'email_service', 'name' => 'Python Email Service', 'port' => 8001, 'is_maintenance' => false, 'maintenance_message' => 'Email offline'],
                 (object)['service_key' => 'chatbot_service', 'name' => 'Python Chatbot Service', 'port' => 8002, 'is_maintenance' => false, 'maintenance_message' => 'Chatbot offline'],
+                (object)['service_key' => 'analytics_service', 'name' => 'Python Analytics & AI Service', 'port' => 8003, 'is_maintenance' => false, 'maintenance_message' => 'Analytics offline'],
             ]);
         }
 
@@ -309,7 +317,7 @@ class ServiceMonitorService
     public function getUptimeStats30Days(): array
     {
         $stats = [];
-        $services = ['mysql', 'redis', 'reverb', 'meilisearch', 'email_service', 'chatbot_service'];
+        $services = ['mysql', 'redis', 'reverb', 'meilisearch', 'email_service', 'chatbot_service', 'analytics_service'];
         
         $serviceNames = [
             'mysql' => 'MySQL Database',
@@ -318,6 +326,7 @@ class ServiceMonitorService
             'meilisearch' => 'Meilisearch Engine',
             'email_service' => 'Python Email Service',
             'chatbot_service' => 'Python Chatbot Service',
+            'analytics_service' => 'Python Analytics & AI Service',
         ];
 
         $startDate = now()->subDays(29)->startOfDay();

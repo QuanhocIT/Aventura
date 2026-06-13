@@ -12,7 +12,7 @@ class AiInsightsClient
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.email_microservice.url', ''), '/');
+        $this->baseUrl = rtrim(config('services.analytics.url', ''), '/');
     }
 
     public function getInsights(array $restaurants, array $tenantGrowth): array
@@ -23,7 +23,7 @@ class AiInsightsClient
         }
 
         return \Illuminate\Support\Facades\Cache::remember('superadmin_ai_insights', 3600, function () use ($restaurants, $tenantGrowth) {
-            if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
+            if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('analytics_service')) {
                 return $this->generateMockInsights($restaurants, $tenantGrowth);
             }
 
@@ -42,7 +42,10 @@ class AiInsightsClient
 
                 Log::warning('AiInsightsClient: Python service trả lỗi hoặc dữ liệu thiếu, sử dụng fallback', ['status' => $response->status()]);
             } catch (\Throwable $e) {
-                Log::warning('AiInsightsClient: không kết nối được Python service, sử dụng fallback', ['error' => $e->getMessage()]);
+                Log::critical('Hệ thống cảnh báo: Python Analytics & AI Service (AiInsights) hiện đang ngoại tuyến hoặc không phản hồi. Chuyển sang chế độ dữ liệu giả lập (mock fallback).', [
+                    'url' => $this->baseUrl,
+                    'error' => $e->getMessage()
+                ]);
                 // Cache the offline status for 5 minutes
                 \Illuminate\Support\Facades\Cache::put('ai_insights_service_offline', true, 300);
             }
