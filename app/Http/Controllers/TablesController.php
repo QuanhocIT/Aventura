@@ -41,13 +41,14 @@ class TablesController extends Controller
                 ->orderBy('name')
                 ->get()
                 ->map(fn ($t) => [
-                    'id'       => $t->id,
-                    'name'     => $t->name,
-                    'capacity' => $t->capacity,
-                    'status'   => $t->status,
-                    'area'     => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
-                    'qr_code'  => $t->qr_code,
-                    'qr_token' => $t->qr_token,
+                    'id'            => $t->id,
+                    'restaurant_id' => $t->restaurant_id,
+                    'name'          => $t->name,
+                    'capacity'      => $t->capacity,
+                    'status'        => $t->status,
+                    'area'          => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
+                    'qr_code'       => $t->qr_code,
+                    'qr_token'      => $t->qr_token,
                 ])->toArray();
         });
 

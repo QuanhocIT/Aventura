@@ -15,7 +15,7 @@ import { toast } from 'vue-sonner';
 defineOptions({ layout: AppLayout });
 
 type Area  = { id: number; name: string; code: string; tables_count: number };
-type Table = { id: number; name: string; capacity: number; status: string; area: { id: number; name: string } | null; qr_code: string | null; qr_token: string };
+type Table = { id: number; restaurant_id: number; name: string; capacity: number; status: string; area: { id: number; name: string } | null; qr_code: string | null; qr_token: string };
 
 const props = defineProps<{
     areas:  Area[];
@@ -118,7 +118,7 @@ return;
 
 const getQrUrl = (table: Table | null) => {
     if (!table) return '';
-    const tenantId = (page.props.tenant as any)?.id;
+    const tenantId = table.restaurant_id || (page.props.tenant as any)?.id;
     return window.location.origin + '/customer/order/' + tenantId + '/' + table.qr_token;
 };
 
