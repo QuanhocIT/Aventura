@@ -71,20 +71,23 @@ class ReferralController extends Controller
      */
     public function approveWithdrawal(Request $request, WithdrawalRequest $withdrawal): RedirectResponse
     {
-        if ($withdrawal->status !== 'pending') {
-            return back()->with('error', 'Yêu cầu rút tiền này đã được xử lý từ trước.');
-        }
-
         $request->validate([
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $withdrawal->update([
-            'status' => 'approved',
-            'notes' => $request->input('notes') ?? 'Phê duyệt bởi Super Admin',
-        ]);
+        return DB::transaction(function () use ($withdrawal, $request) {
+            $lockedWithdrawal = WithdrawalRequest::where('id', $withdrawal->id)->lockForUpdate()->first();
+            if ($lockedWithdrawal->status !== 'pending') {
+                return back()->with('error', 'Yêu cầu rút tiền này đã được xử lý từ trước.');
+            }
 
-        return back()->with('success', 'Đã phê duyệt yêu cầu rút tiền thành công.');
+            $lockedWithdrawal->update([
+                'status' => 'approved',
+                'notes' => $request->input('notes') ?? 'Phê duyệt bởi Super Admin',
+            ]);
+
+            return back()->with('success', 'Đã phê duyệt yêu cầu rút tiền thành công.');
+        });
     }
 
     /**
@@ -92,29 +95,31 @@ class ReferralController extends Controller
      */
     public function rejectWithdrawal(Request $request, WithdrawalRequest $withdrawal): RedirectResponse
     {
-        if ($withdrawal->status !== 'pending') {
-            return back()->with('error', 'Yêu cầu rút tiền này đã được xử lý từ trước.');
-        }
-
         $request->validate([
             'notes' => ['required', 'string', 'max:500'],
         ], [
             'notes.required' => 'Vui lòng nhập lý do từ chối yêu cầu rút tiền.',
         ]);
 
-        DB::transaction(function () use ($withdrawal, $request) {
-            $withdrawal->update([
+        return DB::transaction(function () use ($withdrawal, $request) {
+            $lockedWithdrawal = WithdrawalRequest::where('id', $withdrawal->id)->lockForUpdate()->first();
+            if ($lockedWithdrawal->status !== 'pending') {
+                return back()->with('error', 'Yêu cầu rút tiền này đã được xử lý từ trước.');
+            }
+
+            $lockedWithdrawal->update([
                 'status' => 'rejected',
                 'notes' => $request->input('notes'),
             ]);
 
             // Refund the user's commission balance
-            $user = $withdrawal->user;
+            $user = $lockedWithdrawal->user;
             if ($user) {
-                $user->increment('commission_balance', $withdrawal->amount);
+                $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+                $lockedUser->increment('commission_balance', $lockedWithdrawal->amount);
             }
-        });
 
-        return back()->with('success', 'Đã từ chối yêu cầu rút tiền và hoàn tiền thành công.');
+            return back()->with('success', 'Đã từ chối yêu cầu rút tiền và hoàn tiền thành công.');
+        });
     }
 }

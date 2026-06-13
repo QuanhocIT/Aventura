@@ -91,31 +91,38 @@ class ReferralSettingsController extends Controller
             'bank_account_name.required' => 'Vui lòng nhập tên chủ tài khoản.',
         ]);
 
-        if ($user->commission_balance < $data['amount']) {
-            return back()->with('error', 'Số dư hoa hồng của bạn không đủ để thực hiện giao dịch này.');
+        try {
+            DB::transaction(function () use ($user, $data) {
+                // Lock user record for update to get the latest balance and prevent concurrent modifications
+                $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+                
+                if ($lockedUser->commission_balance < $data['amount']) {
+                    throw new \Exception('Số dư hoa hồng của bạn không đủ để thực hiện giao dịch này.');
+                }
+
+                // Update user bank information for subsequent requests
+                $lockedUser->update([
+                    'bank_name' => $data['bank_name'],
+                    'bank_account_number' => $data['bank_account_number'],
+                    'bank_account_name' => $data['bank_account_name'],
+                ]);
+
+                // Create withdrawal request
+                WithdrawalRequest::create([
+                    'user_id' => $lockedUser->id,
+                    'amount' => $data['amount'],
+                    'bank_name' => $data['bank_name'],
+                    'bank_account_number' => $data['bank_account_number'],
+                    'bank_account_name' => $data['bank_account_name'],
+                    'status' => 'pending',
+                ]);
+
+                // Deduct from balance
+                $lockedUser->decrement('commission_balance', $data['amount']);
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        DB::transaction(function () use ($user, $data) {
-            // Update user bank information for subsequent requests
-            $user->update([
-                'bank_name' => $data['bank_name'],
-                'bank_account_number' => $data['bank_account_number'],
-                'bank_account_name' => $data['bank_account_name'],
-            ]);
-
-            // Create withdrawal request
-            WithdrawalRequest::create([
-                'user_id' => $user->id,
-                'amount' => $data['amount'],
-                'bank_name' => $data['bank_name'],
-                'bank_account_number' => $data['bank_account_number'],
-                'bank_account_name' => $data['bank_account_name'],
-                'status' => 'pending',
-            ]);
-
-            // Deduct from balance
-            $user->decrement('commission_balance', $data['amount']);
-        });
 
         return back()->with('success', 'Yêu cầu rút tiền của bạn đã được gửi thành công và đang chờ Super Admin phê duyệt.');
     }

@@ -33,6 +33,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if (!app()->runningInConsole()) {
+            if (
+                str_contains(request()->getHost(), 'ngrok') ||
+                request()->header('X-Forwarded-Proto') === 'https' ||
+                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+            ) {
+                \Illuminate\Support\Facades\URL::forceScheme('https');
+            }
+        }
+
         $this->loadMigrationsFrom([
             database_path('migrations/tenant'),
             database_path('migrations/restaurant'),
