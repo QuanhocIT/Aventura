@@ -47,7 +47,7 @@ class QROrderController extends Controller
                 'id' => $c->id,
                 'name' => $c->name,
                 'slug' => $c->slug,
-            ]);
+            ])->toArray();
 
         // 2. Lấy danh sách sản phẩm hoạt động kèm công thức định lượng
         $productsRaw = Product::where('restaurant_id', $restaurantId)
@@ -96,6 +96,61 @@ class QROrderController extends Controller
                 'is_kitchen_out_of_stock' => $isKitchenOutOfStock,
             ];
         });
+
+        // 3.5. CDP Personalization: Get recommended items based on customer phone order history, fallback to top-selling items
+        $customerPhone = request()->get('phone');
+        $recommendedProducts = collect();
+        if ($customerPhone) {
+            $frequentProductIds = \Illuminate\Support\Facades\DB::table('order_items')
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->where('orders.restaurant_id', $restaurantId)
+                ->where('orders.customer_phone', $customerPhone)
+                ->select('order_items.product_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as order_count'))
+                ->groupBy('order_items.product_id')
+                ->orderByDesc('order_count')
+                ->limit(4)
+                ->pluck('product_id')
+                ->toArray();
+            
+            if (!empty($frequentProductIds)) {
+                $recommendedProducts = $products->whereIn('id', $frequentProductIds)->values();
+            }
+        }
+
+        if ($recommendedProducts->count() < 2) {
+            $topProductIds = \Illuminate\Support\Facades\DB::table('order_items')
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->where('orders.restaurant_id', $restaurantId)
+                ->select('order_items.product_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total_count'))
+                ->groupBy('order_items.product_id')
+                ->orderByDesc('total_count')
+                ->limit(4)
+                ->pluck('product_id')
+                ->toArray();
+            
+            $additionalProducts = $products->whereIn('id', $topProductIds)
+                ->whereNotIn('id', $recommendedProducts->pluck('id')->toArray())
+                ->values();
+                
+            $recommendedProducts = $recommendedProducts->concat($additionalProducts)->take(4);
+        }
+
+        // Duplicate recommended products with category_id = 999999 for rendering under recommendation tab
+        $recProductsDuplicated = $recommendedProducts->map(function ($p) {
+            $duplicated = $p;
+            $duplicated['category_id'] = 999999;
+            return $duplicated;
+        });
+
+        // Prepend Recommendation Category
+        if ($recommendedProducts->isNotEmpty()) {
+            array_unshift($categories, [
+                'id' => 999999,
+                'name' => '⭐ Gợi ý cho bạn',
+                'slug' => 'goi-y-cho-ban',
+            ]);
+            $products = $products->concat($recProductsDuplicated);
+        }
 
         // 4. Lấy các đơn hàng tạm thời hoặc đơn hàng chính thức đang active tại bàn này
         $activeTempOrders = TemporaryOrder::where('table_id', $table->id)
@@ -167,6 +222,7 @@ class QROrderController extends Controller
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:20'],
             'session_id' => ['nullable', 'string', 'max:255'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:1'],
@@ -230,6 +286,7 @@ class QROrderController extends Controller
         }
 
         $customerId = null;
+        $customer = null;
         if (!empty($data['customer_phone'])) {
             $customer = \App\Models\Customer::firstOrCreate(
                 [
@@ -248,6 +305,18 @@ class QROrderController extends Controller
             }
         }
 
+        // Apply loyalty points discount (1 point = 100đ)
+        $redeemPoints = $data['redeem_points'] ?? 0;
+        $pointsDiscount = 0.0;
+        if ($customer && $redeemPoints > 0) {
+            if ($customer->loyalty_points >= $redeemPoints) {
+                $customer->decrement('loyalty_points', $redeemPoints);
+                $pointsDiscount = $redeemPoints * 100.0;
+            }
+        }
+
+        $finalAmount = max(0.0, $totalAmount - $pointsDiscount);
+
         // Tạo bản ghi đơn hàng đệm
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $restaurantId,
@@ -257,7 +326,8 @@ class QROrderController extends Controller
             'customer_phone' => $data['customer_phone'] ?? null,
             'status' => 'waiting_verification',
             'cart_data' => $cartData,
-            'total_amount' => $totalAmount,
+            'total_amount' => $finalAmount,
+            'notes' => $pointsDiscount > 0 ? "Sử dụng {$redeemPoints} điểm tích lũy giảm {$pointsDiscount}đ" : null,
         ]);
 
         // Ghi nhận hành vi gửi đơn hàng và liên kết lịch sử

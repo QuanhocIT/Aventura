@@ -19,7 +19,8 @@ import {
     AlertTriangle,
     ThumbsUp,
     Store,
-    HeartHandshake
+    HeartHandshake,
+    Award
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 
@@ -84,8 +85,8 @@ const selectedCategoryId = ref<number | null>(props.categories[0]?.id ?? null);
 const cart = ref<{ product: Product; quantity: number; notes: string }[]>([]);
 const isCartOpen = ref(false);
 const isOrdering = ref(false);
-const customerName = ref('');
-const customerPhone = ref('');
+const customerName = ref(localStorage.getItem('customer_name') || '');
+const customerPhone = ref(localStorage.getItem('customer_phone') || '');
 
 const customerLoyalty = ref<any>(null);
 const isSearchingLoyalty = ref(false);
@@ -122,6 +123,28 @@ watch(customerPhone, () => {
         customerLoyalty.value = null;
     }
 });
+
+// Member Dashboard & Point Redemption calculations
+const goToDashboard = () => {
+    const phone = customerPhone.value.trim();
+    if (!phone) {
+        toast.error('Vui lòng nhập số điện thoại trong giỏ hàng để truy cập cổng hội viên');
+        isCartOpen.value = true;
+        return;
+    }
+    window.location.href = `/customer/portal/dashboard/${props.restaurant.id}/${phone}`;
+};
+
+const usePoints = ref(false);
+const pointsToRedeem = computed(() => {
+    if (!usePoints.value || !customerLoyalty.value) return 0;
+    const maxDiscount = cartTotalPrice.value * 0.5; // Max 50%
+    const pointsAvailable = customerLoyalty.value.loyalty_points;
+    const pointsNeededForMaxDiscount = Math.floor(maxDiscount / 100); // 1 point = 100đ
+    return Math.min(pointsAvailable, pointsNeededForMaxDiscount);
+});
+const pointsDiscount = computed(() => pointsToRedeem.value * 100);
+const finalCartPrice = computed(() => Math.max(0, cartTotalPrice.value - pointsDiscount.value));
 
 // Behavior Tracking
 const sessionToken = ref('');
@@ -275,10 +298,6 @@ function formatCurrency(val: number) {
 
 function selectCategory(id: number) {
     selectedCategoryId.value = id;
-    const el = document.getElementById(`category-section-${id}`);
-    if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-    }
 }
 
 // Add/Update Cart Functions
@@ -345,10 +364,18 @@ async function submitOrder() {
     isOrdering.value = true;
     
     try {
+        if (customerPhone.value.trim()) {
+            localStorage.setItem('customer_phone', customerPhone.value.trim());
+        }
+        if (customerName.value.trim()) {
+            localStorage.setItem('customer_name', customerName.value.trim());
+        }
+
         const payload = {
             customer_name: customerName.value.trim() || 'Khách tại bàn',
             customer_phone: customerPhone.value.trim() || null,
             session_id: sessionToken.value,
+            redeem_points: pointsToRedeem.value,
             items: cart.value.map(item => ({
                 product_id: item.product.id,
                 quantity: item.quantity,
@@ -361,10 +388,12 @@ async function submitOrder() {
         if (response.data.success) {
             cart.value = [];
             isCartOpen.value = false;
+            usePoints.value = false;
             toast.success(response.data.message);
             
             // Reload page state through Inertia to fetch activeTempOrders
             router.reload({ only: ['activeTempOrders'] });
+            lookupCustomerLoyalty(); // Refresh loyalty info
         }
     } catch (err: any) {
         console.error(err);
@@ -507,8 +536,27 @@ function formatProductCountdown(untilTimeStr: string | null) {
 }
 
 onMounted(() => {
+    localStorage.setItem('last_qr_order_url', window.location.href);
     getOrGenerateSessionToken();
     trackBehavior('view_menu');
+
+    const storedPhone = localStorage.getItem('customer_phone');
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlPhone = urlParams.get('phone');
+
+    if (storedPhone && !urlPhone) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('phone', storedPhone);
+        window.location.href = newUrl.toString();
+        return;
+    }
+
+    if (urlPhone) {
+        customerPhone.value = urlPhone;
+        lookupCustomerLoyalty();
+    } else if (customerPhone.value.trim().length >= 10) {
+        lookupCustomerLoyalty();
+    }
 
     countdownInterval = setInterval(() => {
         now.value = new Date();
@@ -629,6 +677,14 @@ onUnmounted(() => {
             </div>
             
             <div class="flex items-center gap-2">
+                <button 
+                    @click="goToDashboard"
+                    class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:bg-slate-850 active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1 text-[10px] font-black"
+                    title="Cổng Hội Viên"
+                >
+                    <Award class="size-4 text-amber-400" />
+                    <span>Hội Viên</span>
+                </button>
                 <button 
                     @click="callStaff" 
                     :disabled="isCallingStaff"
@@ -758,6 +814,7 @@ onUnmounted(() => {
             <button
                 v-for="cat in categories"
                 :key="cat.id"
+                :id="`category-tab-${cat.id}`"
                 @click="selectCategory(cat.id)"
                 :class="['px-4 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border duration-200 cursor-pointer',
                          selectedCategoryId === cat.id 
@@ -769,23 +826,18 @@ onUnmounted(() => {
         </nav>
 
         <!-- ── Products List ───────────────────────────────────────────── -->
-        <main class="flex-1 overflow-y-auto px-5 py-5 space-y-9 pb-28">
-            <div 
-                v-for="cat in categories" 
-                :key="cat.id" 
-                :id="`category-section-${cat.id}`"
-                class="space-y-4"
-            >
-                <div class="flex items-center gap-2">
+        <main class="flex-1 overflow-y-auto px-5 py-5 pb-28">
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-4">
                     <span class="inline-block w-1.5 h-4.5 bg-slate-900 rounded-full"></span>
                     <h2 class="text-xs font-black text-slate-800 uppercase tracking-widest">
-                        {{ cat.name }}
+                        {{ categories.find(c => c.id === selectedCategoryId)?.name || 'Món ăn' }}
                     </h2>
                 </div>
                 
                 <div class="grid grid-cols-1 gap-4">
                     <div
-                        v-for="product in products.filter(p => p.category_id === cat.id)"
+                        v-for="product in products.filter(p => p.category_id === selectedCategoryId)"
                         :key="product.id"
                         @click="openItemModal(product)"
                         :class="['p-4 bg-white border rounded-2xl flex gap-4 transition-all duration-300 relative overflow-hidden cursor-pointer shadow-sm hover:shadow-md',
@@ -823,7 +875,7 @@ onUnmounted(() => {
                                 <button
                                     @click="openItemModal(product)"
                                     :disabled="!product.in_stock"
-                                    class="size-8 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-90 text-white flex items-center justify-center font-bold disabled:bg-slate-100 disabled:text-slate-400 transition-all shadow-sm cursor-pointer"
+                                    class="size-8 rounded-xl bg-slate-900 hover:bg-slate-850 text-white flex items-center justify-center font-bold disabled:bg-slate-100 disabled:text-slate-400 transition-all shadow-sm cursor-pointer"
                                 >
                                     <Plus class="size-4 stroke-[3]" />
                                 </button>
@@ -939,6 +991,17 @@ onUnmounted(() => {
                                 <span>Điểm tích lũy:</span>
                                 <span class="text-amber-600 font-extrabold">{{ customerLoyalty.loyalty_points }} pt</span>
                             </div>
+                            
+                            <!-- Point redemption checkbox option -->
+                            <div v-if="customerLoyalty.loyalty_points >= 10" class="flex items-center justify-between border-t border-slate-200 pt-2">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" v-model="usePoints" class="rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
+                                    <span class="font-bold text-slate-700">Dùng điểm tích lũy</span>
+                                </label>
+                                <span v-if="usePoints" class="text-emerald-650 font-black font-mono">-{{ formatCurrency(pointsDiscount) }} (dùng {{ pointsToRedeem }} pt)</span>
+                                <span v-else class="text-slate-400">10 pt = 1,000đ</span>
+                            </div>
+                            
                             <p v-if="customerLoyalty.membership_level !== 'silver'" class="text-emerald-600 text-[10px] font-bold italic text-center mt-1 bg-emerald-50 py-1.5 rounded-lg border border-emerald-100">
                                 * Tự động giảm giá {{ customerLoyalty.membership_level === 'diamond' ? '10%' : '5%' }} khi đơn hàng được duyệt!
                             </p>
@@ -947,9 +1010,13 @@ onUnmounted(() => {
                 </div>
                 
                 <footer class="p-5 border-t border-slate-100 bg-slate-50">
+                    <div v-if="pointsDiscount > 0" class="flex justify-between items-center mb-2 text-xxs text-slate-500">
+                        <span>Giảm giá từ điểm:</span>
+                        <span class="font-bold text-emerald-650">-{{ formatCurrency(pointsDiscount) }}</span>
+                    </div>
                     <div class="flex justify-between items-center mb-4 text-slate-650">
-                        <span class="text-xs">Tạm tính:</span>
-                        <span class="text-base font-black text-amber-600 tracking-wide">{{ formatCurrency(cartTotalPrice) }}</span>
+                        <span class="text-xs">Tổng cộng:</span>
+                        <span class="text-base font-black text-amber-600 tracking-wide">{{ formatCurrency(finalCartPrice) }}</span>
                     </div>
                     
                     <button

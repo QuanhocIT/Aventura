@@ -305,6 +305,11 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::post('api/customer/track-behavior', [\App\Http\Controllers\CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
     Route::get('api/orders/{order}/payment-qr', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
     Route::get('api/orders/{order}/payment-status', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');
+    
+    // Member Dashboard, Loyalty & Reservation Portal Routes
+    Route::get('customer/portal/dashboard/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'showDashboard'])->name('customer.portal.dashboard');
+    Route::post('customer/portal/redeem/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'redeemReward'])->name('customer.portal.redeem');
+    Route::post('customer/portal/reserve/{restaurant}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'createReservation'])->name('customer.portal.reserve');
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới
