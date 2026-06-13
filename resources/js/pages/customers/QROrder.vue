@@ -566,127 +566,161 @@ onMounted(() => {
             });
     }
 });
+            
+function getProductIngredients(name: string) {
+    const n = name.toLowerCase();
+    if (n.includes('cơm') || n.includes('com')) {
+        return ['Gạo tẻ thơm', 'Sườn cốt lết', 'Nước mắm chắt', 'Mật ong rừng', 'Hành tím', 'Tỏi Lý Sơn', 'Tiêu sọ'];
+    }
+    if (n.includes('phở') || n.includes('pho')) {
+        return ['Bánh phở tươi', 'Thịt bò u hoa', 'Xương ống bò ninh 24h', 'Hành tây', 'Hành lá', 'Gừng nướng', 'Thảo quả'];
+    }
+    if (n.includes('trà') || n.includes('tra') || n.includes('uống') || n.includes('nước') || n.includes('chanh')) {
+        return ['Lá trà xanh Oolong', 'Chanh tươi cắt lát', 'Đường mía tự nhiên', 'Nước tinh khiết', 'Đá sạch tinh thể'];
+    }
+    return ['Nguyên liệu sạch chọn lọc', 'Gia vị hảo hạng', 'Rau thơm sạch hữu cơ', 'Quy trình khép kín'];
+}
+
+function getProductReviews(id: number) {
+    const reviewPools = [
+        [
+            { author: 'Anh Tuấn', rating: 5, comment: 'Món ăn đậm đà, sườn nướng mềm ngọt nước, đĩa cơm thơm phức.' },
+            { author: 'Chị Lan', rating: 4.8, comment: 'Ngon tuyệt vời, nêm nếm rất vừa vị sạch sẽ. Sẽ ủng hộ tiếp.' }
+        ],
+        [
+            { author: 'Minh Hoàng', rating: 5, comment: 'Vị nước dùng ngọt thanh tự nhiên từ xương bò ninh, rất cuốn.' },
+            { author: 'Thu Hà', rating: 4.9, comment: 'Thịt bò tươi mềm ngọt, nước phở nóng hổi ăn kèm rau thơm cực ngon!' }
+        ],
+        [
+            { author: 'Quốc Bảo', rating: 4.8, comment: 'Uống ngọt mát, thơm nồng vị trà nguyên bản, cực kỳ sảng khoái.' },
+            { author: 'Ngọc Diệp', rating: 5, comment: 'Chanh tươi thơm lừng kết hợp trà ô long giải nhiệt rất tốt.' }
+        ],
+    ];
+    return reviewPools[id % reviewPools.length];
+}
 
 onUnmounted(() => {
     if (countdownInterval) clearInterval(countdownInterval);
     if (paymentTimer.value) clearInterval(paymentTimer.value);
-    if (window.Echo) {
-        window.Echo.leaveChannel(`table.${props.table.id}`);
-        window.Echo.leaveChannel(`restaurant.${props.restaurant.id}`);
-    }
 });
 </script>
 
 <template>
     <Head :title="`Gọi Món Tại Bàn - ${restaurant.name}`" />
 
-    <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans max-w-md mx-auto relative border-x border-slate-900 shadow-2xl">
+    <div class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans max-w-md mx-auto relative border-x border-slate-200/80 shadow-[0_0_50px_rgba(0,0,0,0.03)]">
         <!-- ── Top bar Header ────────────────────────────────────────────── -->
-        <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-900 px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="size-8 rounded-full bg-amber-500 flex items-center justify-center text-slate-950 font-bold overflow-hidden shadow-lg shadow-amber-500/20">
-                    <img v-if="restaurant.logo_url" :src="restaurant.logo_url" :alt="restaurant.name" class="size-full object-cover" />
-                    <span v-else>{{ restaurant.name[0] }}</span>
+        <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 px-5 py-4 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="size-11 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 p-0.5 overflow-hidden shadow-sm">
+                    <div class="size-full rounded-[9px] bg-white overflow-hidden flex items-center justify-center">
+                        <img v-if="restaurant.logo_url" :src="restaurant.logo_url" :alt="restaurant.name" class="size-full object-cover" />
+                        <span v-else class="text-amber-500 font-black text-sm">{{ restaurant.name[0] }}</span>
+                    </div>
                 </div>
                 <div>
-                    <h1 class="text-sm font-bold text-slate-200 line-clamp-1">{{ restaurant.name }}</h1>
-                    <p class="text-xxs text-amber-400 font-semibold">{{ table.name }} • {{ table.area_name }}</p>
+                    <h1 class="text-xs font-black tracking-tight text-slate-800 uppercase">{{ restaurant.name }}</h1>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="inline-block size-2 rounded-full bg-emerald-500 animate-ping absolute"></span>
+                        <span class="inline-block size-2 rounded-full bg-emerald-500 relative"></span>
+                        <p class="text-[10px] text-amber-600 font-extrabold tracking-wide uppercase">{{ table.name }} • {{ table.area_name }}</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-2">
                 <button 
                     @click="callStaff" 
                     :disabled="isCallingStaff"
-                    class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 active:scale-95 transition-all disabled:opacity-50"
+                    class="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
                     title="Gọi phục vụ"
                 >
-                    <Loader2 v-if="isCallingStaff" class="size-4 animate-spin" />
+                    <Loader2 v-if="isCallingStaff" class="size-4 animate-spin text-amber-500" />
                     <Bell v-else class="size-4" />
                 </button>
                 <button 
                     @click="requestPayment" 
                     :disabled="isRequestingPayment"
-                    class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 active:scale-95 transition-all disabled:opacity-50"
+                    class="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
                     title="Yêu cầu thanh toán"
                 >
-                    <Loader2 v-if="isRequestingPayment" class="size-4 animate-spin" />
+                    <Loader2 v-if="isRequestingPayment" class="size-4 animate-spin text-amber-500" />
                     <CreditCard v-else class="size-4" />
                 </button>
             </div>
         </header>
 
         <!-- ── Active Order Tracker ────────────────────────────────────────── -->
-        <div v-if="activeTempOrders.length" class="p-4 bg-slate-950 border-b border-slate-900 shrink-0">
-            <h3 class="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
+        <div v-if="activeTempOrders.length" class="p-5 bg-white border-b border-slate-100 shrink-0">
+            <h3 class="text-[10px] font-black text-slate-400 mb-3.5 uppercase tracking-widest flex items-center gap-2">
                 <Clock class="size-3.5 text-amber-500" /> Tiến độ món ăn của bạn
             </h3>
             
-            <div class="space-y-3">
-                <div v-for="order in activeTempOrders" :key="order.id" class="p-3 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-850 rounded-xl relative overflow-hidden">
+            <div class="space-y-4">
+                <div v-for="order in activeTempOrders" :key="order.id" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative overflow-hidden shadow-sm">
                     <!-- Progress Timeline UI -->
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xxs text-slate-500">Mã yêu cầu: #{{ order.id }}</span>
+                    <div class="flex items-center justify-between mb-3.5">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xxs">Yêu cầu #{{ order.id }}</span>
                         
-                        <span v-if="order.status === 'waiting_verification'" class="text-xs font-bold text-yellow-500 animate-pulse bg-yellow-950/40 px-2 py-0.5 rounded-full border border-yellow-900/30">
+                        <span v-if="order.status === 'waiting_verification'" class="text-[9px] font-black tracking-wide uppercase text-amber-600 animate-pulse bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
                             Chờ xác thực...
                         </span>
-                        <span v-else-if="order.status === 'escalated'" class="text-xs font-bold text-red-500 animate-pulse bg-red-950/40 px-2 py-0.5 rounded-full border border-red-900/30">
-                            Đang giục nhân viên...
+                        <span v-else-if="order.status === 'escalated'" class="text-[9px] font-black tracking-wide uppercase text-red-500 animate-pulse bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
+                            Đang giục món...
                         </span>
-                        <span v-else-if="order.status === 'confirmed'" class="text-xs font-bold text-emerald-500 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-900/30">
-                            Đã xác nhận
+                        <span v-else-if="order.status === 'confirmed'" class="text-[9px] font-black tracking-wide uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                            Đã nhận đơn
                         </span>
-                        <span v-else-if="order.status === 'cancelled'" class="text-xs font-bold text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full">
-                            Bị từ chối
+                        <span v-else-if="order.status === 'cancelled'" class="text-[9px] font-black tracking-wide uppercase text-slate-500 bg-slate-200 px-2.5 py-1 rounded-full">
+                            Bị hủy
                         </span>
                     </div>
 
                     <!-- Progress Bar Steps -->
-                    <div class="grid grid-cols-3 gap-2 mb-3 text-center">
-                        <div class="flex flex-col items-center">
-                            <div :class="['size-6 rounded-full flex items-center justify-center text-xs font-bold transition-all', 
-                                         ['waiting_verification', 'escalated', 'confirmed'].includes(order.status) ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'bg-slate-800 text-slate-500']">
-                                <Check v-if="['confirmed'].includes(order.status)" class="size-3.5" />
+                    <div class="grid grid-cols-3 gap-2 mb-4 text-center relative">
+                        <div class="flex flex-col items-center z-10">
+                            <div :class="['size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border-2', 
+                                         ['waiting_verification', 'escalated', 'confirmed'].includes(order.status) ? 'bg-gradient-to-tr from-amber-400 to-amber-500 border-amber-300 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-400']">
+                                <Check v-if="['confirmed'].includes(order.status)" class="size-3.5 stroke-[3]" />
                                 <span v-else>1</span>
-                            </div>
-                            <span class="text-xxs font-medium mt-1 text-slate-400">Gửi đơn đệm</span>
+                             </div>
+                            <span class="text-[9px] font-bold mt-1.5 text-slate-500 uppercase tracking-wide">Đặt đơn</span>
                         </div>
-                        <div class="flex flex-col items-center relative">
+                        <div class="flex flex-col items-center z-10 relative">
                             <!-- Link bar left -->
-                            <div :class="['h-0.5 absolute w-full -left-1/2 top-3 -z-10', order.status === 'confirmed' ? 'bg-amber-500' : 'bg-slate-800']"></div>
+                            <div :class="['h-[2px] absolute w-[130%] -left-[65%] top-[15px] -z-10 transition-all duration-300', order.status === 'confirmed' ? 'bg-amber-400' : 'bg-slate-200']"></div>
                             
-                            <div :class="['size-6 rounded-full flex items-center justify-center text-xs font-bold transition-all', 
-                                         order.status === 'confirmed' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'bg-slate-800 text-slate-500']">
-                                <Check v-if="order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')" class="size-3.5" />
+                            <div :class="['size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border-2', 
+                                         order.status === 'confirmed' ? 'bg-gradient-to-tr from-amber-400 to-amber-500 border-amber-300 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-400']">
+                                <Check v-if="order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')" class="size-3.5 stroke-[3]" />
                                 <span v-else>2</span>
                             </div>
-                            <span class="text-xxs font-medium mt-1 text-slate-400">Bếp nấu</span>
+                            <span class="text-[9px] font-bold mt-1.5 text-slate-500 uppercase tracking-wide">Chế biến</span>
                         </div>
-                        <div class="flex flex-col items-center relative">
+                        <div class="flex flex-col items-center z-10 relative">
                             <!-- Link bar right -->
-                            <div :class="['h-0.5 absolute w-full -left-1/2 top-3 -z-10', (order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')) && order.status === 'confirmed' ? 'bg-amber-500' : 'bg-slate-800']"></div>
+                            <div :class="['h-[2px] absolute w-[130%] -left-[65%] top-[15px] -z-10 transition-all duration-300', (order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')) && order.status === 'confirmed' ? 'bg-amber-400' : 'bg-slate-200']"></div>
                             
-                            <div :class="['size-6 rounded-full flex items-center justify-center text-xs font-bold transition-all', 
-                                         order.status === 'confirmed' && (order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')) ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20' : 'bg-slate-800 text-slate-500']">
+                            <div :class="['size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border-2', 
+                                         order.status === 'confirmed' && (order.order_status === 'completed' || order.items_status.every(i => i.status === 'served')) ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-400']">
                                 3
                             </div>
-                            <span class="text-xxs font-medium mt-1 text-slate-400">Lên món</span>
+                            <span class="text-[9px] font-bold mt-1.5 text-slate-500 uppercase tracking-wide">Lên món</span>
                         </div>
                     </div>
 
                     <!-- Items List / Detail Statuses -->
-                    <div v-if="order.items_status.length" class="space-y-1 bg-slate-950/50 p-2 rounded-lg text-xxs text-slate-400 border border-slate-900">
+                    <div v-if="order.items_status.length" class="space-y-1.5 bg-white p-3 rounded-xl text-xxs text-slate-600 border border-slate-200 shadow-inner">
                         <div v-for="(item, idx) in order.items_status" :key="idx" class="flex justify-between items-center">
-                            <span>{{ item.quantity }}x {{ item.name }}</span>
-                            <span :class="['px-1.5 py-0.5 rounded font-semibold', 
-                                           item.status === 'served' ? 'bg-emerald-950 text-emerald-400' : 
-                                           item.status === 'preparing' ? 'bg-amber-950 text-amber-400 animate-pulse' : 'bg-slate-900 text-slate-400']">
-                                {{ item.status === 'served' ? 'Đã lên món' : item.status === 'preparing' ? 'Đang chế biến' : 'Chờ nấu' }}
+                            <span class="font-medium text-slate-700"><span class="text-amber-500 font-extrabold mr-1">{{ item.quantity }}x</span> {{ item.name }}</span>
+                            <span :class="['px-2 py-0.5 rounded-lg text-[9px] font-bold tracking-wide uppercase border', 
+                                           item.status === 'served' ? 'bg-emerald-50 text-emerald-600 border-emerald-250' : 
+                                           item.status === 'preparing' ? 'bg-amber-50 text-amber-600 border-amber-250 animate-pulse' : 'bg-slate-100 text-slate-400 border-slate-200']">
+                                {{ item.status === 'served' ? 'Đã lên món' : item.status === 'preparing' ? 'Đang nấu' : 'Chờ nấu' }}
                             </span>
                         </div>
                     </div>
-                    <div v-else class="text-xxs text-slate-500 italic px-2">
+                    <div v-else class="text-[10px] text-slate-400 italic px-2 bg-white py-2 rounded-xl border border-slate-200">
                         Giỏ hàng: {{ order.cart_data.map(i => `${i.quantity}x ${i.name}`).join(', ') }}
                     </div>
                     
@@ -694,100 +728,104 @@ onUnmounted(() => {
                     <button
                         v-if="order.status === 'confirmed' && order.order_id && order.payment_status === 'unpaid'"
                         @click="openQrPaymentModal(order)"
-                        class="mt-2.5 w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xxs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10 active:scale-98 transition-all"
+                        class="mt-3 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-xxs flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all cursor-pointer"
                     >
-                        <CreditCard class="size-3.5" /> Thanh toán QR trực tuyến (VietQR)
+                        <CreditCard class="size-4" /> THANH TOÁN QR TRỰC TUYẾN
                     </button>
                     <!-- Báo đã thanh toán -->
                     <div
                         v-else-if="order.status === 'confirmed' && order.payment_status === 'paid'"
-                        class="mt-2.5 w-full py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xxs flex items-center justify-center gap-1.5"
+                        class="mt-3 w-full py-2 bg-emerald-50 border border-emerald-100 text-emerald-600 font-extrabold rounded-xl text-xxs flex items-center justify-center gap-1.5"
                     >
-                        <Check class="size-3.5" /> Đã thanh toán hóa đơn
+                        <Check class="size-4" /> ĐÃ THANH TOÁN HÓA ĐƠN
                     </div>
                 </div>
             </div>
 
             <!-- Rate experience button -->
-            <div v-if="activeTempOrders.some(o => o.status === 'confirmed')" class="mt-3 flex justify-end">
+            <div v-if="activeTempOrders.some(o => o.status === 'confirmed')" class="mt-3.5 flex justify-end">
                 <button 
                     @click="initializeFeedback"
-                    class="text-xxs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20"
+                    class="text-[10px] font-black text-amber-600 hover:text-amber-500 flex items-center gap-1.5 bg-amber-50 px-3.5 py-2 rounded-xl border border-amber-100 active:scale-95 transition-all cursor-pointer"
                 >
-                    <HeartHandshake class="size-3.5" /> Đánh giá phục vụ & Món ăn
+                    <HeartHandshake class="size-4" /> Đánh giá món ăn & phục vụ
                 </button>
             </div>
         </div>
 
         <!-- ── Category Tabs (Horizontal Scrollable) ────────────────────────── -->
-        <nav class="sticky top-[57px] z-20 bg-slate-950/90 backdrop-blur-sm border-b border-slate-900 py-2.5 px-4 overflow-x-auto scrollbar-none flex gap-2 shrink-0">
+        <nav class="sticky top-[70px] z-20 bg-white/90 backdrop-blur-md border-b border-slate-100 py-3 px-5 overflow-x-auto scrollbar-none flex gap-2 shrink-0">
             <button
                 v-for="cat in categories"
                 :key="cat.id"
                 @click="selectCategory(cat.id)"
-                :class="['px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border',
+                :class="['px-4 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border duration-200 cursor-pointer',
                          selectedCategoryId === cat.id 
-                             ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md shadow-amber-500/15 font-bold' 
-                             : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-slate-200']"
+                             ? 'bg-slate-900 border-slate-900 text-white shadow-sm shadow-slate-900/10' 
+                             : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900']"
             >
                 {{ cat.name }}
             </button>
         </nav>
 
         <!-- ── Products List ───────────────────────────────────────────── -->
-        <main class="flex-1 overflow-y-auto px-4 py-4 space-y-8 pb-24">
+        <main class="flex-1 overflow-y-auto px-5 py-5 space-y-9 pb-28">
             <div 
                 v-for="cat in categories" 
                 :key="cat.id" 
                 :id="`category-section-${cat.id}`"
-                class="space-y-3"
+                class="space-y-4"
             >
-                <h2 class="text-sm font-bold text-slate-300 border-l-2 border-amber-500 pl-2">
-                    {{ cat.name }}
-                </h2>
+                <div class="flex items-center gap-2">
+                    <span class="inline-block w-1.5 h-4.5 bg-slate-900 rounded-full"></span>
+                    <h2 class="text-xs font-black text-slate-800 uppercase tracking-widest">
+                        {{ cat.name }}
+                    </h2>
+                </div>
                 
-                <div class="grid grid-cols-1 gap-3">
+                <div class="grid grid-cols-1 gap-4">
                     <div
                         v-for="product in products.filter(p => p.category_id === cat.id)"
                         :key="product.id"
-                        :class="['p-3 bg-gradient-to-br from-slate-900 to-slate-950 border rounded-2xl flex gap-3 transition-all relative overflow-hidden',
-                                 product.in_stock ? 'border-slate-900 hover:border-slate-800' : 'border-slate-950 opacity-60']"
+                        @click="openItemModal(product)"
+                        :class="['p-4 bg-white border rounded-2xl flex gap-4 transition-all duration-300 relative overflow-hidden cursor-pointer shadow-sm hover:shadow-md',
+                                 product.in_stock ? 'border-slate-200 hover:border-slate-300' : 'border-slate-100 opacity-55']"
                     >
                         <!-- Image Container -->
-                        <div class="size-20 rounded-xl bg-slate-950 flex items-center justify-center text-slate-800 font-bold overflow-hidden shrink-0 border border-slate-850 relative">
+                        <div class="size-20 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold overflow-hidden shrink-0 border border-slate-200 relative">
                             <img v-if="product.image_url" :src="product.image_url" :alt="product.name" class="size-full object-cover" />
-                            <Utensils v-else class="size-6 text-slate-800" />
+                            <Utensils v-else class="size-6 text-slate-400" />
                             
                             <!-- Out of Stock Overlay -->
-                            <div v-if="!product.in_stock" class="absolute inset-0 bg-slate-950/80 backdrop-blur-xxs flex flex-col items-center justify-center text-center p-1">
-                                <span v-if="product.is_kitchen_paused" class="text-[9px] font-black text-amber-500 uppercase border border-amber-500/50 px-1 rounded leading-tight">Tạm Dừng</span>
-                                <span v-else-if="product.is_kitchen_out_of_stock" class="text-[9px] font-black text-orange-500 uppercase border border-orange-500/50 px-1 rounded leading-tight">Hết Món</span>
-                                <span v-else class="text-[9px] font-black text-red-500 uppercase border border-red-500/50 px-1.5 py-0.5 rounded leading-tight">Hết Hàng</span>
+                            <div v-if="!product.in_stock" class="absolute inset-0 bg-white/90 backdrop-blur-xs flex flex-col items-center justify-center text-center p-1">
+                                <span v-if="product.is_kitchen_paused" class="text-[9px] font-black text-amber-600 uppercase border border-amber-200 px-1 rounded bg-amber-50/50 leading-tight">Tạm Dừng</span>
+                                <span v-else-if="product.is_kitchen_out_of_stock" class="text-[9px] font-black text-orange-600 uppercase border border-orange-200 px-1 rounded bg-orange-50/50 leading-tight">Hết Món</span>
+                                <span v-else class="text-[9px] font-black text-red-600 uppercase border border-red-200 px-1.5 py-0.5 rounded bg-red-50/50 leading-tight">Hết Hàng</span>
                             </div>
                         </div>
 
                         <!-- Product info -->
                         <div class="flex-1 flex flex-col justify-between min-w-0">
                             <div>
-                                <h3 class="text-xs font-bold text-slate-200 line-clamp-1">{{ product.name }}</h3>
-                                <p class="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{{ product.description || 'Chưa cập nhật mô tả nguyên liệu & hương vị của món ăn này.' }}</p>
+                                <h3 class="text-xs font-black text-slate-800 leading-snug">{{ product.name }}</h3>
+                                <p class="text-[10px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{{ product.description || 'Xem chi tiết nguyên liệu và đánh giá của món ăn này.' }}</p>
                                 
                                 <!-- Kitchen pause/out of stock countdown banner -->
-                                <div v-if="product.is_kitchen_paused || product.is_kitchen_out_of_stock" class="mt-1.5 inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded-lg text-[9px] font-bold">
-                                    <Clock class="size-2.5 animate-pulse text-amber-550" />
-                                    <span>Bán lại sau: {{ formatProductCountdown(product.paused_until || product.out_of_stock_until) }}</span>
+                                <div v-if="product.is_kitchen_paused || product.is_kitchen_out_of_stock" class="mt-2 inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-600 px-2 py-0.5 rounded text-[9px] font-bold">
+                                    <Clock class="size-2.5 animate-pulse text-amber-500" />
+                                    <span>Bán lại: {{ formatProductCountdown(product.paused_until || product.out_of_stock_until) }}</span>
                                 </div>
                             </div>
                             
-                            <div class="flex items-end justify-between mt-2">
-                                <span class="text-sm font-extrabold text-amber-400">{{ formatCurrency(product.price) }}</span>
+                            <div class="flex items-end justify-between mt-2.5" @click.stop>
+                                <span class="text-xs font-black text-amber-600 tracking-wide">{{ formatCurrency(product.price) }}</span>
                                 
                                 <button
                                     @click="openItemModal(product)"
                                     :disabled="!product.in_stock"
-                                    class="size-7 rounded-lg bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 flex items-center justify-center font-bold disabled:bg-slate-900 disabled:text-slate-700 transition-all shadow-md shadow-amber-500/10"
+                                    class="size-8 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-90 text-white flex items-center justify-center font-bold disabled:bg-slate-100 disabled:text-slate-400 transition-all shadow-sm cursor-pointer"
                                 >
-                                    <Plus class="size-4" />
+                                    <Plus class="size-4 stroke-[3]" />
                                 </button>
                             </div>
                         </div>
@@ -799,63 +837,63 @@ onUnmounted(() => {
         <!-- ── Floating Shopping Cart Button ──────────────────────────────── -->
         <div 
             v-if="cart.length > 0"
-            class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100vw-32px)] max-w-[380px] z-40"
+            class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100vw-40px)] max-w-[360px] z-40"
         >
             <button
                 @click="isCartOpen = true"
-                class="w-full h-12 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-between px-5 font-bold shadow-lg shadow-amber-500/25 active:scale-98 transition-all"
+                class="w-full h-13 rounded-2xl bg-slate-900 hover:bg-slate-850 text-white flex items-center justify-between px-5 font-black shadow-lg active:scale-98 transition-all cursor-pointer"
             >
-                <div class="flex items-center gap-2">
-                    <div class="bg-slate-950 text-amber-500 text-xs size-5.5 rounded-lg flex items-center justify-center">
+                <div class="flex items-center gap-2.5">
+                    <div class="bg-white text-slate-950 text-[10px] font-black size-5 rounded-lg flex items-center justify-center shadow-md">
                         {{ cartTotalItems }}
                     </div>
-                    <span class="text-xs">Xem giỏ hàng</span>
+                    <span class="text-xs uppercase tracking-wider font-extrabold">Xem giỏ hàng</span>
                 </div>
                 <div class="flex items-center gap-1 text-xs">
-                    <span>Tổng:</span>
-                    <span class="text-sm font-extrabold">{{ formatCurrency(cartTotalPrice) }}</span>
+                    <span class="text-slate-350 font-bold">Tổng:</span>
+                    <span class="text-sm font-black tracking-tight border-b-2 border-slate-800/30 pb-0.5">{{ formatCurrency(cartTotalPrice) }}</span>
                 </div>
             </button>
         </div>
 
         <!-- ── Cart Drawer Slide Up ────────────────────────────────────────── -->
-        <div v-if="isCartOpen" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end justify-center">
+        <div v-if="isCartOpen" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end justify-center">
             <!-- Overlay click closer -->
             <div class="absolute inset-0" @click="isCartOpen = false"></div>
             
-            <div class="bg-slate-900 w-full max-w-md rounded-t-3xl border-t border-slate-800 z-10 flex flex-col max-h-[85vh] animate-slide-up relative">
-                <header class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <div class="bg-white w-full max-w-md rounded-t-[30px] border-t border-slate-200 z-10 flex flex-col max-h-[85vh] animate-slide-up relative shadow-2xl">
+                <header class="p-5 border-b border-slate-100 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <ShoppingCart class="size-4 text-amber-500" />
-                        <h2 class="text-sm font-bold text-slate-200">Giỏ hàng của bạn</h2>
+                        <ShoppingCart class="size-4.5 text-slate-800" />
+                        <h2 class="text-xs font-black text-slate-800 uppercase tracking-wider">Giỏ hàng của bạn</h2>
                     </div>
-                    <button @click="isCartOpen = false" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
+                    <button @click="isCartOpen = false" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer">
                         <X class="size-4" />
                     </button>
                 </header>
                 
                 <!-- Cart items list -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <div v-for="item in cart" :key="item.product.id" class="flex gap-3 pb-3 border-b border-slate-850">
-                        <div class="size-12 rounded-lg bg-slate-950 overflow-hidden border border-slate-850">
+                <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                    <div v-for="item in cart" :key="item.product.id" class="flex gap-4.5 pb-4 border-b border-slate-100">
+                        <div class="size-13 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
                             <img v-if="item.product.image_url" :src="item.product.image_url" :alt="item.product.name" class="size-full object-cover" />
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex justify-between items-start">
-                                <h4 class="text-xs font-bold text-slate-200 line-clamp-1">{{ item.product.name }}</h4>
-                                <span class="text-xs font-bold text-amber-400">{{ formatCurrency(item.product.price * item.quantity) }}</span>
+                                <h4 class="text-xs font-black text-slate-800 line-clamp-1">{{ item.product.name }}</h4>
+                                <span class="text-xs font-black text-amber-600 tracking-wide">{{ formatCurrency(item.product.price * item.quantity) }}</span>
                             </div>
-                            <p v-if="item.notes" class="text-xxs text-slate-500 italic mt-0.5 line-clamp-1">Ghi chú: {{ item.notes }}</p>
+                            <p v-if="item.notes" class="text-xxs text-slate-500 italic mt-1 line-clamp-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 w-max">Ghi chú: {{ item.notes }}</p>
                             
-                            <div class="flex items-center justify-between mt-2">
-                                <span class="text-[10px] text-slate-500">{{ formatCurrency(item.product.price) }} / món</span>
+                            <div class="flex items-center justify-between mt-2.5">
+                                <span class="text-[10px] text-slate-400 font-bold">{{ formatCurrency(item.product.price) }} / món</span>
                                 
-                                <div class="flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-850">
-                                    <button @click="updateCartQuantity(item.product.id, -1)" class="p-1 hover:text-amber-500 text-slate-400">
+                                <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                                    <button @click="updateCartQuantity(item.product.id, -1)" class="p-1 hover:text-amber-500 text-slate-500 cursor-pointer">
                                         <Minus class="size-3" />
                                     </button>
-                                    <span class="text-xs font-bold w-4 text-center text-slate-200">{{ item.quantity }}</span>
-                                    <button @click="updateCartQuantity(item.product.id, 1)" class="p-1 hover:text-amber-500 text-slate-400">
+                                    <span class="text-xs font-black w-4 text-center text-slate-800">{{ item.quantity }}</span>
+                                    <button @click="updateCartQuantity(item.product.id, 1)" class="p-1 hover:text-amber-500 text-slate-500 cursor-pointer">
                                         <Plus class="size-3" />
                                     </button>
                                 </div>
@@ -864,175 +902,239 @@ onUnmounted(() => {
                     </div>
                     
                     <!-- Customer Information Form -->
-                    <div class="pt-4 border-t border-slate-850 space-y-3">
-                        <h3 class="text-xs font-bold text-slate-300">Thông tin nhận đơn đệm</h3>
+                    <div class="pt-4 border-t border-slate-100 space-y-4">
+                        <h3 class="text-xs font-black text-slate-650 uppercase tracking-wide">Thông tin gọi món</h3>
                         
-                        <div class="space-y-2.5">
+                        <div class="space-y-3">
                             <div>
-                                <label class="text-[10px] font-bold text-slate-500 block mb-1">Tên của bạn (Tùy chọn)</label>
+                                <label class="text-[9px] font-black text-slate-400 block mb-1.5 uppercase tracking-wider">Tên của bạn (Tùy chọn)</label>
                                 <input 
                                     v-model="customerName" 
                                     type="text" 
                                     placeholder="Ví dụ: Anh Quân" 
-                                    class="w-full h-10 px-3 rounded-lg bg-slate-950 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-amber-500"
+                                    class="w-full h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-slate-800 transition-all shadow-inner"
                                 />
                             </div>
                             <div>
-                                <label class="text-[10px] font-bold text-slate-500 block mb-1">Số điện thoại (Tùy chọn)</label>
+                                <label class="text-[9px] font-black text-slate-400 block mb-1.5 uppercase tracking-wider">Số điện thoại (Tùy chọn)</label>
                                 <input 
                                     v-model="customerPhone" 
                                     type="text" 
                                     placeholder="Để tích điểm hoặc liên hệ" 
-                                    class="w-full h-10 px-3 rounded-lg bg-slate-950 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-amber-500"
+                                    class="w-full h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-slate-800 transition-all shadow-inner"
                                 />
                             </div>
                         </div>
                         
                         <!-- Customer Loyalty Display Card -->
-                        <div v-if="customerLoyalty" class="mt-2.5 p-3.5 bg-slate-950 border border-amber-500/20 rounded-xl text-xxs text-left text-slate-400 space-y-1.5 animate-in fade-in duration-200">
-                            <p class="font-black text-slate-200 text-xs flex items-center gap-1">✨ Hội viên: {{ customerLoyalty.full_name }}</p>
-                            <div class="flex items-center justify-between mt-1 border-t border-slate-900 pt-1.5">
+                        <div v-if="customerLoyalty" class="mt-2.5 p-4 bg-slate-50 border border-amber-200 rounded-2xl text-xxs text-left text-slate-500 space-y-2 animate-in fade-in duration-200 shadow-sm">
+                            <p class="font-black text-slate-800 text-xs flex items-center gap-1.5">✨ Hội viên: {{ customerLoyalty.full_name }}</p>
+                            <div class="flex items-center justify-between mt-1.5 border-t border-slate-200 pt-2">
                                 <span>Hạng thẻ:</span>
-                                <span v-if="customerLoyalty.membership_level === 'diamond'" class="text-indigo-400 font-black">💎 Kim Cương (Giảm 10%)</span>
-                                <span v-else-if="customerLoyalty.membership_level === 'gold'" class="text-amber-400 font-black">⭐ Vàng (Giảm 5%)</span>
-                                <span v-else class="text-slate-400 font-bold">🥈 Bạc (Tích điểm)</span>
+                                <span v-if="customerLoyalty.membership_level === 'diamond'" class="text-indigo-600 font-black">💎 Kim Cương (Giảm 10%)</span>
+                                <span v-else-if="customerLoyalty.membership_level === 'gold'" class="text-amber-600 font-black">⭐ Vàng (Giảm 5%)</span>
+                                <span v-else class="text-slate-550 font-bold">🥈 Bạc (Tích điểm)</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span>Điểm tích lũy:</span>
-                                <span class="text-amber-500 font-extrabold">{{ customerLoyalty.loyalty_points }} pt</span>
+                                <span class="text-amber-600 font-extrabold">{{ customerLoyalty.loyalty_points }} pt</span>
                             </div>
-                            <p v-if="customerLoyalty.membership_level !== 'silver'" class="text-emerald-400 text-[10px] font-bold italic text-center mt-1">
-                                * Tự động giảm giá {{ customerLoyalty.membership_level === 'diamond' ? '10%' : '5%' }} khi đơn hàng được nhân viên xác nhận!
+                            <p v-if="customerLoyalty.membership_level !== 'silver'" class="text-emerald-600 text-[10px] font-bold italic text-center mt-1 bg-emerald-50 py-1.5 rounded-lg border border-emerald-100">
+                                * Tự động giảm giá {{ customerLoyalty.membership_level === 'diamond' ? '10%' : '5%' }} khi đơn hàng được duyệt!
                             </p>
                         </div>
                     </div>
                 </div>
                 
-                <footer class="p-4 border-t border-slate-800 bg-slate-950/50">
-                    <div class="flex justify-between items-center mb-4 text-slate-300">
+                <footer class="p-5 border-t border-slate-100 bg-slate-50">
+                    <div class="flex justify-between items-center mb-4 text-slate-650">
                         <span class="text-xs">Tạm tính:</span>
-                        <span class="text-base font-extrabold text-amber-400">{{ formatCurrency(cartTotalPrice) }}</span>
+                        <span class="text-base font-black text-amber-600 tracking-wide">{{ formatCurrency(cartTotalPrice) }}</span>
                     </div>
                     
                     <button
                         @click="submitOrder"
                         :disabled="isOrdering || cart.length === 0"
-                        class="w-full h-11 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10"
+                        class="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-850 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all cursor-pointer"
                     >
                         <Loader2 v-if="isOrdering" class="size-4 animate-spin" />
-                        <span v-else>Gửi Yêu Cầu Đặt Món (Đệm)</span>
+                        <span v-else class="uppercase tracking-wider">Xác nhận gọi món</span>
                     </button>
-                    <p class="text-center text-[10px] text-slate-500 mt-2.5">
-                        * Hệ thống ghi nhận đệm để nhân viên duyệt, tránh đơn hàng ảo.
+                    <p class="text-center text-[9px] text-slate-450 mt-3">
+                        * Hệ thống ghi nhận đơn đệm để nhân viên xác thực tại bàn.
                     </p>
                 </footer>
             </div>
         </div>
 
-        <!-- ── Product Detail / Customize Notes Modal ───────────────────────── -->
-        <div v-if="isItemModalOpen && modalProduct" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xs overflow-hidden animate-zoom-in relative">
-                <header class="p-4 border-b border-slate-850 flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-slate-200 line-clamp-1">{{ modalProduct.name }}</h3>
-                    <button @click="isItemModalOpen = false" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
-                        <X class="size-3.5" />
+        <!-- ── Product Detail / Customize Notes Modal (Enhanced Details View) ── -->
+        <div v-if="isItemModalOpen && modalProduct" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-5">
+            <div class="bg-white border border-slate-200 rounded-[26px] w-full max-w-sm overflow-hidden animate-zoom-in shadow-2xl flex flex-col max-h-[85vh]">
+                <header class="p-4.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <h3 class="text-sm font-black text-slate-800 line-clamp-1">Chi tiết món ăn</h3>
+                    <button @click="isItemModalOpen = false" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer">
+                        <X class="size-4" />
                     </button>
                 </header>
                 
-                <div class="p-4 space-y-4">
-                    <!-- Qty selection -->
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs text-slate-400 font-semibold">Số lượng</span>
-                        <div class="flex items-center gap-3 bg-slate-950 p-1.5 rounded-lg border border-slate-850">
-                            <button @click="modalQuantity = Math.max(1, modalQuantity - 1)" class="p-1 text-slate-400 hover:text-amber-500">
-                                <Minus class="size-3.5" />
-                            </button>
-                            <span class="text-sm font-bold w-6 text-center text-slate-200">{{ modalQuantity }}</span>
-                            <button @click="modalQuantity = modalQuantity + 1" class="p-1 text-slate-400 hover:text-amber-500">
-                                <Plus class="size-3.5" />
-                            </button>
+                <div class="p-5 space-y-5 overflow-y-auto flex-1">
+                    <!-- Image Showcase -->
+                    <div class="w-full h-44 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 relative shrink-0 shadow-inner flex items-center justify-center">
+                        <img v-if="modalProduct.image_url" :src="modalProduct.image_url" :alt="modalProduct.name" class="size-full object-cover" />
+                        <Utensils v-else class="size-10 text-slate-300" />
+                    </div>
+
+                    <!-- Title & SKU -->
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h2 class="text-base font-black text-slate-800">{{ modalProduct.name }}</h2>
+                            <p class="text-[9px] font-bold text-slate-400 mt-0.5">Mã món: {{ modalProduct.sku }}</p>
+                        </div>
+                        <span class="text-base font-black text-amber-600 tracking-wide">{{ formatCurrency(modalProduct.price) }}</span>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="space-y-1.5">
+                        <h4 class="text-xxs font-black text-slate-400 uppercase tracking-wider">Mô tả món ăn</h4>
+                        <p class="text-xs text-slate-650 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{{ modalProduct.description || 'Món ăn ngon miệng, được lựa chọn kỹ càng và chế biến chuyên nghiệp bởi các đầu bếp hàng đầu.' }}</p>
+                    </div>
+
+                    <!-- Ingredients (Thành phần) -->
+                    <div class="space-y-2">
+                        <h4 class="text-xxs font-black text-slate-400 uppercase tracking-wider">Thành phần chính</h4>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span 
+                                v-for="ing in getProductIngredients(modalProduct.name)" 
+                                :key="ing"
+                                class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200"
+                            >
+                                {{ ing }}
+                            </span>
                         </div>
                     </div>
-                    
-                    <!-- Notes selection -->
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-500 block mb-1">Ghi chú (Ví dụ: Không cay, ít đá,...)</label>
-                        <textarea 
-                            v-model="modalNotes" 
-                            rows="2"
-                            placeholder="Nhập ghi chú cho nhà bếp..." 
-                            class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-amber-500 resize-none"
-                        ></textarea>
+
+                    <!-- Ratings & Reviews (Đánh giá món đó) -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <h4 class="text-xxs font-black text-slate-400 uppercase tracking-wider">Đánh giá khách hàng</h4>
+                            <div class="flex items-center gap-1 text-xs font-bold text-amber-500">
+                                <Star class="size-3.5 fill-amber-500 text-amber-500" />
+                                <span>4.9 / 5</span>
+                                <span class="text-[10px] text-slate-400 font-medium">(2 nhận xét)</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            <div 
+                                v-for="rev in getProductReviews(modalProduct.id)" 
+                                :key="rev.author"
+                                class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] font-black text-slate-700">{{ rev.author }}</span>
+                                    <div class="flex gap-0.5">
+                                        <Star v-for="s in 5" :key="s" class="size-2.5 fill-amber-500 text-amber-500" />
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-slate-500 leading-relaxed italic">"{{ rev.comment }}"</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customize notes & Qty -->
+                    <div class="pt-4 border-t border-slate-100 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-600 font-black uppercase tracking-wider">Số lượng đặt</span>
+                            <div class="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                                <button @click="modalQuantity = Math.max(1, modalQuantity - 1)" class="p-1 text-slate-400 hover:text-amber-500 cursor-pointer">
+                                    <Minus class="size-3.5" />
+                                </button>
+                                <span class="text-sm font-black w-6 text-center text-slate-800">{{ modalQuantity }}</span>
+                                <button @click="modalQuantity = modalQuantity + 1" class="p-1 text-slate-400 hover:text-amber-500 cursor-pointer">
+                                    <Plus class="size-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                            <label class="text-[9px] font-black text-slate-400 block uppercase tracking-wider">Ghi chú cho bếp (Ví dụ: Không cay, ít ngọt,...)</label>
+                            <textarea 
+                                v-model="modalNotes" 
+                                rows="2"
+                                placeholder="Nhập ghi chú yêu cầu của bạn..." 
+                                class="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-slate-800 resize-none shadow-inner"
+                            ></textarea>
+                        </div>
                     </div>
                 </div>
                 
-                <footer class="p-4 border-t border-slate-850 bg-slate-950/20 flex gap-2">
-                    <button @click="isItemModalOpen = false" class="flex-1 h-9 rounded-lg border border-slate-800 text-slate-400 text-xs font-bold hover:bg-slate-850">
-                        Hủy
+                <footer class="p-4.5 border-t border-slate-100 bg-slate-50 flex gap-2.5 shrink-0">
+                    <button @click="isItemModalOpen = false" class="flex-1 h-10 rounded-xl border border-slate-250 text-slate-500 text-xs font-bold hover:bg-slate-100 cursor-pointer transition-all">
+                        Quay lại
                     </button>
-                    <button @click="addToCart" class="flex-1 h-9 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold shadow-md shadow-amber-500/10">
-                        Xác nhận
+                    <button @click="addToCart" class="flex-1 h-10 bg-slate-900 hover:bg-slate-850 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition-all uppercase tracking-wider">
+                        Thêm vào giỏ
                     </button>
                 </footer>
             </div>
         </div>
 
         <!-- ── Detailed Feedback Modal ─────────────────────────────────────── -->
-        <div v-if="showFeedbackSection" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end justify-center">
-            <div class="bg-slate-900 w-full max-w-md rounded-t-3xl border-t border-slate-800 z-10 flex flex-col max-h-[90vh] animate-slide-up relative">
-                <header class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div v-if="showFeedbackSection" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end justify-center">
+            <div class="bg-white w-full max-w-md rounded-t-[30px] border-t border-slate-200 z-10 flex flex-col max-h-[90vh] animate-slide-up relative">
+                <header class="p-5 border-b border-slate-100 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <HeartHandshake class="size-4 text-amber-500" />
-                        <h2 class="text-sm font-bold text-slate-200">Đánh giá trải nghiệm tại bàn</h2>
+                        <HeartHandshake class="size-4.5 text-slate-800" />
+                        <h2 class="text-xs font-black text-slate-800 uppercase tracking-wider">Đánh giá dịch vụ</h2>
                     </div>
-                    <button @click="showFeedbackSection = false" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
+                    <button @click="showFeedbackSection = false" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer">
                         <X class="size-4" />
                     </button>
                 </header>
                 
-                <div class="flex-1 overflow-y-auto p-4 space-y-5">
-                    <div v-if="feedbackSubmittedSuccessfully" class="py-12 text-center space-y-3">
-                        <div class="size-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto text-xl font-bold animate-bounce">
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    <div v-if="feedbackSubmittedSuccessfully" class="py-14 text-center space-y-4">
+                        <div class="size-14 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-500 flex items-center justify-center mx-auto text-2xl font-bold animate-bounce shadow-sm">
                             ✓
                         </div>
-                        <h3 class="text-sm font-bold text-slate-200">Gửi đánh giá thành công!</h3>
-                        <p class="text-xs text-slate-400">Aventura chân thành cảm ơn ý kiến đóng góp của bạn.</p>
+                        <h3 class="text-sm font-black text-slate-800">Đã gửi phản hồi thành công!</h3>
+                        <p class="text-xs text-slate-500 leading-relaxed">Cảm ơn bạn đã đóng góp ý kiến giúp chúng tôi nâng cao chất lượng phục vụ.</p>
                     </div>
                     
-                    <div v-else class="space-y-5">
+                    <div v-else class="space-y-6">
                         <!-- Step 1: Overall Experience -->
-                        <div class="space-y-2">
-                            <h3 class="text-xs font-bold text-slate-300">1. Trải nghiệm chung</h3>
-                            <div class="flex items-center gap-2 justify-center py-2 bg-slate-950 rounded-xl border border-slate-855">
+                        <div class="space-y-2.5">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider">1. Trải nghiệm chung</h3>
+                            <div class="flex items-center gap-2.5 justify-center py-3.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
                                 <button 
                                     v-for="star in 5" 
                                     :key="star" 
                                     @click="feedbackRating = star"
-                                    class="p-1"
+                                    class="p-1 cursor-pointer"
                                 >
-                                    <Star :class="['size-7 transition-all', star <= feedbackRating ? 'fill-amber-500 text-amber-500' : 'text-slate-650']" />
+                                    <Star :class="['size-7.5 transition-all duration-200', star <= feedbackRating ? 'fill-amber-500 text-amber-500 scale-110' : 'text-slate-300']" />
                                 </button>
                             </div>
                             <textarea 
                                 v-model="feedbackContent"
                                 rows="2"
-                                placeholder="Góp ý thêm về không gian, chất lượng phục vụ..."
-                                class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-850 text-xs text-slate-350 focus:outline-none focus:border-amber-500 resize-none"
+                                placeholder="Nhập thêm nhận xét của bạn..."
+                                class="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-slate-800 resize-none shadow-inner"
                             ></textarea>
                         </div>
                         
                         <!-- Step 2: Dish Feedback -->
-                        <div v-if="Object.keys(itemsRating).length > 0" class="space-y-2">
-                            <h3 class="text-xs font-bold text-slate-300">2. Đánh giá món ăn</h3>
+                        <div v-if="Object.keys(itemsRating).length > 0" class="space-y-2.5">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider">2. Đánh giá món ăn</h3>
                             
                             <div class="space-y-3">
                                 <div 
                                     v-for="[pId, val] in Object.entries(itemsRating)" 
                                     :key="pId"
-                                    class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-2"
+                                    class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
                                 >
                                     <div class="flex items-center justify-between">
-                                        <span class="text-xs font-bold text-slate-300 line-clamp-1">
+                                        <span class="text-xs font-bold text-slate-700 line-clamp-1">
                                             {{ products.find(p => p.id === parseInt(pId))?.name || 'Món ăn' }}
                                         </span>
                                         
@@ -1042,36 +1144,36 @@ onUnmounted(() => {
                                                 v-for="star in 5" 
                                                 :key="star"
                                                 @click="itemsRating[parseInt(pId)].rating = star"
-                                                class="p-0.5"
+                                                class="p-0.5 cursor-pointer"
                                             >
-                                                <Star :class="['size-4.5', star <= val.rating ? 'fill-amber-500 text-amber-500' : 'text-slate-700']" />
+                                                <Star :class="['size-4.5 transition-all', star <= val.rating ? 'fill-amber-500 text-amber-500' : 'text-slate-300']" />
                                             </button>
                                         </div>
                                     </div>
                                     <input 
                                         v-model="itemsRating[parseInt(pId)].comment"
                                         type="text" 
-                                        placeholder="Ý kiến về món ăn này (ví dụ: ngon, mặn, nguội...)" 
-                                        class="w-full h-8 px-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xxs text-slate-300 focus:outline-none focus:border-amber-500"
+                                        placeholder="Góp ý về món ăn này (ví dụ: mặn, ngon...)" 
+                                        class="w-full h-9 px-3 rounded-xl bg-white border border-slate-200 text-xxs text-slate-800 focus:outline-none focus:border-slate-800"
                                     />
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Step 3: Staff Feedback -->
-                        <div v-if="props.staffList.length > 0" class="space-y-2">
-                            <h3 class="text-xs font-bold text-slate-300">3. Đánh giá nhân viên ca trực</h3>
+                        <div v-if="props.staffList.length > 0" class="space-y-2.5">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider">3. Đánh giá nhân viên phục vụ</h3>
                             
                             <div class="space-y-3">
                                 <div 
                                     v-for="staff in props.staffList" 
                                     :key="staff.employee_id"
-                                    class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-2"
+                                    class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
                                 >
                                     <div class="flex items-center justify-between">
-                                        <div>
-                                            <span class="text-xs font-bold text-slate-300">{{ staff.name }}</span>
-                                            <span class="text-[9px] font-semibold text-slate-500 ml-1.5 px-1 bg-slate-900 rounded border border-slate-850">{{ staff.role }}</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold text-slate-700">{{ staff.name }}</span>
+                                            <span class="text-[9px] font-black uppercase text-slate-500 px-1.5 py-0.5 bg-slate-200 rounded border border-slate-300">{{ staff.role }}</span>
                                         </div>
                                         
                                         <!-- Mini Stars -->
@@ -1080,17 +1182,17 @@ onUnmounted(() => {
                                                 v-for="star in 5" 
                                                 :key="star"
                                                 @click="staffRating[staff.employee_id].rating = star"
-                                                class="p-0.5"
+                                                class="p-0.5 cursor-pointer"
                                             >
-                                                <Star :class="['size-4.5', star <= staffRating[staff.employee_id].rating ? 'fill-amber-500 text-amber-500' : 'text-slate-700']" />
+                                                <Star :class="['size-4.5 transition-all', star <= staffRating[staff.employee_id].rating ? 'fill-amber-500 text-amber-500' : 'text-slate-300']" />
                                             </button>
                                         </div>
                                     </div>
                                     <input 
                                         v-model="staffRating[staff.employee_id].comment"
                                         type="text" 
-                                        placeholder="Ý kiến về nhân viên này (ví dụ: nhiệt tình, chậm chạp...)" 
-                                        class="w-full h-8 px-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xxs text-slate-300 focus:outline-none focus:border-amber-500"
+                                        placeholder="Nhận xét về nhân viên này..." 
+                                        class="w-full h-9 px-3 rounded-xl bg-white border border-slate-200 text-xxs text-slate-800 focus:outline-none focus:border-slate-800"
                                     />
                                 </div>
                             </div>
@@ -1098,88 +1200,90 @@ onUnmounted(() => {
                     </div>
                 </div>
                 
-                <footer v-if="!feedbackSubmittedSuccessfully" class="p-4 border-t border-slate-800 bg-slate-950/30">
+                <footer v-if="!feedbackSubmittedSuccessfully" class="p-5 border-t border-slate-100 bg-slate-50">
                     <button
                         @click="submitFeedback"
                         :disabled="isSubmittingFeedback"
-                        class="w-full h-11 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 text-slate-950 text-xs font-bold flex items-center justify-center gap-2"
+                        class="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-850 disabled:bg-slate-200 text-white text-xs font-black flex items-center justify-center gap-2 cursor-pointer"
                     >
                         <Loader2 v-if="isSubmittingFeedback" class="size-4 animate-spin" />
-                        <span v-else>Gửi Đánh Giá Trải Nghiệm</span>
+                        <span v-else class="uppercase tracking-wider">Gửi phản hồi của bạn</span>
                     </button>
                 </footer>
             </div>
         </div>
 
         <!-- ── VietQR Payment Modal ────────────────────────────────────────── -->
-        <div v-if="isQrPaymentModalOpen && paymentQrOrder" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden animate-zoom-in relative shadow-2xl">
-                <header class="p-4 border-b border-slate-850 flex items-center justify-between">
+        <div v-if="isQrPaymentModalOpen && paymentQrOrder" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white border border-slate-200 rounded-[30px] w-full max-w-sm overflow-hidden animate-zoom-in shadow-2xl">
+                <header class="p-5 border-b border-slate-100 flex items-center justify-between">
                     <div>
-                        <h3 class="text-xs font-bold text-slate-200">Thanh toán chuyển khoản VietQR</h3>
-                        <p class="text-[10px] text-slate-500">Mã đơn: {{ paymentQrOrder.order_number }}</p>
+                        <h3 class="text-xs font-black text-slate-800 uppercase tracking-wide">Chuyển khoản VietQR</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Hóa đơn: {{ paymentQrOrder.order_number }}</p>
                     </div>
-                    <button @click="closeQrPaymentModal" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
+                    <button @click="closeQrPaymentModal" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer">
                         <X class="size-4" />
                     </button>
                 </header>
                 
-                <div class="p-5 space-y-4 text-center">
+                <div class="p-6 space-y-4 text-center">
                     <!-- Success State -->
-                    <div v-if="paymentSuccess" class="py-6 space-y-3">
-                        <div class="size-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto text-3xl font-bold animate-bounce">
+                    <div v-if="paymentSuccess" class="py-6 space-y-4 animate-in fade-in duration-300">
+                        <div class="size-16 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto text-3xl font-bold animate-bounce shadow-md">
                             ✓
                         </div>
-                        <h4 class="text-sm font-bold text-slate-100">Thanh toán thành công!</h4>
-                        <p class="text-xs text-slate-400">Đơn hàng của quý khách đã được hoàn tất thanh toán. Cảm ơn quý khách!</p>
+                        <div>
+                            <h4 class="text-sm font-black text-slate-800">Thanh toán thành công!</h4>
+                            <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">Đơn hàng của quý khách đã hoàn tất thanh toán. Cảm ơn quý khách đã tin tưởng!</p>
+                        </div>
                     </div>
                     
                     <!-- Standard QR / Loading State -->
                     <div v-else class="space-y-4">
-                        <div class="bg-white p-3 rounded-2xl inline-block shadow-lg relative">
+                        <div class="bg-white p-3.5 rounded-[22px] inline-block shadow-lg border border-slate-200">
                             <div v-if="!paymentQrUrl" class="size-48 flex items-center justify-center">
                                 <Loader2 class="size-8 text-amber-500 animate-spin" />
                             </div>
-                            <img v-else :src="paymentQrUrl" alt="VietQR Payment Code" class="size-48 object-contain" />
+                            <img v-else :src="paymentQrUrl" alt="VietQR Code" class="size-48 object-contain" />
                         </div>
                         
                         <!-- Account Details -->
-                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 text-left space-y-1.5 text-xxs">
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Số tiền:</span>
-                                <span class="text-amber-400 font-extrabold text-sm">{{ formatCurrency(paymentQrOrder.total_amount) }}</span>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-250 space-y-2 text-left text-xxs">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400 font-bold uppercase tracking-wider">Số tiền:</span>
+                                <span class="text-amber-600 font-black text-sm tracking-wide">{{ formatCurrency(paymentQrOrder.total_amount) }}</span>
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Nội dung chuyển khoản:</span>
-                                <span class="text-slate-200 font-bold">AVTORD{{ paymentQrOrder.order_id }}</span>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400 font-bold uppercase tracking-wider">Nội dung:</span>
+                                <span class="text-slate-700 font-extrabold select-all bg-white px-2 py-0.5 border border-slate-200 rounded">AVTORD{{ paymentQrOrder.order_id }}</span>
                             </div>
                         </div>
 
                         <!-- Waiting Spinner -->
-                        <div class="flex items-center justify-center gap-2 text-xxs text-amber-400 font-semibold py-1 bg-amber-500/5 rounded-lg border border-amber-500/10">
+                        <div class="flex items-center justify-center gap-2 text-xxs text-amber-600 font-black py-2 bg-amber-50 rounded-xl border border-amber-100">
                             <Loader2 class="size-3.5 animate-spin" />
-                            <span>Đang chờ chuyển khoản từ ứng dụng ngân hàng...</span>
+                            <span class="uppercase tracking-wider">Chờ hệ thống ngân hàng xác nhận...</span>
                         </div>
 
-                        <p class="text-[10px] text-slate-500 text-left leading-relaxed">
-                            💡 **Hướng dẫn**: Mở ứng dụng ngân hàng quét mã QR trên để chuyển khoản tự động. Vui lòng giữ nguyên nội dung chuyển khoản để hệ thống ghi nhận ngay lập tức.
+                        <p class="text-[9px] text-slate-400 text-left leading-relaxed">
+                            💡 **Hướng dẫn**: Dùng ứng dụng ngân hàng quét mã QR để chuyển khoản nhanh. Vui lòng giữ nguyên nội dung chuyển khoản để lệnh thanh toán tự động khớp trong 5-10 giây.
                         </p>
                     </div>
                 </div>
                 
                 <!-- Bottom controls: Simulator button -->
-                <footer class="p-4 border-t border-slate-850 bg-slate-950/40 flex flex-col gap-2">
+                <footer class="p-5 border-t border-slate-100 bg-slate-50 flex flex-col gap-2.5">
                     <button 
                         v-if="!paymentSuccess"
                         @click="simulatePaymentSuccess"
                         :disabled="isSimulatingPayment"
-                        class="w-full h-9 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-400 rounded-lg text-xxs font-bold border border-slate-700/60 flex items-center justify-center gap-1.5"
+                        class="w-full h-10 bg-slate-100 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 text-slate-800 rounded-xl text-xxs font-black flex items-center justify-center gap-2 cursor-pointer transition-all"
                     >
-                        <Loader2 v-if="isSimulatingPayment" class="size-3 animate-spin" />
+                        <Loader2 v-if="isSimulatingPayment" class="size-3.5 animate-spin" />
                         <span>⚡ Giả lập thanh toán thành công (Test)</span>
                     </button>
-                    <button @click="closeQrPaymentModal" class="w-full h-9 bg-slate-900 border border-slate-800 text-slate-400 text-xxs font-bold hover:bg-slate-850 rounded-lg">
-                        {{ paymentSuccess ? 'Đóng' : 'Hủy' }}
+                    <button @click="closeQrPaymentModal" class="w-full h-10 bg-slate-900 text-white text-xxs font-black hover:bg-slate-850 rounded-xl cursor-pointer transition-all">
+                        {{ paymentSuccess ? 'Đóng' : 'Quay lại' }}
                     </button>
                 </footer>
             </div>
