@@ -1,0 +1,9 @@
+{
+    "reverb": {
+        "is_maintenance": false,
+        "message": "Dịch vụ thông báo thời gian thực Reverb đang bảo trì.",
+        "last_status": "unknown",
+        "last_latency": 0,
+        "last_checked_at": null
+    }
+}

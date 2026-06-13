@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ title }}</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; }
+  .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+  .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 36px 32px; text-align: center; }
+  .header h1 { margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px; }
+  .body { padding: 40px 32px; text-align: left; }
+  .greeting { font-size: 18px; font-weight: 600; color: #1e1b4b; margin: 0 0 16px; }
+  .text { font-size: 15px; line-height: 1.7; color: #334155; margin: 0 0 20px; white-space: pre-wrap; }
+  .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; border-top: 1px solid #f1f5f9; }
+  .footer p { margin: 4px 0; font-size: 13px; color: #64748b; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>📢 Aventura</h1>
+    <p>Thông báo từ Ban quản trị</p>
+  </div>
+
+  <div class="body">
+    <p class="greeting">Xin chào {{ recipient_name }},</p>
+
+    <div class="text">
+{{ content }}
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 Aventura — Nền tảng SaaS Quản lý Nhà hàng & Điểm bán</p>
+    <p>Đây là thông báo chung gửi từ hệ thống Aventura.</p>
+  </div>
+</div>
+</body>
+</html>
