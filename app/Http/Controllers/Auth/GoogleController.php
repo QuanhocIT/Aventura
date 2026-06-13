@@ -20,13 +20,19 @@ class GoogleController extends Controller
 
     public function redirectToGoogle()
     {
-        return Socialite::driver('google')->stateless()->redirect();
+        return Socialite::driver('google')
+            ->redirectUrl(url('/auth/google/callback'))
+            ->stateless()
+            ->redirect();
     }
 
     public function handleGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl(url('/auth/google/callback'))
+                ->stateless()
+                ->user();
             $googleEmail = $googleUser->getEmail();
 
             if (! $googleEmail) {
