@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Bell, X } from 'lucide-vue-next';
 import axios from 'axios';
+import { Bell, X } from 'lucide-vue-next';
+import { ref, computed, onMounted } from 'vue';
 
 // Notifications State
 const showNotificationDrawer = ref(false);
@@ -11,6 +11,7 @@ const notifications = ref<any[]>([]);
 const fetchNotifications = async () => {
     try {
         const res = await axios.get('/notifications');
+
         if (res.data && res.data.success) {
             notifications.value = res.data.notifications;
         }
@@ -21,6 +22,7 @@ const fetchNotifications = async () => {
 
 const toggleNotificationDrawer = () => {
     showNotificationDrawer.value = !showNotificationDrawer.value;
+
     if (showNotificationDrawer.value) {
         fetchNotifications();
     }
@@ -29,6 +31,7 @@ const toggleNotificationDrawer = () => {
 const markAsRead = async (id: string) => {
     try {
         const res = await axios.post(`/notifications/${id}/read`);
+
         if (res.data && res.data.success) {
             notifications.value = notifications.value.filter(n => n.id !== id);
             import('vue-sonner').then(m => m.toast.success('Đã đánh dấu đã đọc.'));

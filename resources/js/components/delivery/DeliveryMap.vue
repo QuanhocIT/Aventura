@@ -85,7 +85,10 @@ const STATUS_ICON: Record<string, string> = {
 };
 
 async function initMap() {
-    if (!mapContainer.value) return;
+    if (!mapContainer.value) {
+return;
+}
+
     L = (await import('leaflet')).default;
     await import('leaflet/dist/leaflet.css');
 
@@ -109,19 +112,25 @@ function getShipperColor(shipperId: number): string {
         shipperColors[shipperId] = BATCH_COLORS[colorIdx % BATCH_COLORS.length];
         colorIdx++;
     }
+
     return shipperColors[shipperId];
 }
 
 // ── Shipper markers ──────────────────────────────────────────────────────────
 function renderShippers() {
-    if (!map || !L) return;
+    if (!map || !L) {
+return;
+}
 
     // Clean up removed shippers
     Object.keys(shipperMarkers).forEach(id => {
         if (!props.shippers.find(s => s.id === +id)) {
             map.removeLayer(shipperMarkers[+id]);
             delete shipperMarkers[+id];
-            if (trailLines[+id]) { map.removeLayer(trailLines[+id]); delete trailLines[+id]; }
+
+            if (trailLines[+id]) {
+ map.removeLayer(trailLines[+id]); delete trailLines[+id]; 
+}
         }
     });
 
@@ -150,6 +159,7 @@ function renderShippers() {
         // Trail
         if (s.trail && s.trail.length > 1) {
             const coords = s.trail.map(p => [p.lat, p.lng]);
+
             if (trailLines[s.id]) {
                 trailLines[s.id].setLatLngs(coords);
             } else {
@@ -165,7 +175,9 @@ function renderShippers() {
 }
 
 function renderBatchRoute(s: ShipperMapData) {
-    if (!map || !L) return;
+    if (!map || !L) {
+return;
+}
 
     // Clear existing route/stops for this shipper
     (routeLines[s.id] ?? []).forEach(l => map.removeLayer(l));
@@ -173,12 +185,17 @@ function renderBatchRoute(s: ShipperMapData) {
     routeLines[s.id] = [];
     stopMarkers[s.id] = [];
 
-    if (!s.active_batch) return;
+    if (!s.active_batch) {
+return;
+}
 
     const color = getShipperColor(s.id);
     const items = [...s.active_batch.items].sort((a, b) => a.sequence_order - b.sequence_order);
     const validItems = items.filter(i => i.lat && i.lng);
-    if (validItems.length === 0) return;
+
+    if (validItems.length === 0) {
+return;
+}
 
     // Build route coords: shipper pos → each stop in sequence
     const routeCoords: [number, number][] = [[s.lat, s.lng]];
@@ -222,7 +239,9 @@ function renderBatchRoute(s: ShipperMapData) {
 
 // ── Unassigned order markers ─────────────────────────────────────────────────
 function renderOrders() {
-    if (!map || !L) return;
+    if (!map || !L) {
+return;
+}
 
     Object.keys(orderMarkers).forEach(id => {
         if (!props.orders.find(o => o.id === +id)) {
@@ -253,20 +272,39 @@ function renderAll() {
 
 // Focus camera on a specific shipper
 watch(() => props.focusShipperId, (id) => {
-    if (!map || !id) return;
+    if (!map || !id) {
+return;
+}
+
     const s = props.shippers.find(s => s.id === id);
-    if (s) map.flyTo([s.lat, s.lng], 15, { duration: 0.8 });
+
+    if (s) {
+map.flyTo([s.lat, s.lng], 15, { duration: 0.8 });
+}
+
     renderShippers(); // re-render to update active highlight
 });
 
 // Fit all visible markers into view
 function fitAll() {
-    if (!map || !L) return;
+    if (!map || !L) {
+return;
+}
+
     const coords: [number, number][] = [];
     props.shippers.forEach(s => coords.push([s.lat, s.lng]));
     props.orders.forEach(o => coords.push([o.lat, o.lng]));
-    if (coords.length === 0) return;
-    if (coords.length === 1) { map.flyTo(coords[0], 15, { duration: 0.7 }); return; }
+
+    if (coords.length === 0) {
+return;
+}
+
+    if (coords.length === 1) {
+ map.flyTo(coords[0], 15, { duration: 0.7 });
+
+ return; 
+}
+
     map.flyToBounds(L.latLngBounds(coords), { padding: [40, 40], duration: 0.8 });
 }
 
@@ -276,7 +314,9 @@ defineExpose({ fitAll });
 onMounted(initMap);
 
 onUnmounted(() => {
-    if (map) { map.remove(); map = null; }
+    if (map) {
+ map.remove(); map = null; 
+}
 });
 
 watch(() => props.shippers, renderShippers, { deep: true });
@@ -284,9 +324,16 @@ watch(() => props.orders,   renderOrders,   { deep: true });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function formatEtaMs(ms: number): string {
-    if (ms <= 0) return 'Đang đến';
+    if (ms <= 0) {
+return 'Đang đến';
+}
+
     const m = Math.round(ms / 60000);
-    if (m < 60) return `~${m}p`;
+
+    if (m < 60) {
+return `~${m}p`;
+}
+
     return `~${Math.floor(m / 60)}h${m % 60}p`;
 }
 </script>

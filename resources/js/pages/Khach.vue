@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
+import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
 
 // Import subcomponents
-import KhachPromoBanner from './khach/components/KhachPromoBanner.vue';
+import KhachFaq from './khach/components/KhachFaq.vue';
+import KhachFeatures from './khach/components/KhachFeatures.vue';
 import KhachHero from './khach/components/KhachHero.vue';
 import KhachHowItWorks from './khach/components/KhachHowItWorks.vue';
-import KhachFeatures from './khach/components/KhachFeatures.vue';
 import KhachNews from './khach/components/KhachNews.vue';
 import KhachPricing from './khach/components/KhachPricing.vue';
-import KhachTestimonials from './khach/components/KhachTestimonials.vue';
-import KhachFaq from './khach/components/KhachFaq.vue';
+import KhachPromoBanner from './khach/components/KhachPromoBanner.vue';
 import KhachStats from './khach/components/KhachStats.vue';
 import KhachStickyCta from './khach/components/KhachStickyCta.vue';
+import KhachTestimonials from './khach/components/KhachTestimonials.vue';
 
 interface Banner {
     id: number;

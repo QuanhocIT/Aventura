@@ -70,6 +70,7 @@ function setDateRange(range: 'today' | 'yesterday' | '7days' | 'month') {
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const d = String(date.getDate()).padStart(2, '0');
+
         return `${y}-${m}-${d}`;
     };
 
@@ -91,16 +92,32 @@ function setDateRange(range: 'today' | 'yesterday' | '7days' | 'month') {
         fromFilter.value = formatDate(startOfMonth);
         toFilter.value = formatDate(today);
     }
+
     applyFilter();
 }
 
 function exportCsv() {
     const params = new URLSearchParams();
-    if (actionFilter.value) params.append('action', actionFilter.value);
-    if (eventFilter.value) params.append('event', eventFilter.value);
-    if (roleFilter.value) params.append('user_role', roleFilter.value);
-    if (fromFilter.value) params.append('from', fromFilter.value);
-    if (toFilter.value) params.append('to', toFilter.value);
+
+    if (actionFilter.value) {
+params.append('action', actionFilter.value);
+}
+
+    if (eventFilter.value) {
+params.append('event', eventFilter.value);
+}
+
+    if (roleFilter.value) {
+params.append('user_role', roleFilter.value);
+}
+
+    if (fromFilter.value) {
+params.append('from', fromFilter.value);
+}
+
+    if (toFilter.value) {
+params.append('to', toFilter.value);
+}
     
     window.location.href = `/audit-logs/export?${params.toString()}`;
 }
@@ -115,7 +132,9 @@ function seedDemo() {
 
 // ── Expand row ────────────────────────────────────────────────────────────────
 const expandedId = ref<number | null>(null);
-const toggle = (id: number) => { expandedId.value = expandedId.value === id ? null : id; };
+const toggle = (id: number) => {
+ expandedId.value = expandedId.value === id ? null : id; 
+};
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 const eventConfig: Record<string, { label: string; cls: string; icon: any }> = {
@@ -142,6 +161,7 @@ function actionLabel(action: string): string {
         test_data_seeded:     'Seed dữ liệu test',
         seed_demo_order:      'Seed đơn demo',
     };
+
     return map[action] ?? action;
 }
 

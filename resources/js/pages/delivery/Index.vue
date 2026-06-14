@@ -7,15 +7,16 @@ import {
     Search, ChevronDown, ArrowUpDown, Zap, Activity, Radio,
     CheckCheck, TrendingUp, TrendingDown, Minus,
 } from 'lucide-vue-next';
-import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { ref, computed, onMounted, onUnmounted, watch  } from 'vue';
+import type {Component} from 'vue';
+import { toast } from 'vue-sonner';
 import DeliveryMap from '@/components/delivery/DeliveryMap.vue';
 import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
-import { toast } from 'vue-sonner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCountUp } from '@/composables/useCountUp';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -136,13 +137,18 @@ const displayDelivered = useCountUp(statDelivered);
 const displayFailed    = useCountUp(statFailed);
 
 // Trend helpers
-function trendDelivered(): number { return (stats.value.delivered_today ?? 0) - (stats.value.delivered_yesterday ?? 0); }
-function trendFailed(): number    { return (stats.value.failed_today ?? 0) - (stats.value.failed_yesterday ?? 0); }
+function trendDelivered(): number {
+ return (stats.value.delivered_today ?? 0) - (stats.value.delivered_yesterday ?? 0); 
+}
+function trendFailed(): number    {
+ return (stats.value.failed_today ?? 0) - (stats.value.failed_yesterday ?? 0); 
+}
 
 // ─── Filtered / sorted orders ─────────────────────────────────────────────────
 const filteredOrders = computed(() => {
     let list = unassignedOrders.value;
     const q  = orderSearch.value.trim().toLowerCase();
+
     if (q) {
         list = list.filter(o =>
             o.order_number.toLowerCase().includes(q) ||
@@ -150,28 +156,50 @@ const filteredOrders = computed(() => {
             o.delivery_detail?.address?.toLowerCase().includes(q),
         );
     }
-    if (orderSort.value === 'newest') return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (orderSort.value === 'oldest') return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (orderSort.value === 'newest') {
+return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+    if (orderSort.value === 'oldest') {
+return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
     return [...list].sort((a, b) => b.total_amount - a.total_amount);
 });
 
 function urgency(order: UnassignedOrder): 'new' | 'waiting' | 'urgent' {
     const mins = (Date.now() - new Date(order.created_at).getTime()) / 60000;
-    if (mins > 30) return 'urgent';
-    if (mins > 15) return 'waiting';
+
+    if (mins > 30) {
+return 'urgent';
+}
+
+    if (mins > 15) {
+return 'waiting';
+}
+
     return 'new';
 }
 
 function waitingLabel(order: UnassignedOrder): string {
     const mins = Math.round((Date.now() - new Date(order.created_at).getTime()) / 60000);
-    if (mins < 1) return 'Vừa đặt';
-    if (mins < 60) return `${mins} phút`;
+
+    if (mins < 1) {
+return 'Vừa đặt';
+}
+
+    if (mins < 60) {
+return `${mins} phút`;
+}
+
     return `${Math.round(mins / 60)} giờ`;
 }
 
 // ─── Map data ─────────────────────────────────────────────────────────────────
 const mapShippers = computed(() => {
     const src = mapTab.value === 'pending' ? [] : activeShippers.value;
+
     return src
         .filter(s => s.current_lat !== null)
         .map(s => ({
@@ -189,7 +217,10 @@ const mapShippers = computed(() => {
 });
 
 const mapOrders = computed(() => {
-    if (mapTab.value === 'active') return [];
+    if (mapTab.value === 'active') {
+return [];
+}
+
     return unassignedOrders.value
         .filter(o => o.delivery_detail?.latitude)
         .map(o => ({
@@ -208,17 +239,35 @@ const mapTabs = computed(() => [
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 async function fetchAll() {
-    if (showCreateModal.value || showTracking.value) return; // pause when modals open
+    if (showCreateModal.value || showTracking.value) {
+return;
+} // pause when modals open
+
     loading.value = true;
+
     try {
         const [oRes, sRes, stRes] = await Promise.all([
             fetch('/delivery/api/unassigned-orders'),
             fetch('/delivery/api/active-shippers'),
             fetch('/delivery/api/stats'),
         ]);
-        if (oRes.ok)  unassignedOrders.value = await oRes.json().catch(() => []);
-        if (sRes.ok)  activeShippers.value   = await sRes.json().catch(() => []);
-        if (stRes.ok) { const d = await stRes.json().catch(() => null); if (d) stats.value = d; }
+
+        if (oRes.ok)  {
+unassignedOrders.value = await oRes.json().catch(() => []);
+}
+
+        if (sRes.ok)  {
+activeShippers.value   = await sRes.json().catch(() => []);
+}
+
+        if (stRes.ok) {
+ const d = await stRes.json().catch(() => null);
+
+ if (d) {
+stats.value = d;
+} 
+}
+
         lastRefreshed.value = new Date();
     } catch {
         toast.error('Không thể tải dữ liệu. Vui lòng thử lại.');
@@ -232,14 +281,26 @@ function startAutoRefresh() {
     autoRefreshTimer = setInterval(() => fetchAll(), AUTO_REFRESH_MS) as unknown as number;
 }
 function stopAutoRefresh() {
-    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+    if (autoRefreshTimer) {
+ clearInterval(autoRefreshTimer); autoRefreshTimer = null; 
+}
 }
 
 const lastRefreshedLabel = computed(() => {
-    if (!lastRefreshed.value) return '';
+    if (!lastRefreshed.value) {
+return '';
+}
+
     const secs = Math.round((tickNow.value - lastRefreshed.value.getTime()) / 1000);
-    if (secs < 5) return 'Vừa cập nhật';
-    if (secs < 60) return `${secs}s trước`;
+
+    if (secs < 5) {
+return 'Vừa cập nhật';
+}
+
+    if (secs < 60) {
+return `${secs}s trước`;
+}
+
     return `${Math.round(secs / 60)} phút trước`;
 });
 
@@ -261,15 +322,29 @@ function avatarColor(name: string): string {
         'from-rose-500 to-pink-600',
     ];
     let hash = 0;
-    for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffff;
+
+    for (const ch of name) {
+hash = (hash * 31 + ch.charCodeAt(0)) & 0xffff;
+}
+
     return colors[hash % colors.length];
 }
 
 function lastSeenLabel(iso: string | null): string {
-    if (!iso) return 'Chưa kết nối';
+    if (!iso) {
+return 'Chưa kết nối';
+}
+
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-    if (mins < 1) return 'Vừa xong';
-    if (mins < 60) return `${mins} phút trước`;
+
+    if (mins < 1) {
+return 'Vừa xong';
+}
+
+    if (mins < 60) {
+return `${mins} phút trước`;
+}
+
     return `${Math.round(mins / 60)} giờ trước`;
 }
 
@@ -279,13 +354,20 @@ function toggleOrder(id: number) {
     s.has(id) ? s.delete(id) : s.add(id);
     selectedOrders.value = s;
 }
-function selectAll()      { selectedOrders.value = new Set(unassignedOrders.value.map(o => o.id)); }
-function clearSelection() { selectedOrders.value = new Set(); }
+function selectAll()      {
+ selectedOrders.value = new Set(unassignedOrders.value.map(o => o.id)); 
+}
+function clearSelection() {
+ selectedOrders.value = new Set(); 
+}
 
 // ─── Activity feed ────────────────────────────────────────────────────────────
 function pushActivity(message: string, type: ActivityEvent['type']) {
     activityFeed.value.unshift({ id: ++activitySeq, type, message, time: new Date() });
-    if (activityFeed.value.length > 20) activityFeed.value.pop();
+
+    if (activityFeed.value.length > 20) {
+activityFeed.value.pop();
+}
 }
 
 // ─── Tracking drawer ──────────────────────────────────────────────────────────
@@ -305,7 +387,11 @@ function closeTracking() {
 const trackingSteps = computed(() => {
     const item    = trackingItem.value;
     const shipper = trackingShipper.value;
-    if (!item || !shipper) return [];
+
+    if (!item || !shipper) {
+return [];
+}
+
     return [
         { label: 'Đặt hàng',        icon: Package,     time: item.order_created_at,   done: true },
         { label: 'Xác nhận đơn',    icon: CheckCircle2, time: item.order_confirmed_at, done: !!item.order_confirmed_at },
@@ -320,41 +406,62 @@ const trackingSteps = computed(() => {
 const trackingStepProgress = computed(() => {
     const done = trackingSteps.value.filter(s => s.done).length;
     const total = trackingSteps.value.length;
+
     return total > 0 ? Math.round(((done - 1) / (total - 1)) * 100) : 0;
 });
 
 function isCurrentStep(i: number): boolean {
     const steps = trackingSteps.value;
     const lastDone = steps.map((s, idx) => s.done ? idx : -1).filter(x => x >= 0).pop() ?? -1;
+
     return lastDone === i && i < steps.length - 1;
 }
 
 const trackingEta = computed(() => {
     const eta = trackingItem.value?.eta;
-    if (!eta) return null;
+
+    if (!eta) {
+return null;
+}
+
     const diff = new Date(eta).getTime() - tickNow.value;
-    if (diff <= 0) return { label: 'Đang đến', mins: 0, pct: 100 };
+
+    if (diff <= 0) {
+return { label: 'Đang đến', mins: 0, pct: 100 };
+}
+
     const m   = Math.floor(diff / 60000);
     const s   = Math.floor((diff % 60000) / 1000);
     const dispatched = trackingShipper.value?.active_batch?.dispatched_at;
     let pct = 50;
+
     if (dispatched) {
         const total = new Date(eta).getTime() - new Date(dispatched).getTime();
         const elapsed = tickNow.value - new Date(dispatched).getTime();
         pct = total > 0 ? Math.min(99, Math.round((elapsed / total) * 100)) : 50;
     }
+
     return { label: `${m}:${s.toString().padStart(2, '0')}`, mins: m, pct };
 });
 
 const trackingNextStop = computed(() => {
     const item = trackingItem.value;
-    if (!item?.latitude || !item?.longitude) return null;
+
+    if (!item?.latitude || !item?.longitude) {
+return null;
+}
+
     return { lat: item.latitude, lng: item.longitude, address: item.address ?? '' };
 });
 
 // ─── Create batch wizard ──────────────────────────────────────────────────────
 async function openCreateModal() {
-    if (selectedOrders.value.size === 0) { toast.warning('Chọn ít nhất một đơn hàng'); return; }
+    if (selectedOrders.value.size === 0) {
+ toast.warning('Chọn ít nhất một đơn hàng');
+
+ return; 
+}
+
     showCreateModal.value   = true;
     wizardStep.value        = 1;
     suggestedShippers.value = [];
@@ -365,6 +472,7 @@ async function openCreateModal() {
     stopAutoRefresh();
 
     const ids = [...selectedOrders.value];
+
     try {
         const [sRes, bRes] = await Promise.all([
             fetch('/delivery/api/suggest-shippers', {
@@ -378,8 +486,14 @@ async function openCreateModal() {
                 body: JSON.stringify({ order_ids: ids, max_per_batch: 5 }),
             }),
         ]);
-        if (sRes.ok) suggestedShippers.value = await sRes.json().catch(() => []);
-        if (bRes.ok) suggestedBatches.value  = await bRes.json().catch(() => []);
+
+        if (sRes.ok) {
+suggestedShippers.value = await sRes.json().catch(() => []);
+}
+
+        if (bRes.ok) {
+suggestedBatches.value  = await bRes.json().catch(() => []);
+}
     } catch { /* silent */ } finally {
         wizardLoading.value = false;
     }
@@ -391,17 +505,26 @@ function closeCreateModal() {
 }
 
 async function goToStep3() {
-    if (!selectedShipperId.value) { toast.warning('Chọn shipper trước'); return; }
+    if (!selectedShipperId.value) {
+ toast.warning('Chọn shipper trước');
+
+ return; 
+}
+
     wizardStep.value = 3;
     routeLoading.value = true;
     routePreview.value = null;
+
     try {
         const res = await fetch('/delivery/api/optimize-route', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
             body: JSON.stringify({ order_ids: [...selectedOrders.value], shipper_id: selectedShipperId.value }),
         });
-        if (res.ok) routePreview.value = await res.json().catch(() => null);
+
+        if (res.ok) {
+routePreview.value = await res.json().catch(() => null);
+}
     } catch { /* silent */ } finally {
         routeLoading.value = false;
     }
@@ -412,8 +535,12 @@ function selectCluster(cluster: typeof suggestedBatches.value[0]) {
 }
 
 async function createAndDispatchBatch() {
-    if (!selectedShipperId.value) return;
+    if (!selectedShipperId.value) {
+return;
+}
+
     batchCreating.value = true;
+
     try {
         const csrf = getCsrf();
         const cRes = await fetch('/delivery/api/batches', {
@@ -421,13 +548,24 @@ async function createAndDispatchBatch() {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
             body: JSON.stringify({ shipper_id: selectedShipperId.value, order_ids: [...selectedOrders.value] }),
         });
-        if (!cRes.ok) { const d = await cRes.json().catch(() => ({})); toast.error(d.message || 'Không thể tạo batch'); return; }
+
+        if (!cRes.ok) {
+ const d = await cRes.json().catch(() => ({})); toast.error(d.message || 'Không thể tạo batch');
+
+ return; 
+}
+
         const data = await cRes.json();
 
         const dRes = await fetch(`/delivery/api/batches/${data.batch.id}/dispatch`, {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
         });
-        if (!dRes.ok) { const d = await dRes.json().catch(() => ({})); toast.error(d.message || 'Dispatch thất bại'); return; }
+
+        if (!dRes.ok) {
+ const d = await dRes.json().catch(() => ({})); toast.error(d.message || 'Dispatch thất bại');
+
+ return; 
+}
 
         const shipperName = suggestedShippers.value.find(s => s.id === selectedShipperId.value)?.name ?? 'Shipper';
         toast.success(`Dispatch thành công! ${selectedOrders.value.size} đơn → ${shipperName}`);
@@ -448,7 +586,11 @@ let echoChannel: any = null;
 
 function setupWebSocket() {
     const rid = (page.props as any).auth?.user?.restaurant_id;
-    if (!rid || !(window as any).Echo) return;
+
+    if (!rid || !(window as any).Echo) {
+return;
+}
+
     echoChannel = (window as any).Echo.private(`delivery.${rid}`);
     echoChannel
         .listen('.batch.dispatched', () => {
@@ -456,16 +598,29 @@ function setupWebSocket() {
             pushActivity('Batch mới được dispatch', 'dispatched');
         })
         .listen('.delivery.status.updated', (e: any) => {
-            if (e.item?.status === 'delivered') pushActivity(`Giao thành công: ${e.item?.customer_name ?? 'khách hàng'}`, 'delivered');
-            if (e.item?.status === 'failed')    pushActivity(`Giao thất bại: ${e.item?.customer_name ?? 'khách hàng'}`, 'failed');
-            if (e.item?.status === 'picked_up') pushActivity(`Shipper đã lấy hàng`, 'picked_up');
-            if (!showTracking.value) fetchAll();
+            if (e.item?.status === 'delivered') {
+pushActivity(`Giao thành công: ${e.item?.customer_name ?? 'khách hàng'}`, 'delivered');
+}
+
+            if (e.item?.status === 'failed')    {
+pushActivity(`Giao thất bại: ${e.item?.customer_name ?? 'khách hàng'}`, 'failed');
+}
+
+            if (e.item?.status === 'picked_up') {
+pushActivity(`Shipper đã lấy hàng`, 'picked_up');
+}
+
+            if (!showTracking.value) {
+fetchAll();
+}
+
             if (trackingItem.value?.id === e.item?.id) {
                 trackingItem.value = { ...trackingItem.value, ...e.item };
             }
         })
         .listen('.shipper.location.updated', (e: { shipper_id: number; latitude: number; longitude: number }) => {
             const s = activeShippers.value.find(x => x.id === e.shipper_id);
+
             if (s) {
                 s.current_lat  = e.latitude;
                 s.current_lng  = e.longitude;
@@ -479,11 +634,27 @@ function setupWebSocket() {
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 function handleKeydown(e: KeyboardEvent) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key === 'Escape') { closeTracking(); closeCreateModal(); }
-    if (e.key === 'r' || e.key === 'R') fetchAll();
-    if (e.key === 'a' || e.key === 'A') selectAll();
-    if (e.key === 'd' || e.key === 'D') { if (selectedOrders.value.size > 0) openCreateModal(); }
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+return;
+}
+
+    if (e.key === 'Escape') {
+ closeTracking(); closeCreateModal(); 
+}
+
+    if (e.key === 'r' || e.key === 'R') {
+fetchAll();
+}
+
+    if (e.key === 'a' || e.key === 'A') {
+selectAll();
+}
+
+    if (e.key === 'd' || e.key === 'D') {
+ if (selectedOrders.value.size > 0) {
+openCreateModal();
+} 
+}
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -491,13 +662,23 @@ function getCsrf(): string {
     return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 }
 function fmtTime(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) {
+return '—';
+}
+
     return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 function fmtEta(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) {
+return '—';
+}
+
     const diff = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
-    if (diff <= 0) return 'Đang đến';
+
+    if (diff <= 0) {
+return 'Đang đến';
+}
+
     return `~${diff} phút`;
 }
 function vehicleLabel(type: string): string {
@@ -507,18 +688,36 @@ function statusLabel(s: string): string {
     return ({ pending: 'Chờ', picked_up: 'Đã lấy', delivered: 'Đã giao', failed: 'Thất bại', dispatched: 'Đã giao việc', in_progress: 'Đang giao' } as Record<string, string>)[s] ?? s;
 }
 function statusVariant(s: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-    if (s === 'delivered') return 'default';
-    if (s === 'failed')    return 'destructive';
+    if (s === 'delivered') {
+return 'default';
+}
+
+    if (s === 'failed')    {
+return 'destructive';
+}
+
     return 'secondary';
 }
 function scoreColor(score: number): string {
-    if (score < 0.33) return 'bg-emerald-500';
-    if (score < 0.66) return 'bg-amber-500';
+    if (score < 0.33) {
+return 'bg-emerald-500';
+}
+
+    if (score < 0.66) {
+return 'bg-amber-500';
+}
+
     return 'bg-red-500';
 }
 function scoreLabel(score: number): string {
-    if (score < 0.33) return 'Tốt';
-    if (score < 0.66) return 'Khá';
+    if (score < 0.33) {
+return 'Tốt';
+}
+
+    if (score < 0.66) {
+return 'Khá';
+}
+
     return 'Cao tải';
 }
 function activityColor(type: ActivityEvent['type']): string {
@@ -526,7 +725,11 @@ function activityColor(type: ActivityEvent['type']): string {
 }
 function activityTimeLabel(time: Date): string {
     const secs = Math.round((Date.now() - time.getTime()) / 1000);
-    if (secs < 60) return `${secs}s`;
+
+    if (secs < 60) {
+return `${secs}s`;
+}
+
     return `${Math.round(secs / 60)}m`;
 }
 
@@ -535,7 +738,9 @@ onMounted(() => {
     fetchAll();
     setupWebSocket();
     startAutoRefresh();
-    etaTicker = setInterval(() => { tickNow.value = Date.now(); }, 1000) as unknown as number;
+    etaTicker = setInterval(() => {
+ tickNow.value = Date.now(); 
+}, 1000) as unknown as number;
     document.addEventListener('keydown', handleKeydown);
 });
 onUnmounted(() => {
@@ -545,7 +750,11 @@ onUnmounted(() => {
             .stopListening('.shipper.location.updated')
             .stopListening('.delivery.eta.updated');
     }
-    if (etaTicker) clearInterval(etaTicker);
+
+    if (etaTicker) {
+clearInterval(etaTicker);
+}
+
     stopAutoRefresh();
     document.removeEventListener('keydown', handleKeydown);
 });

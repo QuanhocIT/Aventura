@@ -33,10 +33,14 @@ const selectedPlan = ref(urlParams?.get('plan') || 'free');
 const selectedCycle = ref(urlParams?.get('cycle') || 'monthly');
 
 const maxDiscountPercent = computed(() => {
-    if (!props.plans?.length) return 20;
+    if (!props.plans?.length) {
+return 20;
+}
+
     const percentages = props.plans.map((p: Plan) => 
         p.features?.yearly_discount_percent !== undefined ? Number(p.features.yearly_discount_percent) : 20
     );
+
     return Math.max(...percentages);
 });
 </script>

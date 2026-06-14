@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
+import { computed } from 'vue';
+import NewsCard from '@/components/NewsCard.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import NewsCard from '@/components/NewsCard.vue';
 
 interface NewsPost {
     id: number;

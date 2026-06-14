@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
 import { 
     Plus, Edit2, Trash2, ShoppingBag, CheckCircle, 
     AlertTriangle, Sparkles, TrendingUp, TrendingDown,
     FileText, Upload, RefreshCw, X, Check, ArrowLeftRight, History
 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ const props = defineProps<{
 const page = usePage();
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));
@@ -71,8 +72,12 @@ const slaData = ref<any>(null);
 const loadingSla = ref(false);
 
 const fetchSla = async () => {
-    if (!selectedSupplier.value) return;
+    if (!selectedSupplier.value) {
+return;
+}
+
     loadingSla.value = true;
+
     try {
         const res = await fetch(route('suppliers.sla', selectedSupplier.value.id));
         slaData.value = await res.json();
@@ -151,6 +156,7 @@ const openPoModal = (supplier: any) => {
 
 const addPoItem = () => {
     const available = props.ingredients.filter(i => i.supplier_id === selectedSupplier.value.id);
+
     if (available.length > 0) {
         poForm.items.push({ ingredient_id: available[0].id, quantity: 1 });
     }
@@ -202,11 +208,14 @@ const openVerifyModal = (po: any) => {
 
 // Calculate discrepancies dynamically
 const verifyDiscrepancies = computed(() => {
-    if (!selectedPo.value || !verifyForm.items.length) return [];
+    if (!selectedPo.value || !verifyForm.items.length) {
+return [];
+}
     
     return verifyForm.items.map((item: any) => {
         const qtyMismatch = Math.abs(item.quantity_ordered - item.quantity_received) > 0.001;
         const priceMismatch = Math.abs(item.price_per_unit - item.invoice_price) > 0.01;
+
         return {
             ...item,
             qtyMismatch,
@@ -240,9 +249,11 @@ const submitVerification = () => {
     if (verifyForm.invoice_file) {
         formData.append('invoice_file', verifyForm.invoice_file);
     }
+
     if (verifyForm.rating) {
         formData.append('rating', String(verifyForm.rating));
     }
+
     if (verifyForm.rating_notes) {
         formData.append('rating_notes', verifyForm.rating_notes);
     }
@@ -256,8 +267,12 @@ const submitVerification = () => {
 
 // Analytics handler
 const fetchAnalytics = async () => {
-    if (!selectedSupplier.value || !selectedIngredient.value) return;
+    if (!selectedSupplier.value || !selectedIngredient.value) {
+return;
+}
+
     loadingAnalytics.value = true;
+
     try {
         const res = await fetch(route('suppliers.price-analytics', {
             supplier: selectedSupplier.value?.id || 0,
@@ -286,12 +301,16 @@ const loadingOcr = ref(false);
 
 const handleFileUpload = async (e: Event) => {
     const input = e.target as HTMLInputElement;
-    if (!input.files || !input.files[0] || !selectedPo.value) return;
+
+    if (!input.files || !input.files[0] || !selectedPo.value) {
+return;
+}
     
     const file = input.files[0];
     verifyForm.invoice_file = file;
     
     loadingOcr.value = true;
+
     try {
         const formData = new FormData();
         formData.append('invoice_file', file);
@@ -315,10 +334,12 @@ const handleFileUpload = async (e: Event) => {
         
         if (res.ok) {
             const data = await res.json();
+
             if (data.items && data.items.length > 0) {
                 const parsedItems = data.items;
                 verifyForm.items.forEach((formItem: any) => {
                     const matched = parsedItems.find((pi: any) => pi.ingredient_id === formItem.ingredient_id);
+
                     if (matched) {
                         formItem.quantity_received = matched.quantity;
                         formItem.invoice_price = matched.unit_price;
@@ -352,6 +373,7 @@ const transferForm = useForm({
 
 const fetchTransfers = async () => {
     loadingTransfers.value = true;
+
     try {
         const [recRes, logRes] = await Promise.all([
             fetch(route('inventory.transfer-recommendations')),
@@ -390,13 +412,16 @@ const executeTransfer = (rec: any) => {
 
 const openManualTransferModal = () => {
     transferForm.reset();
+
     if (branches.value.length > 0) {
         transferForm.from_branch_id = branches.value[0].id;
         transferForm.to_branch_id = branches.value[1]?.id || '';
     }
+
     if (props.ingredients.length > 0) {
         transferForm.ingredient_id = props.ingredients[0].id;
     }
+
     showManualTransferModal.value = true;
 };
 
@@ -411,14 +436,20 @@ const submitManualTransfer = () => {
 };
 
 const selectedSourceInventory = computed(() => {
-    if (!transferForm.from_branch_id || !transferForm.ingredient_id) return null;
+    if (!transferForm.from_branch_id || !transferForm.ingredient_id) {
+return null;
+}
+
     return inventories.value.find(
         (i) => i.branch_id === Number(transferForm.from_branch_id) && i.ingredient_id === Number(transferForm.ingredient_id)
     ) || null;
 });
 
 const selectedIngredientDetail = computed(() => {
-    if (!transferForm.ingredient_id) return null;
+    if (!transferForm.ingredient_id) {
+return null;
+}
+
     return props.ingredients.find((i) => i.id === Number(transferForm.ingredient_id)) || null;
 });
 
@@ -427,7 +458,10 @@ const sourceStockOnHand = computed(() => {
 });
 
 const transferQuantityWarning = computed(() => {
-    if (!transferForm.quantity || transferForm.quantity <= 0) return null;
+    if (!transferForm.quantity || transferForm.quantity <= 0) {
+return null;
+}
+
     const qty = Number(transferForm.quantity);
     const stock = sourceStockOnHand.value;
     
@@ -439,6 +473,7 @@ const transferQuantityWarning = computed(() => {
     }
     
     const minStock = selectedIngredientDetail.value ? Number(selectedIngredientDetail.value.min_stock_level) : 0;
+
     if (stock - qty < minStock) {
         return {
             type: 'warning',

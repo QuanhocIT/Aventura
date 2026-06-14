@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { Zap, X } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { register } from '@/routes';
 

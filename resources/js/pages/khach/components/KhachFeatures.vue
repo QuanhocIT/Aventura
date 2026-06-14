@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
 import {
     BarChart3,
     Bot,
@@ -14,6 +13,7 @@ import {
     ShieldCheck,
     Users,
 } from 'lucide-vue-next';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Badge } from '@/components/ui/badge';
 
 const featureMap = [
@@ -185,6 +185,7 @@ const filteredFeatureMap = computed(() => {
     if (activeCategory.value === 'all') {
         return featureMap;
     }
+
     return featureMap.filter((item) => item.category === activeCategory.value);
 });
 

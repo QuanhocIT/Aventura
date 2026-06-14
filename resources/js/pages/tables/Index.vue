@@ -5,12 +5,12 @@ import {
     Users, MapPin, CheckCircle2, Clock, AlertCircle
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { toast } from 'vue-sonner';
 
 defineOptions({ layout: AppLayout });
 
@@ -45,13 +45,14 @@ const itemsPerPage = 10;
 const totalPages = computed(() => Math.ceil(filteredTables.value.length / itemsPerPage));
 const paginatedTables = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return filteredTables.value.slice(start, start + itemsPerPage);
 });
 const visiblePages = computed(() => {
     const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
     
     if (end - start + 1 < maxVisible) {
         start = Math.max(1, end - maxVisible + 1);
@@ -60,6 +61,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 watch(selectedArea, () => {
@@ -117,30 +119,46 @@ return;
 };
 
 const getQrUrl = (table: Table | null) => {
-    if (!table) return '';
+    if (!table) {
+return '';
+}
+
     const tenantId = table.restaurant_id || (page.props.tenant as any)?.id;
+
     return window.location.origin + '/customer/order/' + tenantId + '/' + table.qr_token;
 };
 
 const showQrModal = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     selectedQrTable.value = table;
 };
 
 const copyLink = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     const url = getQrUrl(table);
     navigator.clipboard.writeText(url);
     toast.success('Đã sao chép liên kết đặt món tại bàn ' + table.name);
 };
 
 const printQrCode = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     const qrUrl = getQrUrl(table);
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
     
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+
+    if (!printWindow) {
+return;
+}
     
     printWindow.document.write(`
         <html>
@@ -204,13 +222,18 @@ const printQrCode = (table: Table | null) => {
 };
 
 const regenerateQrCode = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     if (confirm('Bạn có chắc chắn muốn tạo mới mã QR cho bàn "' + table.name + '"? Mã QR cũ sẽ không thể sử dụng để quét đặt món được nữa.')) {
         router.post(`/tables/${table.id}/regenerate-qr`, {}, {
             onSuccess: () => {
                 toast.success('Đã tạo mới mã QR cho bàn ' + table.name);
+
                 if (selectedQrTable.value && selectedQrTable.value.id === table.id) {
                     const updatedTable = props.tables.find(t => t.id === table.id);
+
                     if (updatedTable) {
                         selectedQrTable.value = updatedTable;
                     }

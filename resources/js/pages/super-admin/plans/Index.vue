@@ -241,7 +241,9 @@ function planFeatures(plan: Plan): string[] {
     ];
 
     for (const f of ALL_FEATURES) {
-        if (plan.features?.[f.key]) list.push(f.label);
+        if (plan.features?.[f.key]) {
+list.push(f.label);
+}
     }
 
     return list;

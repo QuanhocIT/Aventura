@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
     Bike, Car, Truck, UserCheck, Package, AlertCircle,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import { Button } from '@/components/ui/button';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { toast } from 'vue-sonner';
-import axios from 'axios';
 
 defineOptions({ layout: AppLayout });
 
@@ -62,8 +62,14 @@ const formErrors = ref<Record<string, string>>({});
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredShippers = computed(() => {
     return shippers.value.filter(s => {
-        if (filterActive.value === 'active')   return s.is_active && !s.deleted_at;
-        if (filterActive.value === 'inactive') return !s.is_active || s.deleted_at;
+        if (filterActive.value === 'active')   {
+return s.is_active && !s.deleted_at;
+}
+
+        if (filterActive.value === 'inactive') {
+return !s.is_active || s.deleted_at;
+}
+
         return true;
     });
 });
@@ -118,6 +124,7 @@ function closeModal() {
 async function submitForm() {
     if (!form.value.employee_id && !editId.value) {
         formErrors.value = { employee_id: 'Vui lòng chọn nhân viên' };
+
         return;
     }
 
@@ -134,7 +141,11 @@ async function submitForm() {
                 is_active:            form.value.is_active,
             });
             const idx = shippers.value.findIndex(s => s.id === editId.value);
-            if (idx >= 0) shippers.value[idx] = { ...shippers.value[idx], ...data };
+
+            if (idx >= 0) {
+shippers.value[idx] = { ...shippers.value[idx], ...data };
+}
+
             toast.success('Đã cập nhật thông tin shipper');
         } else {
             const { data } = await axios.post('/delivery/shippers', {
@@ -160,6 +171,7 @@ async function submitForm() {
             employees.value = employees.value.filter(e => e.id !== Number(form.value.employee_id));
             toast.success('Đã thêm shipper mới');
         }
+
         closeModal();
     } catch (err: any) {
         if (err.response?.status === 422) {
@@ -179,7 +191,11 @@ async function toggleActive(s: ShipperRow) {
     try {
         await axios.patch(`/delivery/shippers/${s.id}`, { is_active: !s.is_active });
         const idx = shippers.value.findIndex(sh => sh.id === s.id);
-        if (idx >= 0) shippers.value[idx].is_active = !s.is_active;
+
+        if (idx >= 0) {
+shippers.value[idx].is_active = !s.is_active;
+}
+
         toast.success(s.is_active ? 'Đã tạm ngưng shipper' : 'Đã kích hoạt shipper');
     } catch {
         toast.error('Không thể thay đổi trạng thái');
@@ -187,14 +203,19 @@ async function toggleActive(s: ShipperRow) {
 }
 
 async function deleteShipper(s: ShipperRow) {
-    if (!confirm(`Xác nhận vô hiệu hóa shipper "${s.name}"?`)) return;
+    if (!confirm(`Xác nhận vô hiệu hóa shipper "${s.name}"?`)) {
+return;
+}
+
     try {
         await axios.delete(`/delivery/shippers/${s.id}`);
         const idx = shippers.value.findIndex(sh => sh.id === s.id);
+
         if (idx >= 0) {
             shippers.value[idx].is_active = false;
             shippers.value[idx].deleted_at = new Date().toISOString();
         }
+
         toast.success('Đã vô hiệu hóa shipper');
     } catch {
         toast.error('Không thể xóa shipper');
@@ -202,8 +223,14 @@ async function deleteShipper(s: ShipperRow) {
 }
 
 function shipperStatus(s: ShipperRow): 'deleted' | 'inactive' | 'active' {
-    if (s.deleted_at) return 'deleted';
-    if (!s.is_active) return 'inactive';
+    if (s.deleted_at) {
+return 'deleted';
+}
+
+    if (!s.is_active) {
+return 'inactive';
+}
+
     return 'active';
 }
 </script>

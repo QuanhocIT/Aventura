@@ -117,7 +117,10 @@ const currentTemplate = computed(() =>
 );
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '';
+    if (!iso) {
+return '';
+}
+
     return new Date(iso).toLocaleString('vi-VN', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
@@ -126,30 +129,45 @@ function formatDate(iso: string | null): string {
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 function toggleSandbox() {
-    if (loadingToggle.value) return;
+    if (loadingToggle.value) {
+return;
+}
+
     loadingToggle.value = true;
     router.post('/settings/sandbox/toggle', {}, {
         preserveScroll: true,
-        onFinish: () => { loadingToggle.value = false; },
+        onFinish: () => {
+ loadingToggle.value = false; 
+},
     });
 }
 
 function seedTemplate(templateId: string) {
-    if (loadingTemplate.value) return;
+    if (loadingTemplate.value) {
+return;
+}
+
     loadingTemplate.value = templateId;
     router.post('/settings/sandbox/seed', { template: templateId }, {
         preserveScroll: true,
-        onFinish: () => { loadingTemplate.value = null; },
+        onFinish: () => {
+ loadingTemplate.value = null; 
+},
     });
 }
 
 function resetDemo() {
-    if (loadingReset.value) return;
+    if (loadingReset.value) {
+return;
+}
+
     loadingReset.value = true;
     showResetConfirm.value = false;
     router.post('/settings/sandbox/reset', {}, {
         preserveScroll: true,
-        onFinish: () => { loadingReset.value = false; },
+        onFinish: () => {
+ loadingReset.value = false; 
+},
     });
 }
 </script>

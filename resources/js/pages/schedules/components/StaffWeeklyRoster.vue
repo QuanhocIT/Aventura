@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { CalendarDays, Calendar, RefreshCw } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
     myWeeklySchedules?: any[];
@@ -16,9 +16,13 @@ const rosterPage = ref(1);
 const rosterPerPage = 10;
 const rosterTotalPages = computed(() => Math.ceil((props.myWeeklySchedules?.length || 0) / rosterPerPage));
 const paginatedRoster = computed(() => {
-    if (!props.myWeeklySchedules) return [];
+    if (!props.myWeeklySchedules) {
+return [];
+}
+
     const start = (rosterPage.value - 1) * rosterPerPage;
     const end = start + rosterPerPage;
+
     return props.myWeeklySchedules.slice(start, end);
 });
 

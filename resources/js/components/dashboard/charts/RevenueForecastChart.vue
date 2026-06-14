@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import { TrendingUp, Sparkles, BarChart3 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface RevenueDay {
@@ -30,20 +30,27 @@ const revenueChartList = computed(() => props.revenueChartData ?? []);
 
 const maxRevenue = computed(() => {
     const vals = revenueChartList.value.map(d => d.revenue);
+
     return Math.max(...vals, 100000); // at least 100k
 });
 
 const maxOrders = computed(() => {
     const list = revenueChartList.value.map(d => d.orders);
+
     return Math.max(...list, 5);
 });
 
 const ordersLinePath = computed(() => {
     const list = revenueChartList.value;
-    if (list.length === 0) return '';
+
+    if (list.length === 0) {
+return '';
+}
+
     return list.map((day, i) => {
         const x = i * 85 + 80;
         const y = 160 - (day.orders / maxOrders.value) * 125;
+
         return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
     }).join(' ');
 });
@@ -52,6 +59,7 @@ function formatMoneyFull(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 </script>

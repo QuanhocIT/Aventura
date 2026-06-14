@@ -88,9 +88,11 @@ const loadingForecast = ref(false);
 
 const fetchAiForecast = async () => {
     loadingForecast.value = true;
+
     try {
         const response = await fetch('/api/inventory/ai-forecast');
         const data = await response.json();
+
         if (data.success) {
             aiForecasts.value = data.forecast;
         }
@@ -129,7 +131,11 @@ const ingredientSearch = ref('');
 
 const filteredIngredients = computed(() => {
     const q = ingredientSearch.value.trim().toLowerCase();
-    if (!q) return props.ingredients;
+
+    if (!q) {
+return props.ingredients;
+}
+
     return props.ingredients.filter(i =>
         i.name.toLowerCase().includes(q) ||
         (i.category_name ?? '').toLowerCase().includes(q)
@@ -153,7 +159,11 @@ const selectedPurchaseIngredient = computed(() =>
 
 const estimatedWasteCost = computed(() => {
     const ing = props.ingredients.find(i => i.id === Number(wasteForm.ingredient_id));
-    if (!ing || !wasteForm.quantity) return 0;
+
+    if (!ing || !wasteForm.quantity) {
+return 0;
+}
+
     return Number(wasteForm.quantity) * (ing.average_cost ?? 0);
 });
 
@@ -165,7 +175,9 @@ const flashSuccess = () => (page.props.flash as any)?.success ?? null;
 // ── Submit handlers ───────────────────────────────────────────────────────────
 const submitIngredient = () => {
     ingredientForm.post('/inventory/ingredients', {
-        onSuccess: () => { ingredientForm.reset(); showAddIngredient.value = false; },
+        onSuccess: () => {
+ ingredientForm.reset(); showAddIngredient.value = false; 
+},
         onError:   () => toast.error('Có lỗi khi thêm nguyên liệu.'),
     });
 };
@@ -178,7 +190,9 @@ const openAddRecipeModal = (prod: Product) => {
 
 const submitRecipe = () => {
     recipeForm.post('/inventory/recipes', {
-        onSuccess: () => { recipeForm.reset('quantity', 'waste_rate'); showAddRecipe.value = false; },
+        onSuccess: () => {
+ recipeForm.reset('quantity', 'waste_rate'); showAddRecipe.value = false; 
+},
         onError:   () => toast.error('Có lỗi khi lưu công thức.'),
     });
 };
@@ -196,7 +210,9 @@ const submitPurchase = () => {
 
 const submitWaste = () => {
     wasteForm.post('/inventory/waste', {
-        onSuccess: () => { toast.success(flashSuccess() ?? 'Đã ghi nhận hao hụt!'); wasteForm.reset(); },
+        onSuccess: () => {
+ toast.success(flashSuccess() ?? 'Đã ghi nhận hao hụt!'); wasteForm.reset(); 
+},
         onError:   () => toast.error('Có lỗi khi ghi nhận hao hụt.'),
     });
 };

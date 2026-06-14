@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
 import { Plus, Edit2, Package, Tag, ShieldCheck, X } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 const props = defineProps<{
     ingredients: any[];

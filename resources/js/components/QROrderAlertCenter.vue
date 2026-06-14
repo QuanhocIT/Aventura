@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import {
     Bell,
@@ -15,6 +14,7 @@ import {
     Sparkles,
     Trash2
 } from 'lucide-vue-next';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
 
 const page = usePage();
@@ -23,6 +23,7 @@ const page = usePage();
 const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const hasRole = (...roleNames: string[]) =>
@@ -109,6 +110,7 @@ function removeNotification(id: string) {
 async function confirmOrder(notification: any) {
     try {
         const response = await axios.post(`/api/temporary-orders/${notification.id}/confirm`);
+
         if (response.data.success) {
             toast.success(response.data.message);
             removeNotification(notification.uid);
@@ -135,7 +137,9 @@ function openCancelModal(notification: any) {
 }
 
 async function submitCancel() {
-    if (!cancelOrderId.value || !cancelReason.value.trim()) return;
+    if (!cancelOrderId.value || !cancelReason.value.trim()) {
+return;
+}
     
     try {
         const response = await axios.post(`/api/temporary-orders/${cancelOrderId.value}/cancel`, {
@@ -158,7 +162,9 @@ async function submitCancel() {
 }
 
 async function addUpsellItem() {
-    if (!currentOrderId.value || !upsellData.value?.recommended_item) return;
+    if (!currentOrderId.value || !upsellData.value?.recommended_item) {
+return;
+}
     
     try {
         // Find product ID by name if possible (or fallback via backend).
@@ -189,7 +195,9 @@ async function addUpsellItem() {
 }
 
 onMounted(() => {
-    if (!isStaff.value) return;
+    if (!isStaff.value) {
+return;
+}
     
     const restaurantId = user.value.restaurant_id;
 

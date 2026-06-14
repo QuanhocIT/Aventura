@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import {
     ShoppingCart,
     Banknote,
@@ -12,6 +11,7 @@ import {
     Percent,
     Target
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 const props = defineProps<{
     stats: any;
@@ -21,8 +21,15 @@ const props = defineProps<{
 // ── Health Score helpers ─────────────────────────────────────────────────────
 const healthScoreColor = computed(() => {
     const s = props.healthScore ?? 0;
-    if (s >= 70) return { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20', label: 'Tốt' };
-    if (s >= 40) return { bar: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-950/20',   label: 'Trung bình' };
+
+    if (s >= 70) {
+return { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20', label: 'Tốt' };
+}
+
+    if (s >= 40) {
+return { bar: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-950/20',   label: 'Trung bình' };
+}
+
     return           { bar: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400',     bg: 'bg-rose-50 dark:bg-rose-950/20',     label: 'Cần cải thiện' };
 });
 
@@ -30,6 +37,7 @@ function formatMoney(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
 }
 </script>

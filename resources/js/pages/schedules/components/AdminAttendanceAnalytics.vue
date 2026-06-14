@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Calendar, Sparkles, CheckCircle2, AlertCircle, Ban, Users } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import PunctualityHeatmap from './PunctualityHeatmap.vue';
 
@@ -61,6 +61,7 @@ const analyticsData = computed(() => {
         }
         
         const emp = employeeMap[a.employee_id];
+
         if (a.status === 'completed') {
             emp.completedCount++;
             emp.totalHours += a.duration_hours;
@@ -75,6 +76,7 @@ const analyticsData = computed(() => {
 
     const employeeStats = Object.values(employeeMap).map(emp => {
         let estimatedWage = 0;
+
         if (emp.compensationType === 'hourly') {
             estimatedWage = emp.totalHours * emp.payRate;
         } else if (emp.compensationType === 'shift') {

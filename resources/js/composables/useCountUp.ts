@@ -1,14 +1,21 @@
-import { ref, watch, type Ref } from 'vue';
+import { ref, watch  } from 'vue';
+import type {Ref} from 'vue';
 
 export function useCountUp(target: Ref<number>, duration = 700): Ref<number> {
     const displayed = ref(target.value);
     let raf: number | null = null;
 
     watch(target, (newVal, oldVal) => {
-        if (raf !== null) cancelAnimationFrame(raf);
+        if (raf !== null) {
+cancelAnimationFrame(raf);
+}
+
         const start = oldVal ?? 0;
         const diff  = newVal - start;
-        if (diff === 0) return;
+
+        if (diff === 0) {
+return;
+}
 
         const startTime = performance.now();
 
@@ -18,6 +25,7 @@ export function useCountUp(target: Ref<number>, duration = 700): Ref<number> {
             // ease-out cubic
             const eased    = 1 - Math.pow(1 - progress, 3);
             displayed.value = Math.round(start + diff * eased);
+
             if (progress < 1) {
                 raf = requestAnimationFrame(tick);
             } else {

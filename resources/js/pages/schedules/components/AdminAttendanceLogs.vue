@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { Users, Search, RefreshCw, Printer, LogOut, Calendar, Crown, X } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 type Assignment = {
     id: number;
@@ -47,10 +47,16 @@ const handleDateChange = () => {
 };
 
 const filteredAssignments = computed(() => {
-    if (!props.assignments) return [];
-    if (!searchQuery.value.trim()) return props.assignments;
+    if (!props.assignments) {
+return [];
+}
+
+    if (!searchQuery.value.trim()) {
+return props.assignments;
+}
     
     const query = searchQuery.value.toLowerCase().trim();
+
     return props.assignments.filter(a => 
         a.employee_name.toLowerCase().includes(query) || 
         a.employee_code.toLowerCase().includes(query) || 
@@ -62,17 +68,26 @@ const parseDateTimeStr = (str: string) => {
     const [time, date] = str.split(' ');
     const [h, i, s] = time.split(':').map(Number);
     const [d, m, y] = date.split('/').map(Number);
+
     return new Date(y, m - 1, d, h, i, s);
 };
 
 function lateMinutes(a: Assignment): number | null {
-    if (!a.check_in_at || !props.shifts) return null;
+    if (!a.check_in_at || !props.shifts) {
+return null;
+}
+
     const shift = props.shifts.find(s => s.id === a.shift_id);
-    if (!shift) return null;
+
+    if (!shift) {
+return null;
+}
+
     const shiftStart = new Date(`${a.scheduled_date}T${shift.start}`);
     const graceEnd   = new Date(shiftStart.getTime() + 5 * 60_000); // 5 min grace
     const checkIn = parseDateTimeStr(a.check_in_at);
     const diffMin = Math.round((checkIn.getTime() - graceEnd.getTime()) / 60_000);
+
     return diffMin > 0 ? diffMin : null;
 }
 

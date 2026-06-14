@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { CalendarDays, ArrowLeft } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
@@ -29,6 +29,7 @@ const weekDaysWithDates = computed(() => {
         const yyyy = nextDay.getFullYear();
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
         const dd = String(nextDay.getDate()).padStart(2, '0');
+
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,

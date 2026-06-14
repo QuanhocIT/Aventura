@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { toast } from 'vue-sonner';
 import { 
     Clock, Truck, CheckCircle, AlertTriangle, 
     X, Eye, Upload, FileText
 } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { toast } from 'vue-sonner';
 
 const props = defineProps<{
     orders: any[];
@@ -58,6 +58,7 @@ const openWorkflowModal = (order: any) => {
 
 const handleFileUpload = (e: Event) => {
     const input = e.target as HTMLInputElement;
+
     if (input.files && input.files[0]) {
         workflowForm.invoice_file = input.files[0];
     }
@@ -66,6 +67,7 @@ const handleFileUpload = (e: Event) => {
 const submitWorkflow = () => {
     const formData = new FormData();
     formData.append('status', workflowForm.status);
+
     if (workflowForm.invoice_file) {
         formData.append('invoice_file', workflowForm.invoice_file);
     }

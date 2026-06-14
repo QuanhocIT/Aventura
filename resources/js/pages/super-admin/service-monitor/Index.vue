@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     Activity,
     Settings,
@@ -15,12 +13,14 @@ import {
     Clock,
     Terminal
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 // Layout configuration
 defineOptions({ layout: AppLayout });
@@ -62,12 +62,18 @@ async function checkLiveStatuses() {
             'X-Requested-With': 'XMLHttpRequest'
         }
     }).then(async (res) => {
-        if (!res.ok) throw new Error('Yêu cầu thất bại');
+        if (!res.ok) {
+throw new Error('Yêu cầu thất bại');
+}
+
         const data = await res.json();
+
         if (data.success) {
             localServices.value = data.services;
+
             return 'Đã kiểm tra xong trạng thái các dịch vụ';
         }
+
         throw new Error(data.message || 'Lỗi không xác định');
     });
 
@@ -104,6 +110,7 @@ async function toggleMaintenance(service: Service) {
         });
 
         const data = await response.json();
+
         if (!data.success) {
             throw new Error('Lỗi cập nhật');
         }
@@ -124,7 +131,9 @@ function openEditMessageModal(service: Service) {
 }
 
 async function saveMaintenanceMessage() {
-    if (!editingService.value) return;
+    if (!editingService.value) {
+return;
+}
     
     isSavingMessage.value = true;
     const service = editingService.value;
@@ -143,12 +152,15 @@ async function saveMaintenanceMessage() {
         });
 
         const data = await response.json();
+
         if (data.success) {
             // Update local state
             const target = localServices.value.find(s => s.service_key === service.service_key);
+
             if (target) {
                 target.maintenance_message = maintenanceMessageText.value;
             }
+
             toast.success('Đã cập nhật thông báo bảo trì thành công');
             showEditMessageDialog.value = false;
         } else {
@@ -162,15 +174,28 @@ async function saveMaintenanceMessage() {
 }
 
 function getLatencyColor(ms: number): string {
-    if (ms <= 10) return 'text-cyan-600 dark:text-cyan-400 font-bold';
-    if (ms <= 50) return 'text-emerald-600 dark:text-emerald-400';
-    if (ms <= 150) return 'text-amber-600 dark:text-amber-400';
+    if (ms <= 10) {
+return 'text-cyan-600 dark:text-cyan-400 font-bold';
+}
+
+    if (ms <= 50) {
+return 'text-emerald-600 dark:text-emerald-400';
+}
+
+    if (ms <= 150) {
+return 'text-amber-600 dark:text-amber-400';
+}
+
     return 'text-rose-600 dark:text-rose-500 font-bold animate-pulse';
 }
 
 function formatTime(timeStr: string | null): string {
-    if (!timeStr) return 'Chưa kiểm tra';
+    if (!timeStr) {
+return 'Chưa kiểm tra';
+}
+
     const date = new Date(timeStr);
+
     return date.toLocaleTimeString('vi-VN') + ' ' + date.toLocaleDateString('vi-VN');
 }
 </script>

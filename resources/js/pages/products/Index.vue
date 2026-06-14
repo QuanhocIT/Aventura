@@ -38,17 +38,25 @@ const puzzles = computed(() => bcgData.value.filter(p => p.quadrant === 'puzzle'
 const dogs = computed(() => bcgData.value.filter(p => p.quadrant === 'dog'));
 
 async function loadInsights() {
-    if (insightsLoaded.value) { showInsights.value = !showInsights.value; return; }
+    if (insightsLoaded.value) {
+ showInsights.value = !showInsights.value;
+
+ return; 
+}
+
     insightsLoading.value = true;
     showInsights.value    = true;
+
     try {
         const res = await fetch('/api/products/menu-insights');
         const data = await res.json();
         insights.value = data.insights ?? [];
         bcgData.value = data.bcg ?? [];
+
         if (bcgData.value.length > 0) {
             selectedBcgProduct.value = bcgData.value[0];
         }
+
         insightsLoaded.value = true;
     } catch (e) {
         insights.value = [];
@@ -103,13 +111,14 @@ const itemsPerPage = 10;
 const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage));
 const paginatedProducts = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return filteredProducts.value.slice(start, start + itemsPerPage);
 });
 const visiblePages = computed(() => {
     const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
     
     if (end - start + 1 < maxVisible) {
         start = Math.max(1, end - maxVisible + 1);
@@ -118,6 +127,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 watch([selectedCategory, searchQuery], () => {

@@ -67,14 +67,22 @@ const searchQuery = ref('');
 
 const filteredQueries = computed(() => {
     const q = searchQuery.value.toLowerCase();
-    if (!q) return props.unansweredQueries;
+
+    if (!q) {
+return props.unansweredQueries;
+}
+
     return props.unansweredQueries.filter(item => item.query.toLowerCase().includes(q));
 });
 
 function toggleSelect(id: number) {
     const idx = selectedIds.value.indexOf(id);
-    if (idx >= 0) selectedIds.value.splice(idx, 1);
-    else selectedIds.value.push(id);
+
+    if (idx >= 0) {
+selectedIds.value.splice(idx, 1);
+} else {
+selectedIds.value.push(id);
+}
 }
 
 function toggleSelectAll() {
@@ -94,15 +102,23 @@ function unresolveOne(id: number) {
 }
 
 function bulkResolve() {
-    if (!selectedIds.value.length) return;
+    if (!selectedIds.value.length) {
+return;
+}
+
     router.post('/super-admin/chatbot-diagnostics/bulk-resolve', { ids: selectedIds.value }, {
         preserveScroll: true,
-        onSuccess: () => { selectedIds.value = []; },
+        onSuccess: () => {
+ selectedIds.value = []; 
+},
     });
 }
 
 function deleteResolved() {
-    if (!confirm('Xóa tất cả câu hỏi đã đánh dấu xử lý?')) return;
+    if (!confirm('Xóa tất cả câu hỏi đã đánh dấu xử lý?')) {
+return;
+}
+
     router.delete('/super-admin/chatbot-diagnostics/delete-resolved', { preserveScroll: true });
 }
 
@@ -113,8 +129,14 @@ function toggleShowResolved() {
 }
 
 function scoreColor(score: number) {
-    if (score >= 0.22) return 'text-amber-500';
-    if (score >= 0.14) return 'text-orange-500';
+    if (score >= 0.22) {
+return 'text-amber-500';
+}
+
+    if (score >= 0.14) {
+return 'text-orange-500';
+}
+
     return 'text-red-500';
 }
 
@@ -122,9 +144,19 @@ function relativeTime(dateStr: string) {
     const date = new Date(dateStr);
     const now = Date.now();
     const diff = Math.floor((now - date.getTime()) / 1000);
-    if (diff < 60) return `${diff}s trước`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m trước`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h trước`;
+
+    if (diff < 60) {
+return `${diff}s trước`;
+}
+
+    if (diff < 3600) {
+return `${Math.floor(diff / 60)}m trước`;
+}
+
+    if (diff < 86400) {
+return `${Math.floor(diff / 3600)}h trước`;
+}
+
     return `${Math.floor(diff / 86400)}d trước`;
 }
 
@@ -135,7 +167,9 @@ function retrain() {
     retraining.value = true;
     router.post('/super-admin/chatbot-diagnostics/retrain', {}, {
         preserveScroll: true,
-        onFinish: () => { retraining.value = false; },
+        onFinish: () => {
+ retraining.value = false; 
+},
     });
 }
 
@@ -145,7 +179,10 @@ const playgroundLoading = ref(false);
 const playgroundResult = ref<TestResult | null>(null);
 
 async function runTestQuery() {
-    if (!playgroundQuery.value.trim()) return;
+    if (!playgroundQuery.value.trim()) {
+return;
+}
+
     playgroundLoading.value = true;
     playgroundResult.value = null;
 
@@ -173,9 +210,18 @@ function scoreBar(score: number) {
 }
 
 function scoreBarColor(score: number) {
-    if (score >= 0.6) return 'bg-emerald-500';
-    if (score >= 0.35) return 'bg-amber-500';
-    if (score >= 0.2) return 'bg-orange-400';
+    if (score >= 0.6) {
+return 'bg-emerald-500';
+}
+
+    if (score >= 0.35) {
+return 'bg-amber-500';
+}
+
+    if (score >= 0.2) {
+return 'bg-orange-400';
+}
+
     return 'bg-red-500';
 }
 
@@ -190,8 +236,15 @@ const healthStatusClass = computed(() => {
 
 const cacheAge = computed(() => {
     const s = props.health.cache_age_seconds;
-    if (s === null) return '—';
-    if (s < 60) return `${Math.round(s)}s`;
+
+    if (s === null) {
+return '—';
+}
+
+    if (s < 60) {
+return `${Math.round(s)}s`;
+}
+
     return `${Math.floor(s / 60)}m ${s % 60}s`;
 });
 </script>

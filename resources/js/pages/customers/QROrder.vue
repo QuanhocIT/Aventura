@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import axios from 'axios';
 import {
     Utensils,
@@ -22,6 +21,7 @@ import {
     HeartHandshake,
     Award
 } from 'lucide-vue-next';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
 interface Product {
@@ -93,18 +93,25 @@ const isSearchingLoyalty = ref(false);
 
 const lookupCustomerLoyalty = async () => {
     const phone = customerPhone.value.trim();
+
     if (phone.length < 10) {
         customerLoyalty.value = null;
+
         return;
     }
+
     isSearchingLoyalty.value = true;
+
     try {
         const res = await axios.get(`/api/customers/search?phone=${phone}`);
+
         if (res.data.success) {
             customerLoyalty.value = res.data.customer;
+
             if (!customerName.value.trim() && res.data.customer.full_name) {
                 customerName.value = res.data.customer.full_name;
             }
+
             toast.success(`Đã nhận diện thành viên: ${res.data.customer.full_name}`);
         } else {
             customerLoyalty.value = null;
@@ -127,20 +134,27 @@ watch(customerPhone, () => {
 // Member Dashboard & Point Redemption calculations
 const goToDashboard = () => {
     const phone = customerPhone.value.trim();
+
     if (!phone) {
         toast.error('Vui lòng nhập số điện thoại trong giỏ hàng để truy cập cổng hội viên');
         isCartOpen.value = true;
+
         return;
     }
+
     window.location.href = `/customer/portal/dashboard/${props.restaurant.id}/${phone}`;
 };
 
 const usePoints = ref(false);
 const pointsToRedeem = computed(() => {
-    if (!usePoints.value || !customerLoyalty.value) return 0;
+    if (!usePoints.value || !customerLoyalty.value) {
+return 0;
+}
+
     const maxDiscount = cartTotalPrice.value * 0.5; // Max 50%
     const pointsAvailable = customerLoyalty.value.loyalty_points;
     const pointsNeededForMaxDiscount = Math.floor(maxDiscount / 100); // 1 point = 100đ
+
     return Math.min(pointsAvailable, pointsNeededForMaxDiscount);
 });
 const pointsDiscount = computed(() => pointsToRedeem.value * 100);
@@ -151,8 +165,10 @@ const sessionToken = ref('');
 
 function getOrGenerateSessionToken() {
     let token = null;
+
     try {
         token = sessionStorage.getItem('cdp_session_token');
+
         if (!token) {
             token = 'sess_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
             sessionStorage.setItem('cdp_session_token', token);
@@ -161,6 +177,7 @@ function getOrGenerateSessionToken() {
         // Fallback for Safari private mode or if storage is blocked
         token = 'sess_fallback_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
     }
+
     sessionToken.value = token;
 }
 
@@ -210,6 +227,7 @@ const openQrPaymentModal = async (order: any) => {
     
     try {
         const res = await axios.get(`/api/orders/${order.order_id}/payment-qr`);
+
         if (res.data.success) {
             paymentQrUrl.value = res.data.qr_url;
             startPaymentPolling(order.order_id);
@@ -223,6 +241,7 @@ const openQrPaymentModal = async (order: any) => {
 
 const closeQrPaymentModal = () => {
     isQrPaymentModalOpen.value = false;
+
     if (paymentTimer.value) {
         clearInterval(paymentTimer.value);
         paymentTimer.value = null;
@@ -230,11 +249,14 @@ const closeQrPaymentModal = () => {
 };
 
 const startPaymentPolling = (orderId: number) => {
-    if (paymentTimer.value) clearInterval(paymentTimer.value);
+    if (paymentTimer.value) {
+clearInterval(paymentTimer.value);
+}
     
     paymentTimer.value = setInterval(async () => {
         try {
             const res = await axios.get(`/api/orders/${orderId}/payment-status`);
+
             if (res.data.success && res.data.is_paid) {
                 paymentSuccess.value = true;
                 toast.success('Thanh toán thành công!');
@@ -253,12 +275,17 @@ const startPaymentPolling = (orderId: number) => {
 };
 
 const simulatePaymentSuccess = async () => {
-    if (!paymentQrOrder.value) return;
+    if (!paymentQrOrder.value) {
+return;
+}
+
     isSimulatingPayment.value = true;
+
     try {
         const res = await axios.post('/api/webhooks/payments/vietqr', {
             description: `AVTORD${paymentQrOrder.value.order_id}`
         });
+
         if (res.data.success) {
             toast.success('Gửi webhook giả lập thành công!');
         } else {
@@ -283,7 +310,10 @@ const feedbackSubmittedSuccessfully = ref(false);
 
 // Filtered products
 const filteredProducts = computed(() => {
-    if (!selectedCategoryId.value) return props.products;
+    if (!selectedCategoryId.value) {
+return props.products;
+}
+
     return props.products.filter(p => p.category_id === selectedCategoryId.value);
 });
 
@@ -302,11 +332,15 @@ function selectCategory(id: number) {
 
 // Add/Update Cart Functions
 function openItemModal(product: Product) {
-    if (!product.in_stock) return;
+    if (!product.in_stock) {
+return;
+}
+
     modalProduct.value = product;
     
     // Check if item already exists in cart to preload
     const existing = cart.value.find(item => item.product.id === product.id);
+
     if (existing) {
         modalQuantity.value = existing.quantity;
         modalNotes.value = existing.notes;
@@ -320,9 +354,12 @@ function openItemModal(product: Product) {
 }
 
 function addToCart() {
-    if (!modalProduct.value) return;
+    if (!modalProduct.value) {
+return;
+}
     
     const existingIndex = cart.value.findIndex(item => item.product.id === modalProduct.value!.id);
+
     if (existingIndex > -1) {
         cart.value[existingIndex].quantity = modalQuantity.value;
         cart.value[existingIndex].notes = modalNotes.value;
@@ -341,14 +378,17 @@ function addToCart() {
 
 function updateCartQuantity(productId: number, delta: number) {
     const idx = cart.value.findIndex(item => item.product.id === productId);
+
     if (idx > -1) {
         const newQty = cart.value[idx].quantity + delta;
+
         if (newQty <= 0) {
             cart.value.splice(idx, 1);
             toast.info('Đã xóa món ăn khỏi giỏ hàng');
             trackBehavior('remove_from_cart', productId, 1);
         } else {
             cart.value[idx].quantity = newQty;
+
             if (delta > 0) {
                 trackBehavior('add_to_cart', productId, delta);
             } else {
@@ -360,13 +400,17 @@ function updateCartQuantity(productId: number, delta: number) {
 
 // APIs submission
 async function submitOrder() {
-    if (cart.value.length === 0) return;
+    if (cart.value.length === 0) {
+return;
+}
+
     isOrdering.value = true;
     
     try {
         if (customerPhone.value.trim()) {
             localStorage.setItem('customer_phone', customerPhone.value.trim());
         }
+
         if (customerName.value.trim()) {
             localStorage.setItem('customer_name', customerName.value.trim());
         }
@@ -405,7 +449,10 @@ async function submitOrder() {
 }
 
 async function callStaff() {
-    if (isCallingStaff.value) return;
+    if (isCallingStaff.value) {
+return;
+}
+
     isCallingStaff.value = true;
     
     try {
@@ -423,7 +470,10 @@ async function callStaff() {
 }
 
 async function requestPayment() {
-    if (isRequestingPayment.value) return;
+    if (isRequestingPayment.value) {
+return;
+}
+
     isRequestingPayment.value = true;
     
     try {
@@ -516,22 +566,32 @@ const now = ref(new Date());
 let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
 function getProductRemainingSeconds(untilTimeStr: string | null) {
-    if (!untilTimeStr) return 0;
+    if (!untilTimeStr) {
+return 0;
+}
+
     const diffMs = new Date(untilTimeStr).getTime() - now.value.getTime();
+
     return Math.max(0, Math.floor(diffMs / 1000));
 }
 
 function formatProductCountdown(untilTimeStr: string | null) {
     const totalSecs = getProductRemainingSeconds(untilTimeStr);
-    if (totalSecs <= 0) return '00:00';
+
+    if (totalSecs <= 0) {
+return '00:00';
+}
+
     const hours = Math.floor(totalSecs / 3600);
     const minutes = Math.floor((totalSecs % 3600) / 60);
     const seconds = totalSecs % 60;
     
     const pad = (n: number) => n.toString().padStart(2, '0');
+
     if (hours > 0) {
         return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     }
+
     return `${pad(minutes)}:${pad(seconds)}`;
 }
 
@@ -548,6 +608,7 @@ onMounted(() => {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('phone', storedPhone);
         window.location.href = newUrl.toString();
+
         return;
     }
 
@@ -564,13 +625,16 @@ onMounted(() => {
         let expired = false;
         props.products.forEach(p => {
             const timeStr = p.paused_until || p.out_of_stock_until;
+
             if (timeStr) {
                 const diff = new Date(timeStr).getTime() - now.value.getTime();
+
                 if (diff <= 0 && (p.is_kitchen_paused || p.is_kitchen_out_of_stock)) {
                     expired = true;
                 }
             }
         });
+
         if (expired) {
             refetchMenuOnly();
         }
@@ -581,8 +645,10 @@ onMounted(() => {
         window.Echo.channel(`table.${props.table.id}`)
             .listen('.temporary_order.updated', (e: any) => {
                 const order = props.activeTempOrders.find(o => o.id === e.id);
+
                 if (order || e.table_id === props.table.id) {
                     refetchActiveOrders();
+
                     if (e.status === 'confirmed') {
                         toast.success('Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp!');
                     } else if (e.status === 'cancelled') {
@@ -593,10 +659,12 @@ onMounted(() => {
             .listen('.order.paid', (e: any) => {
                 if (paymentQrOrder.value && e.order_id === paymentQrOrder.value.order_id) {
                     paymentSuccess.value = true;
+
                     if (paymentTimer.value) {
                         clearInterval(paymentTimer.value);
                         paymentTimer.value = null;
                     }
+
                     toast.success('Thanh toán thành công qua chuyển khoản!');
                     setTimeout(() => {
                         closeQrPaymentModal();
@@ -617,15 +685,19 @@ onMounted(() => {
             
 function getProductIngredients(name: string) {
     const n = name.toLowerCase();
+
     if (n.includes('cơm') || n.includes('com')) {
         return ['Gạo tẻ thơm', 'Sườn cốt lết', 'Nước mắm chắt', 'Mật ong rừng', 'Hành tím', 'Tỏi Lý Sơn', 'Tiêu sọ'];
     }
+
     if (n.includes('phở') || n.includes('pho')) {
         return ['Bánh phở tươi', 'Thịt bò u hoa', 'Xương ống bò ninh 24h', 'Hành tây', 'Hành lá', 'Gừng nướng', 'Thảo quả'];
     }
+
     if (n.includes('trà') || n.includes('tra') || n.includes('uống') || n.includes('nước') || n.includes('chanh')) {
         return ['Lá trà xanh Oolong', 'Chanh tươi cắt lát', 'Đường mía tự nhiên', 'Nước tinh khiết', 'Đá sạch tinh thể'];
     }
+
     return ['Nguyên liệu sạch chọn lọc', 'Gia vị hảo hạng', 'Rau thơm sạch hữu cơ', 'Quy trình khép kín'];
 }
 
@@ -644,12 +716,18 @@ function getProductReviews(id: number) {
             { author: 'Ngọc Diệp', rating: 5, comment: 'Chanh tươi thơm lừng kết hợp trà ô long giải nhiệt rất tốt.' }
         ],
     ];
+
     return reviewPools[id % reviewPools.length];
 }
 
 onUnmounted(() => {
-    if (countdownInterval) clearInterval(countdownInterval);
-    if (paymentTimer.value) clearInterval(paymentTimer.value);
+    if (countdownInterval) {
+clearInterval(countdownInterval);
+}
+
+    if (paymentTimer.value) {
+clearInterval(paymentTimer.value);
+}
 });
 </script>
 

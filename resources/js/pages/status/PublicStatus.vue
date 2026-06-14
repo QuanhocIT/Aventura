@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
 import {
     Activity,
     CheckCircle,
@@ -11,9 +10,10 @@ import {
     Server,
     ShieldAlert
 } from 'lucide-vue-next';
-import GuestLayout from '@/layouts/GuestLayout.vue';
+import { onMounted, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import GuestLayout from '@/layouts/GuestLayout.vue';
 
 // Configure to render under the public GuestLayout
 defineOptions({ layout: GuestLayout });
@@ -48,6 +48,7 @@ const tooltipY = ref(0);
 
 async function loadStatusData() {
     isLoading.value = true;
+
     try {
         const res = await fetch('/api/status-data');
         const data = await res.json();

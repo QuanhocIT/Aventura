@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { 
     ChefHat, 
     Clock, 
@@ -18,9 +17,10 @@ import {
     RotateCcw,
     Search
 } from 'lucide-vue-next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Echo from '@/lib/echo';
 
 interface PendingItem {
@@ -91,23 +91,37 @@ const handleResumeProduct = (productId: number) => {
 
 const handlePauseCustom = (product: Product) => {
     const res = window.prompt(`Nhập số phút tạm dừng cho món "${product.name}":`, "120");
-    if (res === null) return;
+
+    if (res === null) {
+return;
+}
+
     const mins = parseInt(res);
+
     if (isNaN(mins) || mins <= 0) {
         alert("Vui lòng nhập số phút hợp lệ!");
+
         return;
     }
+
     handlePauseProduct(product.id, mins);
 };
 
 const handleOutOfStockCustom = (product: Product) => {
     const res = window.prompt(`Nhập số phút báo hết cho món "${product.name}":`, "720");
-    if (res === null) return;
+
+    if (res === null) {
+return;
+}
+
     const mins = parseInt(res);
+
     if (isNaN(mins) || mins <= 0) {
         alert("Vui lòng nhập số phút hợp lệ!");
+
         return;
     }
+
     handleOutOfStockProduct(product.id, mins);
 };
 
@@ -116,26 +130,35 @@ const groupedProducts = computed(() => {
     const groups: Record<string, Product[]> = {};
     props.products.forEach(p => {
         const cat = p.category_name || 'Món khác';
+
         if (!groups[cat]) {
             groups[cat] = [];
         }
+
         groups[cat].push(p);
     });
+
     return groups;
 });
 
 // Filter grouped products by search query
 const filteredGroupedProducts = computed(() => {
     const query = searchQuery.value.toLowerCase().trim();
-    if (!query) return groupedProducts.value;
+
+    if (!query) {
+return groupedProducts.value;
+}
     
     const groups: Record<string, Product[]> = {};
+
     for (const [catName, list] of Object.entries(groupedProducts.value)) {
         const filtered = list.filter(p => p.name.toLowerCase().includes(query));
+
         if (filtered.length > 0) {
             groups[catName] = filtered;
         }
     }
+
     return groups;
 });
 
@@ -144,11 +167,14 @@ const groupedPending = computed(() => {
     const groups: Record<string, PendingItem[]> = {};
     props.pendingItems.forEach(item => {
         const key = item.table_name || 'Mang về';
+
         if (!groups[key]) {
             groups[key] = [];
         }
+
         groups[key].push(item);
     });
+
     return groups;
 });
 
@@ -160,7 +186,11 @@ const isManualRefreshing = ref(false);
 const playNotificationSound = () => {
     try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
+
+        if (!AudioContext) {
+return;
+}
+
         const ctx = new AudioContext();
         
         // Tone 1: Âm cao ding
@@ -197,6 +227,7 @@ watch(() => props.pendingItems, (newVal, oldVal) => {
     if (newVal && newVal.length > 0) {
         const oldIds = oldVal ? oldVal.map(i => i.id) : [];
         const hasNewItem = newVal.some(item => !oldIds.includes(item.id));
+
         if (hasNewItem) {
             playNotificationSound();
         }
@@ -209,8 +240,12 @@ let timerInterval: ReturnType<typeof setInterval> | null = null;
 let secCountdownInterval: ReturnType<typeof setInterval> | null = null;
 
 const getMinutesElapsed = (timeStr: string) => {
-    if (!timeStr) return 0;
+    if (!timeStr) {
+return 0;
+}
+
     const diffMs = nowTime.value.getTime() - new Date(timeStr).getTime();
+
     return Math.max(0, Math.floor(diffMs / 60000));
 };
 
@@ -221,7 +256,10 @@ const hasOverdueItem = (items: PendingItem[]) => {
 
 // Hoàn thành chế biến món ăn ở bếp
 const handlePrepare = (itemId: number) => {
-    if (isUpdating.value[itemId]) return;
+    if (isUpdating.value[itemId]) {
+return;
+}
+
     isUpdating.value[itemId] = true;
     router.post(`/kitchen/items/${itemId}/prepare`, {}, {
         preserveScroll: true,
@@ -233,7 +271,10 @@ const handlePrepare = (itemId: number) => {
 
 // Đã phục vụ / bê đi
 const handleServe = (itemId: number) => {
-    if (isUpdating.value[itemId]) return;
+    if (isUpdating.value[itemId]) {
+return;
+}
+
     isUpdating.value[itemId] = true;
     router.post(`/kitchen/items/${itemId}/serve`, {}, {
         preserveScroll: true,
@@ -245,7 +286,10 @@ const handleServe = (itemId: number) => {
 
 // Làm mới thủ công
 const handleRefresh = () => {
-    if (isManualRefreshing.value) return;
+    if (isManualRefreshing.value) {
+return;
+}
+
     isManualRefreshing.value = true;
     router.reload({
         only: ['pendingItems', 'completedItems', 'products'],
@@ -257,22 +301,32 @@ const handleRefresh = () => {
 
 // Product countdown formatting helper
 const getRemainingSeconds = (untilTimeStr: string | null) => {
-    if (!untilTimeStr) return 0;
+    if (!untilTimeStr) {
+return 0;
+}
+
     const diffMs = new Date(untilTimeStr).getTime() - nowTime.value.getTime();
+
     return Math.max(0, Math.floor(diffMs / 1000));
 };
 
 const formatCountdown = (untilTimeStr: string | null) => {
     const totalSecs = getRemainingSeconds(untilTimeStr);
-    if (totalSecs <= 0) return '00:00';
+
+    if (totalSecs <= 0) {
+return '00:00';
+}
+
     const hours = Math.floor(totalSecs / 3600);
     const minutes = Math.floor((totalSecs % 3600) / 60);
     const seconds = totalSecs % 60;
     
     const pad = (n: number) => n.toString().padStart(2, '0');
+
     if (hours > 0) {
         return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     }
+
     return `${pad(minutes)}:${pad(seconds)}`;
 };
 
@@ -291,13 +345,16 @@ onMounted(() => {
         let shouldReload = false;
         props.products.forEach(p => {
             const timeStr = p.paused_until || p.out_of_stock_until;
+
             if (timeStr) {
                 const diff = new Date(timeStr).getTime() - nowTime.value.getTime();
+
                 if (diff <= 0 && (p.is_paused || p.is_out_of_stock)) {
                     shouldReload = true;
                 }
             }
         });
+
         if (shouldReload) {
             router.reload({ only: ['products'], preserveState: true, preserveScroll: true });
         }
@@ -306,6 +363,7 @@ onMounted(() => {
     // 3. Lắng nghe qua WebSockets (Laravel Echo) nhận sự kiện real-time tức thời
     const pageProps = usePage().props as any;
     const restaurantId = pageProps.auth?.user?.restaurant_id;
+
     if (Echo && restaurantId) {
         Echo.channel(`kitchen.${restaurantId}`)
             .listen('.kitchen.updated', (e: any) => {
@@ -331,12 +389,18 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (timerInterval) clearInterval(timerInterval);
-    if (secCountdownInterval) clearInterval(secCountdownInterval);
+    if (timerInterval) {
+clearInterval(timerInterval);
+}
+
+    if (secCountdownInterval) {
+clearInterval(secCountdownInterval);
+}
     
     // Ngắt kênh Echo
     const pageProps = usePage().props as any;
     const restaurantId = pageProps.auth?.user?.restaurant_id;
+
     if (Echo && restaurantId) {
         Echo.leave(`kitchen.${restaurantId}`);
         Echo.leave(`restaurant.${restaurantId}`);

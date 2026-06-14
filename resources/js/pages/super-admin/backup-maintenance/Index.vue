@@ -89,6 +89,7 @@ function runBackup() {
 function runOptimization() {
     if (selectedOptimizeTasks.value.length === 0) {
         alert('Vui lòng chọn ít nhất một tác vụ tối ưu hóa.');
+
         return;
     }
 
@@ -131,25 +132,32 @@ function getActionLabel(actionsString: string) {
 }
 
 function formatDetails(details: any) {
-    if (!details) return '';
+    if (!details) {
+return '';
+}
     
-    let parts = [];
+    const parts = [];
+
     if (details.cleanup_queues) {
         const q = details.cleanup_queues;
         parts.push(`Queue: đã xóa ${q.failed_jobs_deleted} lỗi, ${q.job_batches_deleted} lô`);
     }
+
     if (details.clear_sessions) {
         const s = details.clear_sessions;
         parts.push(`Session: ${s.db_sessions_deleted} DB, ${s.file_sessions_deleted} file, ${s.expired_tokens_deleted} token`);
     }
+
     if (details.archive_audit_logs) {
         const a = details.archive_audit_logs;
+
         if (a.archived_count > 0) {
             parts.push(`Audit Log: Đã lưu trữ ${a.archived_count} dòng sang ${a.disk.toUpperCase()} (${a.archive_file})`);
         } else {
             parts.push('Audit Log: Không có bản ghi > 6 tháng');
         }
     }
+
     return parts.join(' | ');
 }
 </script>

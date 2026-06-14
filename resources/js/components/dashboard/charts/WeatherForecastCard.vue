@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
     Sun, 
     CloudRain, 
@@ -14,6 +12,8 @@ import {
     Calendar,
     Loader2
 } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const isLoading = ref(true);
 const forecastData = ref<any[]>([]);
@@ -23,6 +23,7 @@ const apiSource = ref('');
 const fetchForecast = async () => {
     try {
         const response = await axios.get('/api/analytics/weather-menu-forecast');
+
         if (response.data && response.data.forecast) {
             forecastData.value = response.data.forecast;
             apiSource.value = response.data.source || 'AI Analytics';
@@ -42,6 +43,7 @@ onMounted(() => {
 const formatTabDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
     return {
         dayName: days[date.getDay()],
         dayMonth: `${date.getDate()}/${date.getMonth() + 1}`
@@ -50,17 +52,37 @@ const formatTabDate = (dateStr: string) => {
 
 const getWeatherIcon = (condition: string) => {
     const cond = condition.toLowerCase();
-    if (cond.includes('sun') || cond.includes('nắng')) return Sun;
-    if (cond.includes('rain') || cond.includes('mưa')) return CloudRain;
-    if (cond.includes('wind') || cond.includes('gió')) return Wind;
+
+    if (cond.includes('sun') || cond.includes('nắng')) {
+return Sun;
+}
+
+    if (cond.includes('rain') || cond.includes('mưa')) {
+return CloudRain;
+}
+
+    if (cond.includes('wind') || cond.includes('gió')) {
+return Wind;
+}
+
     return Cloud; // default to cloudy
 };
 
 const getWeatherColor = (condition: string) => {
     const cond = condition.toLowerCase();
-    if (cond.includes('sun') || cond.includes('nắng')) return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-    if (cond.includes('rain') || cond.includes('mưa')) return 'text-sky-500 bg-sky-500/10 border-sky-500/20';
-    if (cond.includes('wind') || cond.includes('gió')) return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
+
+    if (cond.includes('sun') || cond.includes('nắng')) {
+return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
+}
+
+    if (cond.includes('rain') || cond.includes('mưa')) {
+return 'text-sky-500 bg-sky-500/10 border-sky-500/20';
+}
+
+    if (cond.includes('wind') || cond.includes('gió')) {
+return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
+}
+
     return 'text-slate-400 bg-slate-500/10 border-slate-500/10';
 };
 </script>

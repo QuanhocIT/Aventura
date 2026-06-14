@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { X } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
 
 interface Banner {
     id: number;

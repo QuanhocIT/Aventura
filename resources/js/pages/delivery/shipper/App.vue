@@ -5,11 +5,11 @@ import {
     Wifi, WifiOff, Clock, Phone, ChevronDown, ChevronUp
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
 import { toast } from 'vue-sonner';
+import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface BatchItem {
@@ -65,8 +65,11 @@ interface GpsPing {
 }
 
 function loadQueue(): GpsPing[] {
-    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]'); }
-    catch { return []; }
+    try {
+ return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]'); 
+} catch {
+ return []; 
+}
 }
 
 function saveQueue(q: GpsPing[]) {
@@ -80,13 +83,19 @@ function enqueue(ping: GpsPing) {
 }
 
 // ─── GPS tracking ─────────────────────────────────────────────────────────────
-let watchId: number | null = null;
+const watchId: number | null = null;
 let flushTimer: number | null = null;
 let sendTimer: number | null = null;
 
 function getAdaptiveInterval(speedKmh: number): number {
-    if (speedKmh < 3)  return 30_000;  // stationary
-    if (speedKmh < 15) return 10_000;  // slow
+    if (speedKmh < 3)  {
+return 30_000;
+}  // stationary
+
+    if (speedKmh < 15) {
+return 10_000;
+}  // slow
+
     return 5_000;                       // normal
 }
 
@@ -117,7 +126,10 @@ function onGpsSuccess(pos: GeolocationPosition) {
     }
 
     // Schedule next poll based on speed
-    if (sendTimer) clearTimeout(sendTimer);
+    if (sendTimer) {
+clearTimeout(sendTimer);
+}
+
     const interval = getAdaptiveInterval(speed ?? 0);
     sendTimer = setTimeout(() => startGps(), interval) as unknown as number;
 }
@@ -130,14 +142,22 @@ function onGpsError(err: GeolocationPositionError) {
 }
 
 function startGps() {
-    if (!navigator.geolocation) { gpsError.value = 'Trình duyệt không hỗ trợ GPS'; return; }
+    if (!navigator.geolocation) {
+ gpsError.value = 'Trình duyệt không hỗ trợ GPS';
+
+ return; 
+}
+
     navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
         enableHighAccuracy: true, timeout: 10_000, maximumAge: 5_000,
     });
 }
 
 async function sendSinglePing(ping: GpsPing) {
-    if (!props.shipper) return;
+    if (!props.shipper) {
+return;
+}
+
     try {
         await fetch('/delivery/api/shipper/location', {
             method: 'POST',
@@ -150,9 +170,15 @@ async function sendSinglePing(ping: GpsPing) {
 }
 
 async function flushQueue() {
-    if (!props.shipper || !isOnline.value) return;
+    if (!props.shipper || !isOnline.value) {
+return;
+}
+
     const q = loadQueue();
-    if (q.length === 0) return;
+
+    if (q.length === 0) {
+return;
+}
 
     try {
         const res = await fetch('/delivery/api/shipper/location/batch', {
@@ -160,7 +186,10 @@ async function flushQueue() {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
             body: JSON.stringify({ shipper_id: props.shipper.id, pings: q }),
         });
-        if (res.ok) saveQueue([]);
+
+        if (res.ok) {
+saveQueue([]);
+}
     } catch {
         // keep queue for next flush
     }
@@ -168,7 +197,10 @@ async function flushQueue() {
 
 // ─── Batch item actions ───────────────────────────────────────────────────────
 async function updateStatus(item: BatchItem, status: 'picked_up' | 'delivered' | 'failed', notes?: string) {
-    if (updatingId.value) return;
+    if (updatingId.value) {
+return;
+}
+
     updatingId.value = item.id;
 
     try {
@@ -181,12 +213,15 @@ async function updateStatus(item: BatchItem, status: 'picked_up' | 'delivered' |
         if (!res.ok) {
             const d = await res.json().catch(() => ({}));
             toast.error(d.message || 'Không thể cập nhật trạng thái');
+
             return;
         }
 
         const data = await res.json();
+
         if (batch.value) {
             const idx = batch.value.items.findIndex(i => i.id === item.id);
+
             if (idx >= 0) {
                 batch.value.items[idx] = { ...batch.value.items[idx], status: data.item.status };
             }
@@ -221,21 +256,39 @@ const nextStop = computed((): BatchItem | null =>
 
 const nextStopForMap = computed(() => {
     const s = nextStop.value;
-    if (!s?.latitude || !s?.longitude) return null;
+
+    if (!s?.latitude || !s?.longitude) {
+return null;
+}
+
     return { lat: s.latitude, lng: s.longitude, address: s.address ?? '' };
 });
 
 function formatEta(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) {
+return '—';
+}
+
     const diff = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
-    if (diff <= 0) return 'Đang đến';
-    if (diff < 60) return `${diff} phút`;
+
+    if (diff <= 0) {
+return 'Đang đến';
+}
+
+    if (diff < 60) {
+return `${diff} phút`;
+}
+
     return `${Math.floor(diff / 60)}g${diff % 60}p`;
 }
 
 // ─── Event listeners (named refs to avoid memory leak) ───────────────────────
-const handleOnline  = () => { isOnline.value = true;  flushQueue(); };
-const handleOffline = () => { isOnline.value = false; };
+const handleOnline  = () => {
+ isOnline.value = true;  flushQueue(); 
+};
+const handleOffline = () => {
+ isOnline.value = false; 
+};
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function getCsrf(): string {
@@ -258,9 +311,18 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    if (flushTimer !== null) clearInterval(flushTimer);
-    if (sendTimer !== null) clearTimeout(sendTimer);
+    if (watchId !== null) {
+navigator.geolocation.clearWatch(watchId);
+}
+
+    if (flushTimer !== null) {
+clearInterval(flushTimer);
+}
+
+    if (sendTimer !== null) {
+clearTimeout(sendTimer);
+}
+
     window.removeEventListener('online',  handleOnline);
     window.removeEventListener('offline', handleOffline);
     flushQueue();

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     ShieldCheck,
@@ -13,6 +12,7 @@ import {
     AlertTriangle,
     Info
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface RecentOrder {
@@ -78,6 +78,7 @@ const completionRate = computed(() => {
     if (!props.stats?.orders_today) {
         return 0;
     }
+
     return Math.round((props.stats.orders_completed / props.stats.orders_today) * 100);
 });
 
@@ -85,6 +86,7 @@ const cancellationRate = computed(() => {
     if (!props.stats?.orders_today) {
         return 0;
     }
+
     return Math.round(((props.stats.orders_cancelled ?? 0) / props.stats.orders_today) * 100);
 });
 
@@ -92,6 +94,7 @@ const pendingCount = computed(() => {
     if (!props.stats) {
         return 0;
     }
+
     return props.stats.orders_today - props.stats.orders_completed - (props.stats.orders_cancelled ?? 0);
 });
 
@@ -107,6 +110,7 @@ function formatMoneyFull(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 </script>

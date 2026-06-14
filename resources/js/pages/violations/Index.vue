@@ -73,19 +73,28 @@ const resolveForm = useForm({
 // --- COMPUTED ---
 const isOwner = computed(() => {
     const authUser = usePage().props.auth?.user as any;
+
     return authUser?.permissions?.includes('manage_violations') || props.currentUserRole === 'owner';
 });
 
 const filteredReports = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
+
     return props.reports.filter(r => {
         const matchFilter =
             activeFilter.value === 'all' ||
             (activeFilter.value === 'open'      && r.status === 'open') ||
             (activeFilter.value === 'resolved'  && r.status === 'resolved') ||
             (activeFilter.value === 'dismissed' && r.status === 'dismissed');
-        if (!matchFilter) return false;
-        if (!q) return true;
+
+        if (!matchFilter) {
+return false;
+}
+
+        if (!q) {
+return true;
+}
+
         return (
             r.employee_name.toLowerCase().includes(q) ||
             r.violation_type.toLowerCase().includes(q) ||
@@ -126,7 +135,9 @@ const openResolveModal = (report: Report) => {
 };
 
 const submitResolve = () => {
-    if (!selectedReport.value) return;
+    if (!selectedReport.value) {
+return;
+}
 
     resolveForm.post(`/violations/${selectedReport.value.id}/resolve`, {
         onSuccess: () => {

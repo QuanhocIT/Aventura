@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Settings, AlertCircle } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
     restaurantSettings: any;

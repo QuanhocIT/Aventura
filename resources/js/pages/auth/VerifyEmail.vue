@@ -32,6 +32,7 @@ const props = defineProps<{
 const page = usePage();
 const verified = computed<boolean>(() => {
     const url = new URL(page.url, window.location.origin);
+
     return url.searchParams.get('verified') === '1';
 });
 

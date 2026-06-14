@@ -339,7 +339,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (timerId) clearInterval(timerId);
+    if (timerId) {
+clearInterval(timerId);
+}
 });
 
 const isRecalculatingSla = ref(false);
@@ -369,7 +371,9 @@ function getSlaRemainingTime(ticket: TicketRow) {
         const firstResponse = new Date(ticket.first_response_at).getTime();
         const due = ticket.sla_due_at ? new Date(ticket.sla_due_at).getTime() : 0;
         
-        if (due === 0) return { label: 'N/A', status: 'pending', color: 'text-slate-500 font-semibold' };
+        if (due === 0) {
+return { label: 'N/A', status: 'pending', color: 'text-slate-500 font-semibold' };
+}
         
         const diffMs = due - firstResponse;
         const diffMins = Math.round(diffMs / 60000);
@@ -421,9 +425,13 @@ function getSlaRemainingTime(ticket: TicketRow) {
 }
 
 function formatMins(mins: number): string {
-    if (mins < 60) return `${mins} phút`;
+    if (mins < 60) {
+return `${mins} phút`;
+}
+
     const hours = Math.floor(mins / 60);
     const remainingMins = mins % 60;
+
     return remainingMins > 0 ? `${hours} giờ ${remainingMins} phút` : `${hours} giờ`;
 }
 </script>

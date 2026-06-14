@@ -5,24 +5,24 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 // Existing Shared Modals & Navigation Drawers
-import NotificationDrawer from './components/NotificationDrawer.vue';
-import WebcamCheckInModal from './components/WebcamCheckInModal.vue';
-import ShiftSwapProposalModal from './components/ShiftSwapProposalModal.vue';
+import AdminAttendanceAnalytics from './components/AdminAttendanceAnalytics.vue';
+import AdminAttendanceLogs from './components/AdminAttendanceLogs.vue';
+import AdminOverrideModal from './components/AdminOverrideModal.vue';
 
 // Admin Components
-import AdminOverrideModal from './components/AdminOverrideModal.vue';
-import AdminAttendanceLogs from './components/AdminAttendanceLogs.vue';
-import AdminWeeklyRoster from './components/AdminWeeklyRoster.vue';
 import AdminShiftRegistrations from './components/AdminShiftRegistrations.vue';
-import AdminTimekeepingSettings from './components/AdminTimekeepingSettings.vue';
 import AdminShiftSwapApprovals from './components/AdminShiftSwapApprovals.vue';
-import AdminAttendanceAnalytics from './components/AdminAttendanceAnalytics.vue';
+import AdminTimekeepingSettings from './components/AdminTimekeepingSettings.vue';
+import AdminWeeklyRoster from './components/AdminWeeklyRoster.vue';
+import NotificationDrawer from './components/NotificationDrawer.vue';
+import ShiftSwapProposalModal from './components/ShiftSwapProposalModal.vue';
 
 // Staff Components
+import StaffShiftRegistration from './components/StaffShiftRegistration.vue';
+import StaffShiftSwapRequests from './components/StaffShiftSwapRequests.vue';
 import StaffTimeClock from './components/StaffTimeClock.vue';
 import StaffWeeklyRoster from './components/StaffWeeklyRoster.vue';
-import StaffShiftSwapRequests from './components/StaffShiftSwapRequests.vue';
-import StaffShiftRegistration from './components/StaffShiftRegistration.vue';
+import WebcamCheckInModal from './components/WebcamCheckInModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -132,7 +132,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (clockInterval) clearInterval(clockInterval);
+    if (clockInterval) {
+clearInterval(clockInterval);
+}
 });
 
 const activeStaffTab = ref<'roster' | 'register'>('roster');
@@ -175,7 +177,10 @@ const swapModalOpen = ref(false);
 const selectedMyShift = ref<any>(null);
 
 const swappableShifts = computed(() => {
-    if (!props.weeklyAssignments || !props.employee) return [];
+    if (!props.weeklyAssignments || !props.employee) {
+return [];
+}
+
     return props.weeklyAssignments.filter(wa => wa.employee_id !== props.employee?.id);
 });
 

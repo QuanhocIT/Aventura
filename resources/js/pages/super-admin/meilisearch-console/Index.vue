@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     Search,
     Database,
@@ -20,9 +18,11 @@ import {
     Grid,
     HelpCircle
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 // Layout config
 defineOptions({ layout: AppLayout });
@@ -94,11 +94,15 @@ const isSyncing = ref<Record<string, boolean>>({});
 const isClearingStats = ref(false);
 
 function formatBytes(bytes: number, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) {
+return '0 Bytes';
+}
+
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
@@ -115,16 +119,23 @@ async function triggerSync(indexName: string, action: 'import' | 'flush') {
         },
         body: JSON.stringify({ index_name: indexName, action })
     }).then(async (res) => {
-        if (!res.ok) throw new Error('Yêu cầu thất bại');
+        if (!res.ok) {
+throw new Error('Yêu cầu thất bại');
+}
+
         const data = await res.json();
+
         if (data.success) {
             // Update local state sync status to pending
             const targetIndex = localIndexes.value.find(idx => idx.index_name === indexName);
+
             if (targetIndex) {
                 targetIndex.sync_status = data.sync_status;
             }
+
             return data.message || 'Lệnh đồng bộ chỉ mục đã được đưa vào hàng đợi';
         }
+
         throw new Error(data.message || 'Lỗi không xác định');
     });
 
@@ -187,9 +198,16 @@ function getSyncStatusLabel(status: string) {
 }
 
 function getIndexVisualPercentage(idx: IndexStat) {
-    if (idx.db_records_count === 0 && idx.documents_count === 0) return 100;
-    if (idx.db_records_count === 0) return 0;
+    if (idx.db_records_count === 0 && idx.documents_count === 0) {
+return 100;
+}
+
+    if (idx.db_records_count === 0) {
+return 0;
+}
+
     const ratio = (idx.documents_count / idx.db_records_count) * 100;
+
     return Math.min(Math.round(ratio), 100);
 }
 </script>

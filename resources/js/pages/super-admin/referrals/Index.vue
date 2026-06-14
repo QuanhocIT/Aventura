@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
 import { AlertTriangle, Check, CheckCircle2, Crown, Landmark, X, XCircle } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type WithdrawalRequest = {
@@ -70,7 +70,9 @@ const closeActionModal = () => {
 };
 
 const submitAction = () => {
-    if (!selectedRequest.value || !actionType.value) return;
+    if (!selectedRequest.value || !actionType.value) {
+return;
+}
 
     const url = `/super-admin/referrals/withdrawals/${selectedRequest.value.id}/${actionType.value}`;
     actionForm.post(url, {

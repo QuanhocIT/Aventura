@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Package } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface TopProductStat {
@@ -17,6 +17,7 @@ const topProductsList = computed(() => props.topProductsChartData ?? []);
 
 const maxProductQty = computed(() => {
     const qtyList = topProductsList.value.map(p => p.quantity);
+
     return Math.max(...qtyList, 1);
 });
 
@@ -24,6 +25,7 @@ function formatMoneyFull(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 </script>

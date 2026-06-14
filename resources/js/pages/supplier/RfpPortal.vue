@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
 import { 
     Calendar, FileText, Gavel, Award, Building2, 
     Clock, CheckCircle, AlertCircle, Sparkles, X, Plus, Info
 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +37,7 @@ const openBidForm = (rfp: any) => {
     
     bidForm.items = rfp.items.map((item: any) => {
         const existingBidItem = existingBid?.items?.find((bi: any) => bi.rfp_item_id === item.id);
+
         return {
             rfp_item_id: item.id,
             proposed_price: existingBidItem ? parseFloat(existingBidItem.proposed_price_per_unit) : 0,

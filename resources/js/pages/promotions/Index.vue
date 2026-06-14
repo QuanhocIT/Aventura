@@ -178,7 +178,9 @@ const openEditPromotion = (p: Promotion) => {
 };
 
 const submitEdit = () => {
-    if (!editingPromotion.value) return;
+    if (!editingPromotion.value) {
+return;
+}
 
     editForm.put(`/promotions/${editingPromotion.value.id}`, {
         preserveScroll: true,
@@ -204,8 +206,10 @@ const confirmDeletePromotion = (p: Promotion) => {
 // Run Market Basket Analysis
 const runBasketAnalysis = async () => {
     isAnalyzing.value = true;
+
     try {
         const res = await fetch('/api/promotions/basket-analysis');
+
         if (res.ok) {
             analysisResults.value = await res.json();
         } else {
@@ -251,6 +255,7 @@ const openQuickCombo = (rule: ComboRule) => {
 const createQuickCombo = () => {
     if (!comboForm.item_a_id || !comboForm.item_b_id) {
         alert('Không tìm thấy món ăn tương ứng trong thực đơn để tạo combo. Vui lòng kiểm tra lại tên món.');
+
         return;
     }
 

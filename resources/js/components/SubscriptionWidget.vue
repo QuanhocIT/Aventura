@@ -191,22 +191,31 @@ function planAccent(code: string) {
 const isYearly = ref(false);
 
 const maxDiscountPercent = computed(() => {
-    if (!availablePlans.value.length) return 20;
+    if (!availablePlans.value.length) {
+return 20;
+}
+
     const percentages = availablePlans.value.map(p => 
         p.features?.yearly_discount_percent !== undefined ? Number(p.features.yearly_discount_percent) : 20
     );
+
     return Math.max(...percentages);
 });
 
 function getDisplayPrice(plan: AvailablePlan) {
-    if (plan.price === 0) return 'Miễn phí';
+    if (plan.price === 0) {
+return 'Miễn phí';
+}
+
     if (isYearly.value) {
         const discountPercent = plan.features?.yearly_discount_percent !== undefined
             ? Number(plan.features.yearly_discount_percent)
             : 20;
         const yearlyPrice = Math.round(plan.price * 12 * (1 - discountPercent / 100));
+
         return yearlyPrice.toLocaleString('vi-VN') + 'đ/năm';
     }
+
     return plan.price.toLocaleString('vi-VN') + 'đ/tháng';
 }
 

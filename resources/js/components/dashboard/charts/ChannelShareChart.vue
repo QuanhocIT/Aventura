@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Utensils, ShoppingCart } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ChannelShare {
@@ -26,9 +26,13 @@ const channelColors: Record<string, string> = {
 const doughnutPaths = computed(() => {
     const list = channelChartList.value;
     const total = list.reduce((sum, item) => sum + item.count, 0);
-    if (total === 0) return [];
+
+    if (total === 0) {
+return [];
+}
 
     let currentAngle = -Math.PI / 2; // start at top
+
     return list.map(item => {
         const pct = item.count / total;
         const angle = pct * 2 * Math.PI;

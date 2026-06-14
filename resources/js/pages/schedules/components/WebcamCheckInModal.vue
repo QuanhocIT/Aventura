@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Clock, AlertCircle, RefreshCw, X } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,7 @@ const startWebcam = async () => {
             video: { facingMode: 'user', width: 480, height: 360 }
         });
         streamRef.value = stream;
+
         if (videoRef.value) {
             videoRef.value.srcObject = stream;
         }
@@ -63,11 +64,15 @@ const stopWebcam = () => {
 };
 
 const captureSelfie = () => {
-    if (!videoRef.value) return;
+    if (!videoRef.value) {
+return;
+}
+
     const canvas = document.createElement('canvas');
     canvas.width = 480;
     canvas.height = 360;
     const ctx = canvas.getContext('2d');
+
     if (ctx) {
         ctx.drawImage(videoRef.value, 0, 0, canvas.width, canvas.height);
         checkInPhoto.value = canvas.toDataURL('image/jpeg', 0.85);
@@ -88,8 +93,10 @@ const closeCheckInFlow = () => {
 const submitCheckIn = () => {
     if (!checkInPhoto.value) {
         import('vue-sonner').then(m => m.toast.error('Vui lòng chụp ảnh selfie để xác minh danh tính.'));
+
         return;
     }
+
     isCheckingIn.value = true;
     router.post('/schedules/check-in', {
         latitude: gpsCoords.value.latitude,
@@ -118,11 +125,14 @@ onMounted(() => {
 
     if (props.gpsSettings?.latitude && props.gpsSettings?.longitude) {
         gpsStatus.value = 'fetching';
+
         if (!navigator.geolocation) {
             gpsStatus.value = 'error';
             gpsErrorMsg.value = 'Trình duyệt không hỗ trợ định vị GPS.';
+
             return;
         }
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 gpsCoords.value.latitude = position.coords.latitude;
@@ -131,6 +141,7 @@ onMounted(() => {
             },
             (error) => {
                 gpsStatus.value = 'error';
+
                 switch (error.code) {
                     case error.PERMISSION_DENIED:
                         gpsErrorMsg.value = 'Quyền truy cập định vị bị từ chối. Vui lòng bật định vị.';

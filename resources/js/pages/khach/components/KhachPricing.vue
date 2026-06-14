@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { Check, X } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -240,6 +240,7 @@ const displayPlans = computed(() => {
             }
 
             let rawPrice = 0;
+
             if (props.plans?.length) {
                 const dbPlan = props.plans.find(d => d.code === p.code);
                 rawPrice = dbPlan ? Number(dbPlan.price) : 0;

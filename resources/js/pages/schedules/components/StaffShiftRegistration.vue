@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Clock, CheckCircle2, Check } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ref, computed, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
     myRegistrations?: Array<{ shift_id: number; date: string }>;
@@ -35,6 +35,7 @@ const weekDaysWithDates = computed(() => {
         const yyyy = nextDay.getFullYear();
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
         const dd = String(nextDay.getDate()).padStart(2, '0');
+
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
@@ -50,6 +51,7 @@ const isShiftSelected = (shiftId: number, dateStr: string) => {
 
 const toggleShiftSelection = (shiftId: number, dateStr: string) => {
     const index = selectedRegs.value.findIndex(r => r.shift_id === shiftId && r.date === dateStr);
+
     if (index > -1) {
         selectedRegs.value.splice(index, 1);
     } else {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
 import axios from 'axios';
 import {
     ArrowLeft,
@@ -17,6 +16,7 @@ import {
     TrendingUp,
     Loader2
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
 
 interface Reward {
@@ -59,6 +59,7 @@ const props = defineProps<{
 // Navigation back to QR Menu
 const goBack = () => {
     const lastUrl = localStorage.getItem('last_qr_order_url');
+
     if (lastUrl) {
         window.location.href = lastUrl;
     } else {
@@ -77,9 +78,12 @@ const reservationNotes = ref('');
 const submitReservation = async () => {
     if (!reservationTime.value) {
         toast.error('Vui lòng chọn thời gian đặt bàn');
+
         return;
     }
+
     isReserving.value = true;
+
     try {
         const res = await axios.post(`/customer/portal/reserve/${props.restaurant.id}`, {
             customer_name: reservationName.value,
@@ -110,9 +114,12 @@ const currentPoints = ref(props.customer.loyalty_points);
 const redeem = async (reward: Reward) => {
     if (currentPoints.value < reward.points_required) {
         toast.error('Bạn không đủ điểm để đổi phần thưởng này');
+
         return;
     }
+
     isRedeeming.value = reward.id;
+
     try {
         const res = await axios.post(`/customer/portal/redeem/${props.restaurant.id}/${props.customer.phone}`, {
             product_id: reward.id,
@@ -144,6 +151,7 @@ const formatCurrency = (val: number) => {
 
 const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
+
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 };
 
@@ -155,6 +163,7 @@ const translateStatus = (status: string) => {
         completed: 'Hoàn thành',
         cancelled: 'Đã hủy'
     };
+
     return statuses[status] || status;
 };
 </script>

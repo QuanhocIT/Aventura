@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Sparkles, Brain, Utensils, Trophy } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ForecastData {
@@ -35,8 +35,12 @@ const props = defineProps<{
 const topDishName = computed(() => props.topProductsChartData?.[0]?.name ?? 'chưa có');
 
 const topChannelLabel = computed(() => {
-    if (!props.channelChartData || props.channelChartData.length === 0) return 'chưa có';
+    if (!props.channelChartData || props.channelChartData.length === 0) {
+return 'chưa có';
+}
+
     const sorted = [...props.channelChartData].sort((a, b) => b.count - a.count);
+
     return sorted[0]?.label ?? 'chưa có';
 });
 
@@ -44,6 +48,7 @@ function formatMoney(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
 }
 </script>

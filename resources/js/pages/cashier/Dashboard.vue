@@ -175,13 +175,18 @@ const splitTableId = ref<number | null>(null);
 
 const splitProjection = computed(() => {
     const order = activeTable.value?.active_order;
-    if (!order) return null;
+
+    if (!order) {
+return null;
+}
+
     const orderSub   = order.subtotal as number;
     const discount   = (order.discount_amount as number) ?? 0;
     const splitSub   = splitItems.value.filter(i => i.quantity > 0).reduce((s, i) => s + i.price * i.quantity, 0);
     const origSub    = orderSub - splitSub;
     const splitDisc  = discount > 0 && orderSub > 0 ? Math.round(discount * (splitSub / orderSub) * 100) / 100 : 0;
     const origDisc   = discount - splitDisc;
+
     return {
         splitSubtotal:  splitSub,
         splitDiscount:  splitDisc,
@@ -212,11 +217,16 @@ const foundCustomer = ref<any>(null);
 const isSearchingCustomer = ref(false);
 
 const searchCustomer = async () => {
-    if (!searchCustomerPhone.value) return;
+    if (!searchCustomerPhone.value) {
+return;
+}
+
     isSearchingCustomer.value = true;
     foundCustomer.value = null;
+
     try {
         const response = await axios.get(`/api/customers/search?phone=${searchCustomerPhone.value}`);
+
         if (response.data.success) {
             foundCustomer.value = response.data.customer;
             toast('Đã tìm thấy khách hàng ' + response.data.customer.full_name);
@@ -302,7 +312,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (timerId) clearInterval(timerId);
+    if (timerId) {
+clearInterval(timerId);
+}
+
     if (restaurantId.value) {
         window.Echo.leaveChannel(`restaurant.${restaurantId.value}`);
         window.Echo.leaveChannel(`kitchen.${restaurantId.value}`);
@@ -597,7 +610,9 @@ const updateExternalOrderStatus = (orderId: number, status: string) => {
             router.reload({ only: ['externalOrders', 'tablesData', 'completedHistory', 'shiftInfo'] });
         },
         onError: () => toast('Không thể cập nhật trạng thái.', 'error'),
-        onFinish: () => { updatingExternalId.value = null; },
+        onFinish: () => {
+ updatingExternalId.value = null; 
+},
     });
 };
 
@@ -703,6 +718,7 @@ return;
 
     if (itemsToSplit.length === 0) {
         toast('Vui lòng chọn ít nhất 1 món để tách!', 'error');
+
         return;
     }
 

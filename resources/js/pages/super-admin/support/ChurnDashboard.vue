@@ -1,7 +1,6 @@
 <script setup lang="ts">
 useLayout: true;
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
 import {
     ShieldAlert,
     AlertTriangle,
@@ -19,11 +18,12 @@ import {
     ArrowUpDown,
     TicketCheck
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'vue-sonner';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -139,21 +139,39 @@ const sendOutreachEmail = (restaurantId: number) => {
 
 // Styling helper for Health Score Badge
 const getScoreBadgeClass = (score: number) => {
-    if (score >= 80) return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
-    if (score >= 50) return 'bg-amber-500/10 text-amber-600 border border-amber-500/20';
+    if (score >= 80) {
+return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
+}
+
+    if (score >= 50) {
+return 'bg-amber-500/10 text-amber-600 border border-amber-500/20';
+}
+
     return 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse';
 };
 
 // Styling helper for Risk Level Badge
 const getRiskBadgeClass = (level: 'high' | 'medium' | 'low') => {
-    if (level === 'low') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
-    if (level === 'medium') return 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
+    if (level === 'low') {
+return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
+}
+
+    if (level === 'medium') {
+return 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
+}
+
     return 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300';
 };
 
 const getRiskLabel = (level: 'high' | 'medium' | 'low') => {
-    if (level === 'low') return 'Nguy cơ thấp';
-    if (level === 'medium') return 'Nguy cơ TB';
+    if (level === 'low') {
+return 'Nguy cơ thấp';
+}
+
+    if (level === 'medium') {
+return 'Nguy cơ TB';
+}
+
     return 'Nguy cơ cao (At-risk)';
 };
 

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
 import { 
     Plus, ChevronDown, ChevronUp, Check, X, 
     Calendar, FileText, Gavel, Award, Building2, 
     Clock, ShieldAlert, AlertCircle, ShoppingCart, Sparkles
 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,13 +20,14 @@ const itemsPerPage = 10;
 const totalPages = computed(() => Math.ceil(props.rfps.length / itemsPerPage));
 const paginatedRfps = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return props.rfps.slice(start, start + itemsPerPage);
 });
 const visiblePages = computed(() => {
     const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
     
     if (end - start + 1 < maxVisible) {
         start = Math.max(1, end - maxVisible + 1);
@@ -35,6 +36,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 watch(() => props.rfps, () => {
@@ -44,6 +46,7 @@ watch(() => props.rfps, () => {
 const page = usePage();
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));

@@ -148,7 +148,10 @@ const form = useForm({
 const isSubmitting = ref(false);
 
 const cashDifference = computed(() => {
-    if (!previewData.value) return 0;
+    if (!previewData.value) {
+return 0;
+}
+
     return form.actual_cash - previewData.value.expected_cash;
 });
 
@@ -169,6 +172,7 @@ function openDialog() {
 async function loadPreview() {
     if (!form.shift_id || !form.closing_date) {
         previewError.value = 'Vui lòng chọn ca và ngày.';
+
         return;
     }
 
@@ -184,6 +188,7 @@ async function loadPreview() {
 
         if (!res.ok) {
             previewError.value = 'Không thể tải dữ liệu. Thử lại.';
+
             return;
         }
 
@@ -213,7 +218,10 @@ function submitForm(isSubmit: boolean) {
         onError: (errors: any) => {
             isSubmitting.value = false;
             const msg = Object.values(errors)[0];
-            if (msg) toast.error(String(msg));
+
+            if (msg) {
+toast.error(String(msg));
+}
         },
     });
 }
@@ -230,9 +238,13 @@ function openDisputeDialog(closing: ShiftClosing) {
 }
 
 function submitDispute() {
-    if (!disputeTarget.value) return;
+    if (!disputeTarget.value) {
+return;
+}
+
     if (!disputeNotes.value.trim()) {
         toast.error('Vui lòng nhập lý do tranh chấp.');
+
         return;
     }
 
@@ -247,7 +259,9 @@ function submitDispute() {
                 toast.success('Đã đánh dấu tranh chấp.');
             },
             onError: () => toast.error('Có lỗi xảy ra.'),
-            onFinish: () => { disputeLoading.value = false; },
+            onFinish: () => {
+ disputeLoading.value = false; 
+},
         },
     );
 }
@@ -317,7 +331,9 @@ function selectMonth(m: number) {
     showMonthPicker.value = false;
 }
 
-function prevYear() { calView.value = { year: calView.value.year - 1, month: calView.value.month }; }
+function prevYear() {
+ calView.value = { year: calView.value.year - 1, month: calView.value.month }; 
+}
 function nextYear() {
     if (calView.value.year < today.getFullYear()) {
         calView.value = { year: calView.value.year + 1, month: calView.value.month };
@@ -332,6 +348,7 @@ function openCalendar() {
     } else {
         calView.value = { year: today.getFullYear(), month: today.getMonth() };
     }
+
     // Đặt calendar sang bên phải trigger
     if (calTriggerRef.value) {
         const rect = calTriggerRef.value.getBoundingClientRect();
@@ -341,6 +358,7 @@ function openCalendar() {
             width: rect.width,
         };
     }
+
     showCalendar.value = true;
 }
 
@@ -353,6 +371,7 @@ function prevMonth() {
 function nextMonth() {
     const nextY = calView.value.month === 11 ? calView.value.year + 1 : calView.value.year;
     const nextM = calView.value.month === 11 ? 0 : calView.value.month + 1;
+
     if (new Date(nextY, nextM, 1) <= today) {
         calView.value = { year: nextY, month: nextM };
     }
@@ -361,6 +380,7 @@ function nextMonth() {
 const isNextMonthDisabled = computed(() => {
     const nextY = calView.value.month === 11 ? calView.value.year + 1 : calView.value.year;
     const nextM = calView.value.month === 11 ? 0 : calView.value.month + 1;
+
     return new Date(nextY, nextM, 1) > today;
 });
 
@@ -380,30 +400,44 @@ const calDays = computed<CalDay[]>(() => {
         const str = d.toISOString().slice(0, 10);
         days.push({ date: str, day: d.getDate(), inMonth: false, isToday: false, isFuture: d > today, isSelected: str === form.closing_date });
     }
+
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const dt  = new Date(year, month, d);
         const str = dt.toISOString().slice(0, 10);
         days.push({ date: str, day: d, inMonth: true, isToday: str === todayStr, isFuture: dt > today, isSelected: str === form.closing_date });
     }
+
     const remaining = 42 - days.length;
+
     for (let i = 1; i <= remaining; i++) {
         const d   = new Date(year, month + 1, i);
         const str = d.toISOString().slice(0, 10);
         days.push({ date: str, day: i, inMonth: false, isToday: false, isFuture: true, isSelected: false });
     }
+
     return days;
 });
 
 function selectDate(day: CalDay) {
-    if (day.isFuture) return;
+    if (day.isFuture) {
+return;
+}
+
     form.closing_date = day.date;
     showCalendar.value = false;
-    if (dialogStep.value === 2) { dialogStep.value = 1; previewData.value = null; }
+
+    if (dialogStep.value === 2) {
+ dialogStep.value = 1; previewData.value = null; 
+}
 }
 
 const displayDate = computed(() => {
-    if (!form.closing_date) return '';
+    if (!form.closing_date) {
+return '';
+}
+
     const d = new Date(form.closing_date + 'T00:00:00');
+
     return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
 });
 
@@ -411,6 +445,7 @@ function handleOutsideClick(e: MouseEvent) {
     const target = e.target as Node;
     const trigger = calTriggerRef.value;
     const calEl   = document.getElementById('shift-cal-popup');
+
     if (trigger && !trigger.contains(target) && calEl && !calEl.contains(target)) {
         showCalendar.value = false;
     }

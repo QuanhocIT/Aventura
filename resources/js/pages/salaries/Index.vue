@@ -109,8 +109,13 @@ const filteredSalaries = computed(() => {
         const matchBranch = branchFilter.value === 'all' || s.branch_id === Number(branchFilter.value);
         const matchEmpType = employmentTypeFilter.value === 'all' || s.employment_type === employmentTypeFilter.value;
         
-        if (!matchStatus || !matchBranch || !matchEmpType) return false;
-        if (!q) return true;
+        if (!matchStatus || !matchBranch || !matchEmpType) {
+return false;
+}
+
+        if (!q) {
+return true;
+}
         
         return s.employee_name.toLowerCase().includes(q) || s.job_title.toLowerCase().includes(q);
     });
@@ -121,11 +126,20 @@ const totalPages = computed(() => Math.ceil(filteredSalaries.value.length / item
 const paginatedSalaries = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
     const end = start + itemsPerPage.value;
+
     return filteredSalaries.value.slice(start, end);
 });
 
-function prevPage() { if (currentPage.value > 1) currentPage.value--; }
-function nextPage() { if (currentPage.value < totalPages.value) currentPage.value++; }
+function prevPage() {
+ if (currentPage.value > 1) {
+currentPage.value--;
+} 
+}
+function nextPage() {
+ if (currentPage.value < totalPages.value) {
+currentPage.value++;
+} 
+}
 
 function exportCSV() {
     const rows = [
@@ -160,7 +174,9 @@ function generateDrafts() {
     generateForm.post('/salaries/generate', {
         onSuccess: () => toast.success('Đã tạo bảng lương bản nháp!'),
         onError:   () => toast.error('Có lỗi khi tạo bảng lương.'),
-        onFinish:  () => { generating.value = false; },
+        onFinish:  () => {
+ generating.value = false; 
+},
     });
 }
 
@@ -186,12 +202,17 @@ const selectedIds = ref<number[]>([]);
 
 const isAllSelected = computed(() => {
     const pageIds = paginatedSalaries.value.filter(s => s.status !== 'paid').map(s => s.id);
-    if (pageIds.length === 0) return false;
+
+    if (pageIds.length === 0) {
+return false;
+}
+
     return pageIds.every(id => selectedIds.value.includes(id));
 });
 
 function toggleSelectAll() {
     const pageIds = paginatedSalaries.value.filter(s => s.status !== 'paid').map(s => s.id);
+
     if (isAllSelected.value) {
         selectedIds.value = selectedIds.value.filter(id => !pageIds.includes(id));
     } else {
@@ -202,6 +223,7 @@ function toggleSelectAll() {
 
 function toggleSelect(id: number) {
     const idx = selectedIds.value.indexOf(id);
+
     if (idx > -1) {
         selectedIds.value.splice(idx, 1);
     } else {
@@ -218,7 +240,10 @@ const bulkForm = useForm({
 });
 
 function openBulkDialog() {
-    if (selectedIds.value.length === 0) return;
+    if (selectedIds.value.length === 0) {
+return;
+}
+
     bulkForm.reset();
     showBulkDialog.value = true;
 }
@@ -240,7 +265,9 @@ function submitBulkAdj() {
 // ── Expanded row ──────────────────────────────────────────────────────────────
 
 const expandedId = ref<number | null>(null);
-const toggleExpand = (id: number) => { expandedId.value = expandedId.value === id ? null : id; };
+const toggleExpand = (id: number) => {
+ expandedId.value = expandedId.value === id ? null : id; 
+};
 
 // ── Add adjustment dialog ─────────────────────────────────────────────────────
 
@@ -253,7 +280,10 @@ function openAdjDialog(salary: SalaryRow) {
 }
 
 function submitAdj() {
-    if (!adjTarget.value) return;
+    if (!adjTarget.value) {
+return;
+}
+
     adjForm.post(`/salaries/${adjTarget.value.id}/adjustments`, {
         onSuccess: () => {
             const msg = (usePage().props.flash as any)?.success ?? 'Đã thêm điều chỉnh lương thành công.';

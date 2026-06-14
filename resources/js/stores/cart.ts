@@ -24,8 +24,10 @@ export const useCartStore = defineStore('cart', () => {
 
     function addItem(product: { id: number; name: string; price: number }, quantity = 1, notes: string | null = null) {
         const existingItem = items.value.find(item => item.product_id === product.id);
+
         if (existingItem) {
             existingItem.quantity += quantity;
+
             if (notes !== null) {
                 existingItem.notes = notes;
             }
@@ -46,6 +48,7 @@ export const useCartStore = defineStore('cart', () => {
 
     function updateQuantity(productId: number, quantity: number) {
         const item = items.value.find(item => item.product_id === productId);
+
         if (item) {
             item.quantity = Math.max(0.01, quantity);
         }
@@ -53,6 +56,7 @@ export const useCartStore = defineStore('cart', () => {
 
     function updateNotes(productId: number, notes: string | null) {
         const item = items.value.find(item => item.product_id === productId);
+
         if (item) {
             item.notes = notes;
         }

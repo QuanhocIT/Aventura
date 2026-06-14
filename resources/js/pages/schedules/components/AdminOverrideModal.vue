@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { ShieldCheck, X, AlertCircle } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -28,12 +28,21 @@ const violationNotes = ref('');
 const processingOverride = ref(false);
 
 const submitAdminOverride = () => {
-    if (!props.assignment) return;
+    if (!props.assignment) {
+return;
+}
+
     processingOverride.value = true;
     
     let url = '/schedules/check-in-employee';
-    if (props.action === 'check_out') url = '/schedules/check-out-employee';
-    if (props.action === 'absent') url = '/schedules/absent-employee';
+
+    if (props.action === 'check_out') {
+url = '/schedules/check-out-employee';
+}
+
+    if (props.action === 'absent') {
+url = '/schedules/absent-employee';
+}
     
     router.post(url, {
         assignment_id: props.assignment.id,

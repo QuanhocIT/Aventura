@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { 
     Send, 
@@ -19,6 +18,7 @@ import {
     Award,
     Activity
 } from 'lucide-vue-next';
+import { ref, watch, onMounted, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -78,6 +78,7 @@ const simulatedUsers = ref(0);
 
 async function simulateAudience() {
     isSimulating.value = true;
+
     try {
         const response = await axios.post('/super-admin/campaigns/preview-audience', {
             target_type: form.target_type,
@@ -103,11 +104,13 @@ onMounted(() => {
     if (props.plans.length > 0 && !form.target_plan_id) {
         form.target_plan_id = props.plans[0].id;
     }
+
     simulateAudience();
 });
 
 function handleTargetTypeChange(type: 'all' | 'plan' | 'trial') {
     form.target_type = type;
+
     if (type === 'plan' && props.plans.length > 0) {
         form.target_plan_id = props.plans[0].id;
     } else {
@@ -117,6 +120,7 @@ function handleTargetTypeChange(type: 'all' | 'plan' | 'trial') {
 
 function toggleChannel(channel: string) {
     const idx = form.channels.indexOf(channel);
+
     if (idx > -1) {
         if (form.channels.length > 1) {
             form.channels.splice(idx, 1);

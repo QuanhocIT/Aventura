@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     Building2,
@@ -9,6 +8,7 @@ import {
     Users,
     BarChart3
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 

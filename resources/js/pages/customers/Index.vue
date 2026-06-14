@@ -53,9 +53,18 @@ const sortBy        = ref<'default' | 'points_desc' | 'points_asc' | 'recent'>('
 
 // --- COMPUTED ---
 const loyaltyTier = (pts: number): { label: string; cls: string; icon: string } | null => {
-    if (pts >= 200) return { label: 'Gold',   cls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400',    icon: '🥇' };
-    if (pts >= 100) return { label: 'Silver', cls: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400',       icon: '🥈' };
-    if (pts > 0)    return { label: 'Bronze', cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400', icon: '🥉' };
+    if (pts >= 200) {
+return { label: 'Gold',   cls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400',    icon: '🥇' };
+}
+
+    if (pts >= 100) {
+return { label: 'Silver', cls: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400',       icon: '🥈' };
+}
+
+    if (pts > 0)    {
+return { label: 'Bronze', cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400', icon: '🥉' };
+}
+
     return null;
 };
 
@@ -68,18 +77,41 @@ const segmentCounts = computed(() => ({
 
 const displayedCustomers = computed(() => {
     let list = [...props.customers];
-    if (segmentFilter.value === 'vip')     list = list.filter(c => c.loyalty_points >= 100);
-    if (segmentFilter.value === 'regular') list = list.filter(c => c.loyalty_points > 0 && c.loyalty_points < 100);
-    if (segmentFilter.value === 'new')     list = list.filter(c => c.loyalty_points === 0);
-    if (sortBy.value === 'points_desc') list.sort((a, b) => b.loyalty_points - a.loyalty_points);
-    if (sortBy.value === 'points_asc')  list.sort((a, b) => a.loyalty_points - b.loyalty_points);
+
+    if (segmentFilter.value === 'vip')     {
+list = list.filter(c => c.loyalty_points >= 100);
+}
+
+    if (segmentFilter.value === 'regular') {
+list = list.filter(c => c.loyalty_points > 0 && c.loyalty_points < 100);
+}
+
+    if (segmentFilter.value === 'new')     {
+list = list.filter(c => c.loyalty_points === 0);
+}
+
+    if (sortBy.value === 'points_desc') {
+list.sort((a, b) => b.loyalty_points - a.loyalty_points);
+}
+
+    if (sortBy.value === 'points_asc')  {
+list.sort((a, b) => a.loyalty_points - b.loyalty_points);
+}
+
     if (sortBy.value === 'recent') {
         list.sort((a, b) => {
-            if (!a.last_order_at || a.last_order_at === 'Chưa có') return 1;
-            if (!b.last_order_at || b.last_order_at === 'Chưa có') return -1;
+            if (!a.last_order_at || a.last_order_at === 'Chưa có') {
+return 1;
+}
+
+            if (!b.last_order_at || b.last_order_at === 'Chưa có') {
+return -1;
+}
+
             return b.last_order_at.localeCompare(a.last_order_at);
         });
     }
+
     return list;
 });
 
@@ -88,13 +120,14 @@ const itemsPerPage = 10;
 const totalPages = computed(() => Math.ceil(displayedCustomers.value.length / itemsPerPage));
 const paginatedCustomers = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return displayedCustomers.value.slice(start, start + itemsPerPage);
 });
 const visiblePages = computed(() => {
     const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
     
     if (end - start + 1 < maxVisible) {
         start = Math.max(1, end - maxVisible + 1);
@@ -103,6 +136,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 watch([segmentFilter, sortBy, searchQuery], () => {
@@ -157,7 +191,9 @@ const openEditModal = (c: Customer) => {
 };
 
 const submitEdit = () => {
-    if (!editingCustomer.value) return;
+    if (!editingCustomer.value) {
+return;
+}
     
     editForm.patch(`/customers/${editingCustomer.value.id}`, {
         onSuccess: () => {
@@ -170,8 +206,10 @@ const submitEdit = () => {
 const triggerExport = () => {
     if (!props.isOwner) {
         alert('Chỉ có Chủ nhà hàng mới có quyền xuất tệp dữ liệu khách hàng.');
+
         return;
     }
+
     window.location.href = '/customers/export';
 };
 

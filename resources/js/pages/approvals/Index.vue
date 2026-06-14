@@ -7,10 +7,10 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -62,11 +62,25 @@ function timeAgo(dateStr: string): string {
     const diffMs = Date.now() - new Date(dateStr).getTime();
     const diffH  = Math.floor(diffMs / 3_600_000);
     const diffD  = Math.floor(diffH / 24);
-    if (diffD >= 2) return `${diffD} ngày trước`;
-    if (diffD === 1) return '1 ngày trước';
-    if (diffH >= 1) return `${diffH} giờ trước`;
+
+    if (diffD >= 2) {
+return `${diffD} ngày trước`;
+}
+
+    if (diffD === 1) {
+return '1 ngày trước';
+}
+
+    if (diffH >= 1) {
+return `${diffH} giờ trước`;
+}
+
     const diffM = Math.floor(diffMs / 60_000);
-    if (diffM >= 1) return `${diffM} phút trước`;
+
+    if (diffM >= 1) {
+return `${diffM} phút trước`;
+}
+
     return 'Vừa xong';
 }
 
@@ -75,18 +89,38 @@ function pendingHours(dateStr: string): number {
 }
 
 function slaClass(dateStr: string, status: ApprovalStatus): string {
-    if (status !== 'pending') return 'text-slate-400 dark:text-slate-500 font-semibold';
+    if (status !== 'pending') {
+return 'text-slate-400 dark:text-slate-500 font-semibold';
+}
+
     const h = pendingHours(dateStr);
-    if (h >= 48) return 'text-rose-600 dark:text-rose-450 font-bold';
-    if (h >= 24) return 'text-amber-600 dark:text-amber-400 font-semibold';
+
+    if (h >= 48) {
+return 'text-rose-600 dark:text-rose-450 font-bold';
+}
+
+    if (h >= 24) {
+return 'text-amber-600 dark:text-amber-400 font-semibold';
+}
+
     return 'text-slate-500 dark:text-slate-400 font-semibold';
 }
 
 function slaIcon(dateStr: string, status: ApprovalStatus) {
-    if (status !== 'pending') return null;
+    if (status !== 'pending') {
+return null;
+}
+
     const h = pendingHours(dateStr);
-    if (h >= 48) return { icon: Zap, cls: 'text-rose-500 dark:text-rose-400 size-3 shrink-0' };
-    if (h >= 24) return { icon: Timer, cls: 'text-amber-500 dark:text-amber-400 size-3 shrink-0' };
+
+    if (h >= 48) {
+return { icon: Zap, cls: 'text-rose-500 dark:text-rose-400 size-3 shrink-0' };
+}
+
+    if (h >= 24) {
+return { icon: Timer, cls: 'text-amber-500 dark:text-amber-400 size-3 shrink-0' };
+}
+
     return null;
 }
 
@@ -142,26 +176,44 @@ const typeAdjLabels: Record<string, string> = {
 
 function formatDataEntry(key: string, value: unknown): { label: string; display: string; highlight: boolean } {
     const label = dataLabels[key] ?? key;
-    if (value === null || value === undefined || value === '') return { label, display: '—', highlight: false };
+
+    if (value === null || value === undefined || value === '') {
+return { label, display: '—', highlight: false };
+}
 
     // Hide raw IDs if name is present
-    if (key === 'ingredient_id') return { label, display: String(value), highlight: false };
+    if (key === 'ingredient_id') {
+return { label, display: String(value), highlight: false };
+}
 
-    if (key === 'ingredient_name') return { label, display: String(value), highlight: true };
+    if (key === 'ingredient_name') {
+return { label, display: String(value), highlight: true };
+}
+
     if ((key.includes('cost') || key === 'amount') && typeof value === 'number') {
         return { label, display: Number(value).toLocaleString('vi-VN') + 'đ', highlight: true };
     }
-    if (key === 'type') return { label, display: typeAdjLabels[String(value)] ?? String(value), highlight: false };
+
+    if (key === 'type') {
+return { label, display: typeAdjLabels[String(value)] ?? String(value), highlight: false };
+}
+
     if (key === 'occurred_at') {
         const d = new Date(String(value));
+
         return { label, display: isNaN(d.getTime()) ? String(value) : d.toLocaleDateString('vi-VN'), highlight: false };
     }
+
     return { label, display: String(value), highlight: false };
 }
 
 function visibleDataEntries(data: Record<string, unknown>) {
     const skip = new Set(['ingredient_id']); // hide raw ID if ingredient_name exists
-    if (data['ingredient_name']) skip.add('ingredient_id');
+
+    if (data['ingredient_name']) {
+skip.add('ingredient_id');
+}
+
     return Object.entries(data)
         .filter(([k]) => !skip.has(k))
         .map(([k, v]) => ({ ...formatDataEntry(k, v), key: k }));
@@ -178,8 +230,12 @@ function applyFilter(status: string) {
 function approveRequest(approval: Approval) {
     processingId.value = approval.id;
     router.patch(`/approvals/${approval.id}/approve`, {}, {
-        onSuccess: () => { toast.success('Đã phê duyệt yêu cầu.'); processingId.value = null; },
-        onError:   () => { toast.error('Có lỗi khi phê duyệt.');   processingId.value = null; },
+        onSuccess: () => {
+ toast.success('Đã phê duyệt yêu cầu.'); processingId.value = null; 
+},
+        onError:   () => {
+ toast.error('Có lỗi khi phê duyệt.');   processingId.value = null; 
+},
     });
 }
 
@@ -196,9 +252,14 @@ function closeReject() {
 }
 
 function submitReject() {
-    if (!rejectTarget.value) return;
+    if (!rejectTarget.value) {
+return;
+}
+
     rejectForm.patch(`/approvals/${rejectTarget.value.id}/reject`, {
-        onSuccess: () => { toast.success('Đã từ chối yêu cầu.'); closeReject(); },
+        onSuccess: () => {
+ toast.success('Đã từ chối yêu cầu.'); closeReject(); 
+},
         onError:   () => toast.error('Vui lòng nhập lý do từ chối.'),
     });
 }

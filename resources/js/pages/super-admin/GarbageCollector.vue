@@ -80,7 +80,9 @@ function toggleSelect(id: number) {
 }
 
 function cleanupSelected() {
-    if (selectedIds.value.length === 0) return;
+    if (selectedIds.value.length === 0) {
+return;
+}
     
     if (confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedIds.value.length} tệp đã chọn để giải phóng bộ nhớ? Thao tác này không thể hoàn tác.`)) {
         processing.value = true;
@@ -140,8 +142,12 @@ function navigatePage(page: number) {
 }
 
 function getAttachableLabel(type: string | null) {
-    if (!type) return 'Không có liên kết';
+    if (!type) {
+return 'Không có liên kết';
+}
+
     const parts = type.split('\\');
+
     return parts[parts.length - 1];
 }
 </script>

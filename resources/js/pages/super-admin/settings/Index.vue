@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
 import {
     Settings, Bot, Mail, UploadCloud, Check, Loader2,
     Shield, Activity, FileText, Lock, Globe, Server, CheckCircle2,
 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

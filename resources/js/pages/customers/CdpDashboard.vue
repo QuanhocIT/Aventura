@@ -178,6 +178,7 @@ const itemsPerPage = 8;
 const totalPages = computed(() => Math.ceil(filteredCustomers.value.length / itemsPerPage));
 const paginatedCustomers = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return filteredCustomers.value.slice(start, start + itemsPerPage);
 });
 
@@ -188,11 +189,15 @@ watch([selectedSegment, searchQuery], () => {
 // Chart parameters
 const maxSegmentCount = computed(() => {
     const counts = Object.values(props.metrics.segments).map(s => s.count);
+
     return Math.max(...counts, 1);
 });
 
 const campaignTargetCount = computed(() => {
-    if (selectedCampaignSegment.value === 'all') return props.customers.length;
+    if (selectedCampaignSegment.value === 'all') {
+return props.customers.length;
+}
+
     return props.customers.filter(c => c.rfm_segment === selectedCampaignSegment.value).length;
 });
 
@@ -212,7 +217,9 @@ const handleRecalculate = () => {
 const isRunningCampaign = ref(false);
 
 const handleRunCampaign = () => {
-    if (campaignTargetCount.value === 0 || isRunningCampaign.value) return;
+    if (campaignTargetCount.value === 0 || isRunningCampaign.value) {
+return;
+}
     
     isRunningCampaign.value = true;
     const code = voucherCodeInput.value.trim() || ('VOUCHER-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + selectedCampaignSegment.value.substring(0, 3).toUpperCase());

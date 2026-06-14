@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { User, Building2, Shield, Gift } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
-import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
 
 const sidebarNavItems = [
     {
@@ -41,6 +41,7 @@ const isItemActive = (href: string) => {
     if (itemUrl.pathname === '/settings/profile') {
         const itemTab = itemUrl.searchParams.get('tab') || 'profile';
         const currentTab = currentUrlObj.searchParams.get('tab') || 'profile';
+
         return currentUrlObj.pathname === itemUrl.pathname && currentTab === itemTab;
     }
     

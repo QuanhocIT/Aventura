@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Clock } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
@@ -33,6 +33,7 @@ const heatmapData = computed(() => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     days.forEach(day => {
         grid[day] = {};
+
         if (props.shifts) {
             props.shifts.forEach(shift => {
                 grid[day][shift.id] = { total: 0, late: 0 };
@@ -40,7 +41,9 @@ const heatmapData = computed(() => {
         }
     });
 
-    if (!props.monthlyAssignments) return grid;
+    if (!props.monthlyAssignments) {
+return grid;
+}
 
     props.monthlyAssignments.forEach(a => {
         const date = new Date(a.scheduled_date);
@@ -49,8 +52,10 @@ const heatmapData = computed(() => {
         const dayName = dayNames[dayIndex];
 
         const shiftId = a.shift_id;
+
         if (grid[dayName] && shiftId && grid[dayName][shiftId]) {
             grid[dayName][shiftId].total++;
+
             if (a.late_minutes && a.late_minutes > 0) {
                 grid[dayName][shiftId].late++;
             }
@@ -62,22 +67,29 @@ const heatmapData = computed(() => {
 
 const getHeatmapColor = (day: string, shiftId: number) => {
     const cell = heatmapData.value[day]?.[shiftId];
+
     if (!cell || cell.total === 0) {
         return 'bg-slate-50 dark:bg-slate-900/25 text-slate-400 dark:text-slate-600';
     }
+
     const rate = cell.late / cell.total;
+
     if (rate === 0) {
         return 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-650 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30';
     }
+
     if (rate <= 0.15) {
         return 'bg-amber-50 dark:bg-amber-950/20 text-amber-605 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30';
     }
+
     if (rate <= 0.3) {
         return 'bg-orange-50 dark:bg-orange-950/20 text-orange-605 dark:text-orange-400 border border-orange-100 dark:border-orange-900/30';
     }
+
     if (rate <= 0.5) {
         return 'bg-rose-50 dark:bg-rose-950/20 text-rose-605 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30';
     }
+
     return 'bg-rose-500 text-white font-bold border border-rose-600';
 };
 </script>

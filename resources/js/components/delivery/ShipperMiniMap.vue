@@ -16,7 +16,10 @@ let stopMarker: any = null;
 let trailLine: any = null;
 
 async function initMap() {
-    if (!mapContainer.value) return;
+    if (!mapContainer.value) {
+return;
+}
+
     L = (await import('leaflet')).default;
     await import('leaflet/dist/leaflet.css');
 
@@ -32,13 +35,24 @@ async function initMap() {
         }),
     }).addTo(map);
 
-    if (props.nextStop) renderStop();
-    if (props.trail) renderTrail();
+    if (props.nextStop) {
+renderStop();
+}
+
+    if (props.trail) {
+renderTrail();
+}
 }
 
 function renderStop() {
-    if (!map || !L || !props.nextStop) return;
-    if (stopMarker) { map.removeLayer(stopMarker); stopMarker = null; }
+    if (!map || !L || !props.nextStop) {
+return;
+}
+
+    if (stopMarker) {
+ map.removeLayer(stopMarker); stopMarker = null; 
+}
+
     stopMarker = L.marker([props.nextStop.lat, props.nextStop.lng], {
         icon: L.divIcon({
             html: '<div style="background:#ef4444;width:14px;height:14px;border-radius:50%;border:2px solid white"></div>',
@@ -50,8 +64,14 @@ function renderStop() {
 }
 
 function renderTrail() {
-    if (!map || !L || !props.trail || props.trail.length < 2) return;
-    if (trailLine) { map.removeLayer(trailLine); trailLine = null; }
+    if (!map || !L || !props.trail || props.trail.length < 2) {
+return;
+}
+
+    if (trailLine) {
+ map.removeLayer(trailLine); trailLine = null; 
+}
+
     trailLine = L.polyline(props.trail.map(p => [p.lat, p.lng]), {
         color: '#3b82f6', weight: 2, opacity: 0.6,
     }).addTo(map);
@@ -60,11 +80,16 @@ function renderTrail() {
 onMounted(initMap);
 
 onUnmounted(() => {
-    if (map) { map.remove(); map = null; }
+    if (map) {
+ map.remove(); map = null; 
+}
 });
 
 watch(() => [props.lat, props.lng], ([lat, lng]) => {
-    if (!map || !posMarker) return;
+    if (!map || !posMarker) {
+return;
+}
+
     posMarker.setLatLng([lat as number, lng as number]);
     map.panTo([lat as number, lng as number]);
 });

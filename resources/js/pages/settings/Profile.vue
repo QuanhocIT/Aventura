@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link, usePage, useForm } from '@inertiajs/vue3';
-import { computed, ref, onUnmounted } from 'vue';
 import { User as UserIcon, Mail, ShieldCheck, Lock, Check, Copy, Gift, History, Landmark, Users } from 'lucide-vue-next';
+import { computed, ref, onUnmounted } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
 import DeleteUser from '@/components/DeleteUser.vue';
@@ -10,8 +10,6 @@ import PasswordInput from '@/components/PasswordInput.vue';
 import TwoFactorRecoveryCodes from '@/components/TwoFactorRecoveryCodes.vue';
 import TwoFactorSetupModal from '@/components/TwoFactorSetupModal.vue';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Card,
     CardContent,
@@ -19,10 +17,12 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
 import { edit } from '@/routes/profile';
-import { send } from '@/routes/verification';
 import { disable, enable } from '@/routes/two-factor';
+import { send } from '@/routes/verification';
 
 type Referral = {
     name: string;
@@ -92,6 +92,7 @@ const user = computed(() => page.props.auth.user);
 // Dynamic Tab Tracking
 const activeTab = computed(() => {
     const url = new URL(page.url, window.location.origin);
+
     return url.searchParams.get('tab') || 'profile';
 });
 

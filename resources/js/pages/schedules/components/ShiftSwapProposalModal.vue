@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { RefreshCw, AlertCircle, X } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import axios from 'axios';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -27,13 +27,18 @@ const aiSwapSuggestions = ref<any[]>([]);
 const isLoadingSuggestions = ref(false);
 
 const loadSwapSuggestions = async () => {
-    if (!props.selectedMyShift?.id) return;
+    if (!props.selectedMyShift?.id) {
+return;
+}
+
     isLoadingSuggestions.value = true;
     aiSwapSuggestions.value = [];
+
     try {
         const response = await axios.get('/schedules/swap-suggestions', {
             params: { assignment_id: props.selectedMyShift.id }
         });
+
         if (response.data && response.data.success) {
             aiSwapSuggestions.value = response.data.suggestions;
         }
@@ -47,8 +52,10 @@ const loadSwapSuggestions = async () => {
 const submitSwapRequest = () => {
     if (!props.selectedMyShift || !selectedTargetShiftId.value) {
         import('vue-sonner').then(m => m.toast.error('Vui lòng chọn ca muốn đề xuất đổi.'));
+
         return;
     }
+
     isSubmittingSwap.value = true;
     router.post('/schedules/swap/request', {
         requester_assignment_id: props.selectedMyShift.id,

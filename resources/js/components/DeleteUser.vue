@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Form } from '@inertiajs/vue3';
-import { useTemplateRef } from 'vue';
 import { Trash2, AlertTriangle } from 'lucide-vue-next';
+import { useTemplateRef } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';

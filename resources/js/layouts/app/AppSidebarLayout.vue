@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
+import { AlertTriangle } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
@@ -7,12 +8,11 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import FlashToast from '@/components/FlashToast.vue';
-import OnboardingTour from '@/components/OnboardingTour.vue';
-import { Toaster } from '@/components/ui/sonner';
-import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
+import OnboardingTour from '@/components/OnboardingTour.vue';
+import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
+import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
-import { AlertTriangle } from 'lucide-vue-next';
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
@@ -28,6 +28,7 @@ const isImpersonating = computed(() => !!page.props.is_impersonating);
 const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const hasRole = (...roleNames: string[]) =>
@@ -41,7 +42,10 @@ const tenant = computed(() => page.props.tenant as any);
 const quotaSummary = computed(() => tenant.value?.quota_summary ?? null);
 
 const quotaWarnings = computed(() => {
-    if (!quotaSummary.value || !quotaSummary.value.resources) return [];
+    if (!quotaSummary.value || !quotaSummary.value.resources) {
+return [];
+}
+
     return Object.entries(quotaSummary.value.resources)
         .map(([key, res]: [string, any]) => ({
             key,

@@ -47,7 +47,10 @@ const discountAmount = ref(0);
 const qrCodeUrl = ref(props.payment_url);
 
 async function applyCoupon() {
-    if (!couponCode.value.trim()) return;
+    if (!couponCode.value.trim()) {
+return;
+}
+
     isApplyingCoupon.value = true;
     couponError.value = '';
     couponSuccess.value = '';
@@ -66,6 +69,7 @@ async function applyCoupon() {
         });
 
         const data = await response.json();
+
         if (response.ok && data.success) {
             currentAmount.value = data.new_price;
             discountAmount.value = data.discount_amount;

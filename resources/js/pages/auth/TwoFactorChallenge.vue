@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { QrCode, Copy, Check, ChevronDown } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore Vue SFC module declaration is provided by the project shim.
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -159,6 +159,7 @@ const fetchQrCode = async (): Promise<void> => {
 
         if (!response.ok) {
             qrError.value = 'Tài khoản này chưa thiết lập 2FA qua ứng dụng Authenticator.';
+
             return;
         }
 
@@ -173,10 +174,15 @@ const fetchQrCode = async (): Promise<void> => {
 };
 
 const copySetupKey = (): void => {
-    if (!qrSetupKey.value) return;
+    if (!qrSetupKey.value) {
+return;
+}
+
     navigator.clipboard.writeText(qrSetupKey.value).then(() => {
         qrCopied.value = true;
-        setTimeout(() => { qrCopied.value = false; }, 2000);
+        setTimeout(() => {
+ qrCopied.value = false; 
+}, 2000);
     });
 };
 </script>

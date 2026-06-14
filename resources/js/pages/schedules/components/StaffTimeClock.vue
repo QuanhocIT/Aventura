@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Clock, Sparkles, LogIn, LogOut, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const props = defineProps<{
     todayActiveAssignment: any;
@@ -21,20 +21,26 @@ const parseDateTimeStr = (str: string) => {
     const [time, date] = str.split(' ');
     const [h, i, s] = time.split(':').map(Number);
     const [d, m, y] = date.split('/').map(Number);
+
     return new Date(y, m - 1, d, h, i, s);
 };
 
 const startLiveDurationTimer = (checkInStr: string) => {
     const checkIn = parseDateTimeStr(checkInStr);
     
-    if (durationInterval) clearInterval(durationInterval);
+    if (durationInterval) {
+clearInterval(durationInterval);
+}
     
     const updateTimer = () => {
         const diffMs = new Date().getTime() - checkIn.getTime();
+
         if (diffMs < 0) {
             liveDuration.value = '00:00:00';
+
             return;
         }
+
         const totalSecs = Math.floor(diffMs / 1000);
         const hrs = Math.floor(totalSecs / 3600);
         const mins = Math.floor((totalSecs % 3600) / 60);
@@ -50,7 +56,9 @@ const handleCheckOut = () => {
     if (confirm('Bạn chắc chắn muốn check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.')) {
         router.post('/schedules/check-out', {}, {
             onFinish: () => {
-                if (durationInterval) clearInterval(durationInterval);
+                if (durationInterval) {
+clearInterval(durationInterval);
+}
             }
         });
     }
@@ -64,6 +72,7 @@ watch(() => props.todayActiveAssignment, (newAssign) => {
             clearInterval(durationInterval);
             durationInterval = null;
         }
+
         liveDuration.value = '00:00:00';
     }
 }, { immediate: true });
@@ -75,7 +84,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (durationInterval) clearInterval(durationInterval);
+    if (durationInterval) {
+clearInterval(durationInterval);
+}
 });
 </script>
 

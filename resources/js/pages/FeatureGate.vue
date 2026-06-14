@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
+import { FEATURE_LABELS  } from '@/composables/useFeatureGate';
+import type {FeatureKey} from '@/composables/useFeatureGate';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
-import { FEATURE_LABELS, type FeatureKey } from '@/composables/useFeatureGate';
 
 const props = defineProps<{
     feature: FeatureKey;

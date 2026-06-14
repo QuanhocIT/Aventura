@@ -38,7 +38,10 @@ const PAD_B = 40;
 
 const chartData = computed(() => {
     const data = props.monthly_revenue;
-    if (!data.length) return { points: '', area: '', labels: [], maxRevenue: 0, yLines: [] };
+
+    if (!data.length) {
+return { points: '', area: '', labels: [], maxRevenue: 0, yLines: [] };
+}
 
     const maxRevenue = Math.max(...data.map(d => d.revenue), 1);
     const w = CHART_W - PAD_L - PAD_R;
@@ -62,8 +65,14 @@ const chartData = computed(() => {
 });
 
 function formatRevenue(val: number): string {
-    if (val >= 1_000_000) return (val / 1_000_000).toFixed(1) + 'M';
-    if (val >= 1_000) return (val / 1_000).toFixed(0) + 'K';
+    if (val >= 1_000_000) {
+return (val / 1_000_000).toFixed(1) + 'M';
+}
+
+    if (val >= 1_000) {
+return (val / 1_000).toFixed(0) + 'K';
+}
+
     return String(Math.round(val));
 }
 

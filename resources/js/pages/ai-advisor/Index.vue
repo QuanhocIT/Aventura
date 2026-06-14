@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
-import { ref, computed, onMounted, nextTick } from 'vue';
 import { 
     Bot, Send, Loader2, Sparkles, AlertCircle, TrendingUp, 
     BarChart3, ShieldAlert, Package, ArrowRight, User
 } from 'lucide-vue-next';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -40,8 +40,10 @@ onMounted(async () => {
     sessionId.value = getOrCreateSessionId();
 
     const restored = await loadHistory(sessionId.value);
+
     if (restored) {
         scrollToBottom();
+
         return;
     }
 
@@ -59,11 +61,17 @@ async function loadHistory(session: string): Promise<boolean> {
         const res = await fetch(`${route('chatbot.advisor-history')}?session_id=${encodeURIComponent(session)}`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
-        if (!res.ok) return false;
+
+        if (!res.ok) {
+return false;
+}
 
         const data = await res.json();
         const history = (data.messages ?? []) as Array<{ role: 'user' | 'bot'; content: string; timestamp: string }>;
-        if (history.length === 0) return false;
+
+        if (history.length === 0) {
+return false;
+}
 
         messages.value = history.map((m) => ({
             id: crypto.randomUUID(),
@@ -71,6 +79,7 @@ async function loadHistory(session: string): Promise<boolean> {
             content: m.content,
             timestamp: m.timestamp,
         }));
+
         return true;
     } catch {
         return false;
@@ -80,10 +89,12 @@ async function loadHistory(session: string): Promise<boolean> {
 function getOrCreateSessionId(): string {
     const key = 'aventura_advisor_session';
     let id = localStorage.getItem(key);
+
     if (!id) {
         id = crypto.randomUUID();
         localStorage.setItem(key, id);
     }
+
     return id;
 }
 
@@ -94,7 +105,10 @@ function selectSuggestion(text: string) {
 
 async function sendMessage() {
     const text = inputText.value.trim();
-    if (!text || isLoading.value) return;
+
+    if (!text || isLoading.value) {
+return;
+}
 
     inputText.value = '';
     

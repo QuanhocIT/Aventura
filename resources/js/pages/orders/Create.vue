@@ -60,6 +60,7 @@ const filteredProducts = computed(() => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
                              (p.sku && p.sku.toLowerCase().includes(searchQuery.value.toLowerCase()));
         const matchesCategory = selectedCategoryId.value === null || p.category_id === selectedCategoryId.value;
+
         return matchesSearch && matchesCategory;
     });
 });
@@ -77,6 +78,7 @@ const selectCategory = (id: number | null) => {
 // Add product to cart
 const addToCart = (product: Product) => {
     const existing = cartItems.value.find(item => item.product.id === product.id);
+
     if (existing) {
         existing.quantity += 1;
     } else {
@@ -91,6 +93,7 @@ const addToCart = (product: Product) => {
 // Decrease quantity or remove from cart
 const decreaseQuantity = (productId: number) => {
     const index = cartItems.value.findIndex(item => item.product.id === productId);
+
     if (index !== -1) {
         if (cartItems.value[index].quantity > 1) {
             cartItems.value[index].quantity -= 1;
@@ -103,6 +106,7 @@ const decreaseQuantity = (productId: number) => {
 // Remove item completely
 const removeFromCart = (productId: number) => {
     const index = cartItems.value.findIndex(item => item.product.id === productId);
+
     if (index !== -1) {
         cartItems.value.splice(index, 1);
     }
@@ -112,6 +116,7 @@ const removeFromCart = (productId: number) => {
 const submitOrder = () => {
     if (cartItems.value.length === 0) {
         alert('Giỏ hàng trống! Hãy chọn ít nhất một món ăn trước khi chuyển bếp.');
+
         return;
     }
 
@@ -137,10 +142,12 @@ const submitOrder = () => {
 const fetchAiSuggestion = async () => {
     if (cartItems.value.length === 0) {
         aiSuggestion.value = null;
+
         return;
     }
 
     aiLoading.value = true;
+
     try {
         const itemNames = cartItems.value.map(item => item.product.name);
         const response = await fetch('/api/promotions/upsell-suggestion', {
@@ -164,11 +171,14 @@ const fetchAiSuggestion = async () => {
 
 // Add suggested item quickly
 const addSuggestedItem = () => {
-    if (!aiSuggestion.value || !aiSuggestion.value.recommended_item) return;
+    if (!aiSuggestion.value || !aiSuggestion.value.recommended_item) {
+return;
+}
     
     const recommendedName = aiSuggestion.value.recommended_item;
     // Find the product in props.products
     const product = props.products.find(p => p.name === recommendedName);
+
     if (product) {
         addToCart(product);
     } else {

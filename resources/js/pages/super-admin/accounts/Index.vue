@@ -118,6 +118,7 @@ function impersonateUser(account: any) {
     if (!confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới danh nghĩa "${account.name}" không?`)) {
         return;
     }
+
     router.post(`/super-admin/impersonate/${account.id}`, {});
 }
 

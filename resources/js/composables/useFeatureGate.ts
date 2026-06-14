@@ -36,6 +36,7 @@ export function useFeatureGate() {
 
     const features = (): Record<string, boolean> => {
         const tenant = (page.props as any).tenant;
+
         return tenant?.quota_summary?.features ?? {};
     };
 
@@ -45,11 +46,13 @@ export function useFeatureGate() {
 
     const planCode = (): string => {
         const tenant = (page.props as any).tenant;
+
         return tenant?.quota_summary?.plan_code ?? 'free';
     };
 
     const planName = (): string => {
         const tenant = (page.props as any).tenant;
+
         return tenant?.plan?.name ?? 'Miễn Phí';
     };
 

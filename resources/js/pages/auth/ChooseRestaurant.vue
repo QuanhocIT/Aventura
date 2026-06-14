@@ -31,21 +31,37 @@ const selectRestaurant = (userId: number) => {
 // Translate roles for premium Vietnamese labels and style classes
 const getRoleBadgeClasses = (role: string) => {
     const r = role.toLowerCase();
+
     if (r === 'owner' || r === 'chủ quán' || r === 'chủ sở hữu') {
         return 'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400';
     }
+
     if (r === 'manager' || r === 'quản lý') {
         return 'border-violet-500/25 bg-violet-500/10 text-violet-600 dark:text-violet-400';
     }
+
     return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
 };
 
 const getRoleLabel = (role: string) => {
     const r = role.toLowerCase();
-    if (r === 'owner') return 'Chủ quán';
-    if (r === 'manager') return 'Quản lý';
-    if (r === 'cashier') return 'Thu ngân';
-    if (r === 'kitchen') return 'Bếp';
+
+    if (r === 'owner') {
+return 'Chủ quán';
+}
+
+    if (r === 'manager') {
+return 'Quản lý';
+}
+
+    if (r === 'cashier') {
+return 'Thu ngân';
+}
+
+    if (r === 'kitchen') {
+return 'Bếp';
+}
+
     return role;
 };
 </script>

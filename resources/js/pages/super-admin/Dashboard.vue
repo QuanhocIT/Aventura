@@ -29,6 +29,7 @@ import {
     LayoutGrid,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import AreaChart from '@/components/charts/AreaChart.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,7 +37,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import AreaChart from '@/components/charts/AreaChart.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import Echo from '@/lib/echo';
 
@@ -247,6 +247,7 @@ const visibleSections = ref<Record<string, boolean>>(
 onMounted(() => {
     try {
         const saved = localStorage.getItem(DASHBOARD_SECTIONS_STORAGE_KEY);
+
         if (saved) {
             visibleSections.value = { ...visibleSections.value, ...JSON.parse(saved) };
         }
@@ -285,8 +286,12 @@ function applyGrowthFilters() {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        onStart: () => { isNavigating.value = true; },
-        onFinish: () => { isNavigating.value = false; },
+        onStart: () => {
+ isNavigating.value = true; 
+},
+        onFinish: () => {
+ isNavigating.value = false; 
+},
     });
 }
 
@@ -311,7 +316,9 @@ function saveReportSubscription() {
     }, {
         preserveState: true,
         preserveScroll: true,
-        onFinish: () => { reportSubSaving.value = false; },
+        onFinish: () => {
+ reportSubSaving.value = false; 
+},
     });
 }
 
@@ -389,6 +396,7 @@ const aiNotes = computed(() => {
 
     // 6. ARR Forecast
     const next = forecast[0];
+
     if (next) {
         notes.push(`💡 Dự báo tháng tới: MRR ước tính ${trendWord(next.trend)} về mức ${formatCurrency(next.predicted_mrr)}. Điểm sức khoẻ tổng thể hệ thống hiện ở mức ${health?.score ?? '-'}/100 (${health?.label ?? 'chưa đủ dữ liệu'}) — nên theo dõi sát các tenant rủi ro để giữ đà tăng trưởng ARR.`);
     } else {
@@ -526,6 +534,7 @@ const isRiskExpanded = (id: number, index: number) => {
     if (expandedRiskId.value === null && index === 0) {
         return true;
     }
+
     return expandedRiskId.value === id;
 };
 
@@ -546,12 +555,15 @@ const formatBytes = (bytes: number) => {
     if (bytes >= 1024 ** 3) {
         return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
     }
+
     if (bytes >= 1024 ** 2) {
         return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
     }
+
     if (bytes >= 1024) {
         return `${(bytes / 1024).toFixed(1)} KB`;
     }
+
     return `${bytes} B`;
 };
 
@@ -585,6 +597,7 @@ const healthBarColor: Record<string, string> = {
 
 const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
+
     return [
         { key: 'active_pro', label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/30', border: 'border-violet-500/20 hover:border-violet-500/40', icon: '👑' },
         { key: 'trial_active', label: 'Đang dùng thử (Trial)', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/30', border: 'border-sky-500/20 hover:border-sky-500/40', icon: '⚡' },
@@ -603,6 +616,7 @@ async function showSegmentRestaurants(seg: { key: string; label: string }) {
     selectedSegment.value = seg;
     isLoadingSegmentRestaurants.value = true;
     segmentRestaurantsList.value = [];
+
     try {
         const response = await fetch(`/super-admin/dashboard/segments/${seg.key}`);
         const data = await response.json();
@@ -639,6 +653,7 @@ const donutSlices = computed(() => {
                 color: colors[plan.code?.toLowerCase()] ?? { stroke: 'stroke-slate-500', text: 'text-slate-500', bg: 'bg-slate-500/10' }
             };
             accumulatedPercentage += percentage;
+
             return slice;
         });
 });
@@ -651,6 +666,7 @@ const overallHealthStyle = computed(() => {
         red: { ring: 'stroke-rose-500', text: 'text-rose-400 dark:text-rose-300', bg: 'from-rose-600/10 to-rose-900/20 border-rose-500/30', glow: 'shadow-rose-500/20' },
         gray: { ring: 'stroke-slate-500', text: 'text-slate-400 dark:text-slate-300', bg: 'from-slate-600/10 to-slate-900/20 border-slate-500/30', glow: 'shadow-slate-500/20' },
     };
+
     return map[color] ?? map.gray;
 });
 
@@ -658,6 +674,7 @@ const maxForecastMrr = computed(() => Math.max(...(props.aiInsights?.mrr_forecas
 
 const hasAiData = computed(() => {
     const ai = props.aiInsights;
+
     return ai && ai.overall_health != null && (ai.churn_risks?.length > 0 || ai.health_scores?.length > 0 || Object.keys(ai.segments ?? {}).length > 0);
 });
 
@@ -704,6 +721,7 @@ const alertSeverityStyle: Record<string, { card: string; badge: string; icon: st
 const revenueBreakdownPlanCodes = computed(() => {
     const codes = new Set<string>();
     props.revenueBreakdown.forEach((point) => Object.keys(point.by_plan).forEach((code) => codes.add(code)));
+
     return Array.from(codes);
 });
 const revenueBreakdownMax = computed(() => Math.max(...props.revenueBreakdown.map((p) => p.total), 1));
@@ -711,9 +729,18 @@ const planDisplayName = (code: string) => props.planDistribution.find((p) => p.c
 
 // --- D1: Heatmap cohort — màu nền theo % giữ chân ---
 function cohortCellStyle(value: number | null): string {
-    if (value === null) return 'bg-muted/30 text-muted-foreground';
-    if (value >= 70) return 'bg-emerald-500/80 text-white';
-    if (value >= 40) return 'bg-amber-500/70 text-white';
+    if (value === null) {
+return 'bg-muted/30 text-muted-foreground';
+}
+
+    if (value >= 70) {
+return 'bg-emerald-500/80 text-white';
+}
+
+    if (value >= 40) {
+return 'bg-amber-500/70 text-white';
+}
+
     return 'bg-rose-500/70 text-white';
 }
 </script>

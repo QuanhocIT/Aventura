@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
-import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import { computed } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, User } from '@/types';

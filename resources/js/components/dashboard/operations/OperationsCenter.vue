@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     Activity,
@@ -15,6 +14,7 @@ import {
     Building2,
     CalendarDays
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 import ShiftHeatmap from './ShiftHeatmap.vue';
 
 interface OperationFeedItem {
@@ -111,6 +111,7 @@ function formatMoney(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
 }
 
@@ -118,6 +119,7 @@ function formatMoneyFull(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 </script>

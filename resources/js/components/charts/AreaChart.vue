@@ -29,6 +29,7 @@ function buildPoints(series: SeriesPoint[], min: number, span: number): ChartPoi
     return series.map((point, index) => {
         const x = series.length <= 1 ? 0 : (index / (series.length - 1)) * VIEW_WIDTH;
         const y = VIEW_HEIGHT + 2 - ((point.value - min) / span) * VIEW_HEIGHT;
+
         return { x, y, value: point.value, label: point.label, raw: point };
     });
 }
@@ -40,6 +41,7 @@ const scale = computed(() => {
     ];
     const max = Math.max(...allValues, 1);
     const min = Math.min(...allValues, 0);
+
     return { min, span: Math.max(max - min, 1) };
 });
 
@@ -47,12 +49,18 @@ const points = computed(() => buildPoints(props.series, scale.value.min, scale.v
 const comparePoints = computed(() => props.compareSeries ? buildPoints(props.compareSeries, scale.value.min, scale.value.span) : []);
 
 function toLinePath(pts: ChartPoint[]): string {
-    if (pts.length === 0) return '';
+    if (pts.length === 0) {
+return '';
+}
+
     return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
 }
 
 function toAreaPath(pts: ChartPoint[]): string {
-    if (pts.length === 0) return '';
+    if (pts.length === 0) {
+return '';
+}
+
     return `${toLinePath(pts)} L ${VIEW_WIDTH} ${VIEW_BOTTOM} L 0 ${VIEW_BOTTOM} Z`;
 }
 
@@ -63,7 +71,10 @@ const compareLinePath = computed(() => toLinePath(comparePoints.value));
 const hoveredIdx = ref<number | null>(null);
 
 function handleMouseMove(e: MouseEvent) {
-    if (points.value.length === 0) return;
+    if (points.value.length === 0) {
+return;
+}
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     hoveredIdx.value = Math.min(points.value.length - 1, Math.max(0, Math.round(percent * (points.value.length - 1))));

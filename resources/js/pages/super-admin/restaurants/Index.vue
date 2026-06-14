@@ -56,8 +56,10 @@ function applyFilter() {
 function impersonateUser(ownerId: number | undefined) {
     if (!ownerId) {
         alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+
         return;
     }
+
     if (confirm('Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu này không?')) {
         router.post(`/super-admin/impersonate/${ownerId}`);
     }
@@ -65,15 +67,28 @@ function impersonateUser(ownerId: number | undefined) {
 
 // Định dạng & tô màu giới hạn tài nguyên
 function getQuotaColor(used: number, limit: number | null) {
-    if (limit === null) return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30';
+    if (limit === null) {
+return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30';
+}
+
     const percentage = (used / limit) * 100;
-    if (percentage >= 100) return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30 font-semibold';
-    if (percentage >= 80) return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30';
+
+    if (percentage >= 100) {
+return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30 font-semibold';
+}
+
+    if (percentage >= 80) {
+return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30';
+}
+
     return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/20 border-slate-100 dark:border-slate-800';
 }
 
 function formatQuota(used: number, limit: number | null) {
-    if (limit === null) return `${used}/∞`;
+    if (limit === null) {
+return `${used}/∞`;
+}
+
     return `${used}/${limit}`;
 }
 

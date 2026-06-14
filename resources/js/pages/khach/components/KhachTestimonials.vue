@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
 import { Star, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Badge } from '@/components/ui/badge';
 
 const testimonials = [
@@ -40,7 +40,10 @@ const activeTestimonialIdx = ref(0);
 let testimonialAutoplayTimer: any = null;
 
 const startTestimonialAutoplay = () => {
-    if (testimonialAutoplayTimer) return;
+    if (testimonialAutoplayTimer) {
+return;
+}
+
     testimonialAutoplayTimer = setInterval(() => {
         nextTestimonial();
     }, 5000);
@@ -67,11 +70,16 @@ const resetTestimonialAutoplay = () => {
 };
 
 const getInitials = (name: string) => {
-    if (!name) return '';
+    if (!name) {
+return '';
+}
+
     const parts = name.trim().split(/\s+/);
+
     if (parts.length >= 2) {
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
+
     return name.slice(0, 2).toUpperCase();
 };
 
@@ -83,6 +91,7 @@ const getAvatarGradient = (idx: number) => {
         'bg-gradient-to-br from-sky-400 to-blue-500 text-white',
         'bg-gradient-to-br from-rose-400 to-pink-500 text-white',
     ];
+
     return gradients[idx % gradients.length];
 };
 

@@ -236,6 +236,7 @@ completedDays++;
 const isOwner = computed(() => {
     const page = usePage();
     const roles = page.props.roles ?? [];
+
     return Array.isArray(roles) ? roles.includes('owner') : false;
 });
 </script>

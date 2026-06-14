@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     ShoppingCart, CheckCircle2, Clock, XCircle, ChefHat,
     Banknote, Filter, CalendarDays, RefreshCw, AlertCircle,
     Bot, Sparkles, Trash2, AlertTriangle, Check, X, Utensils
 } from 'lucide-vue-next';
 import { computed, ref, onMounted } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { toast } from 'vue-sonner';
-import axios from 'axios';
 
 defineOptions({ layout: AppLayout });
 
@@ -47,6 +47,7 @@ const props = defineProps<{
 const page = usePage();
 const roles = computed(() => {
     const raw = (page.props as any).roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));
@@ -153,6 +154,7 @@ const cancelReason = ref('');
 
 const fetchPendingQr = async () => {
     isLoadingQr.value = true;
+
     try {
         const res = await axios.get('/api/temporary-orders');
         pendingQrOrders.value = res.data.temporary_orders;
@@ -165,6 +167,7 @@ const fetchPendingQr = async () => {
 
 const fetchRejectedQr = async () => {
     isLoadingQr.value = true;
+
     try {
         const res = await axios.get('/api/temporary-orders/rejected-logs');
         rejectedQrLogs.value = res.data.rejected_logs;
@@ -177,6 +180,7 @@ const fetchRejectedQr = async () => {
 
 const selectTab = (tab: string) => {
     activeTab.value = tab;
+
     if (tab === 'pending_qr') {
         fetchPendingQr();
     } else if (tab === 'rejected_qr') {
@@ -187,6 +191,7 @@ const selectTab = (tab: string) => {
 const confirmTempOrder = async (orderId: number) => {
     try {
         const response = await axios.post(`/api/temporary-orders/${orderId}/confirm`);
+
         if (response.data.success) {
             toast.success(response.data.message);
             fetchPendingQr();
@@ -210,11 +215,15 @@ const openCancelModal = (orderId: number) => {
 };
 
 const submitCancel = async () => {
-    if (!cancelOrderId.value || !cancelReason.value.trim()) return;
+    if (!cancelOrderId.value || !cancelReason.value.trim()) {
+return;
+}
+
     try {
         const response = await axios.post(`/api/temporary-orders/${cancelOrderId.value}/cancel`, {
             reason: cancelReason.value
         });
+
         if (response.data.success) {
             toast.success(response.data.message);
             showCancelModal.value = false;
@@ -226,7 +235,10 @@ const submitCancel = async () => {
 };
 
 const addUpsellItem = async () => {
-    if (!currentOrderId.value || !upsellData.value?.recommended_item) return;
+    if (!currentOrderId.value || !upsellData.value?.recommended_item) {
+return;
+}
+
     try {
         await axios.patch(`/orders/${currentOrderId.value}`, {
             items: [
@@ -249,6 +261,7 @@ onMounted(() => {
     // Check if there is an active tab parameter in the URL
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
+
     if (tabParam && ['pending_qr', 'rejected_qr'].includes(tabParam)) {
         selectTab(tabParam);
     }

@@ -5,8 +5,8 @@ import { Bell, LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
-import Footer from '@/components/Footer.vue';
 import FlashToast from '@/components/FlashToast.vue';
+import Footer from '@/components/Footer.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ const page = usePage();
 const user = computed(() => (page.props.auth?.user as User | null) ?? null);
 const roles = computed(() => {
     const raw = (page.props as any).roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const hasRole = (...roleNames: string[]) =>

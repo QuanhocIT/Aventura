@@ -71,7 +71,10 @@ watch(search, () => {
 });
 
 function goToPage(url: string | null) {
-    if (!url) return;
+    if (!url) {
+return;
+}
+
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
 
@@ -125,13 +128,17 @@ function submitForm() {
     if (editingCoupon.value) {
         router.patch(`/super-admin/coupons/${editingCoupon.value.id}`, data, {
             preserveScroll: true,
-            onSuccess: () => { toast.success('Đã cập nhật coupon!'); closeForm(); },
+            onSuccess: () => {
+ toast.success('Đã cập nhật coupon!'); closeForm(); 
+},
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     } else {
         router.post('/super-admin/coupons', data, {
             preserveScroll: true,
-            onSuccess: () => { toast.success('Đã tạo coupon!'); closeForm(); },
+            onSuccess: () => {
+ toast.success('Đã tạo coupon!'); closeForm(); 
+},
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     }
@@ -145,7 +152,10 @@ function toggleCoupon(coupon: Coupon) {
 }
 
 function deleteCoupon(coupon: Coupon) {
-    if (!confirm(`Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`)) return;
+    if (!confirm(`Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`)) {
+return;
+}
+
     router.delete(`/super-admin/coupons/${coupon.id}`, {
         preserveScroll: true,
         onSuccess: () => toast.success('Đã xóa coupon!'),

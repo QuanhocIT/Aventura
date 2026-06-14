@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { ChevronRight, ChevronLeft } from 'lucide-vue-next';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import KhachHeroDemo from './KhachHeroDemo.vue';
 
 interface Banner {
@@ -66,15 +66,18 @@ const defaultSlides = [
 
 const activeSlides = computed(() => {
     const dbBanners = props.banners?.hero ?? [];
+
     if (dbBanners.length === 0) {
         return defaultSlides;
     }
+
     return dbBanners.map((db, idx) => {
         const fallback = defaultSlides[idx % defaultSlides.length];
         const hasRealImage = db.image_url && 
                              !db.image_url.endsWith('.svg') && 
                              !db.image_url.includes('hero-dashboard') && 
                              !db.image_url.includes('hero-analytics');
+
         return {
             subtitle: db.subtitle || fallback.subtitle,
             title: db.title ? db.title : fallback.title,
@@ -90,6 +93,7 @@ function startHero() {
     if (activeSlides.value.length <= 1) {
         return;
     }
+
     heroTimer = setInterval(() => advanceHero('next'), 6000);
 }
 

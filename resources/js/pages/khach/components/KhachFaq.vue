@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { register } from '@/routes';

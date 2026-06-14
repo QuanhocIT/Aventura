@@ -115,6 +115,7 @@ const priceDisplay = computed(() => {
             ? Number(props.plan.features.yearly_discount_percent)
             : 20;
         const yearlyMonthly = Math.round(p * (1 - discountPercent / 100));
+
         return { 
             main: yearlyMonthly.toLocaleString('vi-VN') + 'đ', 
             sub: '/tháng (thanh toán năm)' 

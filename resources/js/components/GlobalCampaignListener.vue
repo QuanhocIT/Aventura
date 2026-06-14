@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { Megaphone, X } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 
 interface CampaignBroadcastData {
     id: number;
@@ -20,6 +20,7 @@ const isVisible = ref(false);
 const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
+
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const tenant = computed(() => (page.props as any).tenant ?? null);
@@ -30,7 +31,10 @@ const isSuperAdmin = computed(() => roles.value.includes('super_admin') || roles
 function playNotificationChime() {
     try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) return;
+
+        if (!AudioContextClass) {
+return;
+}
         
         const ctx = new AudioContextClass();
         
@@ -65,16 +69,20 @@ function playNotificationChime() {
 }
 
 function handleBroadcast(data: CampaignBroadcastData) {
-    if (!user.value) return; // Ignore if not logged in
+    if (!user.value) {
+return;
+} // Ignore if not logged in
 
     // Superadmin always sees campaign alerts for testing and monitoring
     if (isSuperAdmin.value) {
         triggerNotification(data);
+
         return;
     }
 
     // Check targeting group
     let matchesGroup = false;
+
     if (data.target_type === 'all') {
         matchesGroup = true;
     } else if (data.target_type === 'plan' && tenant.value) {
@@ -87,6 +95,7 @@ function handleBroadcast(data: CampaignBroadcastData) {
 
     // Check targeting role
     let matchesRole = false;
+
     if (data.target_role === 'all_staff') {
         matchesRole = true;
     } else if (data.target_role === 'owner') {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Users, Plus, Calendar, Clock, CheckCircle2,
     AlertCircle, Sparkles, UserCheck, ShieldCheck, Mail, Phone,
@@ -12,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
-import axios from 'axios';
 
 defineOptions({ layout: AppLayout });
 
@@ -62,7 +62,11 @@ const empSearchQuery   = ref('');
 
 const filteredEmployees = computed(() => {
     const q = empSearchQuery.value.trim().toLowerCase();
-    if (!q) return props.employees;
+
+    if (!q) {
+return props.employees;
+}
+
     return props.employees.filter(e =>
         e.full_name.toLowerCase().includes(q) ||
         e.employee_code.toLowerCase().includes(q) ||
@@ -222,6 +226,7 @@ const weekDaysWithDates = computed(() => {
         const yyyy = nextDay.getFullYear();
         const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
         const dd = String(nextDay.getDate()).padStart(2, '0');
+
         return {
             ...wd,
             dateLabel: `${dd}/${mm}`,
@@ -321,6 +326,7 @@ function openLeaveModal() {
     if (props.employees.length > 0) {
         leaveForm.employee_id = String(props.employees[0].id);
     }
+
     showLeaveModal.value = true;
 }
 
@@ -337,11 +343,15 @@ function submitLeaveRequest() {
 
 function startApproveLeave(leave: any) {
     if (leave.leave_type === 'resignation') {
-        if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn thôi việc này? Tài khoản nhân viên sẽ bị khóa và xóa mềm.')) return;
+        if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn thôi việc này? Tài khoản nhân viên sẽ bị khóa và xóa mềm.')) {
+return;
+}
+
         router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
             onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thôi việc thành công!')),
             onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
         });
+
         return;
     }
 
@@ -361,7 +371,10 @@ function startApproveLeave(leave: any) {
                 });
                 showApproveReplacementModal.value = true;
             } else {
-                if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) return;
+                if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) {
+return;
+}
+
                 router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
                     onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thành công!')),
                     onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
@@ -370,7 +383,11 @@ function startApproveLeave(leave: any) {
         })
         .catch(err => {
             console.error(err);
-            if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) return;
+
+            if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) {
+return;
+}
+
             router.patch(`/employees/leaves/${leave.id}/approve`, {}, {
                 onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đơn thành công!')),
                 onError: () => import('vue-sonner').then(m => m.toast.error('Lỗi khi phê duyệt.')),
@@ -382,7 +399,9 @@ function startApproveLeave(leave: any) {
 }
 
 function submitApproveWithReplacements() {
-    if (!replacementLeaveId.value) return;
+    if (!replacementLeaveId.value) {
+return;
+}
 
     router.patch(`/employees/leaves/${replacementLeaveId.value}/approve`, {
         replacements: selectedReplacements.value
@@ -401,8 +420,10 @@ function submitApproveWithReplacements() {
 function submitRejectLeave() {
     if (!rejectReason.value) {
         import('vue-sonner').then(m => m.toast.error('Vui lòng nhập lý do từ chối.'));
+
         return;
     }
+
     router.patch(`/employees/leaves/${showRejectModal.value}/reject`, {
         rejection_reason: rejectReason.value
     }, {
@@ -418,6 +439,7 @@ function submitRejectLeave() {
 const currentAssignDay = ref('');
 const currentAssignDayLabel = computed(() => {
     const day = weekDaysWithDates.value.find(d => d.key === currentAssignDay.value);
+
     return day ? day.fullLabel : '';
 });
 
@@ -426,6 +448,7 @@ const availableEmployeesList = computed(() => {
     if (props.employees && props.employees.length > 0) {
         return props.employees.map(e => e.full_name);
     }
+
     return ['Nguyễn Văn Thu Ngân', 'Trần Thị Bếp', 'Lê Văn Phục Vụ', 'Hoàng Văn Quản Lý'];
 });
 
@@ -484,12 +507,15 @@ const submitAssignment = () => {
     const weeklyCount = props.schedules?.filter(s => s.employee_name === assignForm.value.employee_name).length ?? 0;
 
     let warningMsg = '';
+
     if (alreadyScheduled) {
         warningMsg += `⚠️ Nhân sự này đã được xếp ca trực vào ${currentAssignDayLabel.value}.\n`;
     }
+
     if (onLeave) {
         warningMsg += `⚠️ Nhân sự đang trong thời gian NGHỈ PHÉP đã được phê duyệt ngày ${targetDayDate}.\n`;
     }
+
     if (weeklyCount >= 6) {
         warningMsg += `⚠️ Nhân sự đã làm đủ ${weeklyCount} ca trong tuần này (vượt giới hạn tối đa 6 ca).\n`;
     }
@@ -525,7 +551,10 @@ const toggleExpandEmployee = (id: number) => {
 };
 
 const getRegistrationsForDay = (dayKey: string) => {
-    if (!props.registrations) return [];
+    if (!props.registrations) {
+return [];
+}
+
     return props.registrations.filter(r => r.day === dayKey);
 };
 
@@ -534,7 +563,10 @@ const dragOverDay = ref<string | null>(null);
 const handleDropShift = (e: DragEvent, dayKey: string) => {
     dragOverDay.value = null;
     const shiftName = e.dataTransfer?.getData('text/plain');
-    if (!shiftName) return;
+
+    if (!shiftName) {
+return;
+}
 
     currentAssignDay.value = dayKey;
     assignForm.value.employee_name = availableEmployeesList.value[0] ?? '';
@@ -565,8 +597,10 @@ const approveSwap = (swapId: number) => {
 const submitSwapReject = () => {
     if (!swapRejectReason.value) {
         import('vue-sonner').then(m => m.toast.error('Vui lòng nhập lý do từ chối.'));
+
         return;
     }
+
     router.patch(`/schedules/swap/${showSwapRejectModal.value}/reject`, {
         notes: swapRejectReason.value
     }, {

@@ -69,11 +69,13 @@ const handleHover = (r: number) => {
 const handleSubmit = async () => {
     if (rating.value === 0) {
         errorMessage.value = 'Vui lòng chọn số sao đánh giá (từ 1 đến 5 sao).';
+
         return;
     }
 
     if (!isAnonymous.value && !submittedByPhone.value) {
         errorMessage.value = 'Vui lòng nhập Số điện thoại để nhà hàng gửi tặng voucher đền bù.';
+
         return;
     }
 
@@ -112,6 +114,7 @@ const handleSubmit = async () => {
         });
 
         const result = await res.json();
+
         if (result.success) {
             isSuccess.value = true;
         } else {

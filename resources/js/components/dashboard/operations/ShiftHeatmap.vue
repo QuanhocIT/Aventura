@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Clock, CalendarDays } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ShiftRevenueRow {
@@ -15,16 +15,34 @@ const props = defineProps<{
 // ── Shift heatmap helpers ────────────────────────────────────────────────────
 const shiftHeatmapMax = computed(() => {
     let max = 0;
-    (props.shiftRevenue ?? []).forEach(row => row.days.forEach(d => { if (d.revenue > max) max = d.revenue; }));
+    (props.shiftRevenue ?? []).forEach(row => row.days.forEach(d => {
+ if (d.revenue > max) {
+max = d.revenue;
+} 
+}));
+
     return Math.max(max, 1);
 });
 
 function shiftHeatColor(revenue: number): string {
     const pct = revenue / shiftHeatmapMax.value;
-    if (pct === 0) return 'bg-slate-100 dark:bg-slate-800';
-    if (pct < 0.25) return 'bg-indigo-100 dark:bg-indigo-950/30';
-    if (pct < 0.5)  return 'bg-indigo-300 dark:bg-indigo-800/50';
-    if (pct < 0.75) return 'bg-indigo-500 dark:bg-indigo-600';
+
+    if (pct === 0) {
+return 'bg-slate-100 dark:bg-slate-800';
+}
+
+    if (pct < 0.25) {
+return 'bg-indigo-100 dark:bg-indigo-950/30';
+}
+
+    if (pct < 0.5)  {
+return 'bg-indigo-300 dark:bg-indigo-800/50';
+}
+
+    if (pct < 0.75) {
+return 'bg-indigo-500 dark:bg-indigo-600';
+}
+
     return 'bg-indigo-700 dark:bg-indigo-500';
 }
 
@@ -32,6 +50,7 @@ function formatMoneyFull(v: number): string {
     if (v === 0) {
         return '—';
     }
+
     return new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 </script>
