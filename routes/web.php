@@ -194,6 +194,12 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
             Route::post('/{purchaseOrder}/cancel', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'cancel'])->name('cancel');
             Route::get('/api/suppliers/{supplier}/catalog-items', [\App\Http\Controllers\Warehouse\PurchaseOrderController::class, 'catalogItems'])->name('catalog-items');
         });
+
+    // Chứng từ giao nhận — bộ phận kho xem chứng từ của nhà cung cấp đính kèm
+    Route::get(
+        'warehouse/attachments/{attachment}',
+        [\App\Http\Controllers\SupplierPortal\InvoiceAttachmentController::class, 'show']
+    )->middleware('permission:manage_inventory')->name('warehouse.attachments.show');
 });
 
 // Biểu mẫu gửi đánh giá công khai (Dành cho Khách hàng quét mã QR, giới hạn 15 request/phút)

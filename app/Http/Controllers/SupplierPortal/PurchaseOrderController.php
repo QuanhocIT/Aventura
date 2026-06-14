@@ -47,7 +47,7 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    public function show(Request $request, PurchaseOrder $purchaseOrder): Response
+    public function show(Request $request, PurchaseOrder $purchaseOrder): Response|\Illuminate\Http\JsonResponse
     {
         $user = $request->user();
         abort_if($purchaseOrder->supplier_id !== $user->supplier_id, 403);
@@ -59,7 +59,29 @@ class PurchaseOrderController extends Controller
             'branch',
             'creator',
             'statusLogs.changedBy',
+            'attachments.uploader',
         ]);
+
+        // JSON mode cho AJAX request (modal detail)
+        if ($request->expectsJson()) {
+            return response()->json([
+                'order' => array_merge($purchaseOrder->toArray(), [
+                    'attachments' => $purchaseOrder->attachments->map(fn ($a) => [
+                        'id'             => $a->id,
+                        'original_name'  => $a->original_name,
+                        'mime_type'      => $a->mime_type,
+                        'size'           => $a->sizeForHumans(),
+                        'document_type'  => $a->document_type,
+                        'document_label' => \App\Models\PurchaseOrderAttachment::$documentTypeLabels[$a->document_type],
+                        'note'           => $a->note,
+                        'is_image'       => $a->isImage(),
+                        'download_url'   => $a->temporaryDownloadUrl(),
+                        'uploader_name'  => $a->uploader?->name,
+                        'uploaded_at'    => $a->created_at->toIso8601String(),
+                    ])->values(),
+                ]),
+            ]);
+        }
 
         return Inertia::render('supplier-portal/PurchaseOrderDetail', [
             'order'        => $purchaseOrder,

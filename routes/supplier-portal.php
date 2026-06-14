@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\SupplierPortal\CatalogController;
 use App\Http\Controllers\SupplierPortal\DashboardController;
+use App\Http\Controllers\SupplierPortal\InvoiceAttachmentController;
 use App\Http\Controllers\SupplierPortal\PriceHistoryController;
 use App\Http\Controllers\SupplierPortal\PurchaseOrderController;
 use App\Http\Controllers\SupplierPortal\SupplierAccountController;
@@ -46,7 +47,17 @@ Route::prefix('supplier-portal')
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
             Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
             Route::post('/{purchaseOrder}/advance', [PurchaseOrderController::class, 'advance'])->name('advance');
+
+            // Chứng từ giao nhận (E-Invoicing)
+            Route::post('/{purchaseOrder}/attachments', [InvoiceAttachmentController::class, 'store'])
+                ->name('attachments.store');
         });
+
+        // Xem/tải xuống chứng từ (không scoped vào PO để warehouse cũng dùng được)
+        Route::get('/attachments/{attachment}', [InvoiceAttachmentController::class, 'show'])
+            ->name('attachments.show');
+        Route::delete('/attachments/{attachment}', [InvoiceAttachmentController::class, 'destroy'])
+            ->name('attachments.destroy');
     });
 
 /*

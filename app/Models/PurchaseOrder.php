@@ -89,6 +89,11 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderStatusLog::class)->latest('occurred_at');
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderAttachment::class)->latest();
+    }
+
     // ── Helpers ───────────────────────────────────────────────
 
     public static function generatePoNumber(): string

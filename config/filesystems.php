@@ -60,6 +60,29 @@ return [
             'report' => false,
         ],
 
+        // MinIO — tương thích S3 API, dùng cho môi trường self-hosted
+        // Cần cài: composer require league/flysystem-aws-s3-v3
+        'minio' => [
+            'driver'                  => 's3',
+            'key'                     => env('MINIO_ACCESS_KEY_ID', ''),
+            'secret'                  => env('MINIO_SECRET_ACCESS_KEY', ''),
+            'region'                  => env('MINIO_REGION', 'us-east-1'),
+            'bucket'                  => env('MINIO_BUCKET', 'aventura-invoices'),
+            'endpoint'                => env('MINIO_ENDPOINT', 'http://127.0.0.1:9000'),
+            'use_path_style_endpoint' => true,
+            'url'                     => env('MINIO_PUBLIC_URL', ''),
+            'throw'                   => true,
+            'report'                  => false,
+        ],
+
+        // Disk đang dùng cho chứng từ giao nhận (PO attachments)
+        // Đổi ATTACHMENT_DISK=minio khi MinIO/S3 sẵn sàng
+        'attachments' => [
+            'driver' => 'local',
+            'root'   => storage_path('app/po-attachments'),
+            'throw'  => true,
+        ],
+
     ],
 
     /*
