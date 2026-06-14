@@ -197,10 +197,18 @@ class OrdersController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:pending,confirmed,preparing,completed,cancelled'],
+            'bypass_code' => ['nullable', 'string'],
         ]);
 
         if ($data['status'] === 'cancelled' && !$user->can('approve_requests')) {
-            return back()->withErrors(['status' => 'Bạn không có quyền hủy đơn hàng. Liên hệ quản lý.']);
+            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                ->where('restaurant_id', $order->restaurant_id)
+                ->where('key_name', 'manager_bypass_code')
+                ->value('value');
+            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+            if (($data['bypass_code'] ?? null) !== $expectedCode) {
+                return back()->withErrors(['status' => 'Bạn không có quyền hủy đơn hàng. Liên hệ quản lý.']);
+            }
         }
 
         $this->orderService->updateOrderStatus($order, $data['status'], $user);
@@ -265,6 +273,7 @@ class OrdersController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
             'guests_count' => ['nullable', 'integer', 'min:1'],
+            'bypass_code' => ['nullable', 'string'],
         ]);
 
         if (isset($data['guests_count']) && $order->table_id) {
@@ -283,7 +292,14 @@ class OrdersController extends Controller
                     $prod = $products->get($itemData['product_id']);
                     if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] < (float) $prod->price) {
                         if (!$user->can('approve_requests')) {
-                            return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu quyền phê duyệt của quản lý.']);
+                            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                                ->where('restaurant_id', $order->restaurant_id)
+                                ->where('key_name', 'manager_bypass_code')
+                                ->value('value');
+                            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+                            if (($data['bypass_code'] ?? null) !== $expectedCode) {
+                                return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu quyền phê duyệt của quản lý.']);
+                            }
                         }
                     }
                 }

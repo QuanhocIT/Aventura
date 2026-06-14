@@ -22,6 +22,7 @@ return new class extends Migration
             $table->enum('status', ['waiting_verification', 'escalated', 'confirmed', 'cancelled'])->default('waiting_verification');
             $table->json('cart_data'); // JSON payload of ordered items: product_id, quantity, unit_price, notes
             $table->decimal('total_amount', 12, 2)->default(0);
+            $table->string('notes', 500)->nullable();
             $table->foreignId('cancelled_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('cancellation_reason', 500)->nullable();
             $table->timestamps();
