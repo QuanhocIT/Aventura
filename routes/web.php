@@ -22,6 +22,7 @@ use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftClosingController;
 use App\Http\Controllers\SuperAdmin\ImpersonateController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TablesController;
 use App\Http\Controllers\ViolationReportController;
@@ -84,6 +85,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::post('inventory/recipes', [SupportController::class, 'storeRecipe'])->name('inventory.recipes.store');
     Route::post('inventory/purchases', [SupportController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [SupportController::class, 'storeWaste'])->name('inventory.waste.store');
+
+    // Nhà cung cấp & PO Fulfillment
+    Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
+    Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
+    Route::patch('suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+    Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
+    Route::post('purchase-orders', [SupplierController::class, 'storePO'])->name('purchase-orders.store');
+    Route::patch('purchase-orders/{purchaseOrder}/status', [SupplierController::class, 'updatePOStatus'])->name('purchase-orders.update-status');
 
     Route::get('employees', [SupportController::class, 'employeesPage'])->name('employees.index');
     Route::post('employees', [SupportController::class, 'storeEmployee'])->name('employees.store');
