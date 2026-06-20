@@ -1,12 +1,30 @@
 <?php
 
+use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Billing\CheckoutController;
 use App\Http\Controllers\Billing\PaymentWebhookController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\FraudController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MenuInsightController;
 use App\Http\Controllers\NewsController;
-// Chatbot API  public (rate limited)
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\QrOrderController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ShiftClosingController;
+use App\Http\Controllers\SuperAdmin\ImpersonateController;
+use App\Http\Controllers\SupportController;
+use App\Http\Controllers\TablesController;
+use App\Http\Controllers\ViolationReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('throttle:30,1')->group(function () {
@@ -38,26 +56,6 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/tin-tuc', [NewsController::class, 'index'])->name('news.index');
 Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show');
 
-use App\Http\Controllers\ApprovalController;
-use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\FeedbackController;
-use App\Http\Controllers\FraudController;
-use App\Http\Controllers\MenuInsightController;
-use App\Http\Controllers\OnboardingController;
-use App\Http\Controllers\OrdersController;
-use App\Http\Controllers\PromotionController;
-use App\Http\Controllers\QrOrderController;
-use App\Http\Controllers\ReportsController;
-use App\Http\Controllers\SalaryController;
-use App\Http\Controllers\ScheduleController;
-use App\Http\Controllers\ShiftClosingController;
-use App\Http\Controllers\SuperAdmin\ImpersonateController;
-use App\Http\Controllers\SupportController;
-use App\Http\Controllers\TablesController;
-use App\Http\Controllers\ViolationReportController;
-
 Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -82,6 +80,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::get('inventory', [SupportController::class, 'inventoryPage'])->name('inventory.index');
     Route::get('api/inventory/ai-forecast', [SupportController::class, 'aiForecast'])->name('inventory.ai-forecast');
     Route::post('inventory/ingredients', [SupportController::class, 'storeIngredient'])->name('inventory.ingredients.store');
+    Route::patch('inventory/ingredients/{ingredient}', [SupportController::class, 'updateIngredient'])->name('inventory.ingredients.update');
     Route::post('inventory/recipes', [SupportController::class, 'storeRecipe'])->name('inventory.recipes.store');
     Route::post('inventory/purchases', [SupportController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [SupportController::class, 'storeWaste'])->name('inventory.waste.store');

@@ -16,6 +16,7 @@ use App\Models\ProductRecipe;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
 use App\Models\Supplier;
+use App\Models\SupplierPriceHistory;
 use App\Models\SupportAnnouncement;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
@@ -255,7 +256,11 @@ class SupportController extends Controller
         $user = $request->user();
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
-            ->with(['unit'])
+            ->with([
+                'unit',
+                'priceHistories' => fn ($q) => $q->latest(),
+                'priceHistories.changedBy',
+            ])
             ->get()
             ->map(function ($ing) use ($user) {
                 $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
@@ -271,6 +276,17 @@ class SupportController extends Controller
                     'unit' => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
                     'stock' => $inventory ? (float) $inventory->quantity_on_hand : null,
                     'last_cost' => $inventory ? (float) $inventory->last_cost : null,
+                    'packaging' => $ing->packaging,
+                    'price' => (float) $ing->price,
+                    'status' => $ing->status,
+                    'supplier_id' => $ing->supplier_id,
+                    'price_histories' => $ing->priceHistories->map(fn ($history) => [
+                        'id' => $history->id,
+                        'old_price' => (float) $history->old_price,
+                        'new_price' => (float) $history->new_price,
+                        'changed_by_name' => $history->changedBy?->name ?? 'Hệ thống',
+                        'created_at' => $history->created_at->format('d/m/Y H:i'),
+                    ]),
                 ];
             });
 
@@ -1277,20 +1293,100 @@ class SupportController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'unit_id' => ['required', 'exists:units,id'],
+            'unit_id' => [
+                'required',
+                Rule::exists('units', 'id')->where(function ($query) use ($user) {
+                    $query->where('restaurant_id', $user->restaurant_id)->orWhereNull('restaurant_id');
+                }),
+            ],
             'category' => ['nullable', 'string', 'max:100'],
+            'packaging' => ['nullable', 'string', 'max:255'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'supplier_id' => [
+                'nullable',
+                Rule::exists('suppliers', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
         ]);
 
-        Ingredient::create([
+        $ingredient = Ingredient::create([
             'restaurant_id' => $user->restaurant_id,
             'name' => $data['name'],
             'sku' => 'ING-'.strtoupper(Str::random(6)),
             'unit_id' => $data['unit_id'],
             'category_name' => $data['category'] ?? null,
+            'packaging' => $data['packaging'] ?? null,
+            'price' => $data['price'] ?? 0,
+            'supplier_id' => $data['supplier_id'] ?? null,
             'status' => 'active',
         ]);
 
+        if (($data['price'] ?? 0) > 0) {
+            SupplierPriceHistory::create([
+                'restaurant_id' => $user->restaurant_id,
+                'ingredient_id' => $ingredient->id,
+                'supplier_id' => $ingredient->supplier_id,
+                'old_price' => 0,
+                'new_price' => $ingredient->price,
+                'changed_by' => $user->id,
+            ]);
+        }
+
         return back()->with('success', 'Đã thêm nguyên liệu mới vào kho.');
+    }
+
+    /**
+     * Cập nhật thông tin nguyên liệu thô.
+     */
+    public function updateIngredient(Request $request, Ingredient $ingredient): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $user = $request->user();
+        abort_if($ingredient->restaurant_id !== $user->restaurant_id, 403);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'unit_id' => [
+                'required',
+                Rule::exists('units', 'id')->where(function ($query) use ($user) {
+                    $query->where('restaurant_id', $user->restaurant_id)->orWhereNull('restaurant_id');
+                }),
+            ],
+            'category' => ['nullable', 'string', 'max:100'],
+            'packaging' => ['nullable', 'string', 'max:255'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'supplier_id' => [
+                'nullable',
+                Rule::exists('suppliers', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
+            'status' => ['required', 'in:active,inactive'],
+        ]);
+
+        $oldPrice = (float) $ingredient->price;
+        $newPrice = (float) ($data['price'] ?? 0);
+
+        $ingredient->update([
+            'name' => $data['name'],
+            'unit_id' => $data['unit_id'],
+            'category_name' => $data['category'] ?? null,
+            'packaging' => $data['packaging'] ?? null,
+            'price' => $newPrice,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'status' => $data['status'],
+        ]);
+
+        if ($oldPrice !== $newPrice) {
+            SupplierPriceHistory::create([
+                'restaurant_id' => $user->restaurant_id,
+                'ingredient_id' => $ingredient->id,
+                'supplier_id' => $ingredient->supplier_id,
+                'old_price' => $oldPrice,
+                'new_price' => $newPrice,
+                'changed_by' => $user->id,
+            ]);
+        }
+
+        return back()->with('success', 'Đã cập nhật nguyên liệu thành công.');
     }
 
     /**

@@ -225,9 +225,9 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'order_number' => 'ORD-1002',
             'subtotal' => 60000,
             'total_amount' => 60000,
-            'status' => 'completed',
-            'payment_status' => 'paid',
-            'completed_at' => today()->setHour(9)->toDateTimeString(),
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'created_at' => today()->setHour(9)->toDateTimeString(),
             'is_split' => true,
             'is_override_split_penalty' => false,
         ]);

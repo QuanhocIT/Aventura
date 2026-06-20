@@ -39,11 +39,17 @@ class Ingredient extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    public function priceHistories(): HasMany
+    {
+        return $this->hasMany(SupplierPriceHistory::class);
+    }
+
     protected function casts(): array
     {
         return [
             'allowed_waste_ratio' => 'decimal:2',
             'average_cost' => 'decimal:2',
+            'price' => 'decimal:2',
         ];
     }
 

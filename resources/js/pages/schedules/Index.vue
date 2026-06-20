@@ -169,8 +169,8 @@ const startLiveDurationTimer = (checkInStr: string) => {
     const checkIn = parseDateTimeStr(checkInStr);
 
     if (durationInterval) {
-clearInterval(durationInterval);
-}
+        clearInterval(durationInterval);
+    }
 
     const updateTimer = () => {
         const diffMs = new Date().getTime() - checkIn.getTime();
@@ -208,12 +208,12 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (clockInterval) {
-clearInterval(clockInterval);
-}
+        clearInterval(clockInterval);
+    }
 
     if (durationInterval) {
-clearInterval(durationInterval);
-}
+        clearInterval(durationInterval);
+    }
 });
 
 // --- ADMIN PORTAL STATE ---
@@ -284,7 +284,7 @@ const handleCheckIn = () => {
         '/schedules/check-in',
         {},
         {
-            onSuccess: (page) => {
+            onSuccess: (page: any) => {
                 // Start duration timer immediately if active assignment checked-in successfully
                 const freshAssign = page.props.todayActiveAssignment as any;
 
@@ -312,8 +312,8 @@ const handleCheckOut = () => {
             {
                 onFinish: () => {
                     if (durationInterval) {
-clearInterval(durationInterval);
-}
+                        clearInterval(durationInterval);
+                    }
                 },
             },
         );
@@ -322,20 +322,20 @@ clearInterval(durationInterval);
 
 const submitAdminOverride = () => {
     if (!activeOverrideAssignment.value) {
-return;
-}
+        return;
+    }
 
     processingOverride.value = true;
 
     let url = '/schedules/check-in-employee';
 
     if (overrideAction.value === 'check_out') {
-url = '/schedules/check-out-employee';
-}
+        url = '/schedules/check-out-employee';
+    }
 
     if (overrideAction.value === 'absent') {
-url = '/schedules/absent-employee';
-}
+        url = '/schedules/absent-employee';
+    }
 
     router.post(
         url,
@@ -377,25 +377,29 @@ const regErrors = ref<Record<string, string>>({});
 
 const submitShiftRegistration = () => {
     if (!regDate.value || !regShiftId.value) {
-return;
-}
+        return;
+    }
 
     regProcessing.value = true;
     regErrors.value = {};
-    router.post('/schedules/register', {
-        scheduled_date: regDate.value,
-        shift_id: regShiftId.value,
-    }, {
-        onSuccess: () => {
-            regErrors.value = {};
+    router.post(
+        '/schedules/register',
+        {
+            scheduled_date: regDate.value,
+            shift_id: regShiftId.value,
         },
-        onError: (err) => {
-            regErrors.value = err;
+        {
+            onSuccess: () => {
+                regErrors.value = {};
+            },
+            onError: (err: any) => {
+                regErrors.value = err;
+            },
+            onFinish: () => {
+                regProcessing.value = false;
+            },
         },
-        onFinish: () => {
-            regProcessing.value = false;
-        }
-    });
+    );
 };
 
 // Leave Request Form state
@@ -408,29 +412,33 @@ const leaveErrors = ref<Record<string, string>>({});
 
 const submitLeaveRequest = () => {
     if (!leaveStartDate.value || !leaveEndDate.value) {
-return;
-}
+        return;
+    }
 
     leaveProcessing.value = true;
     leaveErrors.value = {};
-    router.post('/employees/leaves', {
-        employee_id: props.myEmployeeId,
-        leave_type: leaveType.value,
-        start_date: leaveStartDate.value,
-        end_date: leaveEndDate.value,
-        reason: leaveReason.value,
-    }, {
-        onSuccess: () => {
-            leaveReason.value = '';
-            leaveErrors.value = {};
+    router.post(
+        '/employees/leaves',
+        {
+            employee_id: props.myEmployeeId,
+            leave_type: leaveType.value,
+            start_date: leaveStartDate.value,
+            end_date: leaveEndDate.value,
+            reason: leaveReason.value,
         },
-        onError: (err) => {
-            leaveErrors.value = err;
+        {
+            onSuccess: () => {
+                leaveReason.value = '';
+                leaveErrors.value = {};
+            },
+            onError: (err: any) => {
+                leaveErrors.value = err;
+            },
+            onFinish: () => {
+                leaveProcessing.value = false;
+            },
         },
-        onFinish: () => {
-            leaveProcessing.value = false;
-        }
-    });
+    );
 };
 
 // Complaint Form state
@@ -442,45 +450,54 @@ const complaintProcessing = ref(false);
 const complaintErrors = ref<Record<string, string>>({});
 
 const submitComplaint = () => {
-    if (!complaintEmployeeId.value || !complaintViolationType.value || !complaintOccurredAt.value || !complaintDescription.value) {
-return;
-}
+    if (
+        !complaintEmployeeId.value ||
+        !complaintViolationType.value ||
+        !complaintOccurredAt.value ||
+        !complaintDescription.value
+    ) {
+        return;
+    }
 
     complaintProcessing.value = true;
     complaintErrors.value = {};
-    router.post('/violations', {
-        employee_id: complaintEmployeeId.value,
-        violation_type: complaintViolationType.value,
-        occurred_at: complaintOccurredAt.value,
-        description: complaintDescription.value,
-        is_anonymous: true,
-    }, {
-        onSuccess: () => {
-            complaintEmployeeId.value = '';
-            complaintViolationType.value = '';
-            complaintDescription.value = '';
-            complaintErrors.value = {};
+    router.post(
+        '/violations',
+        {
+            employee_id: complaintEmployeeId.value,
+            violation_type: complaintViolationType.value,
+            occurred_at: complaintOccurredAt.value,
+            description: complaintDescription.value,
+            is_anonymous: true,
         },
-        onError: (err) => {
-            complaintErrors.value = err;
+        {
+            onSuccess: () => {
+                complaintEmployeeId.value = '';
+                complaintViolationType.value = '';
+                complaintDescription.value = '';
+                complaintErrors.value = {};
+            },
+            onError: (err: any) => {
+                complaintErrors.value = err;
+            },
+            onFinish: () => {
+                complaintProcessing.value = false;
+            },
         },
-        onFinish: () => {
-            complaintProcessing.value = false;
-        }
-    });
+    );
 };
 
 // --- LATE INDICATOR ---
 function lateMinutes(a: Assignment): number | null {
     if (!a.check_in_at || !props.shifts) {
-return null;
-}
+        return null;
+    }
 
     const shift = props.shifts.find((s) => s.id === a.shift_id);
 
     if (!shift) {
-return null;
-}
+        return null;
+    }
 
     // shift.start = "06:00", a.scheduled_date = "2026-05-29"
     const shiftStart = new Date(`${a.scheduled_date}T${shift.start}`);
@@ -497,12 +514,12 @@ return null;
 // --- COMPUTED PROPERTIES ---
 const filteredAssignments = computed(() => {
     if (!props.assignments) {
-return [];
-}
+        return [];
+    }
 
     if (!searchQuery.value.trim()) {
-return props.assignments;
-}
+        return props.assignments;
+    }
 
     const query = searchQuery.value.toLowerCase().trim();
 
@@ -515,7 +532,7 @@ return props.assignments;
 });
 
 // Color Maps
-const statusLabels = {
+const statusLabels: Record<string, string> = {
     scheduled: 'Chưa vào ca',
     checked_in: 'Đang làm việc',
     completed: 'Đã hoàn thành ca',
@@ -523,7 +540,7 @@ const statusLabels = {
     leave_approved: 'Nghỉ phép',
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
     scheduled:
         'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30',
     checked_in:
@@ -1477,27 +1494,38 @@ const printRoster = () => {
                             </p>
                         </div>
                     </CardContent>
+                </Card>
             </div>
         </div>
 
         <!-- ========================================== -->
         <!-- 2.1 EMPLOYEE SELF SERVICE PORTAL (NEW)     -->
         <!-- ========================================== -->
-        <Card v-else class="mt-6 shadow-md border-indigo-100 dark:border-slate-800">
-            <CardHeader class="border-b pb-3 bg-slate-50/50 dark:bg-slate-900/20">
-                <div class="flex items-center justify-between flex-wrap gap-4">
+        <Card
+            v-if="!isAdmin"
+            class="mt-6 border-indigo-100 shadow-md dark:border-slate-800"
+        >
+            <CardHeader
+                class="border-b bg-slate-50/50 pb-3 dark:bg-slate-900/20"
+            >
+                <div class="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                        <CardTitle class="flex items-center gap-2 text-base text-indigo-600 dark:text-indigo-400">
+                        <CardTitle
+                            class="flex items-center gap-2 text-base text-indigo-600 dark:text-indigo-400"
+                        >
                             <Sparkles class="size-5" />
                             Cổng Tự Phục Vụ Nhân Viên (Self-Service)
                         </CardTitle>
                         <CardDescription>
-                            Đăng ký ca trực cá nhân, gửi đơn xin nghỉ trực tuyến và hòm thư khiếu nại nội bộ an toàn.
+                            Đăng ký ca trực cá nhân, gửi đơn xin nghỉ trực tuyến
+                            và hòm thư khiếu nại nội bộ an toàn.
                         </CardDescription>
                     </div>
-                    
+
                     <!-- Tabs switcher -->
-                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200/50 bg-slate-100 p-0.5 dark:border-slate-850 dark:bg-slate-950">
+                    <div
+                        class="dark:border-slate-850 flex items-center gap-1.5 rounded-lg border border-slate-200/50 bg-slate-100 p-0.5 dark:bg-slate-950"
+                    >
                         <button
                             type="button"
                             @click="selfServiceTab = 'register'"
@@ -1505,10 +1533,10 @@ const printRoster = () => {
                                 'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
                                 selfServiceTab === 'register'
                                     ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
-                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300',
                             ]"
                         >
-                            <Calendar class="inline size-3.5 mr-1" />
+                            <Calendar class="mr-1 inline size-3.5" />
                             Đăng ký ca làm
                         </button>
                         <button
@@ -1518,10 +1546,10 @@ const printRoster = () => {
                                 'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
                                 selfServiceTab === 'leave'
                                     ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
-                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300',
                             ]"
                         >
-                            <FileText class="inline size-3.5 mr-1" />
+                            <FileText class="mr-1 inline size-3.5" />
                             Làm đơn trực tuyến
                         </button>
                         <button
@@ -1531,10 +1559,10 @@ const printRoster = () => {
                                 'rounded-md px-3 py-1.5 text-xs font-bold transition-all',
                                 selfServiceTab === 'complaint'
                                     ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400'
-                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300',
                             ]"
                         >
-                            <ShieldAlert class="inline size-3.5 mr-1" />
+                            <ShieldAlert class="mr-1 inline size-3.5" />
                             Khiếu nại nội bộ (Ẩn danh)
                         </button>
                     </div>
@@ -1544,13 +1572,26 @@ const printRoster = () => {
             <CardContent class="p-6">
                 <!-- TAB 1: SHIFT REGISTRATION -->
                 <div v-if="selfServiceTab === 'register'" class="space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                         <!-- Registration Form -->
-                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
-                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Đăng ký lịch làm việc mới</h3>
-                            <form @submit.prevent="submitShiftRegistration" class="space-y-4">
+                        <div
+                            class="border-r border-slate-100 pr-0 md:col-span-1 md:pr-6 dark:border-slate-800"
+                        >
+                            <h3
+                                class="text-slate-850 mb-4 text-sm font-bold dark:text-slate-200"
+                            >
+                                Đăng ký lịch làm việc mới
+                            </h3>
+                            <form
+                                @submit.prevent="submitShiftRegistration"
+                                class="space-y-4"
+                            >
                                 <div class="space-y-1.5">
-                                    <Label for="reg-date" class="text-xs font-bold text-slate-500">Chọn ngày trực:</Label>
+                                    <Label
+                                        for="reg-date"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Chọn ngày trực:</Label
+                                    >
                                     <Input
                                         id="reg-date"
                                         type="date"
@@ -1558,29 +1599,50 @@ const printRoster = () => {
                                         required
                                         class="h-9 text-xs"
                                     />
-                                    <p v-if="regErrors.scheduled_date" class="text-[11px] text-rose-500 font-bold mt-1">{{ regErrors.scheduled_date }}</p>
+                                    <p
+                                        v-if="regErrors.scheduled_date"
+                                        class="mt-1 text-[11px] font-bold text-rose-500"
+                                    >
+                                        {{ regErrors.scheduled_date }}
+                                    </p>
                                 </div>
 
                                 <div class="space-y-1.5">
-                                    <Label for="reg-shift" class="text-xs font-bold text-slate-500">Chọn ca trực:</Label>
+                                    <Label
+                                        for="reg-shift"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Chọn ca trực:</Label
+                                    >
                                     <select
                                         id="reg-shift"
                                         v-model="regShiftId"
                                         required
                                         class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
                                     >
-                                        <option value="" disabled>-- Vui lòng chọn ca --</option>
-                                        <option v-for="s in shifts" :key="s.id" :value="s.id">
-                                            {{ s.name }} ({{ s.start }} - {{ s.end }})
+                                        <option value="" disabled>
+                                            -- Vui lòng chọn ca --
+                                        </option>
+                                        <option
+                                            v-for="s in shifts"
+                                            :key="s.id"
+                                            :value="s.id"
+                                        >
+                                            {{ s.name }} ({{ s.start }} -
+                                            {{ s.end }})
                                         </option>
                                     </select>
-                                    <p v-if="regErrors.shift_id" class="text-[11px] text-rose-500 font-bold mt-1">{{ regErrors.shift_id }}</p>
+                                    <p
+                                        v-if="regErrors.shift_id"
+                                        class="mt-1 text-[11px] font-bold text-rose-500"
+                                    >
+                                        {{ regErrors.shift_id }}
+                                    </p>
                                 </div>
 
                                 <Button
                                     type="submit"
                                     :disabled="regProcessing"
-                                    class="w-full h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5"
+                                    class="flex h-9 w-full items-center justify-center gap-1.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                                 >
                                     <Send class="size-3.5" />
                                     Gửi yêu cầu đăng ký ca
@@ -1590,18 +1652,32 @@ const printRoster = () => {
 
                         <!-- Available shifts guide list -->
                         <div class="md:col-span-2">
-                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Danh sách các ca trực của nhà hàng</h3>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <h3
+                                class="text-slate-850 mb-4 text-sm font-bold dark:text-slate-200"
+                            >
+                                Danh sách các ca trực của nhà hàng
+                            </h3>
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div
                                     v-for="s in shifts"
                                     :key="s.id"
-                                    class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
+                                    class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
                                 >
                                     <div class="flex items-center gap-2">
-                                        <span class="size-2 rounded-full bg-indigo-600"></span>
-                                        <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200">{{ s.name }}</h4>
+                                        <span
+                                            class="size-2 rounded-full bg-indigo-600"
+                                        ></span>
+                                        <h4
+                                            class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >
+                                            {{ s.name }}
+                                        </h4>
                                     </div>
-                                    <p class="mt-2 text-xs font-mono text-slate-500">Giờ trực: {{ s.start }} - {{ s.end }}</p>
+                                    <p
+                                        class="mt-2 font-mono text-xs text-slate-500"
+                                    >
+                                        Giờ trực: {{ s.start }} - {{ s.end }}
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1610,27 +1686,48 @@ const printRoster = () => {
 
                 <!-- TAB 2: LEAVE & RESIGNATION REQUESTS -->
                 <div v-if="selfServiceTab === 'leave'" class="space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                         <!-- Leave Form -->
-                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
-                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Làm đơn xin nghỉ trực tuyến</h3>
-                            <form @submit.prevent="submitLeaveRequest" class="space-y-4">
+                        <div
+                            class="border-r border-slate-100 pr-0 md:col-span-1 md:pr-6 dark:border-slate-800"
+                        >
+                            <h3
+                                class="text-slate-850 mb-4 text-sm font-bold dark:text-slate-200"
+                            >
+                                Làm đơn xin nghỉ trực tuyến
+                            </h3>
+                            <form
+                                @submit.prevent="submitLeaveRequest"
+                                class="space-y-4"
+                            >
                                 <div class="space-y-1.5">
-                                    <Label for="leave-type" class="text-xs font-bold text-slate-500">Loại đơn yêu cầu:</Label>
+                                    <Label
+                                        for="leave-type"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Loại đơn yêu cầu:</Label
+                                    >
                                     <select
                                         id="leave-type"
                                         v-model="leaveType"
                                         required
                                         class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
                                     >
-                                        <option value="emergency">Xin nghỉ đột xuất (Khẩn cấp)</option>
-                                        <option value="resignation">Đơn xin thôi việc (Nghỉ việc)</option>
+                                        <option value="emergency">
+                                            Xin nghỉ đột xuất (Khẩn cấp)
+                                        </option>
+                                        <option value="resignation">
+                                            Đơn xin thôi việc (Nghỉ việc)
+                                        </option>
                                     </select>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="space-y-1.5">
-                                        <Label for="leave-start" class="text-xs font-bold text-slate-500">Từ ngày:</Label>
+                                        <Label
+                                            for="leave-start"
+                                            class="text-xs font-bold text-slate-500"
+                                            >Từ ngày:</Label
+                                        >
                                         <Input
                                             id="leave-start"
                                             type="date"
@@ -1640,7 +1737,11 @@ const printRoster = () => {
                                         />
                                     </div>
                                     <div class="space-y-1.5">
-                                        <Label for="leave-end" class="text-xs font-bold text-slate-500">Đến ngày:</Label>
+                                        <Label
+                                            for="leave-end"
+                                            class="text-xs font-bold text-slate-500"
+                                            >Đến ngày:</Label
+                                        >
                                         <Input
                                             id="leave-end"
                                             type="date"
@@ -1650,10 +1751,19 @@ const printRoster = () => {
                                         />
                                     </div>
                                 </div>
-                                <p v-if="leaveErrors.end_date" class="text-[11px] text-rose-500 font-bold mt-1">{{ leaveErrors.end_date }}</p>
+                                <p
+                                    v-if="leaveErrors.end_date"
+                                    class="mt-1 text-[11px] font-bold text-rose-500"
+                                >
+                                    {{ leaveErrors.end_date }}
+                                </p>
 
                                 <div class="space-y-1.5">
-                                    <Label for="leave-reason" class="text-xs font-bold text-slate-500">Lý do xin nghỉ:</Label>
+                                    <Label
+                                        for="leave-reason"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Lý do xin nghỉ:</Label
+                                    >
                                     <textarea
                                         id="leave-reason"
                                         v-model="leaveReason"
@@ -1667,7 +1777,7 @@ const printRoster = () => {
                                 <Button
                                     type="submit"
                                     :disabled="leaveProcessing"
-                                    class="w-full h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5"
+                                    class="flex h-9 w-full items-center justify-center gap-1.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                                 >
                                     <Send class="size-3.5" />
                                     Gửi đơn yêu cầu
@@ -1677,48 +1787,100 @@ const printRoster = () => {
 
                         <!-- History of requests -->
                         <div class="md:col-span-2">
-                            <h3 class="text-sm font-bold text-slate-850 dark:text-slate-200 mb-4">Lịch sử gửi đơn trực tuyến</h3>
-                            <div v-if="leaveRequests?.length" class="overflow-x-auto border rounded-xl bg-white dark:bg-slate-950 dark:border-slate-800">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <h3
+                                class="text-slate-850 mb-4 text-sm font-bold dark:text-slate-200"
+                            >
+                                Lịch sử gửi đơn trực tuyến
+                            </h3>
+                            <div
+                                v-if="leaveRequests?.length"
+                                class="overflow-x-auto rounded-xl border bg-white dark:border-slate-800 dark:bg-slate-950"
+                            >
+                                <table
+                                    class="w-full border-collapse text-left text-xs"
+                                >
                                     <thead>
-                                        <tr class="bg-slate-50 border-b dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                        <tr
+                                            class="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+                                        >
                                             <th class="p-3">Loại đơn</th>
-                                            <th class="p-3">Thời gian xin nghỉ</th>
+                                            <th class="p-3">
+                                                Thời gian xin nghỉ
+                                            </th>
                                             <th class="p-3">Lý do</th>
                                             <th class="p-3">Trạng thái</th>
                                             <th class="p-3">Ngày gửi</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                        <tr v-for="lr in leaveRequests" :key="lr.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
-                                            <td class="p-3 font-bold text-slate-800 dark:text-slate-200">
-                                                {{ lr.leave_type === 'emergency' ? 'Nghỉ đột xuất' : lr.leave_type === 'resignation' ? 'Thôi việc' : lr.leave_type }}
+                                    <tbody
+                                        class="divide-y divide-slate-100 dark:divide-slate-800"
+                                    >
+                                        <tr
+                                            v-for="lr in leaveRequests"
+                                            :key="lr.id"
+                                            class="hover:bg-slate-50/50 dark:hover:bg-slate-900/20"
+                                        >
+                                            <td
+                                                class="p-3 font-bold text-slate-800 dark:text-slate-200"
+                                            >
+                                                {{
+                                                    lr.leave_type ===
+                                                    'emergency'
+                                                        ? 'Nghỉ đột xuất'
+                                                        : lr.leave_type ===
+                                                            'resignation'
+                                                          ? 'Thôi việc'
+                                                          : lr.leave_type
+                                                }}
                                             </td>
                                             <td class="p-3 font-mono">
-                                                {{ lr.start_date }} - {{ lr.end_date }}
+                                                {{ lr.start_date }} -
+                                                {{ lr.end_date }}
                                             </td>
-                                            <td class="p-3 max-w-[200px] truncate" :title="lr.reason">
+                                            <td
+                                                class="max-w-[200px] truncate p-3"
+                                                :title="lr.reason"
+                                            >
                                                 {{ lr.reason }}
                                             </td>
                                             <td class="p-3">
                                                 <span
-                                                    class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                    class="rounded-full px-2 py-0.5 text-[10px] font-bold"
                                                     :class="[
-                                                        lr.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400' :
-                                                        lr.status === 'approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400' :
-                                                        'bg-rose-100 text-rose-800 dark:bg-rose-950/20 dark:text-rose-400'
+                                                        lr.status === 'pending'
+                                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400'
+                                                            : lr.status ===
+                                                                'approved'
+                                                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400'
+                                                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950/20 dark:text-rose-400',
                                                     ]"
                                                 >
-                                                    {{ lr.status === 'pending' ? 'Chờ duyệt' : lr.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối' }}
+                                                    {{
+                                                        lr.status === 'pending'
+                                                            ? 'Chờ duyệt'
+                                                            : lr.status ===
+                                                                'approved'
+                                                              ? 'Đã duyệt'
+                                                              : 'Đã từ chối'
+                                                    }}
                                                 </span>
                                             </td>
-                                            <td class="p-3 text-slate-400 font-mono">{{ lr.created_at }}</td>
+                                            <td
+                                                class="p-3 font-mono text-slate-400"
+                                            >
+                                                {{ lr.created_at }}
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
-                            <div v-else class="py-12 text-center text-slate-400 border border-dashed rounded-xl dark:border-slate-800">
-                                <FileText class="size-8 mx-auto mb-2 opacity-50" />
+                            <div
+                                v-else
+                                class="rounded-xl border border-dashed py-12 text-center text-slate-400 dark:border-slate-800"
+                            >
+                                <FileText
+                                    class="mx-auto mb-2 size-8 opacity-50"
+                                />
                                 Chưa có đơn xin nghỉ nào được nộp.
                             </div>
                         </div>
@@ -1727,49 +1889,105 @@ const printRoster = () => {
 
                 <!-- TAB 3: INTERNAL COMPLAINTS -->
                 <div v-if="selfServiceTab === 'complaint'" class="space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                         <!-- Complaint Form -->
-                        <div class="md:col-span-1 border-r border-slate-100 pr-0 md:pr-6 dark:border-slate-800">
-                            <div class="mb-4 flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-500 uppercase select-none">
+                        <div
+                            class="border-r border-slate-100 pr-0 md:col-span-1 md:pr-6 dark:border-slate-800"
+                        >
+                            <div
+                                class="mb-4 flex items-center gap-1.5 text-xs font-bold text-rose-600 uppercase select-none dark:text-rose-500"
+                            >
                                 <ShieldAlert class="size-4 shrink-0" />
                                 <span>Hòm thư tố cáo ẩn danh bảo mật</span>
                             </div>
-                            <form @submit.prevent="submitComplaint" class="space-y-4">
+                            <form
+                                @submit.prevent="submitComplaint"
+                                class="space-y-4"
+                            >
                                 <div class="space-y-1.5">
-                                    <Label for="comp-employee" class="text-xs font-bold text-slate-500">Đối tượng bị khiếu nại:</Label>
+                                    <Label
+                                        for="comp-employee"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Đối tượng bị khiếu nại:</Label
+                                    >
                                     <select
                                         id="comp-employee"
                                         v-model="complaintEmployeeId"
                                         required
                                         class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
                                     >
-                                        <option value="" disabled>-- Chọn nhân viên vi phạm --</option>
-                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">
-                                            {{ emp.full_name }} [{{ emp.employee_code }} - {{ emp.job_title }}]
+                                        <option value="" disabled>
+                                            -- Chọn nhân viên vi phạm --
+                                        </option>
+                                        <option
+                                            v-for="emp in employees"
+                                            :key="emp.id"
+                                            :value="emp.id"
+                                        >
+                                            {{ emp.full_name }} [{{
+                                                emp.employee_code
+                                            }}
+                                            - {{ emp.job_title }}]
                                         </option>
                                     </select>
                                 </div>
 
                                 <div class="space-y-1.5">
-                                    <Label for="comp-type" class="text-xs font-bold text-slate-500">Loại sai phạm:</Label>
+                                    <Label
+                                        for="comp-type"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Loại sai phạm:</Label
+                                    >
                                     <select
                                         id="comp-type"
                                         v-model="complaintViolationType"
                                         required
                                         class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
                                     >
-                                        <option value="" disabled>-- Vui lòng chọn --</option>
-                                        <option value="Bòn rút tiền mặt / Gian lận ngân quỹ">Bòn rút tiền mặt / Gian lận ngân quỹ</option>
-                                        <option value="Bớt xén nguyên vật liệu kho / Ăn cắp tài sản">Bớt xén nguyên vật liệu kho / Ăn cắp tài sản</option>
-                                        <option value="Thái độ phục vụ bạo lực / Gây gổ">Thái độ phục vụ bạo lực / Gây gổ</option>
-                                        <option value="Đi muộn về sớm / Trốn ca làm việc">Đi muộn về sớm / Trốn ca làm việc</option>
-                                        <option value="Cấu kết người ngoài / Tiết lộ thông tin kinh doanh">Cấu kết người ngoài / Tiết lộ thông tin kinh doanh</option>
-                                        <option value="Hành vi không trung thực khác">Hành vi không trung thực khác</option>
+                                        <option value="" disabled>
+                                            -- Vui lòng chọn --
+                                        </option>
+                                        <option
+                                            value="Bòn rút tiền mặt / Gian lận ngân quỹ"
+                                        >
+                                            Bòn rút tiền mặt / Gian lận ngân quỹ
+                                        </option>
+                                        <option
+                                            value="Bớt xén nguyên vật liệu kho / Ăn cắp tài sản"
+                                        >
+                                            Bớt xén nguyên vật liệu kho / Ăn cắp
+                                            tài sản
+                                        </option>
+                                        <option
+                                            value="Thái độ phục vụ bạo lực / Gây gổ"
+                                        >
+                                            Thái độ phục vụ bạo lực / Gây gổ
+                                        </option>
+                                        <option
+                                            value="Đi muộn về sớm / Trốn ca làm việc"
+                                        >
+                                            Đi muộn về sớm / Trốn ca làm việc
+                                        </option>
+                                        <option
+                                            value="Cấu kết người ngoài / Tiết lộ thông tin kinh doanh"
+                                        >
+                                            Cấu kết người ngoài / Tiết lộ thông
+                                            tin kinh doanh
+                                        </option>
+                                        <option
+                                            value="Hành vi không trung thực khác"
+                                        >
+                                            Hành vi không trung thực khác
+                                        </option>
                                     </select>
                                 </div>
 
                                 <div class="space-y-1.5">
-                                    <Label for="comp-date" class="text-xs font-bold text-slate-500">Ngày xảy ra sự việc:</Label>
+                                    <Label
+                                        for="comp-date"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Ngày xảy ra sự việc:</Label
+                                    >
                                     <Input
                                         id="comp-date"
                                         type="date"
@@ -1780,7 +1998,11 @@ const printRoster = () => {
                                 </div>
 
                                 <div class="space-y-1.5">
-                                    <Label for="comp-desc" class="text-xs font-bold text-slate-500">Mô tả hành vi chi tiết:</Label>
+                                    <Label
+                                        for="comp-desc"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Mô tả hành vi chi tiết:</Label
+                                    >
                                     <textarea
                                         id="comp-desc"
                                         v-model="complaintDescription"
@@ -1794,7 +2016,7 @@ const printRoster = () => {
                                 <Button
                                     type="submit"
                                     :disabled="complaintProcessing"
-                                    class="w-full h-9 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-1.5"
+                                    class="flex h-9 w-full items-center justify-center gap-1.5 bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
                                 >
                                     <Send class="size-3.5" />
                                     Gửi khiếu nại bảo mật (Ẩn danh)
@@ -1803,29 +2025,60 @@ const printRoster = () => {
                         </div>
 
                         <!-- Anonymity assurance card -->
-                        <div class="md:col-span-2 flex flex-col justify-center">
-                            <div class="p-6 rounded-2xl border border-rose-100 bg-rose-50/50 dark:border-rose-900/30 dark:bg-rose-950/15 max-w-xl mx-auto space-y-4">
+                        <div class="flex flex-col justify-center md:col-span-2">
+                            <div
+                                class="mx-auto max-w-xl space-y-4 rounded-2xl border border-rose-100 bg-rose-50/50 p-6 dark:border-rose-900/30 dark:bg-rose-950/15"
+                            >
                                 <div class="flex items-center gap-3">
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400">
+                                    <div
+                                        class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400"
+                                    >
                                         <ShieldCheck class="size-6" />
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-bold text-rose-800 dark:text-rose-350">Cam kết Bảo mật Thông tin 100%</h4>
-                                        <p class="text-xs text-rose-600/80 dark:text-rose-400/80">Hòm thư tố cáo ẩn danh an toàn tuyệt đối</p>
+                                        <h4
+                                            class="dark:text-rose-350 text-sm font-bold text-rose-800"
+                                        >
+                                            Cam kết Bảo mật Thông tin 100%
+                                        </h4>
+                                        <p
+                                            class="text-xs text-rose-600/80 dark:text-rose-400/80"
+                                        >
+                                            Hòm thư tố cáo ẩn danh an toàn tuyệt
+                                            đối
+                                        </p>
                                     </div>
                                 </div>
-                                
-                                <div class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 space-y-2">
+
+                                <div
+                                    class="space-y-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                >
                                     <p>
-                                        Hệ thống nhà hàng Aventura thiết lập cơ chế <strong>Giám sát chéo ẩn danh</strong> để bảo vệ nhân viên khỏi sự trù dập hoặc thiên vị.
+                                        Hệ thống nhà hàng Aventura thiết lập cơ
+                                        chế
+                                        <strong>Giám sát chéo ẩn danh</strong>
+                                        để bảo vệ nhân viên khỏi sự trù dập hoặc
+                                        thiên vị.
                                     </p>
                                     <p>
-                                        Khi bạn gửi đơn tố cáo sai phạm nội bộ này:
+                                        Khi bạn gửi đơn tố cáo sai phạm nội bộ
+                                        này:
                                     </p>
-                                    <ul class="list-disc pl-5 space-y-1">
-                                        <li>Tên và thông tin cá nhân của bạn sẽ được ẩn hoàn toàn trước mọi người xem (kể cả Manager hay Owner).</li>
-                                        <li>Dữ liệu được mã hóa để chỉ có thuật toán AI phân loại trước khi báo cáo.</li>
-                                        <li>Hành động của bạn góp phần xây dựng môi trường làm việc trong sạch, lành mạnh và công bằng.</li>
+                                    <ul class="list-disc space-y-1 pl-5">
+                                        <li>
+                                            Tên và thông tin cá nhân của bạn sẽ
+                                            được ẩn hoàn toàn trước mọi người
+                                            xem (kể cả Manager hay Owner).
+                                        </li>
+                                        <li>
+                                            Dữ liệu được mã hóa để chỉ có thuật
+                                            toán AI phân loại trước khi báo cáo.
+                                        </li>
+                                        <li>
+                                            Hành động của bạn góp phần xây dựng
+                                            môi trường làm việc trong sạch, lành
+                                            mạnh và công bằng.
+                                        </li>
                                     </ul>
                                 </div>
                             </div>

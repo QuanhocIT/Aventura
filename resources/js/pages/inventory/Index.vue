@@ -35,6 +35,13 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
+type PriceHistory = {
+    id: number;
+    old_price: number;
+    new_price: number;
+    changed_by_name: string;
+    created_at: string;
+};
 type Ingredient = {
     id: number;
     sku: string | null;
@@ -44,6 +51,11 @@ type Ingredient = {
     unit: { id: number; symbol: string } | null;
     stock: number | null;
     last_cost: number | null;
+    packaging: string | null;
+    price: number;
+    status: 'active' | 'inactive';
+    supplier_id: number | null;
+    price_histories?: PriceHistory[];
 };
 type RecipeItem = {
     id: number;
@@ -103,13 +115,34 @@ const activeTab = ref<'stock' | 'purchase' | 'waste'>('stock');
 // ── Modals (stock tab) ────────────────────────────────────────────────────────
 const showAddRecipe = ref(false);
 const showAddIngredient = ref(false);
+const showEditIngredient = ref(false);
+const selectedEditIngredient = ref<Ingredient | null>(null);
+const modalTab = ref<'form' | 'history'>('form');
 const activeProduct = ref<Product | null>(null);
+
+const roles = computed(() => (page.props as any).roles ?? []);
+const canEdit = computed(
+    () => roles.value.includes('owner') || roles.value.includes('manager'),
+);
 
 // ── Forms ─────────────────────────────────────────────────────────────────────
 const ingredientForm = useForm({
     name: '',
     unit_id: props.units[0]?.id ? String(props.units[0].id) : '',
     category: '',
+    packaging: '',
+    price: '0',
+    supplier_id: '',
+});
+
+const editIngredientForm = useForm({
+    name: '',
+    unit_id: '',
+    category: '',
+    packaging: '',
+    price: '0',
+    supplier_id: '',
+    status: 'active' as 'active' | 'inactive',
 });
 
 const recipeForm = useForm({
@@ -242,6 +275,37 @@ const submitIngredient = () => {
         },
         onError: () => toast.error('Có lỗi khi thêm nguyên liệu.'),
     });
+};
+
+const openEditIngredientModal = (ing: Ingredient) => {
+    selectedEditIngredient.value = ing;
+    editIngredientForm.name = ing.name;
+    editIngredientForm.unit_id = ing.unit ? String(ing.unit.id) : '';
+    editIngredientForm.category = ing.category_name ?? '';
+    editIngredientForm.packaging = ing.packaging ?? '';
+    editIngredientForm.price = String(ing.price ?? 0);
+    editIngredientForm.supplier_id = ing.supplier_id
+        ? String(ing.supplier_id)
+        : '';
+    editIngredientForm.status = ing.status;
+    modalTab.value = 'form';
+    showEditIngredient.value = true;
+};
+
+const submitEditIngredient = () => {
+    if (!selectedEditIngredient.value) return;
+    editIngredientForm.patch(
+        `/inventory/ingredients/${selectedEditIngredient.value.id}`,
+        {
+            onSuccess: () => {
+                editIngredientForm.reset();
+                showEditIngredient.value = false;
+                selectedEditIngredient.value = null;
+                toast.success('Đã cập nhật nguyên vật liệu thành công!');
+            },
+            onError: () => toast.error('Có lỗi khi cập nhật nguyên vật liệu.'),
+        },
+    );
 };
 
 const openAddRecipeModal = (prod: Product) => {
@@ -459,10 +523,33 @@ const submitWaste = () => {
                                     class="flex items-center justify-between p-3 text-xs transition-colors hover:bg-muted/30"
                                 >
                                     <div class="mr-2 min-w-0 flex-1">
-                                        <div class="flex items-center gap-1.5">
-                                            <p class="truncate font-bold">
+                                        <div
+                                            class="flex flex-wrap items-center gap-1.5"
+                                        >
+                                            <p
+                                                class="truncate font-bold"
+                                                :class="{
+                                                    'font-normal text-muted-foreground line-through':
+                                                        ing.status ===
+                                                        'inactive',
+                                                }"
+                                            >
                                                 {{ ing.name }}
                                             </p>
+                                            <span
+                                                class="py-0.2 shrink-0 rounded px-1.5 text-[8px] font-bold tracking-wider uppercase"
+                                                :class="
+                                                    ing.status === 'active'
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'
+                                                "
+                                            >
+                                                {{
+                                                    ing.status === 'active'
+                                                        ? 'Hoạt động'
+                                                        : 'Ngừng'
+                                                }}
+                                            </span>
                                             <span
                                                 v-if="
                                                     (ing.average_cost ?? 0) ===
@@ -481,47 +568,97 @@ const submitWaste = () => {
                                                 ing.category_name ??
                                                 'Nguyên liệu'
                                             }}
-                                        </p>
-                                        <p
-                                            v-if="ing.average_cost > 0"
-                                            class="mt-0.5 text-[10px] font-semibold text-indigo-500"
-                                        >
-                                            TB: {{ vnd(ing.average_cost) }}/{{
-                                                ing.unit?.symbol ?? 'đv'
-                                            }}
-                                        </p>
-                                    </div>
-                                    <div class="shrink-0 text-right">
-                                        <div
-                                            class="flex items-center justify-end gap-1.5"
-                                        >
-                                            <TrendingDown
-                                                v-if="
-                                                    ing.stock !== null &&
-                                                    ing.stock < 5
-                                                "
-                                                class="size-3 text-rose-500"
-                                            />
                                             <span
-                                                class="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
-                                                :class="
-                                                    ing.stock === null
-                                                        ? 'bg-muted text-muted-foreground'
-                                                        : ing.stock < 5
-                                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
-                                                          : ing.stock < 20
-                                                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                                                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                                                "
+                                                v-if="ing.packaging"
+                                                class="font-medium text-slate-600 dark:text-slate-400"
                                             >
-                                                {{
-                                                    ing.stock !== null
-                                                        ? ing.stock.toFixed(1)
-                                                        : '—'
-                                                }}
-                                                {{ ing.unit?.symbol ?? '' }}
+                                                · {{ ing.packaging }}
                                             </span>
+                                        </p>
+                                        <div
+                                            class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5"
+                                        >
+                                            <p
+                                                v-if="ing.average_cost > 0"
+                                                class="text-[10px] font-semibold text-indigo-500"
+                                            >
+                                                TB:
+                                                {{ vnd(ing.average_cost) }}/{{
+                                                    ing.unit?.symbol ?? 'đv'
+                                                }}
+                                            </p>
+                                            <span
+                                                v-if="
+                                                    ing.average_cost > 0 &&
+                                                    ing.price > 0
+                                                "
+                                                class="text-[10px] font-light text-slate-300"
+                                                >|</span
+                                            >
+                                            <p
+                                                v-if="ing.price > 0"
+                                                class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                                            >
+                                                Niêm yết: {{ vnd(ing.price) }}
+                                            </p>
+                                            <p
+                                                v-else
+                                                class="text-[10px] font-medium text-slate-400 italic"
+                                            >
+                                                Chưa niêm yết giá
+                                            </p>
                                         </div>
+                                    </div>
+                                    <div
+                                        class="flex shrink-0 items-center gap-2 text-right"
+                                    >
+                                        <div
+                                            class="flex flex-col items-end gap-1"
+                                        >
+                                            <div
+                                                class="flex items-center gap-1"
+                                            >
+                                                <TrendingDown
+                                                    v-if="
+                                                        ing.stock !== null &&
+                                                        ing.stock < 5
+                                                    "
+                                                    class="size-3 text-rose-500"
+                                                />
+                                                <span
+                                                    class="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
+                                                    :class="
+                                                        ing.stock === null
+                                                            ? 'bg-muted text-muted-foreground'
+                                                            : ing.stock < 5
+                                                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
+                                                              : ing.stock < 20
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                                                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                                                    "
+                                                >
+                                                    {{
+                                                        ing.stock !== null
+                                                            ? ing.stock.toFixed(
+                                                                  1,
+                                                              )
+                                                            : '—'
+                                                    }}
+                                                    {{ ing.unit?.symbol ?? '' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            v-if="canEdit"
+                                            @click="
+                                                openEditIngredientModal(ing)
+                                            "
+                                            size="sm"
+                                            variant="ghost"
+                                            class="h-7 w-7 p-0 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-500 dark:hover:bg-indigo-950/30"
+                                        >
+                                            <Settings2 class="size-3.5" />
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -1504,6 +1641,41 @@ const submitWaste = () => {
                                 />
                             </div>
                         </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Quy cách đóng gói</Label>
+                                <Input
+                                    v-model="ingredientForm.packaging"
+                                    placeholder="Ví dụ: Chai 1L, Hộp 500g..."
+                                />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Giá niêm yết (đ)</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    v-model="ingredientForm.price"
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs">Nhà cung cấp</Label>
+                            <select
+                                v-model="ingredientForm.supplier_id"
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                            >
+                                <option value="">Chọn nhà cung cấp...</option>
+                                <option
+                                    v-for="s in suppliers"
+                                    :key="s.id"
+                                    :value="s.id"
+                                >
+                                    {{ s.name }}
+                                </option>
+                            </select>
+                        </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <Button
                                 type="button"
@@ -1526,6 +1698,327 @@ const submitWaste = () => {
                             </Button>
                         </div>
                     </form>
+                </CardContent>
+            </Card>
+        </div>
+    </Transition>
+
+    <!-- ══ Modal: Cập nhật nguyên liệu ══════════════════════════════════════════ -->
+    <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+    >
+        <div
+            v-if="showEditIngredient && selectedEditIngredient"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            @click.self="showEditIngredient = false"
+        >
+            <Card class="w-full max-w-2xl">
+                <CardHeader class="pb-3">
+                    <div class="flex items-center justify-between">
+                        <CardTitle class="flex items-center gap-2 text-base">
+                            <Settings2 class="size-5 text-indigo-500" />
+                            Cập nhật nguyên liệu:
+                            {{ selectedEditIngredient.name }}
+                        </CardTitle>
+                        <button
+                            @click="showEditIngredient = false"
+                            class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </div>
+                    <CardDescription class="text-xs">
+                        Mã nguyên liệu:
+                        <span class="font-mono font-bold">{{
+                            selectedEditIngredient.sku ?? 'ING-NONE'
+                        }}</span>
+                    </CardDescription>
+
+                    <!-- Tab Buttons inside Modal -->
+                    <div class="mt-4 flex border-b border-border">
+                        <button
+                            type="button"
+                            @click="modalTab = 'form'"
+                            class="cursor-pointer border-b-2 px-4 py-2 text-xs font-semibold transition-all"
+                            :class="
+                                modalTab === 'form'
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                            "
+                        >
+                            Thông tin & Bảng giá
+                        </button>
+                        <button
+                            type="button"
+                            @click="modalTab = 'history'"
+                            class="flex cursor-pointer items-center gap-1.5 border-b-2 px-4 py-2 text-xs font-semibold transition-all"
+                            :class="
+                                modalTab === 'history'
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                            "
+                        >
+                            Lịch sử biến động giá
+                            <span
+                                class="py-0.2 rounded bg-slate-100 px-1 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                            >
+                                {{
+                                    selectedEditIngredient.price_histories
+                                        ?.length ?? 0
+                                }}
+                            </span>
+                        </button>
+                    </div>
+                </CardHeader>
+
+                <CardContent class="max-h-[60vh] overflow-y-auto">
+                    <!-- Tab Content: Form -->
+                    <form
+                        v-if="modalTab === 'form'"
+                        @submit.prevent="submitEditIngredient"
+                        class="space-y-4 pt-2"
+                    >
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 space-y-1.5">
+                                <Label class="text-xs"
+                                    >Tên nguyên liệu
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="editIngredientForm.name"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs"
+                                    >Đơn vị tính
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <select
+                                    v-model="editIngredientForm.unit_id"
+                                    required
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                >
+                                    <option value="" disabled>
+                                        Chọn đơn vị
+                                    </option>
+                                    <option
+                                        v-for="u in units"
+                                        :key="u.id"
+                                        :value="u.id"
+                                    >
+                                        {{ u.name }} ({{ u.symbol }})
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Danh mục</Label>
+                                <Input
+                                    v-model="editIngredientForm.category"
+                                    placeholder="Thịt, Rau củ..."
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Quy cách đóng gói</Label>
+                                <Input
+                                    v-model="editIngredientForm.packaging"
+                                    placeholder="Chai 1L, Hộp 500g..."
+                                />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Giá niêm yết (đ)</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    v-model="editIngredientForm.price"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Nhà cung cấp</Label>
+                                <select
+                                    v-model="editIngredientForm.supplier_id"
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                >
+                                    <option value="">
+                                        Chọn nhà cung cấp...
+                                    </option>
+                                    <option
+                                        v-for="s in suppliers"
+                                        :key="s.id"
+                                        :value="s.id"
+                                    >
+                                        {{ s.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs"
+                                    >Trạng thái hoạt động</Label
+                                >
+                                <select
+                                    v-model="editIngredientForm.status"
+                                    required
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                >
+                                    <option value="active">
+                                        Đang hoạt động (Active)
+                                    </option>
+                                    <option value="inactive">
+                                        Ngừng hoạt động (Inactive)
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div
+                            class="flex justify-end gap-2 border-t border-border pt-4"
+                        >
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="showEditIngredient = false"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                size="sm"
+                                class="bg-indigo-600 text-white"
+                                :disabled="editIngredientForm.processing"
+                            >
+                                {{
+                                    editIngredientForm.processing
+                                        ? 'Đang lưu...'
+                                        : 'Cập nhật'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+
+                    <!-- Tab Content: Price History Timeline -->
+                    <div
+                        v-else-if="modalTab === 'history'"
+                        class="space-y-4 py-4"
+                    >
+                        <div
+                            v-if="
+                                selectedEditIngredient.price_histories?.length
+                            "
+                            class="relative space-y-6 border-l border-slate-200 pl-6 dark:border-slate-800"
+                        >
+                            <div
+                                v-for="history in selectedEditIngredient.price_histories"
+                                :key="history.id"
+                                class="relative"
+                            >
+                                <!-- Timeline dot indicator -->
+                                <span
+                                    class="absolute top-1.5 -left-[31px] flex h-4 w-4 items-center justify-center rounded-full border bg-white dark:bg-slate-900"
+                                    :class="
+                                        history.new_price > history.old_price
+                                            ? 'border-rose-500 text-rose-500'
+                                            : 'border-emerald-500 text-emerald-500'
+                                    "
+                                >
+                                    <span
+                                        class="h-1.5 w-1.5 rounded-full"
+                                        :class="
+                                            history.new_price >
+                                            history.old_price
+                                                ? 'bg-rose-500'
+                                                : 'bg-emerald-500'
+                                        "
+                                    ></span>
+                                </span>
+
+                                <div
+                                    class="flex flex-col gap-1.5 rounded-xl border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                >
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span
+                                                class="font-mono text-xs font-bold text-slate-500 line-through"
+                                            >
+                                                {{ vnd(history.old_price) }}
+                                            </span>
+                                            <span class="text-slate-400"
+                                                >→</span
+                                            >
+                                            <span
+                                                class="font-mono text-sm font-bold"
+                                                :class="
+                                                    history.new_price >
+                                                    history.old_price
+                                                        ? 'text-rose-600 dark:text-rose-400'
+                                                        : 'text-emerald-600 dark:text-emerald-400'
+                                                "
+                                            >
+                                                {{ vnd(history.new_price) }}
+                                            </span>
+                                            <span
+                                                class="rounded px-1 text-[9px] font-semibold"
+                                                :class="
+                                                    history.new_price >
+                                                    history.old_price
+                                                        ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/20'
+                                                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20'
+                                                "
+                                            >
+                                                {{
+                                                    history.new_price >
+                                                    history.old_price
+                                                        ? '+'
+                                                        : ''
+                                                }}{{
+                                                    vnd(
+                                                        history.new_price -
+                                                            history.old_price,
+                                                    )
+                                                }}
+                                            </span>
+                                        </div>
+                                        <p
+                                            class="mt-1 text-[10px] text-muted-foreground"
+                                        >
+                                            Người thay đổi:
+                                            <span
+                                                class="font-medium text-foreground"
+                                                >{{
+                                                    history.changed_by_name
+                                                }}</span
+                                            >
+                                        </p>
+                                    </div>
+                                    <span
+                                        class="self-start font-mono text-[10px] font-bold text-muted-foreground sm:self-center"
+                                    >
+                                        {{ history.created_at }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            v-else
+                            class="py-8 text-center text-xs text-muted-foreground"
+                        >
+                            Chưa có lịch sử biến động giá cho nguyên liệu này.
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
         </div>
