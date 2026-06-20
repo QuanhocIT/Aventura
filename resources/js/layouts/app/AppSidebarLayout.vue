@@ -102,19 +102,25 @@ onMounted(() => {
                 }
             })
             .listen('.purchase-order.created', (e: any) => {
-                if (isOwnerOrManager.value || roles.value.includes('inventory_staff')) {
+                if (
+                    isOwnerOrManager.value ||
+                    roles.value.includes('inventory_staff')
+                ) {
                     playNotificationSound();
 
-                    toast.info(`Yêu cầu đặt hàng PO mới: ${e.purchase_order.po_number}`, {
-                        description: `Nhà cung cấp: ${e.purchase_order.supplier_name} - Số tiền: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(e.purchase_order.total_amount)}`,
-                        action: {
-                            label: 'Xem đơn PO',
-                            onClick: () => {
-                                router.visit('/suppliers?tab=po');
+                    toast.info(
+                        `Yêu cầu đặt hàng PO mới: ${e.purchase_order.po_number}`,
+                        {
+                            description: `Nhà cung cấp: ${e.purchase_order.supplier_name} - Số tiền: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(e.purchase_order.total_amount)}`,
+                            action: {
+                                label: 'Xem đơn PO',
+                                onClick: () => {
+                                    router.visit('/suppliers?tab=po');
+                                },
                             },
+                            duration: 10000,
                         },
-                        duration: 10000,
-                    });
+                    );
                 }
             });
     }

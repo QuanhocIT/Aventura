@@ -13,6 +13,7 @@ use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,6 +43,7 @@ class SupplierController extends Controller
                 'status' => $po->status,
                 'total_amount' => (float) $po->total_amount,
                 'notes' => $po->notes,
+                'invoice_file_url' => $po->invoice_file_url,
                 'created_at' => $po->created_at->format('Y-m-d H:i:s'),
                 'creator_name' => $po->creator?->name ?? 'Hệ thống',
                 'supplier_name' => $po->supplier?->name ?? 'Không có',
@@ -187,6 +189,7 @@ class SupplierController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:received,preparing,shipping,delivered'],
+            'invoice_file' => ['nullable', 'file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:2048'],
         ]);
 
         $newStatus = $data['status'];
@@ -209,8 +212,19 @@ class SupplierController extends Controller
             return back()->withErrors(['status' => 'Quy trình chuyển đổi trạng thái không hợp lệ: phải đi theo thứ tự Đã tiếp nhận -> Đang chuẩn bị hàng -> Đang vận chuyển -> Đã hạ hàng tại kho.']);
         }
 
-        DB::transaction(function () use ($purchaseOrder, $newStatus, $user) {
-            $purchaseOrder->update(['status' => $newStatus]);
+        $invoiceFileUrl = null;
+        if ($newStatus === 'delivered' && $request->hasFile('invoice_file')) {
+            $file = $request->file('invoice_file');
+            $path = Storage::disk('s3')->putFile('po-invoices', $file);
+            $invoiceFileUrl = Storage::disk('s3')->url($path);
+        }
+
+        DB::transaction(function () use ($purchaseOrder, $newStatus, $user, $invoiceFileUrl) {
+            $updateData = ['status' => $newStatus];
+            if ($invoiceFileUrl !== null) {
+                $updateData['invoice_file_url'] = $invoiceFileUrl;
+            }
+            $purchaseOrder->update($updateData);
 
             // If delivered, automatically perform stock inbound and transaction
             if ($newStatus === 'delivered') {
@@ -252,6 +266,7 @@ class SupplierController extends Controller
                         'total_cost' => $newQty * $newCost,
                         'occurred_at' => now(),
                         'notes' => 'Tự động nhập hàng hoàn thành từ PO #'.$purchaseOrder->po_number,
+                        'invoice_file_url' => $purchaseOrder->invoice_file_url,
                     ]);
 
                     // Update stock and cost values

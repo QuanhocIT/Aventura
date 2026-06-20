@@ -44,6 +44,7 @@ class PurchaseOrderCreated implements ShouldBroadcastNow
                 'status' => $this->purchaseOrder->status,
                 'total_amount' => (float) $this->purchaseOrder->total_amount,
                 'notes' => $this->purchaseOrder->notes,
+                'invoice_file_url' => $this->purchaseOrder->invoice_file_url,
                 'created_at' => $this->purchaseOrder->created_at->format('Y-m-d H:i:s'),
                 'creator_name' => $this->purchaseOrder->creator?->name ?? 'Hệ thống',
                 'supplier_name' => $this->purchaseOrder->supplier?->name ?? 'Không có',

@@ -5,20 +5,15 @@ import {
     Search,
     Truck,
     ShoppingCart,
-    BadgeDollarSign,
     Clock,
-    ArrowRight,
     CheckCircle2,
     Trash2,
     Settings2,
     FileText,
     X,
-    Check,
     Loader2,
     Building2,
-    Sparkles,
     Package,
-    Calendar,
     ChevronDown,
     ChevronUp,
 } from 'lucide-vue-next';
@@ -77,6 +72,7 @@ interface PurchaseOrder {
     status: 'received' | 'preparing' | 'shipping' | 'delivered';
     total_amount: number;
     notes: string | null;
+    invoice_file_url: string | null;
     created_at: string;
     creator_name: string;
     supplier_name: string;
@@ -106,7 +102,11 @@ const poSearch = ref('');
 
 const filteredSuppliers = computed(() => {
     const q = supplierSearch.value.toLowerCase().trim();
-    if (!q) return props.suppliers;
+
+    if (!q) {
+return props.suppliers;
+}
+
     return props.suppliers.filter(
         (s) =>
             s.name.toLowerCase().includes(q) ||
@@ -117,7 +117,11 @@ const filteredSuppliers = computed(() => {
 
 const filteredPOs = computed(() => {
     const q = poSearch.value.toLowerCase().trim();
-    if (!q) return localPOs.value;
+
+    if (!q) {
+return localPOs.value;
+}
+
     return localPOs.value.filter(
         (po) =>
             po.po_number.toLowerCase().includes(q) ||
@@ -134,8 +138,11 @@ const expandedPOs = ref<Record<number, boolean>>({});
 // Audio Synthesizer Chimes
 function playChime(type: 'new' | 'success' = 'new') {
     try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioCtx = new (
+            window.AudioContext || (window as any).webkitAudioContext
+        )();
         const now = audioCtx.currentTime;
+
         if (type === 'new') {
             // New PO Chime: E5 -> A5
             const osc1 = audioCtx.createOscillator();
@@ -161,14 +168,17 @@ function playChime(type: 'new' | 'success' = 'new') {
             osc2.stop(now + 0.4);
         } else {
             // Success/Delivered Chime: C5 -> E5 -> G5 -> C6 arpeggio
-            const notes = [523.25, 659.25, 783.99, 1046.50];
+            const notes = [523.25, 659.25, 783.99, 1046.5];
             notes.forEach((freq, idx) => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, now + idx * 0.08);
                 gain.gain.setValueAtTime(0.12, now + idx * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.22);
+                gain.gain.exponentialRampToValueAtTime(
+                    0.001,
+                    now + idx * 0.08 + 0.22,
+                );
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.start(now + idx * 0.08);
@@ -211,13 +221,21 @@ onMounted(() => {
 
                 // Find and update local list
                 const poIdx = localPOs.value.findIndex((po) => po.id === poId);
+
                 if (poIdx !== -1) {
                     localPOs.value[poIdx].status = newStatus;
+
+                    if (e.invoice_file_url) {
+                        localPOs.value[poIdx].invoice_file_url =
+                            e.invoice_file_url;
+                    }
 
                     // Play success sound if delivered
                     if (newStatus === 'delivered') {
                         playChime('success');
-                        toast.success(`Đơn hàng ${localPOs.value[poIdx].po_number} đã được hạ hàng & cộng kho!`);
+                        toast.success(
+                            `Đơn hàng ${localPOs.value[poIdx].po_number} đã được hạ hàng & cộng kho!`,
+                        );
                     }
 
                     // Highlight PO
@@ -280,6 +298,7 @@ const poGrandTotal = computed(() => {
     return poItems.value.reduce((sum, item) => {
         const qty = parseFloat(item.quantity) || 0;
         const cost = parseFloat(item.unit_cost) || 0;
+
         return sum + qty * cost;
     }, 0);
 });
@@ -296,9 +315,13 @@ const removePOItemRow = (idx: number) => {
 
 const handleIngredientChange = (idx: number) => {
     const ingId = parseInt(poItems.value[idx].ingredient_id);
-    if (!ingId) return;
+
+    if (!ingId) {
+return;
+}
 
     const ing = props.ingredients.find((i) => i.id === ingId);
+
     if (ing) {
         poItems.value[idx].unit_cost = String(ing.price || 0);
         poItems.value[idx].quantity = '1';
@@ -310,11 +333,17 @@ const isSubmittingPO = ref(false);
 const submitPO = () => {
     // Validate inputs
     const validItems = poItems.value.filter(
-        (item) => item.ingredient_id && parseFloat(item.quantity) > 0 && parseFloat(item.unit_cost) >= 0,
+        (item) =>
+            item.ingredient_id &&
+            parseFloat(item.quantity) > 0 &&
+            parseFloat(item.unit_cost) >= 0,
     );
 
     if (validItems.length === 0) {
-        toast.error('Vui lòng chọn ít nhất một nguyên vật liệu hợp lệ với số lượng lớn hơn 0.');
+        toast.error(
+            'Vui lòng chọn ít nhất một nguyên vật liệu hợp lệ với số lượng lớn hơn 0.',
+        );
+
         return;
     }
 
@@ -335,12 +364,18 @@ const submitPO = () => {
                 showCreatePO.value = false;
                 poSupplierId.value = '';
                 poNotes.value = '';
-                poItems.value = [{ ingredient_id: '', quantity: '', unit_cost: '' }];
+                poItems.value = [
+                    { ingredient_id: '', quantity: '', unit_cost: '' },
+                ];
                 toast.success('Đơn PO đã được gửi lên hệ thống Reverb!');
             },
-            onError: (errs) => {
+            onError: (errs: any) => {
                 const firstErr = Object.values(errs)[0];
-                toast.error(typeof firstErr === 'string' ? firstErr : 'Có lỗi khi tạo PO.');
+                toast.error(
+                    typeof firstErr === 'string'
+                        ? firstErr
+                        : 'Có lỗi khi tạo PO.',
+                );
             },
             onFinish: () => {
                 isSubmittingPO.value = false;
@@ -352,7 +387,87 @@ const submitPO = () => {
 // Workflow Advance Status
 const activeUpdatingStatus = ref<Record<number, boolean>>({});
 
-const advancePOStatus = (po: PurchaseOrder, targetStatus: 'preparing' | 'shipping' | 'delivered') => {
+// E-Invoicing upload states
+const showDeliverModal = ref(false);
+const poToDeliver = ref<PurchaseOrder | null>(null);
+const invoiceFile = ref<File | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const triggerDeliverPO = (po: PurchaseOrder) => {
+    poToDeliver.value = po;
+    invoiceFile.value = null;
+    showDeliverModal.value = true;
+};
+
+const handleFileChange = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+
+    if (target.files && target.files[0]) {
+        const file = target.files[0];
+
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('Dung lượng tệp không được vượt quá 2MB.');
+
+            if (fileInputRef.value) {
+                fileInputRef.value.value = '';
+            }
+
+            return;
+        }
+
+        invoiceFile.value = file;
+    }
+};
+
+const handleDeliverPO = () => {
+    if (!poToDeliver.value) {
+return;
+}
+
+    const po = poToDeliver.value;
+    activeUpdatingStatus.value[po.id] = true;
+    showDeliverModal.value = false;
+
+    // Use router.post with FormData spoofing PATCH to upload file
+    router.post(
+        `/purchase-orders/${po.id}/status`,
+        {
+            _method: 'PATCH',
+            status: 'delivered',
+            invoice_file: invoiceFile.value,
+        },
+        {
+            onSuccess: () => {
+                toast.success(
+                    `Đã hoàn thành đơn hàng ${po.po_number} và cộng kho!`,
+                );
+                poToDeliver.value = null;
+                invoiceFile.value = null;
+            },
+            onError: (errs: any) => {
+                const msg =
+                    errs.status ||
+                    errs.invoice_file ||
+                    'Không thể chuyển đổi trạng thái.';
+                toast.error(msg);
+            },
+            onFinish: () => {
+                activeUpdatingStatus.value[po.id] = false;
+            },
+        },
+    );
+};
+
+const advancePOStatus = (
+    po: PurchaseOrder,
+    targetStatus: 'preparing' | 'shipping' | 'delivered',
+) => {
+    if (targetStatus === 'delivered') {
+        triggerDeliverPO(po);
+
+        return;
+    }
+
     activeUpdatingStatus.value[po.id] = true;
     router.patch(
         `/purchase-orders/${po.id}/status`,
@@ -361,7 +476,7 @@ const advancePOStatus = (po: PurchaseOrder, targetStatus: 'preparing' | 'shippin
             onSuccess: () => {
                 toast.success(`Đã cập nhật trạng thái đơn ${po.po_number}`);
             },
-            onError: (errs) => {
+            onError: (errs: any) => {
                 const msg = errs.status || 'Không thể chuyển đổi trạng thái.';
                 toast.error(msg);
             },
@@ -396,7 +511,10 @@ const handleCreateSupplier = () => {
 };
 
 const handleUpdateSupplier = () => {
-    if (!selectedSupplier.value) return;
+    if (!selectedSupplier.value) {
+return;
+}
+
     editSupplierForm.patch(`/suppliers/${selectedSupplier.value.id}`, {
         onSuccess: () => {
             showEditSupplier.value = false;
@@ -419,10 +537,18 @@ const handleDeleteSupplier = (s: Supplier) => {
 // Stats calculations for POs
 const poStats = computed(() => {
     const total = localPOs.value.length;
-    const received = localPOs.value.filter((po) => po.status === 'received').length;
-    const preparing = localPOs.value.filter((po) => po.status === 'preparing').length;
-    const shipping = localPOs.value.filter((po) => po.status === 'shipping').length;
-    const delivered = localPOs.value.filter((po) => po.status === 'delivered').length;
+    const received = localPOs.value.filter(
+        (po) => po.status === 'received',
+    ).length;
+    const preparing = localPOs.value.filter(
+        (po) => po.status === 'preparing',
+    ).length;
+    const shipping = localPOs.value.filter(
+        (po) => po.status === 'shipping',
+    ).length;
+    const delivered = localPOs.value.filter(
+        (po) => po.status === 'delivered',
+    ).length;
 
     return { total, received, preparing, shipping, delivered };
 });
@@ -446,10 +572,14 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-    received: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/30',
-    preparing: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30',
-    shipping: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/30',
-    delivered: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30',
+    received:
+        'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/30',
+    preparing:
+        'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30',
+    shipping:
+        'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/30',
+    delivered:
+        'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30',
 };
 </script>
 
@@ -458,14 +588,23 @@ const statusColors: Record<string, string> = {
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6">
         <!-- Header -->
-        <div class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500">
+                <div
+                    class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500"
+                >
                     <Truck class="size-6 animate-pulse" />
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight">Nhà Cung Cấp & PO Fulfillment</h1>
-                    <p class="text-sm text-muted-foreground">Tiếp nhận yêu cầu mua nguyên liệu hàng ngày & xử lý đơn vận PO thời gian thực</p>
+                    <h1 class="text-xl font-bold tracking-tight">
+                        Nhà Cung Cấp & PO Fulfillment
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        Tiếp nhận yêu cầu mua nguyên liệu hàng ngày & xử lý đơn
+                        vận PO thời gian thực
+                    </p>
                 </div>
             </div>
 
@@ -474,14 +613,14 @@ const statusColors: Record<string, string> = {
                 <Button
                     v-if="activeTab === 'suppliers' && canManage"
                     @click="showAddSupplier = true"
-                    class="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
+                    class="h-9 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                 >
                     <Plus class="mr-1.5 size-4" /> Thêm nhà cung cấp
                 </Button>
                 <Button
                     v-if="activeTab === 'po'"
                     @click="showCreatePO = true"
-                    class="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
+                    class="h-9 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                 >
                     <Plus class="mr-1.5 size-4" /> Tạo yêu cầu PO
                 </Button>
@@ -489,11 +628,17 @@ const statusColors: Record<string, string> = {
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="flex items-center gap-1 self-start rounded-xl border border-border bg-muted p-1">
+        <div
+            class="flex items-center gap-1 self-start rounded-xl border border-border bg-muted p-1"
+        >
             <button
                 @click="activeTab = 'po'"
                 class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="activeTab === 'po' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                :class="
+                    activeTab === 'po'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
             >
                 <ShoppingCart class="size-3.5" /> Tiếp nhận & Xử lý PO
                 <span
@@ -506,7 +651,11 @@ const statusColors: Record<string, string> = {
             <button
                 @click="activeTab = 'suppliers'"
                 class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="activeTab === 'suppliers' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                :class="
+                    activeTab === 'suppliers'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
             >
                 <Building2 class="size-3.5" /> Danh sách đối tác
             </button>
@@ -516,61 +665,111 @@ const statusColors: Record<string, string> = {
         <template v-if="activeTab === 'po'">
             <!-- Stats Dashboard Banner -->
             <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
-                <Card class="shadow-xs transition-transform hover:-translate-y-0.5">
+                <Card
+                    class="shadow-xs transition-transform hover:-translate-y-0.5"
+                >
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tổng Đơn PO</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            >Tổng Đơn PO</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="flex items-center justify-between pb-3">
-                        <span class="text-2xl font-black text-slate-800 dark:text-slate-100">{{ poStats.total }}</span>
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800">
+                        <span
+                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            >{{ poStats.total }}</span
+                        >
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800"
+                        >
                             <Clock class="size-4" />
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-xs transition-transform hover:-translate-y-0.5 border-blue-100 dark:border-blue-950/20">
+                <Card
+                    class="border-blue-100 shadow-xs transition-transform hover:-translate-y-0.5 dark:border-blue-950/20"
+                >
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-blue-500">Đã tiếp nhận</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-blue-500 uppercase"
+                            >Đã tiếp nhận</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="flex items-center justify-between pb-3">
-                        <span class="text-2xl font-black text-blue-600 dark:text-blue-400">{{ poStats.received }}</span>
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                        <span
+                            class="text-2xl font-black text-blue-600 dark:text-blue-400"
+                            >{{ poStats.received }}</span
+                        >
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40"
+                        >
                             <ShoppingCart class="size-4 animate-pulse" />
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-xs transition-transform hover:-translate-y-0.5 border-amber-100 dark:border-amber-950/20">
+                <Card
+                    class="border-amber-100 shadow-xs transition-transform hover:-translate-y-0.5 dark:border-amber-950/20"
+                >
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-amber-500">Đang chuẩn bị</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-amber-500 uppercase"
+                            >Đang chuẩn bị</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="flex items-center justify-between pb-3">
-                        <span class="text-2xl font-black text-amber-600 dark:text-amber-400">{{ poStats.preparing }}</span>
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40">
+                        <span
+                            class="text-2xl font-black text-amber-600 dark:text-amber-400"
+                            >{{ poStats.preparing }}</span
+                        >
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40"
+                        >
                             <Package class="size-4" />
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-xs transition-transform hover:-translate-y-0.5 border-indigo-100 dark:border-indigo-950/20">
+                <Card
+                    class="border-indigo-100 shadow-xs transition-transform hover:-translate-y-0.5 dark:border-indigo-950/20"
+                >
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Đang vận chuyển</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-indigo-500 uppercase"
+                            >Đang vận chuyển</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="flex items-center justify-between pb-3">
-                        <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ poStats.shipping }}</span>
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                        <span
+                            class="text-2xl font-black text-indigo-600 dark:text-indigo-400"
+                            >{{ poStats.shipping }}</span
+                        >
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40"
+                        >
                             <Truck class="size-4 animate-bounce" />
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-xs transition-transform hover:-translate-y-0.5 border-emerald-100 dark:border-emerald-950/20">
+                <Card
+                    class="border-emerald-100 shadow-xs transition-transform hover:-translate-y-0.5 dark:border-emerald-950/20"
+                >
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Đã hạ hàng</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-emerald-500 uppercase"
+                            >Đã hạ hàng</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="flex items-center justify-between pb-3">
-                        <span class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ poStats.delivered }}</span>
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
+                        <span
+                            class="text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                            >{{ poStats.delivered }}</span
+                        >
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40"
+                        >
                             <CheckCircle2 class="size-4" />
                         </div>
                     </CardContent>
@@ -579,13 +778,22 @@ const statusColors: Record<string, string> = {
 
             <!-- List Search PO -->
             <Card class="shadow-sm">
-                <CardHeader class="border-b border-border pb-3 flex flex-row items-center justify-between gap-4 flex-wrap">
+                <CardHeader
+                    class="flex flex-row flex-wrap items-center justify-between gap-4 border-b border-border pb-3"
+                >
                     <div>
-                        <CardTitle class="text-sm font-bold">Lịch Sử & Nhật Ký Đơn Đặt Hàng PO</CardTitle>
-                        <CardDescription class="text-xs">Theo dõi và đồng bộ hóa Reverb thời gian thực với đối tác</CardDescription>
+                        <CardTitle class="text-sm font-bold"
+                            >Lịch Sử & Nhật Ký Đơn Đặt Hàng PO</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >Theo dõi và đồng bộ hóa Reverb thời gian thực với
+                            đối tác</CardDescription
+                        >
                     </div>
                     <div class="relative w-full max-w-xs">
-                        <Search class="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+                        <Search
+                            class="absolute top-2.5 left-2.5 size-4 text-muted-foreground"
+                        />
                         <Input
                             v-model="poSearch"
                             placeholder="Tìm mã đơn, nhà cung cấp..."
@@ -598,35 +806,52 @@ const statusColors: Record<string, string> = {
                     <div class="overflow-x-auto">
                         <table class="w-full border-collapse text-left text-xs">
                             <thead>
-                                <tr class="border-b bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                <tr
+                                    class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
                                     <th class="p-3.5">Mã đơn PO</th>
                                     <th class="p-3.5">Thời gian yêu cầu</th>
                                     <th class="p-3.5">Người tạo</th>
                                     <th class="p-3.5">Nhà cung cấp</th>
                                     <th class="p-3.5">Trạng thái</th>
-                                    <th class="p-3.5 text-right">Tổng giá trị</th>
+                                    <th class="p-3.5 text-right">
+                                        Tổng giá trị
+                                    </th>
                                     <th class="p-3.5 text-center">Chi tiết</th>
-                                    <th class="p-3.5 text-right">Quy trình vận đơn</th>
+                                    <th class="p-3.5 text-right">
+                                        Quy trình vận đơn
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border">
-                                <template v-for="po in filteredPOs" :key="po.id">
+                                <template
+                                    v-for="po in filteredPOs"
+                                    :key="po.id"
+                                >
                                     <tr
                                         :class="[
                                             'transition-colors duration-500 hover:bg-muted/20',
-                                            highlightedPOs[po.id] ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''
+                                            highlightedPOs[po.id]
+                                                ? 'bg-indigo-50/50 dark:bg-indigo-950/20'
+                                                : '',
                                         ]"
                                     >
-                                        <td class="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                        <td
+                                            class="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-200"
+                                        >
                                             {{ po.po_number }}
                                         </td>
                                         <td class="p-3.5 text-muted-foreground">
                                             {{ po.created_at }}
                                         </td>
-                                        <td class="p-3.5 font-medium text-slate-700 dark:text-slate-300">
+                                        <td
+                                            class="p-3.5 font-medium text-slate-700 dark:text-slate-300"
+                                        >
                                             {{ po.creator_name }}
                                         </td>
-                                        <td class="p-3.5 font-bold text-indigo-600 dark:text-indigo-400">
+                                        <td
+                                            class="p-3.5 font-bold text-indigo-600 dark:text-indigo-400"
+                                        >
                                             {{ po.supplier_name }}
                                         </td>
                                         <td class="p-3.5">
@@ -637,96 +862,254 @@ const statusColors: Record<string, string> = {
                                                 {{ statusLabels[po.status] }}
                                             </span>
                                         </td>
-                                        <td class="p-3.5 text-right font-bold text-slate-900 dark:text-slate-50">
+                                        <td
+                                            class="p-3.5 text-right font-bold text-slate-900 dark:text-slate-50"
+                                        >
                                             {{ vnd(po.total_amount) }}
                                         </td>
                                         <td class="p-3.5 text-center">
                                             <button
                                                 @click="toggleExpandPO(po.id)"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border hover:bg-muted text-slate-500 transition-colors"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-slate-500 transition-colors hover:bg-muted"
                                             >
-                                                <ChevronUp v-if="expandedPOs[po.id]" class="size-4" />
-                                                <ChevronDown v-else class="size-4" />
+                                                <ChevronUp
+                                                    v-if="expandedPOs[po.id]"
+                                                    class="size-4"
+                                                />
+                                                <ChevronDown
+                                                    v-else
+                                                    class="size-4"
+                                                />
                                             </button>
                                         </td>
                                         <td class="p-3.5 text-right">
-                                            <div class="flex items-center justify-end gap-1.5">
+                                            <div
+                                                class="flex items-center justify-end gap-1.5"
+                                            >
                                                 <Button
-                                                    v-if="po.status === 'received'"
-                                                    @click="advancePOStatus(po, 'preparing')"
-                                                    :disabled="activeUpdatingStatus[po.id]"
-                                                    class="h-7 bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-2.5 font-bold"
+                                                    v-if="
+                                                        po.status === 'received'
+                                                    "
+                                                    @click="
+                                                        advancePOStatus(
+                                                            po,
+                                                            'preparing',
+                                                        )
+                                                    "
+                                                    :disabled="
+                                                        activeUpdatingStatus[
+                                                            po.id
+                                                        ]
+                                                    "
+                                                    class="h-7 bg-amber-500 px-2.5 text-[10px] font-bold text-white hover:bg-amber-600"
                                                 >
-                                                    <Loader2 v-if="activeUpdatingStatus[po.id]" class="mr-1 size-3 animate-spin" />
+                                                    <Loader2
+                                                        v-if="
+                                                            activeUpdatingStatus[
+                                                                po.id
+                                                            ]
+                                                        "
+                                                        class="mr-1 size-3 animate-spin"
+                                                    />
                                                     Chuẩn bị hàng
                                                 </Button>
 
                                                 <Button
-                                                    v-else-if="po.status === 'preparing'"
-                                                    @click="advancePOStatus(po, 'shipping')"
-                                                    :disabled="activeUpdatingStatus[po.id]"
-                                                    class="h-7 bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] px-2.5 font-bold"
+                                                    v-else-if="
+                                                        po.status ===
+                                                        'preparing'
+                                                    "
+                                                    @click="
+                                                        advancePOStatus(
+                                                            po,
+                                                            'shipping',
+                                                        )
+                                                    "
+                                                    :disabled="
+                                                        activeUpdatingStatus[
+                                                            po.id
+                                                        ]
+                                                    "
+                                                    class="h-7 bg-indigo-500 px-2.5 text-[10px] font-bold text-white hover:bg-indigo-600"
                                                 >
-                                                    <Loader2 v-if="activeUpdatingStatus[po.id]" class="mr-1 size-3 animate-spin" />
+                                                    <Loader2
+                                                        v-if="
+                                                            activeUpdatingStatus[
+                                                                po.id
+                                                            ]
+                                                        "
+                                                        class="mr-1 size-3 animate-spin"
+                                                    />
                                                     Bắt đầu giao
                                                 </Button>
 
                                                 <Button
-                                                    v-else-if="po.status === 'shipping'"
-                                                    @click="advancePOStatus(po, 'delivered')"
-                                                    :disabled="activeUpdatingStatus[po.id]"
-                                                    class="h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2.5 font-bold"
+                                                    v-else-if="
+                                                        po.status === 'shipping'
+                                                    "
+                                                    @click="
+                                                        advancePOStatus(
+                                                            po,
+                                                            'delivered',
+                                                        )
+                                                    "
+                                                    :disabled="
+                                                        activeUpdatingStatus[
+                                                            po.id
+                                                        ]
+                                                    "
+                                                    class="h-7 bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700"
                                                 >
-                                                    <Loader2 v-if="activeUpdatingStatus[po.id]" class="mr-1 size-3 animate-spin" />
+                                                    <Loader2
+                                                        v-if="
+                                                            activeUpdatingStatus[
+                                                                po.id
+                                                            ]
+                                                        "
+                                                        class="mr-1 size-3 animate-spin"
+                                                    />
                                                     Đã hạ hàng (Cộng kho)
                                                 </Button>
 
-                                                <span v-else class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                                                    <CheckCircle2 class="size-3.5" /> Hoàn thành
+                                                <span
+                                                    v-else
+                                                    class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600"
+                                                >
+                                                    <CheckCircle2
+                                                        class="size-3.5"
+                                                    />
+                                                    Hoàn thành
                                                 </span>
                                             </div>
                                         </td>
                                     </tr>
                                     <!-- Collapsible Item Details -->
                                     <tr v-if="expandedPOs[po.id]">
-                                        <td colspan="8" class="bg-slate-50/50 p-4 dark:bg-slate-900/10">
-                                            <div class="rounded-xl border bg-white p-4 dark:bg-slate-950 max-w-3xl">
-                                                <h4 class="mb-3 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Chi tiết sản phẩm nhập kho:</h4>
+                                        <td
+                                            colspan="8"
+                                            class="bg-slate-50/50 p-4 dark:bg-slate-900/10"
+                                        >
+                                            <div
+                                                class="max-w-3xl rounded-xl border bg-white p-4 dark:bg-slate-950"
+                                            >
+                                                <h4
+                                                    class="mb-3 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-300"
+                                                >
+                                                    Chi tiết sản phẩm nhập kho:
+                                                </h4>
                                                 <table class="w-full text-left">
                                                     <thead>
-                                                        <tr class="border-b text-[10px] font-bold text-muted-foreground uppercase">
-                                                            <th class="pb-2">Nguyên vật liệu</th>
-                                                            <th class="pb-2 text-right">Số lượng nhập</th>
-                                                            <th class="pb-2 text-right">Đơn giá niêm yết</th>
-                                                            <th class="pb-2 text-right">Thành tiền</th>
+                                                        <tr
+                                                            class="border-b text-[10px] font-bold text-muted-foreground uppercase"
+                                                        >
+                                                            <th class="pb-2">
+                                                                Nguyên vật liệu
+                                                            </th>
+                                                            <th
+                                                                class="pb-2 text-right"
+                                                            >
+                                                                Số lượng nhập
+                                                            </th>
+                                                            <th
+                                                                class="pb-2 text-right"
+                                                            >
+                                                                Đơn giá niêm yết
+                                                            </th>
+                                                            <th
+                                                                class="pb-2 text-right"
+                                                            >
+                                                                Thành tiền
+                                                            </th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                                        <tr v-for="item in po.items" :key="item.id" class="text-xs">
-                                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200">
-                                                                {{ item.ingredient_name }}
+                                                    <tbody
+                                                        class="divide-y divide-slate-100 dark:divide-slate-800"
+                                                    >
+                                                        <tr
+                                                            v-for="item in po.items"
+                                                            :key="item.id"
+                                                            class="text-xs"
+                                                        >
+                                                            <td
+                                                                class="py-2 font-medium text-slate-800 dark:text-slate-200"
+                                                            >
+                                                                {{
+                                                                    item.ingredient_name
+                                                                }}
                                                             </td>
-                                                            <td class="py-2 text-right font-mono">
-                                                                {{ item.quantity }} {{ item.unit_symbol }}
+                                                            <td
+                                                                class="py-2 text-right font-mono"
+                                                            >
+                                                                {{
+                                                                    item.quantity
+                                                                }}
+                                                                {{
+                                                                    item.unit_symbol
+                                                                }}
                                                             </td>
-                                                            <td class="py-2 text-right font-mono text-muted-foreground">
-                                                                {{ vnd(item.unit_cost) }}
+                                                            <td
+                                                                class="py-2 text-right font-mono text-muted-foreground"
+                                                            >
+                                                                {{
+                                                                    vnd(
+                                                                        item.unit_cost,
+                                                                    )
+                                                                }}
                                                             </td>
-                                                            <td class="py-2 text-right font-mono font-bold text-slate-950 dark:text-slate-50">
-                                                                {{ vnd(item.quantity * item.unit_cost) }}
+                                                            <td
+                                                                class="py-2 text-right font-mono font-bold text-slate-950 dark:text-slate-50"
+                                                            >
+                                                                {{
+                                                                    vnd(
+                                                                        item.quantity *
+                                                                            item.unit_cost,
+                                                                    )
+                                                                }}
                                                             </td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
-                                                <div v-if="po.notes" class="mt-4 border-t pt-3 text-[11px] text-muted-foreground">
-                                                    <span class="font-bold text-slate-600">Ghi chú đơn:</span> {{ po.notes }}
+                                                <div
+                                                    v-if="po.notes"
+                                                    class="mt-4 border-t pt-3 text-[11px] text-muted-foreground"
+                                                >
+                                                    <span
+                                                        class="font-bold text-slate-600"
+                                                        >Ghi chú đơn:</span
+                                                    >
+                                                    {{ po.notes }}
+                                                </div>
+                                                <div
+                                                    v-if="po.invoice_file_url"
+                                                    class="mt-3 flex items-center gap-2 border-t pt-3 text-xs"
+                                                >
+                                                    <span
+                                                        class="font-bold text-slate-600 dark:text-slate-400"
+                                                        >Chứng từ hoá đơn
+                                                        (E-Invoice):</span
+                                                    >
+                                                    <a
+                                                        :href="
+                                                            po.invoice_file_url
+                                                        "
+                                                        target="_blank"
+                                                        class="inline-flex items-center gap-1.5 font-semibold text-indigo-600 hover:text-indigo-800 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+                                                    >
+                                                        <FileText
+                                                            class="size-3.5"
+                                                        />
+                                                        Xem chứng từ giao nhận
+                                                    </a>
                                                 </div>
                                             </div>
                                         </td>
                                     </tr>
                                 </template>
                                 <tr v-if="filteredPOs.length === 0">
-                                    <td colspan="8" class="p-8 text-center text-muted-foreground">
+                                    <td
+                                        colspan="8"
+                                        class="p-8 text-center text-muted-foreground"
+                                    >
                                         Không tìm thấy đơn đặt hàng PO nào.
                                     </td>
                                 </tr>
@@ -740,13 +1123,22 @@ const statusColors: Record<string, string> = {
         <!-- ── TAB 2: Suppliers CRUD list ── -->
         <template v-else>
             <Card class="shadow-sm">
-                <CardHeader class="border-b border-border pb-3 flex flex-row items-center justify-between gap-4 flex-wrap">
+                <CardHeader
+                    class="flex flex-row flex-wrap items-center justify-between gap-4 border-b border-border pb-3"
+                >
                     <div>
-                        <CardTitle class="text-sm font-bold">Danh Sách Đối Tác Cung Ứng</CardTitle>
-                        <CardDescription class="text-xs">Thông tin liên lạc và quản lý danh mục nhà cung ứng vật tư</CardDescription>
+                        <CardTitle class="text-sm font-bold"
+                            >Danh Sách Đối Tác Cung Ứng</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >Thông tin liên lạc và quản lý danh mục nhà cung ứng
+                            vật tư</CardDescription
+                        >
                     </div>
                     <div class="relative w-full max-w-xs">
-                        <Search class="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+                        <Search
+                            class="absolute top-2.5 left-2.5 size-4 text-muted-foreground"
+                        />
                         <Input
                             v-model="supplierSearch"
                             placeholder="Tìm tên, liên hệ, SĐT..."
@@ -759,46 +1151,94 @@ const statusColors: Record<string, string> = {
                     <div class="overflow-x-auto">
                         <table class="w-full border-collapse text-left text-xs">
                             <thead>
-                                <tr class="border-b bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                <tr
+                                    class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
                                     <th class="p-3.5">Nhà cung cấp</th>
                                     <th class="p-3.5">Người liên hệ</th>
                                     <th class="p-3.5">Số điện thoại</th>
                                     <th class="p-3.5">Email</th>
                                     <th class="p-3.5">Địa chỉ</th>
                                     <th class="p-3.5">Trạng thái</th>
-                                    <th class="p-3.5 text-right" v-if="canManage">Thao tác</th>
+                                    <th
+                                        class="p-3.5 text-right"
+                                        v-if="canManage"
+                                    >
+                                        Thao tác
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border">
-                                <tr v-for="s in filteredSuppliers" :key="s.id" class="transition-colors hover:bg-muted/10">
-                                    <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">
+                                <tr
+                                    v-for="s in filteredSuppliers"
+                                    :key="s.id"
+                                    class="transition-colors hover:bg-muted/10"
+                                >
+                                    <td
+                                        class="p-3.5 font-bold text-slate-800 dark:text-slate-200"
+                                    >
                                         {{ s.name }}
-                                        <p v-if="s.notes" class="text-[10px] font-normal text-muted-foreground italic mt-0.5">{{ s.notes }}</p>
+                                        <p
+                                            v-if="s.notes"
+                                            class="mt-0.5 text-[10px] font-normal text-muted-foreground italic"
+                                        >
+                                            {{ s.notes }}
+                                        </p>
                                     </td>
-                                    <td class="p-3.5 text-slate-700 dark:text-slate-300">{{ s.contact_name || '—' }}</td>
-                                    <td class="p-3.5 font-mono text-slate-600 dark:text-slate-400">{{ s.phone || '—' }}</td>
-                                    <td class="p-3.5 text-slate-600 dark:text-slate-400">{{ s.email || '—' }}</td>
-                                    <td class="p-3.5 text-muted-foreground max-w-xs truncate" :title="s.address || ''">{{ s.address || '—' }}</td>
+                                    <td
+                                        class="p-3.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                        {{ s.contact_name || '—' }}
+                                    </td>
+                                    <td
+                                        class="p-3.5 font-mono text-slate-600 dark:text-slate-400"
+                                    >
+                                        {{ s.phone || '—' }}
+                                    </td>
+                                    <td
+                                        class="p-3.5 text-slate-600 dark:text-slate-400"
+                                    >
+                                        {{ s.email || '—' }}
+                                    </td>
+                                    <td
+                                        class="max-w-xs truncate p-3.5 text-muted-foreground"
+                                        :title="s.address || ''"
+                                    >
+                                        {{ s.address || '—' }}
+                                    </td>
                                     <td class="p-3.5">
                                         <span
                                             class="rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase"
-                                            :class="s.status === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'"
+                                            :class="
+                                                s.status === 'active'
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'
+                                            "
                                         >
-                                            {{ s.status === 'active' ? 'Hoạt động' : 'Tạm ngưng' }}
+                                            {{
+                                                s.status === 'active'
+                                                    ? 'Hoạt động'
+                                                    : 'Tạm ngưng'
+                                            }}
                                         </span>
                                     </td>
-                                    <td class="p-3.5 text-right" v-if="canManage">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                    <td
+                                        class="p-3.5 text-right"
+                                        v-if="canManage"
+                                    >
+                                        <div
+                                            class="flex items-center justify-end gap-1.5"
+                                        >
                                             <button
                                                 @click="openEditSupplier(s)"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border hover:bg-muted text-slate-500 hover:text-indigo-600 transition-colors"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-slate-500 transition-colors hover:bg-muted hover:text-indigo-600"
                                                 title="Sửa thông tin"
                                             >
                                                 <Settings2 class="size-3.5" />
                                             </button>
                                             <button
                                                 @click="handleDeleteSupplier(s)"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
                                                 title="Xóa nhà cung cấp"
                                             >
                                                 <Trash2 class="size-3.5" />
@@ -807,7 +1247,10 @@ const statusColors: Record<string, string> = {
                                     </td>
                                 </tr>
                                 <tr v-if="filteredSuppliers.length === 0">
-                                    <td colspan="7" class="p-8 text-center text-muted-foreground">
+                                    <td
+                                        colspan="7"
+                                        class="p-8 text-center text-muted-foreground"
+                                    >
                                         Không tìm thấy nhà cung cấp nào.
                                     </td>
                                 </tr>
@@ -819,85 +1262,151 @@ const statusColors: Record<string, string> = {
         </template>
 
         <!-- ── MODAL: CREATE PO REQUEST ── -->
-        <div v-if="showCreatePO" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-            <Card class="w-full max-w-2xl animate-in fade-in zoom-in-95 duration-150 shadow-2xl bg-white dark:bg-slate-900 max-h-[85vh] flex flex-col">
-                <CardHeader class="border-b pb-3 flex flex-row items-center justify-between">
+        <div
+            v-if="showCreatePO"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="flex max-h-[85vh] w-full max-w-2xl animate-in flex-col bg-white shadow-2xl duration-150 zoom-in-95 fade-in dark:bg-slate-900"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between border-b pb-3"
+                >
                     <div>
-                        <CardTitle class="flex items-center gap-1.5 text-base text-indigo-600 dark:text-indigo-400">
-                            <ShoppingCart class="size-5" /> Khởi tạo yêu cầu mua nguyên liệu PO
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600 dark:text-indigo-400"
+                        >
+                            <ShoppingCart class="size-5" /> Khởi tạo yêu cầu mua
+                            nguyên liệu PO
                         </CardTitle>
-                        <CardDescription>Chọn đối tác cung ứng và thêm các nguyên liệu cần nhập kho.</CardDescription>
+                        <CardDescription
+                            >Chọn đối tác cung ứng và thêm các nguyên liệu cần
+                            nhập kho.</CardDescription
+                        >
                     </div>
-                    <button @click="showCreatePO = false" class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <button
+                        @click="showCreatePO = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
                         <X class="size-4" />
                     </button>
                 </CardHeader>
 
-                <CardContent class="space-y-4 pt-4 overflow-y-auto flex-1">
+                <CardContent class="flex-1 space-y-4 overflow-y-auto pt-4">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div class="grid gap-1.5">
-                            <Label for="po-supplier" class="text-xs font-bold uppercase tracking-wider text-slate-500">Đối tác cung cấp</Label>
+                            <Label
+                                for="po-supplier"
+                                class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                                >Đối tác cung cấp</Label
+                            >
                             <select
                                 id="po-supplier"
                                 v-model="poSupplierId"
-                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                             >
-                                <option value="">-- Tự do / Chưa chọn --</option>
-                                <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
+                                <option value="">
+                                    -- Tự do / Chưa chọn --
+                                </option>
+                                <option
+                                    v-for="s in suppliers"
+                                    :key="s.id"
+                                    :value="s.id"
+                                >
+                                    {{ s.name }}
+                                </option>
                             </select>
                         </div>
                     </div>
 
                     <!-- Items rows selection -->
                     <div class="space-y-2 border-t pt-3">
-                        <Label class="text-xs font-bold uppercase tracking-wider text-slate-500">Danh mục nguyên liệu cần mua</Label>
+                        <Label
+                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                            >Danh mục nguyên liệu cần mua</Label
+                        >
 
-                        <div v-for="(item, idx) in poItems" :key="idx" class="flex flex-wrap items-end gap-2 border-b pb-2 sm:flex-nowrap">
-                            <div class="flex-1 min-w-[200px]">
-                                <Label class="text-[10px] text-slate-400 font-semibold mb-1 block">Chọn nguyên liệu</Label>
+                        <div
+                            v-for="(item, idx) in poItems"
+                            :key="idx"
+                            class="flex flex-wrap items-end gap-2 border-b pb-2 sm:flex-nowrap"
+                        >
+                            <div class="min-w-[200px] flex-1">
+                                <Label
+                                    class="mb-1 block text-[10px] font-semibold text-slate-400"
+                                    >Chọn nguyên liệu</Label
+                                >
                                 <select
                                     v-model="item.ingredient_id"
                                     @change="handleIngredientChange(idx)"
-                                    class="h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    class="h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                                 >
-                                    <option value="">-- Chọn nguyên liệu --</option>
-                                    <option v-for="ing in ingredients" :key="ing.id" :value="ing.id">
-                                        {{ ing.name }} ({{ ing.packaging || 'Mặc định' }})
+                                    <option value="">
+                                        -- Chọn nguyên liệu --
+                                    </option>
+                                    <option
+                                        v-for="ing in ingredients"
+                                        :key="ing.id"
+                                        :value="ing.id"
+                                    >
+                                        {{ ing.name }} ({{
+                                            ing.packaging || 'Mặc định'
+                                        }})
                                     </option>
                                 </select>
                             </div>
 
                             <div class="w-24">
-                                <Label class="text-[10px] text-slate-400 font-semibold mb-1 block">Số lượng mua</Label>
+                                <Label
+                                    class="mb-1 block text-[10px] font-semibold text-slate-400"
+                                    >Số lượng mua</Label
+                                >
                                 <Input
                                     type="number"
                                     step="0.001"
                                     min="0.001"
                                     v-model="item.quantity"
                                     placeholder="Qty"
-                                    class="h-8 text-xs font-mono"
+                                    class="h-8 font-mono text-xs"
                                 />
                             </div>
 
                             <div class="w-32">
-                                <Label class="text-[10px] text-slate-400 font-semibold mb-1 block">Giá nhập đề xuất</Label>
+                                <Label
+                                    class="mb-1 block text-[10px] font-semibold text-slate-400"
+                                    >Giá nhập đề xuất</Label
+                                >
                                 <div class="relative">
                                     <Input
                                         type="number"
                                         min="0"
                                         v-model="item.unit_cost"
                                         placeholder="Giá nhập"
-                                        class="h-8 text-xs font-mono pr-6"
+                                        class="h-8 pr-6 font-mono text-xs"
                                     />
-                                    <span class="absolute right-2 top-2 text-[9px] text-muted-foreground font-mono">đ</span>
+                                    <span
+                                        class="absolute top-2 right-2 font-mono text-[9px] text-muted-foreground"
+                                        >đ</span
+                                    >
                                 </div>
                             </div>
 
                             <!-- Line total -->
-                            <div class="w-32 text-right self-center pt-4">
-                                <span class="text-[10px] text-muted-foreground block">Thành tiền:</span>
-                                <span class="font-mono text-xs font-black text-slate-700 dark:text-slate-200">
-                                    {{ vnd((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_cost) || 0)) }}
+                            <div class="w-32 self-center pt-4 text-right">
+                                <span
+                                    class="block text-[10px] text-muted-foreground"
+                                    >Thành tiền:</span
+                                >
+                                <span
+                                    class="font-mono text-xs font-black text-slate-700 dark:text-slate-200"
+                                >
+                                    {{
+                                        vnd(
+                                            (parseFloat(item.quantity) || 0) *
+                                                (parseFloat(item.unit_cost) ||
+                                                    0),
+                                        )
+                                    }}
                                 </span>
                             </div>
 
@@ -907,7 +1416,7 @@ const statusColors: Record<string, string> = {
                                 size="icon"
                                 @click="removePOItemRow(idx)"
                                 :disabled="poItems.length === 1"
-                                class="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                class="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700"
                             >
                                 <Trash2 class="size-4" />
                             </Button>
@@ -918,7 +1427,7 @@ const statusColors: Record<string, string> = {
                             variant="outline"
                             size="sm"
                             @click="addPOItemRow"
-                            class="h-7 text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50 mt-1"
+                            class="mt-1 h-7 border-indigo-200 text-[10px] font-bold text-indigo-600 hover:bg-indigo-50"
                         >
                             <Plus class="mr-1 size-3" /> Thêm dòng nguyên liệu
                         </Button>
@@ -926,27 +1435,44 @@ const statusColors: Record<string, string> = {
 
                     <!-- Notes -->
                     <div class="grid gap-1.5 border-t pt-3">
-                        <Label for="po-notes" class="text-xs font-bold uppercase tracking-wider text-slate-500">Ghi chú vận đơn</Label>
+                        <Label
+                            for="po-notes"
+                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                            >Ghi chú vận đơn</Label
+                        >
                         <textarea
                             id="po-notes"
                             v-model="poNotes"
                             placeholder="Mô tả lý do mua, yêu cầu giao gấp..."
-                            class="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            class="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs shadow-xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                         ></textarea>
                     </div>
                 </CardContent>
 
                 <!-- Footer Summary & Button -->
-                <div class="border-t p-4 flex flex-row items-center justify-between bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
+                <div
+                    class="flex flex-row items-center justify-between rounded-b-2xl border-t bg-slate-50 p-4 dark:bg-slate-900/50"
+                >
                     <div>
-                        <span class="text-[10px] text-muted-foreground block uppercase font-bold">Tổng Giá Trị Đơn PO:</span>
-                        <span class="text-lg font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                        <span
+                            class="block text-[10px] font-bold text-muted-foreground uppercase"
+                            >Tổng Giá Trị Đơn PO:</span
+                        >
+                        <span
+                            class="font-mono text-lg font-black text-indigo-600 dark:text-indigo-400"
+                        >
                             {{ vnd(poGrandTotal) }}
                         </span>
                     </div>
 
                     <div class="flex gap-2">
-                        <Button type="button" variant="outline" size="sm" @click="showCreatePO = false" class="text-xs">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="showCreatePO = false"
+                            class="text-xs"
+                        >
                             Hủy
                         </Button>
                         <Button
@@ -954,9 +1480,12 @@ const statusColors: Record<string, string> = {
                             size="sm"
                             @click="submitPO"
                             :disabled="isSubmittingPO"
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
+                            class="bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                         >
-                            <Loader2 v-if="isSubmittingPO" class="mr-1.5 size-3.5 animate-spin" />
+                            <Loader2
+                                v-if="isSubmittingPO"
+                                class="mr-1.5 size-3.5 animate-spin"
+                            />
                             Gửi yêu cầu PO (Reverb)
                         </Button>
                     </div>
@@ -964,17 +1493,150 @@ const statusColors: Record<string, string> = {
             </Card>
         </div>
 
-        <!-- ── MODAL: ADD SUPPLIER ── -->
-        <div v-if="showAddSupplier" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-            <Card class="w-full max-w-lg animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader class="border-b pb-3 flex flex-row items-center justify-between">
+        <!-- ── MODAL: CONFIRM DELIVERY & UPLOAD INVOICE ── -->
+        <div
+            v-if="showDeliverModal && poToDeliver"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-md animate-in bg-white shadow-2xl duration-150 zoom-in-95 fade-in dark:bg-slate-900"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between border-b pb-3"
+                >
                     <div>
-                        <CardTitle class="flex items-center gap-1.5 text-base text-indigo-600">
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-emerald-600 dark:text-emerald-400"
+                        >
+                            <CheckCircle2 class="size-5" /> Xác nhận hạ hàng &
+                            Cộng kho
+                        </CardTitle>
+                        <CardDescription
+                            >Đơn hàng:
+                            <span class="font-mono font-bold">{{
+                                poToDeliver.po_number
+                            }}</span></CardDescription
+                        >
+                    </div>
+                    <button
+                        @click="showDeliverModal = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+
+                <CardContent class="space-y-4 pt-4">
+                    <p class="text-xs leading-relaxed text-muted-foreground">
+                        Bạn đang thực hiện hạ hàng tại kho và tự động cộng tồn
+                        kho cho các nguyên vật liệu của đơn hàng này. Vui lòng
+                        đính kèm hình ảnh hóa đơn giấy hoặc tải lên tệp hóa đơn
+                        điện tử (nếu có) để phục vụ công tác đối soát và liên
+                        kết kiểm toán.
+                    </p>
+
+                    <div class="grid gap-1.5">
+                        <Label
+                            for="invoice-file"
+                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                            >Đính kèm hóa đơn (Không bắt buộc)</Label
+                        >
+                        <div
+                            class="flex flex-col gap-2 rounded-xl border border-dashed border-slate-300 p-4 text-center transition-colors hover:bg-slate-50/50 dark:border-slate-800 dark:hover:bg-slate-900/20"
+                        >
+                            <input
+                                id="invoice-file"
+                                type="file"
+                                ref="fileInputRef"
+                                accept="image/*,application/pdf"
+                                @change="handleFileChange"
+                                class="hidden"
+                            />
+                            <Label
+                                for="invoice-file"
+                                class="flex cursor-pointer flex-col items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+                            >
+                                <FileText class="mb-1 size-8 text-slate-400" />
+                                <span class="font-bold"
+                                    >Chọn tệp tin hoá đơn</span
+                                >
+                                <span class="text-[10px] text-muted-foreground"
+                                    >Chấp nhận JPG, PNG, WEBP, PDF (Tối đa
+                                    2MB)</span
+                                >
+                            </Label>
+
+                            <div
+                                v-if="invoiceFile"
+                                class="mt-2 flex items-center justify-between rounded-lg bg-indigo-50/50 p-2 text-[11px] dark:bg-indigo-950/20"
+                            >
+                                <span
+                                    class="max-w-[200px] truncate font-medium text-indigo-700 dark:text-indigo-300"
+                                >
+                                    {{ invoiceFile.name }}
+                                </span>
+                                <button
+                                    type="button"
+                                    @click="invoiceFile = null"
+                                    class="font-bold text-rose-500 hover:text-rose-700"
+                                >
+                                    Xóa
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+
+                <div
+                    class="flex justify-end gap-2 rounded-b-2xl border-t bg-slate-50 p-4 dark:bg-slate-900/50"
+                >
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="showDeliverModal = false"
+                        class="text-xs"
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        @click="handleDeliverPO"
+                        class="bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
+                    >
+                        Xác nhận & Cộng kho
+                    </Button>
+                </div>
+            </Card>
+        </div>
+
+        <!-- ── MODAL: ADD SUPPLIER ── -->
+        <div
+            v-if="showAddSupplier"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between border-b pb-3"
+                >
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
+                        >
                             <Plus class="size-5" /> Thêm nhà cung cấp mới
                         </CardTitle>
-                        <CardDescription>Cung cấp thông tin để niêm yết và giao dịch mua hàng.</CardDescription>
+                        <CardDescription
+                            >Cung cấp thông tin để niêm yết và giao dịch mua
+                            hàng.</CardDescription
+                        >
                     </div>
-                    <button @click="showAddSupplier = false" class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <button
+                        @click="showAddSupplier = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
                         <X class="size-4" />
                     </button>
                 </CardHeader>
@@ -982,29 +1644,71 @@ const statusColors: Record<string, string> = {
                 <form @submit.prevent="handleCreateSupplier">
                     <CardContent class="space-y-4 pt-4">
                         <div class="grid gap-1.5">
-                            <Label for="s-name" class="text-xs font-bold uppercase text-slate-500">Tên nhà cung cấp *</Label>
-                            <Input id="s-name" v-model="supplierForm.name" required class="h-9 text-xs" />
+                            <Label
+                                for="s-name"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Tên nhà cung cấp *</Label
+                            >
+                            <Input
+                                id="s-name"
+                                v-model="supplierForm.name"
+                                required
+                                class="h-9 text-xs"
+                            />
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="s-contact" class="text-xs font-bold uppercase text-slate-500">Người liên hệ</Label>
-                                <Input id="s-contact" v-model="supplierForm.contact_name" class="h-9 text-xs" />
+                                <Label
+                                    for="s-contact"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Người liên hệ</Label
+                                >
+                                <Input
+                                    id="s-contact"
+                                    v-model="supplierForm.contact_name"
+                                    class="h-9 text-xs"
+                                />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="s-phone" class="text-xs font-bold uppercase text-slate-500">Số điện thoại</Label>
-                                <Input id="s-phone" v-model="supplierForm.phone" class="h-9 text-xs font-mono" />
+                                <Label
+                                    for="s-phone"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Số điện thoại</Label
+                                >
+                                <Input
+                                    id="s-phone"
+                                    v-model="supplierForm.phone"
+                                    class="h-9 font-mono text-xs"
+                                />
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="s-email" class="text-xs font-bold uppercase text-slate-500">Email</Label>
-                                <Input id="s-email" type="email" v-model="supplierForm.email" class="h-9 text-xs" />
+                                <Label
+                                    for="s-email"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Email</Label
+                                >
+                                <Input
+                                    id="s-email"
+                                    type="email"
+                                    v-model="supplierForm.email"
+                                    class="h-9 text-xs"
+                                />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="s-status" class="text-xs font-bold uppercase text-slate-500">Trạng thái</Label>
-                                <select id="s-status" v-model="supplierForm.status" class="h-9 rounded-md border border-input px-3 py-1 text-xs">
+                                <Label
+                                    for="s-status"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Trạng thái</Label
+                                >
+                                <select
+                                    id="s-status"
+                                    v-model="supplierForm.status"
+                                    class="h-9 rounded-md border border-input px-3 py-1 text-xs"
+                                >
                                     <option value="active">Hoạt động</option>
                                     <option value="inactive">Tạm ngưng</option>
                                 </select>
@@ -1012,21 +1716,50 @@ const statusColors: Record<string, string> = {
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label for="s-addr" class="text-xs font-bold uppercase text-slate-500">Địa chỉ</Label>
-                            <Input id="s-addr" v-model="supplierForm.address" class="h-9 text-xs" />
+                            <Label
+                                for="s-addr"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Địa chỉ</Label
+                            >
+                            <Input
+                                id="s-addr"
+                                v-model="supplierForm.address"
+                                class="h-9 text-xs"
+                            />
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label for="s-notes" class="text-xs font-bold uppercase text-slate-500">Ghi chú bổ sung</Label>
-                            <textarea id="s-notes" v-model="supplierForm.notes" class="min-h-[60px] rounded-md border border-input p-2 text-xs"></textarea>
+                            <Label
+                                for="s-notes"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Ghi chú bổ sung</Label
+                            >
+                            <textarea
+                                id="s-notes"
+                                v-model="supplierForm.notes"
+                                class="min-h-[60px] rounded-md border border-input p-2 text-xs"
+                            ></textarea>
                         </div>
                     </CardContent>
 
-                    <div class="border-t p-4 flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
-                        <Button type="button" variant="outline" size="sm" @click="showAddSupplier = false" class="text-xs">
+                    <div
+                        class="flex justify-end gap-2 rounded-b-2xl border-t bg-slate-50 p-4 dark:bg-slate-900/50"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="showAddSupplier = false"
+                            class="text-xs"
+                        >
                             Hủy
                         </Button>
-                        <Button type="submit" size="sm" :disabled="supplierForm.processing" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs">
+                        <Button
+                            type="submit"
+                            size="sm"
+                            :disabled="supplierForm.processing"
+                            class="bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+                        >
                             Lưu nhà cung cấp
                         </Button>
                     </div>
@@ -1035,16 +1768,31 @@ const statusColors: Record<string, string> = {
         </div>
 
         <!-- ── MODAL: EDIT SUPPLIER ── -->
-        <div v-if="showEditSupplier" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-            <Card class="w-full max-w-lg animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader class="border-b pb-3 flex flex-row items-center justify-between">
+        <div
+            v-if="showEditSupplier"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between border-b pb-3"
+                >
                     <div>
-                        <CardTitle class="flex items-center gap-1.5 text-base text-indigo-600">
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
+                        >
                             <Settings2 class="size-5" /> Cập nhật nhà cung cấp
                         </CardTitle>
-                        <CardDescription>Cập nhật thông tin chi tiết nhà cung cấp.</CardDescription>
+                        <CardDescription
+                            >Cập nhật thông tin chi tiết nhà cung
+                            cấp.</CardDescription
+                        >
                     </div>
-                    <button @click="showEditSupplier = false" class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <button
+                        @click="showEditSupplier = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
                         <X class="size-4" />
                     </button>
                 </CardHeader>
@@ -1052,29 +1800,71 @@ const statusColors: Record<string, string> = {
                 <form @submit.prevent="handleUpdateSupplier">
                     <CardContent class="space-y-4 pt-4">
                         <div class="grid gap-1.5">
-                            <Label for="edit-name" class="text-xs font-bold uppercase text-slate-500">Tên nhà cung cấp *</Label>
-                            <Input id="edit-name" v-model="editSupplierForm.name" required class="h-9 text-xs" />
+                            <Label
+                                for="edit-name"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Tên nhà cung cấp *</Label
+                            >
+                            <Input
+                                id="edit-name"
+                                v-model="editSupplierForm.name"
+                                required
+                                class="h-9 text-xs"
+                            />
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="edit-contact" class="text-xs font-bold uppercase text-slate-500">Người liên hệ</Label>
-                                <Input id="edit-contact" v-model="editSupplierForm.contact_name" class="h-9 text-xs" />
+                                <Label
+                                    for="edit-contact"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Người liên hệ</Label
+                                >
+                                <Input
+                                    id="edit-contact"
+                                    v-model="editSupplierForm.contact_name"
+                                    class="h-9 text-xs"
+                                />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="edit-phone" class="text-xs font-bold uppercase text-slate-500">Số điện thoại</Label>
-                                <Input id="edit-phone" v-model="editSupplierForm.phone" class="h-9 text-xs font-mono" />
+                                <Label
+                                    for="edit-phone"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Số điện thoại</Label
+                                >
+                                <Input
+                                    id="edit-phone"
+                                    v-model="editSupplierForm.phone"
+                                    class="h-9 font-mono text-xs"
+                                />
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
-                                <Label for="edit-email" class="text-xs font-bold uppercase text-slate-500">Email</Label>
-                                <Input id="edit-email" type="email" v-model="editSupplierForm.email" class="h-9 text-xs" />
+                                <Label
+                                    for="edit-email"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Email</Label
+                                >
+                                <Input
+                                    id="edit-email"
+                                    type="email"
+                                    v-model="editSupplierForm.email"
+                                    class="h-9 text-xs"
+                                />
                             </div>
                             <div class="grid gap-1.5">
-                                <Label for="edit-status" class="text-xs font-bold uppercase text-slate-500">Trạng thái</Label>
-                                <select id="edit-status" v-model="editSupplierForm.status" class="h-9 rounded-md border border-input px-3 py-1 text-xs">
+                                <Label
+                                    for="edit-status"
+                                    class="text-xs font-bold text-slate-500 uppercase"
+                                    >Trạng thái</Label
+                                >
+                                <select
+                                    id="edit-status"
+                                    v-model="editSupplierForm.status"
+                                    class="h-9 rounded-md border border-input px-3 py-1 text-xs"
+                                >
                                     <option value="active">Hoạt động</option>
                                     <option value="inactive">Tạm ngưng</option>
                                 </select>
@@ -1082,21 +1872,50 @@ const statusColors: Record<string, string> = {
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label for="edit-addr" class="text-xs font-bold uppercase text-slate-500">Địa chỉ</Label>
-                            <Input id="edit-addr" v-model="editSupplierForm.address" class="h-9 text-xs" />
+                            <Label
+                                for="edit-addr"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Địa chỉ</Label
+                            >
+                            <Input
+                                id="edit-addr"
+                                v-model="editSupplierForm.address"
+                                class="h-9 text-xs"
+                            />
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label for="edit-notes" class="text-xs font-bold uppercase text-slate-500">Ghi chú bổ sung</Label>
-                            <textarea id="edit-notes" v-model="editSupplierForm.notes" class="min-h-[60px] rounded-md border border-input p-2 text-xs"></textarea>
+                            <Label
+                                for="edit-notes"
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Ghi chú bổ sung</Label
+                            >
+                            <textarea
+                                id="edit-notes"
+                                v-model="editSupplierForm.notes"
+                                class="min-h-[60px] rounded-md border border-input p-2 text-xs"
+                            ></textarea>
                         </div>
                     </CardContent>
 
-                    <div class="border-t p-4 flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
-                        <Button type="button" variant="outline" size="sm" @click="showEditSupplier = false" class="text-xs">
+                    <div
+                        class="flex justify-end gap-2 rounded-b-2xl border-t bg-slate-50 p-4 dark:bg-slate-900/50"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="showEditSupplier = false"
+                            class="text-xs"
+                        >
                             Hủy
                         </Button>
-                        <Button type="submit" size="sm" :disabled="editSupplierForm.processing" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs">
+                        <Button
+                            type="submit"
+                            size="sm"
+                            :disabled="editSupplierForm.processing"
+                            class="bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+                        >
                             Cập nhật thông tin
                         </Button>
                     </div>

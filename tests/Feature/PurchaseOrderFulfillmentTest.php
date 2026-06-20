@@ -14,7 +14,9 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -274,5 +276,50 @@ class PurchaseOrderFulfillmentTest extends TestCase
 
         $po->refresh();
         $this->assertEquals('received', $po->status);
+    }
+
+    public function test_delivered_purchase_order_with_invoice_file_uploads_to_s3_and_propagates_url(): void
+    {
+        Storage::fake('s3');
+
+        $po = PurchaseOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'supplier_id' => $this->supplier->id,
+            'po_number' => 'PO-20260620-005',
+            'status' => 'shipping',
+            'total_amount' => 120000,
+            'created_by' => $this->owner->id,
+        ]);
+
+        $po->items()->create([
+            'ingredient_id' => $this->ingredient->id,
+            'quantity' => 1,
+            'unit_cost' => 120000,
+        ]);
+
+        $file = UploadedFile::fake()->create('invoice.pdf', 100, 'application/pdf');
+
+        $response = $this->actingAs($this->owner)->patch(route('purchase-orders.update-status', $po), [
+            'status' => 'delivered',
+            'invoice_file' => $file,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect();
+
+        $po->refresh();
+        $this->assertEquals('delivered', $po->status);
+        $this->assertNotNull($po->invoice_file_url);
+
+        // Check file was stored on s3
+        Storage::disk('s3')->assertExists('po-invoices/'.$file->hashName());
+
+        // Check the generated transaction has the same url
+        $transaction = InventoryTransaction::where('restaurant_id', $this->restaurant->id)
+            ->where('ingredient_id', $this->ingredient->id)
+            ->first();
+
+        $this->assertNotNull($transaction);
+        $this->assertEquals($po->invoice_file_url, $transaction->invoice_file_url);
     }
 }

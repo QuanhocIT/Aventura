@@ -31,6 +31,7 @@ class PurchaseOrderStatusUpdated implements ShouldBroadcastNow
             'purchase_order_id' => $this->purchaseOrder->id,
             'po_number' => $this->purchaseOrder->po_number,
             'status' => $this->purchaseOrder->status,
+            'invoice_file_url' => $this->purchaseOrder->invoice_file_url,
             'updated_at' => $this->purchaseOrder->updated_at->format('Y-m-d H:i:s'),
         ];
     }
