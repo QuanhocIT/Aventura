@@ -95,6 +95,13 @@ class Order extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    protected static function booted(): void
+    {
+        $clearCache = fn ($order) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$order->restaurant_id}_tables");
+        static::saved($clearCache);
+        static::deleted($clearCache);
+    }
+
     protected static function newFactory(): Factory
     {
         return OrderFactory::new();

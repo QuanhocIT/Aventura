@@ -35,7 +35,7 @@ class TablesController extends Controller
 
         $tables = \Illuminate\Support\Facades\Cache::remember("restaurant_{$restaurantId}_tables", 3600, function () use ($restaurantId) {
             return RestaurantTable::where('restaurant_id', $restaurantId)
-                ->with('area')
+                ->with(['area', 'activeOrder.creator', 'activeOrder.items.product'])
                 ->whereNull('deleted_at')
                 ->orderBy('area_id')
                 ->orderBy('name')
@@ -46,9 +46,24 @@ class TablesController extends Controller
                     'name'          => $t->name,
                     'capacity'      => $t->capacity,
                     'status'        => $t->status,
+                    'x_pos'         => (int) $t->x_pos,
+                    'y_pos'         => (int) $t->y_pos,
                     'area'          => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
                     'qr_code'       => $t->qr_code,
                     'qr_token'      => $t->qr_token,
+                    'active_order'  => $t->activeOrder ? [
+                        'id' => $t->activeOrder->id,
+                        'order_number' => $t->activeOrder->order_number,
+                        'waiter_name' => $t->activeOrder->creator?->name ?? 'Khách đặt (QR)',
+                        'total_amount' => (float) $t->activeOrder->total_amount,
+                        'elapsed_minutes' => $t->activeOrder->created_at ? now()->diffInMinutes($t->activeOrder->created_at) : 0,
+                        'pending_items' => $t->activeOrder->items->filter(fn($item) => is_null($item->served_at) && $item->status !== 'cancelled')->map(fn($item) => [
+                            'name' => $item->product?->name ?? 'Món ăn',
+                            'quantity' => (float) $item->quantity,
+                            'sent_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->diffForHumans() : null,
+                            'is_late' => $item->sent_to_kitchen_at ? now()->diffInMinutes($item->sent_to_kitchen_at) >= 15 : false,
+                        ])->values()->toArray()
+                    ] : null
                 ])->toArray();
         });
 
@@ -112,7 +127,9 @@ class TablesController extends Controller
         $data = $request->validate([
             'name'     => ['sometimes', 'string', 'max:50'],
             'capacity' => ['sometimes', 'integer', 'min:1'],
-            'status'   => ['sometimes', 'in:available,occupied,reserved,inactive'],
+            'status'   => ['sometimes', 'in:available,occupied,reserved,inactive,cleaning'],
+            'x_pos'    => ['sometimes', 'integer', 'min:0', 'max:100'],
+            'y_pos'    => ['sometimes', 'integer', 'min:0', 'max:100'],
         ]);
 
         $table->update($data);

@@ -36,6 +36,13 @@ class OrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    protected static function booted(): void
+    {
+        $clearCache = fn ($item) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$item->restaurant_id}_tables");
+        static::saved($clearCache);
+        static::deleted($clearCache);
+    }
+
     protected static function newFactory(): Factory
     {
         return OrderItemFactory::new();
