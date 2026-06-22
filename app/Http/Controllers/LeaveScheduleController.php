@@ -481,17 +481,91 @@ class LeaveScheduleController extends Controller
                 // Kiểm tra đăng ký rảnh (ScheduleRegistration)
                 $isRegistered = in_array($cand->id, $registeredEmployeeIds);
 
+                // Tính số ca làm việc trong tuần của ứng viên (Overtime Check)
+                $carbonDate = Carbon::parse($dateStr);
+                $startOfWeek = $carbonDate->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $endOfWeek = $carbonDate->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
+                
+                $weeklyShiftsCount = ScheduleAssignment::where('employee_id', $cand->id)
+                    ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                    ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+                    ->count();
+                
+                $hasOvertimeViolation = ($weeklyShiftsCount >= 6);
+
+                // Kiểm tra luật nghỉ 11 tiếng giữa các ca (11-hour rest rule check)
+                $startProposed = Carbon::parse($dateStr . ' ' . $shift->start_time);
+                $endProposed = $shift->is_overnight
+                    ? Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay()
+                    : Carbon::parse($dateStr . ' ' . $shift->end_time);
+
+                $hasRestViolation = false;
+                $adjacentAssignments = ScheduleAssignment::where('employee_id', $cand->id)
+                    ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+                    ->whereBetween('scheduled_date', [
+                        Carbon::parse($dateStr)->subDays(1)->toDateString(),
+                        Carbon::parse($dateStr)->addDays(1)->toDateString()
+                    ])
+                    ->with('shift')
+                    ->get();
+
+                foreach ($adjacentAssignments as $aa) {
+                    $aaShift = $aa->shift;
+                    if (!$aaShift) continue;
+
+                    $aaDateStr = $aa->scheduled_date instanceof Carbon ? $aa->scheduled_date->toDateString() : Carbon::parse($aa->scheduled_date)->toDateString();
+                    $startExist = Carbon::parse($aaDateStr . ' ' . $aaShift->start_time);
+                    $endExist = $aaShift->is_overnight
+                        ? Carbon::parse($aaDateStr . ' ' . $aaShift->end_time)->addDay()
+                        : Carbon::parse($aaDateStr . ' ' . $aaShift->end_time);
+
+                    if ($endProposed->lte($startExist)) {
+                        $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
+                        if ($restHours < 11.0) {
+                            $hasRestViolation = true;
+                            break;
+                        }
+                    } elseif ($endExist->lte($startProposed)) {
+                        $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
+                        if ($restHours < 11.0) {
+                            $hasRestViolation = true;
+                            break;
+                        }
+                    }
+                }
+
+                $hasWarning = $hasOvertimeViolation || $hasRestViolation;
+                $warningMessage = '';
+                if ($hasOvertimeViolation && $hasRestViolation) {
+                    $warningMessage = 'Quá 6 ca/tuần & Thiếu nghỉ 11h';
+                } elseif ($hasOvertimeViolation) {
+                    $warningMessage = 'Quá 6 ca/tuần';
+                } elseif ($hasRestViolation) {
+                    $warningMessage = 'Thiếu nghỉ 11h';
+                }
+
                 $suggestions[] = [
-                    'id' => $cand->id,
-                    'full_name' => $cand->full_name,
-                    'employee_code' => $cand->employee_code,
-                    'registered_available' => $isRegistered,
+                    'id'                     => $cand->id,
+                    'full_name'              => $cand->full_name,
+                    'employee_code'          => $cand->employee_code,
+                    'registered_available'   => $isRegistered,
+                    'weekly_shifts'          => $weeklyShiftsCount,
+                    'has_overtime_violation' => $hasOvertimeViolation,
+                    'has_rest_violation'     => $hasRestViolation,
+                    'has_warning'            => $hasWarning,
+                    'warning_message'        => $warningMessage,
                 ];
             }
 
-            // Ưu tiên nhân viên đăng ký rảnh lên đầu
+            // Sắp xếp: Không bị cảnh báo lên đầu -> Có đăng ký rảnh lên đầu -> Số ca làm việc ít nhất lên đầu
             usort($suggestions, function ($a, $b) {
-                return $b['registered_available'] <=> $a['registered_available'];
+                if ($a['has_warning'] !== $b['has_warning']) {
+                    return $a['has_warning'] ? 1 : -1;
+                }
+                if ($a['registered_available'] !== $b['registered_available']) {
+                    return $b['registered_available'] ? 1 : -1;
+                }
+                return $a['weekly_shifts'] <=> $b['weekly_shifts'];
             });
 
             $formattedDate = $assignment->scheduled_date instanceof \Carbon\Carbon

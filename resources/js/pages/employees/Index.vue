@@ -54,6 +54,20 @@ const props = defineProps<{
     leaveRequests?: any[];
     pendingSwaps?: Swap[];
     autoSchedule?: boolean;
+    dailyForecasts?: Record<string, {
+        date: string;
+        condition: string;
+        temperature: number;
+        demand_level: string;
+        demand_label: string;
+        shifts: Array<{
+            shift_id: number;
+            shift_name: string;
+            optimal_staff: number;
+            current_staff: number;
+            status: string;
+        }>;
+    }>;
 }>();
 
 const showAddEmployee  = ref(false);
@@ -552,10 +566,63 @@ const toggleExpandEmployee = (id: number) => {
 
 const getRegistrationsForDay = (dayKey: string) => {
     if (!props.registrations) {
-return [];
-}
+        return [];
+    }
 
     return props.registrations.filter(r => r.day === dayKey);
+};
+
+const weatherIcons: Record<string, string> = {
+    sunny: '☀️',
+    rainy: '🌧️',
+    cloudy: '☁️',
+    windy: '💨',
+};
+
+const weatherColors: Record<string, string> = {
+    sunny: 'text-amber-500',
+    rainy: 'text-blue-500',
+    cloudy: 'text-slate-400',
+    windy: 'text-teal-500',
+};
+
+const getForecastForDay = (dateStr: string) => {
+    return props.dailyForecasts?.[dateStr] || null;
+};
+
+const getDayStaffingStatus = (dateStr: string) => {
+    const forecast = getForecastForDay(dateStr);
+    if (!forecast) return { status: 'optimal', text: 'Đủ nhân sự', className: 'bg-emerald-100 text-emerald-800' };
+    
+    const understaffedCount = forecast.shifts.filter((s: any) => s.status === 'understaffed').length;
+    const overstaffedCount = forecast.shifts.filter((s: any) => s.status === 'overstaffed').length;
+    
+    if (understaffedCount > 0) {
+        return { status: 'understaffed', text: 'Thiếu nhân sự', className: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/50' };
+    }
+    if (overstaffedCount > 0) {
+        return { status: 'overstaffed', text: 'Thừa nhân sự', className: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/50' };
+    }
+    return { status: 'optimal', text: 'Đủ nhân sự', className: 'bg-emerald-100 text-emerald-850 dark:bg-emerald-950/40 dark:text-emerald-350 border border-emerald-250/50' };
+};
+
+const getSelectedReplacementWarning = (assignmentId: number) => {
+    const selectedId = selectedReplacements.value[assignmentId];
+    if (!selectedId || !replacementLeaveData.value) return '';
+    const assignment = replacementLeaveData.value.assignments.find((a: any) => a.assignment_id === assignmentId);
+    if (!assignment) return '';
+    const cand = assignment.suggestions.find((c: any) => String(c.id) === selectedId);
+    if (!cand) return '';
+    if (cand.has_overtime_violation && cand.has_rest_violation) {
+        return '⚠️ Quá ca & Thiếu nghỉ: Nhân sự này đã làm đủ 6 ca/tuần và không đủ 11 tiếng nghỉ ngơi giữa các ca.';
+    }
+    if (cand.has_overtime_violation) {
+        return '⚠️ Quá 6 ca/tuần: Phân ca này sẽ gây tăng ca (Overtime) vượt hạn mức.';
+    }
+    if (cand.has_rest_violation) {
+        return '⚠️ Thiếu nghỉ 11h: Nhân sự không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc.';
+    }
+    return '';
 };
 
 const dragOverDay = ref<string | null>(null);
@@ -1078,6 +1145,24 @@ const submitSwapReject = () => {
                                             <div class="flex flex-col gap-0.5">
                                                 <span>{{ day.label }}</span>
                                                 <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">({{ day.dateLabel }})</span>
+                                                
+                                                <!-- Weather & Demand Forecast -->
+                                                <div v-if="getForecastForDay(day.dateStr)" class="mt-1 flex flex-col gap-1 border-t pt-1.5 border-slate-100 dark:border-slate-800">
+                                                    <span class="text-[10px] flex items-center gap-1 font-semibold text-slate-500 dark:text-slate-400">
+                                                        <span :class="weatherColors[getForecastForDay(day.dateStr)?.condition || '']">{{ weatherIcons[getForecastForDay(day.dateStr)?.condition || ''] }}</span>
+                                                        {{ getForecastForDay(day.dateStr)?.temperature }}°C
+                                                    </span>
+                                                    <span class="text-[8px] font-extrabold uppercase tracking-wider text-slate-400">
+                                                        Khách: <span :class="getForecastForDay(day.dateStr)?.demand_level === 'high' ? 'text-amber-600 dark:text-amber-400 font-black' : getForecastForDay(day.dateStr)?.demand_level === 'low' ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-450 font-black'">{{ getForecastForDay(day.dateStr)?.demand_label }}</span>
+                                                    </span>
+                                                </div>
+
+                                                <!-- Staffing status badge -->
+                                                <div class="mt-1.5">
+                                                    <span class="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md" :class="getDayStaffingStatus(day.dateStr).className" :title="getForecastForDay(day.dateStr)?.shifts.map(s => `${s.shift_name}: Cần ${s.optimal_staff} NV (Có ${s.current_staff})`).join('\n')">
+                                                        {{ getDayStaffingStatus(day.dateStr).text }}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </td>
                                         <td 
@@ -1594,9 +1679,18 @@ const submitSwapReject = () => {
                                         :key="cand.id" 
                                         :value="String(cand.id)"
                                     >
-                                        {{ cand.full_name }} ({{ cand.employee_code }}) {{ cand.registered_available ? '⚡ AI Đề xuất (Rảnh)' : '' }}
+                                        {{ cand.full_name }} ({{ cand.employee_code }}) {{ cand.registered_available ? '⚡ AI Đề xuất (Rảnh)' : '' }} {{ cand.has_warning ? ' [⚠️ ' + cand.warning_message + ']' : '' }}
                                     </option>
                                 </select>
+                                
+                                <!-- Warning description alert block -->
+                                <div 
+                                    v-if="getSelectedReplacementWarning(assignment.assignment_id)" 
+                                    class="text-[10px] text-amber-600 dark:text-amber-400 flex items-start gap-1 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-150 rounded-lg animate-in fade-in slide-in-from-top-1 duration-150"
+                                >
+                                    <AlertCircle class="size-3.5 shrink-0 mt-0.5" />
+                                    <span>{{ getSelectedReplacementWarning(assignment.assignment_id) }}</span>
+                                </div>
                             </div>
 
                             <div 
