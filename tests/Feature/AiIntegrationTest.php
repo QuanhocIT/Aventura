@@ -64,13 +64,13 @@ class AiIntegrationTest extends TestCase
             '*/api/analytics/fraud-detection' => Http::response(null, 500),
         ]);
 
-        $service = new FraudDetectionService(
+        $service = new FraudDetectionService();
+
+        $alerts = $service->detectAiFraudAlerts(
             $this->restaurant->id,
             now()->subDays(30)->toDateString(),
             now()->toDateString()
         );
-
-        $alerts = $service->detectAiFraudAlerts();
 
         // 1. Phải kích hoạt Fallback và trả về các cảnh báo mô phỏng tiêu chuẩn
         $this->assertNotEmpty($alerts);
@@ -96,13 +96,13 @@ class AiIntegrationTest extends TestCase
             ], 200),
         ]);
 
-        $service = new FraudDetectionService(
+        $service = new FraudDetectionService();
+
+        $alerts = $service->detectAiFraudAlerts(
             $this->restaurant->id,
             now()->subDays(30)->toDateString(),
             now()->toDateString()
         );
-
-        $alerts = $service->detectAiFraudAlerts();
 
         $this->assertCount(1, $alerts);
         $this->assertEquals('ai-fraud-price-99', $alerts[0]['id']);

@@ -18,6 +18,7 @@ class FraudController extends Controller
     public function __construct(
         private SalaryService $salaryService,
         private ApprovalService $approvalService,
+        private FraudDetectionService $fraudService,
     ) {}
 
     public function index(Request $request): Response
@@ -50,23 +51,21 @@ class FraudController extends Controller
             $end = today()->toDateString();
         }
 
-        $service = new FraudDetectionService($restaurantId, $start, $end);
-
         // Lazy-tab: only run the active tab's heavy detail query
         $data = match ($activeTab) {
-            'ai'       => $service->detectAiFraudAlerts(),
-            'audit'    => $service->getAuditLogs(),
-            'discount' => $service->detectDiscountAnomalies(),
-            'cancel'   => $service->detectSuspiciousCancellations(),
-            'waste'    => $service->detectInventoryWasteSpikes(),
-            'revenue'  => $service->detectRevenueDiscrepancies(),
-            default    => $service->detectCashShortfalls(),
+            'ai'       => $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end),
+            'audit'    => $this->fraudService->getAuditLogs($restaurantId),
+            'discount' => $this->fraudService->detectDiscountAnomalies($restaurantId, $start, $end),
+            'cancel'   => $this->fraudService->detectSuspiciousCancellations($restaurantId, $start, $end),
+            'waste'    => $this->fraudService->detectInventoryWasteSpikes($restaurantId, $start, $end),
+            'revenue'  => $this->fraudService->detectRevenueDiscrepancies($restaurantId, $start, $end),
+            default    => $this->fraudService->detectCashShortfalls($restaurantId, $start, $end),
         };
 
         return Inertia::render('fraud/Index', [
             'period'    => $period,
             'activeTab' => $activeTab,
-            'summary'   => $service->getSummary(),
+            'summary'   => $this->fraudService->getSummary($restaurantId, $start, $end),
             'data'      => $data,
             'canAct'    => $user->can('approve_requests'),
             'dateRange' => ['start' => $start, 'end' => $end],

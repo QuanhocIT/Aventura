@@ -275,13 +275,13 @@ class PromotionAndComboTest extends TestCase
         }
 
         // Chạy kiểm toán gian lận
-        $fraudService = new FraudDetectionService(
+        $fraudService = new FraudDetectionService();
+
+        $alerts = $fraudService->detectAiFraudAlerts(
             $this->restaurant->id,
             now()->subDays(1)->toDateString(),
             now()->toDateString()
         );
-
-        $alerts = $fraudService->detectAiFraudAlerts();
 
         // Xác minh phát hiện cảnh báo áp voucher bất thường
         $voucherAlerts = collect($alerts)->filter(fn($a) => str_contains($a['violation_type'], 'voucher') || str_contains($a['violation_type'], 'Voucher'));

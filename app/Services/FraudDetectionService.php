@@ -6,21 +6,15 @@ use Illuminate\Support\Facades\DB;
 
 class FraudDetectionService
 {
-    public function __construct(
-        private int $restaurantId,
-        private string $periodStart,
-        private string $periodEnd
-    ) {}
-
     // ── Summary (fast COUNT queries for KPI cards) ────────────────────────────
 
-    public function getSummary(): array
+    public function getSummary(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $cashCount = DB::selectOne(
             'SELECT COUNT(DISTINCT cashier_user_id) AS cnt
              FROM shift_closings
              WHERE restaurant_id = ? AND closing_date BETWEEN ? AND ? AND cash_difference < -50000',
-            [$this->restaurantId, $this->periodStart, $this->periodEnd]
+            [$restaurantId, $periodStart, $periodEnd]
         );
 
         $discountCount = DB::selectOne(
@@ -32,17 +26,10 @@ class FraudDetectionService
                 HAVING SUM(discount_amount)/NULLIF(SUM(subtotal),0)*100 > 20
                     OR SUM(discount_amount) > 2000000
              ) AS t',
-            [$this->restaurantId, 'completed', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'completed', $periodStart, $periodEnd]
         );
 
-        $cancelCount = DB::selectOne(
-            'SELECT COUNT(DISTINCT cancelled_by) AS cnt
-             FROM orders
-             WHERE restaurant_id = ? AND status = ? AND DATE(cancelled_at) BETWEEN ? AND ?
-             GROUP BY cancelled_by HAVING COUNT(*) > 3 OR SUM(total_amount) > 1000000',
-            [$this->restaurantId, 'cancelled', $this->periodStart, $this->periodEnd]
-        );
-        // The above returns first row only — use subquery for correct count
+        // The returns first row only — use subquery for correct count
         $cancelCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT cancelled_by
@@ -51,7 +38,7 @@ class FraudDetectionService
                 GROUP BY cancelled_by
                 HAVING COUNT(*) > 3 OR SUM(total_amount) > 1000000
              ) AS t',
-            [$this->restaurantId, 'cancelled', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
         );
 
         $wasteCount = DB::selectOne(
@@ -60,7 +47,7 @@ class FraudDetectionService
                 WHERE restaurant_id = ? AND type = ? AND total_cost > 500000
                   AND DATE(occurred_at) BETWEEN ? AND ?
              ) AS t',
-            [$this->restaurantId, 'waste', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'waste', $periodStart, $periodEnd]
         );
 
         $revenueCount = DB::selectOne(
@@ -77,20 +64,20 @@ class FraudDetectionService
                    AND ABS(rrs.net_revenue - COALESCE(SUM(sc.expected_cash + sc.transfer_amount),0))
                        / rrs.net_revenue * 100 > 5
              ) AS t',
-            ['confirmed', $this->restaurantId, 'daily', 'restaurant', $this->periodStart, $this->periodEnd]
+            ['confirmed', $restaurantId, 'daily', 'restaurant', $periodStart, $periodEnd]
         );
 
         $aiCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
              WHERE restaurant_id = ? AND action IN (\'order_split\', \'discount_applied\', \'price_modified\')
                AND DATE(created_at) BETWEEN ? AND ?',
-            [$this->restaurantId, $this->periodStart, $this->periodEnd]
+            [$restaurantId, $periodStart, $periodEnd]
         );
 
         $auditCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
              WHERE restaurant_id = ? AND DATE(created_at) BETWEEN ? AND ?',
-            [$this->restaurantId, $this->periodStart, $this->periodEnd]
+            [$restaurantId, $periodStart, $periodEnd]
         );
 
         return [
@@ -107,30 +94,30 @@ class FraudDetectionService
     /**
      * Thuật toán AI quét audit_logs phát hiện sửa giá nhiều lần và hủy món sau thanh toán.
      */
-    public function detectAiFraudAlerts(): array
+    public function detectAiFraudAlerts(int $restaurantId, string $periodStart, string $periodEnd): array
     {
-        $cacheKey = "fraud_alerts:{$this->restaurantId}:{$this->periodStart}:{$this->periodEnd}";
+        $cacheKey = "fraud_alerts:{$restaurantId}:{$periodStart}:{$periodEnd}";
 
         // 1. Read from Redis Cache
         if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-            return $this->mergePoDiscrepancies(\Illuminate\Support\Facades\Cache::get($cacheKey));
+            return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, \Illuminate\Support\Facades\Cache::get($cacheKey));
         }
 
         // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
         // We use a lock flag to avoid dispatching multiple duplicate jobs simultaneously
-        $lockKey = "fraud_alerts_job_dispatched:{$this->restaurantId}";
+        $lockKey = "fraud_alerts_job_dispatched:{$restaurantId}";
         $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
         if (!$isOffline && !\Illuminate\Support\Facades\Cache::has($lockKey)) {
             \Illuminate\Support\Facades\Cache::put($lockKey, true, 60); // 1 minute lock
-            dispatch(new \App\Jobs\FetchAiFraudAlertsJob($this->restaurantId, $this->periodStart, $this->periodEnd));
+            dispatch(new \App\Jobs\FetchAiFraudAlertsJob($restaurantId, $periodStart, $periodEnd));
 
             if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-                return $this->mergePoDiscrepancies(\Illuminate\Support\Facades\Cache::get($cacheKey));
+                return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, \Illuminate\Support\Facades\Cache::get($cacheKey));
             }
         }
 
         // 3. Fallback PHP preparation: Fetch audit logs for fallback data
-        $logs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+        $logs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
             ->latest('created_at')
@@ -138,8 +125,8 @@ class FraudDetectionService
             ->get();
 
         // 3. Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
-        $emp1 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->first() ?? \App\Models\Employee::first();
-        $emp2 = \App\Models\Employee::where('restaurant_id', $this->restaurantId)->skip(1)->first() ?? \App\Models\Employee::first();
+        $emp1 = \App\Models\Employee::where('restaurant_id', $restaurantId)->first() ?? \App\Models\Employee::first();
+        $emp2 = \App\Models\Employee::where('restaurant_id', $restaurantId)->skip(1)->first() ?? \App\Models\Employee::first();
 
         $emp1Name = $emp1 ? $emp1->full_name : 'Nguyễn Văn Hùng';
         $emp1Id   = $emp1 ? $emp1->id : 1;
@@ -236,14 +223,14 @@ class FraudDetectionService
             }
         }
 
-        return $this->mergePoDiscrepancies($alerts);
+        return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, $alerts);
     }
 
-    private function mergePoDiscrepancies(array $alerts): array
+    private function mergePoDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd, array $alerts): array
     {
-        $poLogs = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+        $poLogs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
             ->where('action', 'po_discrepancy')
-            ->whereBetween('created_at', [$this->periodStart . ' 00:00:00', $this->periodEnd . ' 23:59:59'])
+            ->whereBetween('created_at', [$periodStart . ' 00:00:00', $periodEnd . ' 23:59:59'])
             ->latest('created_at')
             ->get();
 
@@ -289,9 +276,9 @@ class FraudDetectionService
     /**
      * Lấy toàn bộ danh sách Nhật ký kiểm toán phân trang cho Quản lý.
      */
-    public function getAuditLogs(): array
+    public function getAuditLogs(int $restaurantId): array
     {
-        $rows = \App\Models\AuditLog::where('restaurant_id', $this->restaurantId)
+        $rows = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
             ->with(['user'])
             ->latest('created_at')
             ->take(100)
@@ -310,7 +297,7 @@ class FraudDetectionService
                 'ip_address'   => $log->ip_address ?? '127.0.0.1',
                 'user_agent'   => $log->user_agent ? substr($log->user_agent, 0, 80) . '...' : '—',
                 'created_at'   => $log->created_at->format('H:i:s d/m/Y'),
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($log->created_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
+                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($log->created_at, $restaurantId)?->full_name ?? 'Không xếp ca',
             ]);
 
         return [
@@ -337,7 +324,7 @@ class FraudDetectionService
 
     // ── 1. Cash Shortfalls ────────────────────────────────────────────────────
 
-    public function detectCashShortfalls(): array
+    public function detectCashShortfalls(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $rows = DB::select(
             'SELECT sc.cashier_user_id, u.name AS cashier_name,
@@ -349,7 +336,7 @@ class FraudDetectionService
                AND sc.cash_difference < -50000
              GROUP BY sc.cashier_user_id, u.name
              ORDER BY total_difference ASC',
-            [$this->restaurantId, $this->periodStart, $this->periodEnd]
+            [$restaurantId, $periodStart, $periodEnd]
         );
 
         $cashiers = [];
@@ -363,7 +350,7 @@ class FraudDetectionService
                  WHERE sc.restaurant_id = ? AND sc.cashier_user_id = ?
                    AND sc.closing_date BETWEEN ? AND ? AND sc.cash_difference < -50000
                  ORDER BY sc.closing_date DESC',
-                [$this->restaurantId, $row->cashier_user_id, $this->periodStart, $this->periodEnd]
+                [$restaurantId, $row->cashier_user_id, $periodStart, $periodEnd]
             );
 
             $abs = abs((float) $row->total_difference);
@@ -400,7 +387,7 @@ class FraudDetectionService
 
     // ── 2. Discount Anomalies ─────────────────────────────────────────────────
 
-    public function detectDiscountAnomalies(): array
+    public function detectDiscountAnomalies(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $flaggedDays = DB::select(
             'SELECT DATE(o.created_at) AS order_date,
@@ -415,7 +402,7 @@ class FraudDetectionService
              HAVING (SUM(o.discount_amount)/NULLIF(SUM(o.subtotal),0)*100) > 20
                  OR SUM(o.discount_amount) > 2000000
              ORDER BY discount_rate_pct DESC',
-            [$this->restaurantId, 'completed', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'completed', $periodStart, $periodEnd]
         );
 
         if (empty($flaggedDays)) {
@@ -435,7 +422,7 @@ class FraudDetectionService
                AND DATE(o.created_at) BETWEEN ? AND ?
              ORDER BY (o.discount_amount/o.subtotal) DESC
              LIMIT 200',
-            [$this->restaurantId, 'completed', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'completed', $periodStart, $periodEnd]
         );
 
         // Group suspicious orders by date
@@ -485,7 +472,7 @@ class FraudDetectionService
 
     // ── 3. Suspicious Cancellations ───────────────────────────────────────────
 
-    public function detectSuspiciousCancellations(): array
+    public function detectSuspiciousCancellations(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $cashierRows = DB::select(
             'SELECT o.cancelled_by, u.name AS cashier_name,
@@ -498,7 +485,7 @@ class FraudDetectionService
              GROUP BY o.cancelled_by, u.name
              HAVING COUNT(*) > 3 OR SUM(o.total_amount) > 1000000
              ORDER BY total_value_cancelled DESC',
-            [$this->restaurantId, 'cancelled', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
         );
 
         $highValueRows = DB::select(
@@ -512,7 +499,7 @@ class FraudDetectionService
                AND DATE(o.cancelled_at) BETWEEN ? AND ?
              ORDER BY o.total_amount DESC
              LIMIT 100',
-            [$this->restaurantId, 'cancelled', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
         );
 
         $flaggedCashierIds = array_column($cashierRows, 'cancelled_by');
@@ -563,7 +550,7 @@ class FraudDetectionService
 
     // ── 4. Inventory Waste Spikes ─────────────────────────────────────────────
 
-    public function detectInventoryWasteSpikes(): array
+    public function detectInventoryWasteSpikes(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $topEmployees = DB::select(
             'SELECT it.performed_by, u.name AS employee_name,
@@ -575,7 +562,7 @@ class FraudDetectionService
                AND DATE(it.occurred_at) BETWEEN ? AND ?
              GROUP BY it.performed_by, u.name
              ORDER BY total_waste_cost DESC',
-            [$this->restaurantId, 'waste', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'waste', $periodStart, $periodEnd]
         );
 
         $largeEntries = DB::select(
@@ -591,7 +578,7 @@ class FraudDetectionService
                AND DATE(it.occurred_at) BETWEEN ? AND ?
              ORDER BY it.total_cost DESC
              LIMIT 200',
-            [$this->restaurantId, 'waste', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'waste', $periodStart, $periodEnd]
         );
 
         $flaggedDays = DB::select(
@@ -604,7 +591,7 @@ class FraudDetectionService
              GROUP BY DATE(occurred_at)
              HAVING SUM(total_cost) > 1000000
              ORDER BY daily_waste_cost DESC',
-            [$this->restaurantId, 'waste', $this->periodStart, $this->periodEnd]
+            [$restaurantId, 'waste', $periodStart, $periodEnd]
         );
 
         return [
@@ -620,7 +607,7 @@ class FraudDetectionService
             'large_entries'  => array_map(fn ($r) => [
                 'id'              => $r->id,
                 'employee_name'   => $r->employee_name ?? '—',
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($r->occurred_at, $this->restaurantId)?->full_name ?? 'Không xếp ca',
+                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($r->occurred_at, $restaurantId)?->full_name ?? 'Không xếp ca',
                 'ingredient_name' => $r->ingredient_name,
                 'quantity'        => (float) $r->quantity,
                 'unit_cost'       => (float) $r->unit_cost,
@@ -638,7 +625,7 @@ class FraudDetectionService
 
     // ── 5. Revenue Discrepancies ──────────────────────────────────────────────
 
-    public function detectRevenueDiscrepancies(): array
+    public function detectRevenueDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd): array
     {
         $rows = DB::select(
             'SELECT rrs.summary_date,
@@ -648,7 +635,7 @@ class FraudDetectionService
                     rrs.net_revenue - COALESCE(SUM(sc.expected_cash + sc.transfer_amount), 0) AS difference,
                     CASE WHEN rrs.net_revenue > 0
                          THEN ABS(rrs.net_revenue - COALESCE(SUM(sc.expected_cash + sc.transfer_amount), 0))
-                              / rrs.net_revenue * 100
+                               / rrs.net_revenue * 100
                          ELSE 0 END AS difference_pct
              FROM restaurant_revenue_summaries rrs
              LEFT JOIN shift_closings sc
@@ -660,7 +647,7 @@ class FraudDetectionService
              GROUP BY rrs.summary_date, rrs.net_revenue, rrs.gross_revenue
              HAVING difference_pct > 5
              ORDER BY difference_pct DESC',
-            ['confirmed', $this->restaurantId, 'daily', 'restaurant', $this->periodStart, $this->periodEnd]
+            ['confirmed', $restaurantId, 'daily', 'restaurant', $periodStart, $periodEnd]
         );
 
         $maxPct = 0.0;

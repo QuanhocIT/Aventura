@@ -19,6 +19,10 @@ use Inertia\Response;
 
 class PromotionController extends Controller
 {
+    public function __construct(
+        private FraudDetectionService $fraudService
+    ) {}
+
     /**
      * Hiển thị danh sách khuyến mãi & Dashboard kiểm toán gian lận AI.
      */
@@ -51,14 +55,11 @@ class PromotionController extends Controller
             ]);
 
         // 2. Lấy dữ liệu kiểm toán gian lận & cảnh báo đỏ từ FraudDetectionService
-        $fraudService = new FraudDetectionService(
-            $restaurantId,
-            now()->subDays(30)->toDateString(),
-            now()->toDateString()
-        );
+        $start = now()->subDays(30)->toDateString();
+        $end = now()->toDateString();
 
-        $fraudAlerts = $fraudService->detectAiFraudAlerts();
-        $auditLogs = $fraudService->getAuditLogs();
+        $fraudAlerts = $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end);
+        $auditLogs = $this->fraudService->getAuditLogs($restaurantId);
 
         // Lọc các log áp dụng voucher để hiển thị tại tab kiểm toán voucher
         $voucherLogs = collect($auditLogs['logs'] ?? [])

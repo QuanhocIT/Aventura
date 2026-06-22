@@ -378,8 +378,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'user_agent' => 'Mozilla/5.0'
         ]);
 
-        $service = new FraudDetectionService($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
-        $alerts = $service->detectAiFraudAlerts();
+        $service = new FraudDetectionService();
+        $alerts = $service->detectAiFraudAlerts($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
 
         // Verify both fallback static alerts AND the parsed database audit log alert exist!
         $this->assertCount(3, $alerts);
