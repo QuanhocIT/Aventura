@@ -2,7 +2,8 @@
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Activity, AlertTriangle, ArrowLeft, ArrowUpRight,
-    CheckCircle2, Clock, TrendingDown, TrendingUp, Users, Zap,
+    BookOpen, CheckCircle2, Clock, CreditCard, LayoutGrid,
+    RefreshCcw, TrendingDown, TrendingUp, Users, Wallet, Zap,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +13,18 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
+
 interface MonthRevenue { label: string; revenue: number; count: number }
 interface PlanRevenue { plan: string; revenue: number; count: number }
 interface ExpiringRestaurant { id: number; name: string; plan: string; expires_on: string; days_left: number }
+
+interface AgingBucket { label: string; count: number; amount: number; amount_fmt: string; color: string }
+interface AgingBuckets { current: AgingBucket; '0_7': AgingBucket; '8_30': AgingBucket; '31_60': AgingBucket; over_60: AgingBucket }
+interface BadDebt {
+    written_off_count: number; written_off_amount: string;
+    total_adjustments: string; effective_collection_rate: number;
+    total_invoiced: string; total_collected: string;
+}
 
 const props = defineProps<{
     kpis: {
@@ -26,7 +36,18 @@ const props = defineProps<{
     monthly_revenue: MonthRevenue[];
     revenue_by_plan: PlanRevenue[];
     expiring_list: ExpiringRestaurant[];
+    aging_buckets: AgingBuckets;
+    bad_debt: BadDebt;
 }>();
+
+const agingOrder = ['current', '0_7', '8_30', '31_60', 'over_60'] as const;
+const agingColorClass: Record<string, string> = {
+    emerald: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+    yellow:  'bg-yellow-100  text-yellow-800  dark:bg-yellow-900/30  dark:text-yellow-300',
+    amber:   'bg-amber-100   text-amber-800   dark:bg-amber-900/30   dark:text-amber-300',
+    orange:  'bg-orange-100  text-orange-800  dark:bg-orange-900/30  dark:text-orange-300',
+    rose:    'bg-rose-100    text-rose-800    dark:bg-rose-900/30    dark:text-rose-300',
+};
 
 // SVG Area Chart
 const CHART_W = 800;
@@ -87,15 +108,32 @@ const planChartMax = computed(() =>
 
     <div class="flex flex-col gap-6 p-6">
         <!-- Header -->
-        <div class="flex items-center gap-4">
-            <Link href="/super-admin/billing">
-                <Button variant="outline" size="sm">
-                    <ArrowLeft class="mr-1.5 size-4" /> Billing Center
-                </Button>
-            </Link>
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">📈 Revenue Analytics</h1>
-                <p class="text-sm text-muted-foreground">Tổng quan doanh thu và sức khoẻ tài chính hệ thống.</p>
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-4">
+                <Link href="/super-admin/billing">
+                    <Button variant="outline" size="sm">
+                        <ArrowLeft class="mr-1.5 size-4" /> Billing Center
+                    </Button>
+                </Link>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">📈 Revenue Analytics</h1>
+                    <p class="text-sm text-muted-foreground">Tổng quan doanh thu và sức khoẻ tài chính hệ thống.</p>
+                </div>
+            </div>
+            <!-- Navigation Bar -->
+            <div class="flex flex-wrap gap-2">
+                <Link href="/super-admin/billing/ledger">
+                    <Button variant="outline" size="sm"><BookOpen class="mr-1.5 size-4" />Sổ Cái</Button>
+                </Link>
+                <Link href="/super-admin/billing/revenue-recognition">
+                    <Button variant="outline" size="sm"><Wallet class="mr-1.5 size-4" />Doanh Thu</Button>
+                </Link>
+                <Link href="/super-admin/billing/dunning">
+                    <Button variant="outline" size="sm"><RefreshCcw class="mr-1.5 size-4" />Dunning</Button>
+                </Link>
+                <Link href="/super-admin/billing/lifecycle">
+                    <Button variant="outline" size="sm"><LayoutGrid class="mr-1.5 size-4" />Lifecycle</Button>
+                </Link>
             </div>
         </div>
 
@@ -284,6 +322,82 @@ const planChartMax = computed(() =>
                                     :style="{ width: `${(plan.revenue / planChartMax) * 100}%` }"
                                 />
                             </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Invoice Aging Report -->
+        <div class="grid gap-6 xl:grid-cols-2">
+            <Card>
+                <CardHeader class="pb-3">
+                    <CardTitle class="flex items-center gap-2 text-base">
+                        <CreditCard class="size-4 text-amber-500" />
+                        Invoice Aging Report
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div class="space-y-3">
+                        <div
+                            v-for="key in agingOrder"
+                            :key="key"
+                            class="flex items-center justify-between rounded-xl p-3"
+                            :class="agingColorClass[aging_buckets[key].color]"
+                        >
+                            <div class="flex items-center gap-3">
+                                <span class="text-lg font-bold">{{ aging_buckets[key].count }}</span>
+                                <span class="text-sm font-medium">{{ aging_buckets[key].label }}</span>
+                            </div>
+                            <span class="text-sm font-semibold">{{ aging_buckets[key].amount_fmt }}₫</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Bad Debt & Collection Rate -->
+            <Card :class="bad_debt.effective_collection_rate < 90 ? 'border-rose-200 dark:border-rose-900/40' : 'border-emerald-200 dark:border-emerald-900/40'">
+                <CardHeader class="pb-3">
+                    <CardTitle class="flex items-center gap-2 text-base">
+                        <AlertTriangle class="size-4 text-rose-500" />
+                        Nợ Xấu & Tỷ Lệ Thu Hồi
+                    </CardTitle>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                    <!-- Collection Rate -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-muted-foreground">Tỷ lệ thu hồi hiệu quả</span>
+                        <span
+                            class="text-xl font-bold"
+                            :class="bad_debt.effective_collection_rate >= 95 ? 'text-emerald-600' : bad_debt.effective_collection_rate >= 85 ? 'text-amber-600' : 'text-rose-600'"
+                        >
+                            {{ bad_debt.effective_collection_rate }}%
+                        </span>
+                    </div>
+                    <div class="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                            class="h-full rounded-full transition-all duration-700"
+                            :class="bad_debt.effective_collection_rate >= 95 ? 'bg-emerald-500' : bad_debt.effective_collection_rate >= 85 ? 'bg-amber-500' : 'bg-rose-500'"
+                            :style="{ width: `${bad_debt.effective_collection_rate}%` }"
+                        />
+                    </div>
+                    <!-- Stats grid -->
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg bg-muted/40 p-3">
+                            <p class="text-muted-foreground text-xs">Tổng hóa đơn</p>
+                            <p class="font-semibold mt-0.5">{{ bad_debt.total_invoiced }}₫</p>
+                        </div>
+                        <div class="rounded-lg bg-muted/40 p-3">
+                            <p class="text-muted-foreground text-xs">Đã thu</p>
+                            <p class="font-semibold mt-0.5 text-emerald-600">{{ bad_debt.total_collected }}₫</p>
+                        </div>
+                        <div class="rounded-lg bg-rose-50 dark:bg-rose-900/20 p-3">
+                            <p class="text-muted-foreground text-xs">Nợ xấu ({{ bad_debt.written_off_count }} HĐ)</p>
+                            <p class="font-semibold mt-0.5 text-rose-600">{{ bad_debt.written_off_amount }}₫</p>
+                        </div>
+                        <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3">
+                            <p class="text-muted-foreground text-xs">Tổng điều chỉnh/giảm giá</p>
+                            <p class="font-semibold mt-0.5 text-amber-600">{{ bad_debt.total_adjustments }}₫</p>
                         </div>
                     </div>
                 </CardContent>

@@ -642,4 +642,76 @@ class BillingService
 
         $referrer->increment('commission_balance', $commissionAmount);
     }
+
+    // =========================================================================
+    // DUNNING MANUAL CONTROLS
+    // =========================================================================
+
+    /**
+     * Gửi email dunning thủ công cho một subscription (được gọi từ Dunning Dashboard).
+     */
+    public function manualSendDunning(RestaurantSubscription $subscription, string $stage = 'd7'): void
+    {
+        $restaurant = $subscription->restaurant ?? Restaurant::find($subscription->restaurant_id);
+        if (! $restaurant) {
+            return;
+        }
+
+        $owner = $restaurant->owner;
+        if (! $owner) {
+            return;
+        }
+
+        $now       = now();
+        $daysLeft  = $subscription->ended_at
+            ? (int) round($now->diffInDays($subscription->ended_at, false))
+            : 0;
+        $renewalUrl = route('billing.checkout') . '?plan=' . ($subscription->plan?->code ?? '');
+
+        $owner->notify(new DunningNotification(
+            restaurantName: $restaurant->name,
+            expiresAt: optional($subscription->ended_at)->format('d/m/Y') ?? '',
+            daysLeft: $daysLeft,
+            renewalUrl: $renewalUrl,
+            stage: $stage,
+        ));
+
+        $subscription->update([
+            'last_notified_at' => $now,
+            'billing_meta'     => array_merge($subscription->billing_meta ?? [], [
+                'dunning_stage'    => $stage,
+                'dunning_sent_at'  => $now->toIso8601String(),
+                'manual_send'      => true,
+                'manual_send_at'   => $now->toIso8601String(),
+            ]),
+        ]);
+
+        Log::info('Manual dunning email sent', [
+            'subscription_id' => $subscription->id,
+            'restaurant_id'   => $restaurant->id,
+            'stage'           => $stage,
+        ]);
+    }
+
+    /**
+     * Tạm dừng dunning cho subscription trong N ngày.
+     * Được lưu vào billing_meta JSON — không cần migration.
+     */
+    public function pauseDunning(RestaurantSubscription $subscription, int $days): void
+    {
+        $pausedUntil = now()->addDays($days);
+
+        $subscription->update([
+            'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                'dunning_paused_until' => $pausedUntil->toIso8601String(),
+                'dunning_paused_at'    => now()->toIso8601String(),
+                'dunning_pause_days'   => $days,
+            ]),
+        ]);
+
+        Log::info('Dunning paused', [
+            'subscription_id' => $subscription->id,
+            'paused_until'    => $pausedUntil->toDateString(),
+        ]);
+    }
 }

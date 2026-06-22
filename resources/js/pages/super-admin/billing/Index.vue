@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { BarChart2, Download, Filter, ReceiptText, RefreshCcw, Search, WalletCards } from 'lucide-vue-next';
+import { BarChart2, BookOpen, Download, Filter, LayoutGrid, ReceiptText, RefreshCcw, Search, WalletCards, Wallet, XCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -102,28 +102,82 @@ function retryWebhook(id: number) {
 function exportCsv() {
     window.open('/super-admin/billing/export', '_blank');
 }
+
+// Write-off
+const writeOffInvoiceId = ref<number | null>(null);
+const writeOffInvoiceNum = ref('');
+const writeOffReason = ref('');
+const writeOffLoading = ref(false);
+
+function openWriteOff(id: number, num: string) {
+    writeOffInvoiceId.value = id;
+    writeOffInvoiceNum.value = num;
+    writeOffReason.value = '';
+}
+
+function closeWriteOff() {
+    writeOffInvoiceId.value = null;
+    writeOffInvoiceNum.value = '';
+    writeOffReason.value = '';
+}
+
+function submitWriteOff() {
+    if (!writeOffInvoiceId.value || !writeOffReason.value.trim()) return;
+    writeOffLoading.value = true;
+    router.patch(`/super-admin/billing/invoices/${writeOffInvoiceId.value}/write-off`, {
+        reason: writeOffReason.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Đã đánh dấu nợ xấu thành công!');
+            closeWriteOff();
+        },
+        onError: (e: Record<string, string>) => toast.error(Object.values(e).join(' ')),
+        onFinish: () => { writeOffLoading.value = false; },
+    });
+}
 </script>
 
 <template>
     <Head title="Billing Center" />
 
     <div class="flex flex-col gap-6 p-6">
-        <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Billing Center</h1>
                 <p class="text-sm text-muted-foreground">Theo dõi hóa đơn, webhook và điều chỉnh billing toàn hệ thống.</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap">
                 <Link href="/super-admin/billing/analytics">
-                    <Button variant="outline">
-                        <BarChart2 class="mr-2 size-4" /> Analytics
+                    <Button variant="outline" size="sm">
+                        <BarChart2 class="mr-1.5 size-4" /> Analytics
                     </Button>
                 </Link>
-                <Button variant="outline" @click="applyFilters">
-                    <RefreshCcw class="mr-2 size-4" /> Làm mới
+                <Link href="/super-admin/billing/ledger">
+                    <Button variant="outline" size="sm">
+                        <BookOpen class="mr-1.5 size-4" /> Sổ Cái
+                    </Button>
+                </Link>
+                <Link href="/super-admin/billing/revenue-recognition">
+                    <Button variant="outline" size="sm">
+                        <Wallet class="mr-1.5 size-4" /> Doanh Thu
+                    </Button>
+                </Link>
+                <Link href="/super-admin/billing/dunning">
+                    <Button variant="outline" size="sm">
+                        <RefreshCcw class="mr-1.5 size-4" /> Dunning
+                    </Button>
+                </Link>
+                <Link href="/super-admin/billing/lifecycle">
+                    <Button variant="outline" size="sm">
+                        <LayoutGrid class="mr-1.5 size-4" /> Lifecycle
+                    </Button>
+                </Link>
+                <Button variant="outline" size="sm" @click="applyFilters">
+                    <RefreshCcw class="mr-1.5 size-4" /> Làm mới
                 </Button>
-                <Button variant="outline" @click="exportCsv">
-                    Export CSV
+                <Button variant="outline" size="sm" @click="exportCsv">
+                    <Download class="mr-1.5 size-4" /> Export CSV
                 </Button>
             </div>
         </div>
@@ -237,7 +291,7 @@ function exportCsv() {
                             <span>Hạn {{ invoice.due_on || 'Chưa xác định' }}</span>
                             <span>Gửi {{ invoice.sent_at || 'Chưa gửi' }}</span>
                         </div>
-                        <div class="mt-2 flex gap-2">
+                        <div class="mt-2 flex gap-2 flex-wrap">
                             <Button size="sm" variant="outline" @click="resendInvoice(invoice.id)">Gửi lại email</Button>
                             <Button size="sm" variant="outline" @click="regenerateInvoice(invoice.id)">Tạo lại hóa đơn</Button>
                             <a :href="`/super-admin/billing/invoices/${invoice.id}/download`" target="_blank">
@@ -245,6 +299,16 @@ function exportCsv() {
                                     <Download class="mr-1.5 size-3.5" /> Tải PDF
                                 </Button>
                             </a>
+                            <!-- Write-off button: only for pending invoices -->
+                            <Button
+                                v-if="invoice.status === 'pending'"
+                                size="sm"
+                                variant="outline"
+                                class="border-rose-300 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                                @click="openWriteOff(invoice.id, invoice.invoice_number)"
+                            >
+                                <XCircle class="mr-1.5 size-3.5" /> Nợ xấu
+                            </Button>
                         </div>
                     </div>
                     <p v-if="!invoices.data.length" class="py-10 text-center text-sm text-muted-foreground">Không có hóa đơn phù hợp.</p>
@@ -345,5 +409,38 @@ function exportCsv() {
                 </div>
             </CardContent>
         </Card>
+
+        <!-- Write-off Dialog -->
+        <div
+            v-if="writeOffInvoiceId !== null"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            @click.self="closeWriteOff"
+        >
+            <div class="bg-background rounded-2xl shadow-2xl w-full max-w-md p-6">
+                <h2 class="text-lg font-bold text-rose-600 mb-1">⚠️ Đánh dấu Nợ Xấu</h2>
+                <p class="text-sm text-muted-foreground mb-4">
+                    Hóa đơn <strong>{{ writeOffInvoiceNum }}</strong> sẽ bị đánh dấu là không thể thu hồi.
+                </p>
+                <div class="space-y-2">
+                    <Label>Lý do write-off <span class="text-rose-500">*</span></Label>
+                    <textarea
+                        v-model="writeOffReason"
+                        rows="3"
+                        class="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 bg-background"
+                        placeholder="Nhập lý do (bắt buộc)..."
+                    />
+                </div>
+                <div class="flex gap-3 mt-4 justify-end">
+                    <Button variant="outline" @click="closeWriteOff">Hủy</Button>
+                    <Button
+                        class="bg-rose-600 text-white hover:bg-rose-700"
+                        :disabled="!writeOffReason.trim() || writeOffLoading"
+                        @click="submitWriteOff"
+                    >
+                        {{ writeOffLoading ? 'Đang xử lý...' : 'Xác nhận Nợ Xấu' }}
+                    </Button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
