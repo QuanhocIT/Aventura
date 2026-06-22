@@ -423,4 +423,76 @@ class OrdersController extends Controller
 
         return back()->with('success', 'Đã cập nhật chế độ tự động thanh toán đơn ca cuối.');
     }
+
+    /**
+     * Yêu cầu hoàn tiền cho đơn hàng đã thanh toán.
+     * - Chỉ áp dụng cho đơn đã paid
+     * - Bắt buộc nhập lý do hoàn tiền
+     * - Không phải Owner/Manager → phải có bypass code
+     * - Ghi audit log với chi tiết old_values / new_values
+     * - Hoàn tồn kho nếu refund toàn bộ đơn
+     */
+    public function refund(Request $request, Order $order): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('process_payments') || $user->can('approve_requests'), 403);
+        abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($order->payment_status === 'paid', 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
+
+        $data = $request->validate([
+            'reason'       => ['required', 'string', 'min:10', 'max:500'],
+            'refund_amount'=> ['required', 'numeric', 'min:1000', "max:{$order->total_amount}"],
+            'bypass_code'  => ['nullable', 'string'],
+            'refund_type'  => ['required', 'in:full,partial'],
+        ]);
+
+        // Nếu không phải Owner/Manager → phải có bypass code
+        if (!$user->can('approve_requests')) {
+            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+                ->where('restaurant_id', $order->restaurant_id)
+                ->where('key_name', 'manager_bypass_code')
+                ->value('value');
+            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
+            if (($data['bypass_code'] ?? null) !== $expectedCode) {
+                return back()->withErrors(['bypass_code' => 'Hoàn tiền yêu cầu mã phê duyệt của quản lý.']);
+            }
+        }
+
+        DB::transaction(function () use ($order, $data, $user) {
+            $oldPaymentStatus = $order->payment_status;
+
+            $order->update([
+                'payment_status'  => $data['refund_type'] === 'full' ? 'refunded' : 'partial_refund',
+                'refund_amount'   => $data['refund_amount'],
+                'refund_reason'   => $data['reason'],
+                'refunded_at'     => now(),
+                'refunded_by'     => $user->id,
+            ]);
+
+            // Hoàn tồn kho nếu refund toàn bộ
+            if ($data['refund_type'] === 'full') {
+                app(\App\Services\InventoryService::class)->restoreStockForOrder($order);
+                $order->update(['status' => 'cancelled']);
+            }
+
+            // Ghi audit log
+            \App\Models\AuditLog::create([
+                'restaurant_id' => $order->restaurant_id,
+                'user_id'       => $user->id,
+                'action'        => 'refund_processed',
+                'auditable_type'=> Order::class,
+                'auditable_id'  => $order->id,
+                'old_values'    => json_encode(['payment_status' => $oldPaymentStatus]),
+                'new_values'    => json_encode([
+                    'payment_status' => $order->payment_status,
+                    'refund_amount'  => $data['refund_amount'],
+                    'refund_reason'  => $data['reason'],
+                ]),
+                'ip_address'    => $request->ip(),
+            ]);
+        });
+
+        return back()->with('success', 'Đã xử lý hoàn tiền thành công. Nhật ký kiểm toán đã được ghi nhận.');
+    }
 }
+

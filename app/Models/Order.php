@@ -51,6 +51,7 @@ class Order extends Model
             'confirmed_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'refunded_at'  => 'datetime',
         ];
     }
 
@@ -87,6 +88,11 @@ class Order extends Model
     public function batchItems(): HasMany
     {
         return $this->hasMany(DeliveryBatchItem::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     protected static function newFactory(): Factory

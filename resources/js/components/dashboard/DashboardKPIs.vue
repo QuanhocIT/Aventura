@@ -11,7 +11,8 @@ import {
     Percent,
     Target
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useCountUp } from '@/composables/useCountUp';
 
 const props = defineProps<{
     stats: any;
@@ -40,6 +41,23 @@ function formatMoney(v: number): string {
 
     return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
 }
+
+// ── Count-up animated values ────────────────────────────────────
+const ordersRef    = computed(() => props.stats?.orders_today ?? 0);
+const completedRef = computed(() => props.stats?.orders_completed ?? 0);
+const productsRef  = computed(() => props.stats?.products_count ?? 0);
+const employeesRef = computed(() => props.stats?.employees_count ?? 0);
+const healthRef    = computed(() => props.healthScore ?? 0);
+
+const animOrders    = useCountUp(ordersRef);
+const animCompleted = useCountUp(completedRef);
+const animProducts  = useCountUp(productsRef);
+const animEmployees = useCountUp(employeesRef);
+const animHealth    = useCountUp(healthRef, 900);
+
+// Pulse trigger khi health score vừa load
+const healthLoaded = ref(false);
+watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { healthLoaded.value = true; }, 300); });
 </script>
 
 <template>
@@ -47,10 +65,10 @@ function formatMoney(v: number): string {
         <!-- Today's KPI row -->
         <div v-if="stats" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             <!-- Đơn hàng -->
-            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
+            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2 transition-all hover:shadow-sm">
                 <ShoppingCart class="size-4 text-violet-500 shrink-0" />
                 <div class="min-w-0">
-                    <p class="text-lg font-bold leading-none">{{ stats.orders_today }}</p>
+                    <p class="text-lg font-bold leading-none tabular-nums">{{ animOrders }}</p>
                     <p class="text-[10px] text-muted-foreground mt-0.5">Đơn hôm nay</p>
                 </div>
             </div>
@@ -74,11 +92,11 @@ function formatMoney(v: number): string {
                 </div>
             </div>
             <!-- Đơn hoàn thành + xu hướng -->
-            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
+            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2 transition-all hover:shadow-sm">
                 <CheckCircle2 class="size-4 text-sky-500 shrink-0" />
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1">
-                        <p class="text-lg font-bold leading-none">{{ stats.orders_completed }}</p>
+                        <p class="text-lg font-bold leading-none tabular-nums">{{ animCompleted }}</p>
                         <span v-if="stats.order_trend !== null"
                             :class="stats.order_trend >= 0 ? 'text-emerald-600' : 'text-rose-500'"
                             class="text-[9px] font-bold shrink-0 flex items-center gap-0.5"
@@ -91,18 +109,18 @@ function formatMoney(v: number): string {
                 </div>
             </div>
             <!-- Sản phẩm -->
-            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
+            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2 transition-all hover:shadow-sm">
                 <Package class="size-4 text-amber-500 shrink-0" />
                 <div>
-                    <p class="text-lg font-bold leading-none">{{ stats.products_count }}</p>
+                    <p class="text-lg font-bold leading-none tabular-nums">{{ animProducts }}</p>
                     <p class="text-[10px] text-muted-foreground mt-0.5">Sản phẩm</p>
                 </div>
             </div>
             <!-- Nhân viên -->
-            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2">
+            <div class="rounded-xl border border-border bg-background px-3 py-2.5 flex items-center gap-2 transition-all hover:shadow-sm">
                 <Users class="size-4 text-indigo-500 shrink-0" />
                 <div>
-                    <p class="text-lg font-bold leading-none">{{ stats.employees_count }}</p>
+                    <p class="text-lg font-bold leading-none tabular-nums">{{ animEmployees }}</p>
                     <p class="text-[10px] text-muted-foreground mt-0.5">Nhân viên</p>
                 </div>
             </div>
@@ -150,10 +168,16 @@ function formatMoney(v: number): string {
 
         <!-- Business Health Score -->
         <div v-if="healthScore !== null && healthScore !== undefined"
-            :class="['rounded-xl border px-4 py-3 flex items-center gap-4', healthScoreColor.bg]">
-            <div class="shrink-0">
-                <div :class="['text-3xl font-black', healthScoreColor.text]">{{ healthScore }}</div>
+            :class="['rounded-xl border px-4 py-3 flex items-center gap-4 transition-all duration-500', healthScoreColor.bg]">
+            <div class="relative shrink-0">
+                <div :class="['text-3xl font-black tabular-nums', healthScoreColor.text]">{{ animHealth }}</div>
                 <div class="text-[10px] text-muted-foreground">/ 100</div>
+                <!-- Pulse ring khi health score vừa load -->
+                <span
+                    v-if="healthLoaded"
+                    class="absolute -inset-1 rounded-full animate-ping opacity-20"
+                    :class="healthScoreColor.bar"
+                />
             </div>
             <div class="flex-1">
                 <div class="flex items-center justify-between mb-1">

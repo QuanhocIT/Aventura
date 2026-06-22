@@ -9,6 +9,13 @@ class OrderObserver
 {
     public function updated(Order $order): void
     {
+        if ($order->isDirty('status') && $order->status === 'completed') {
+            $order->loadMissing('customer');
+            if ($order->customer && !empty($order->customer->email)) {
+                \App\Jobs\SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+            }
+        }
+
         if ($order->isDirty('discount_amount')) {
             $oldDiscount = (float) $order->getOriginal('discount_amount');
             $newDiscount = (float) $order->discount_amount;

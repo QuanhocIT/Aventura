@@ -15,6 +15,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('restaurants:validate-activity')->dailyAt('23:00');
         $schedule->command('restaurants:calculate-health')->dailyAt('23:15');
         $schedule->command('tickets:check-sla')->everyFiveMinutes();
+        
+        $schedule->command('reservations:send-reminders')->everyThirtyMinutes();
+        $schedule->command('reservations:mark-no-shows')->everyFifteenMinutes();
+        $schedule->command('promotions:expire-outdated')->dailyAt('00:01');
+        $schedule->command('shifts:auto-close-expired')->dailyAt('23:45');
+        $schedule->command('kitchen:alert-overdue-orders')->everyFiveMinutes();
     }
 
     protected function commands(): void

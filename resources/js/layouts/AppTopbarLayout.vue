@@ -8,6 +8,7 @@ import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import Footer from '@/components/Footer.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
+import NotificationCenter from '@/components/NotificationCenter.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -65,6 +66,7 @@ const authNavItems = [
     { label: 'Sản phẩm', href: '/products' },
     { label: 'Kho', href: '/inventory' },
     { label: 'Nhân viên', href: '/employees' },
+    { label: 'Đặt bàn', href: '/reservations' },
     { label: 'Hỗ trợ', href: '/support' },
 ];
 
@@ -138,19 +140,8 @@ const handleLogout = () => {
             <div class="hidden items-center gap-2 md:flex">
                 <AppearanceToggleInline />
 
-                <!-- Flash notification indicator -->
-                <button
-                    v-if="user"
-                    class="relative rounded-md p-2 hover:bg-muted"
-                    :class="transparent ? 'text-white hover:bg-white/10' : 'text-muted-foreground hover:text-foreground'"
-                    aria-label="Thông báo"
-                >
-                    <Bell class="size-4" />
-                    <span
-                        v-if="hasFlash"
-                        class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
-                    />
-                </button>
+                <!-- Notification Center -->
+                <NotificationCenter v-if="user" />
 
                 <template v-if="!user">
                     <Button

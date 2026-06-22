@@ -98,17 +98,59 @@ class DashboardController extends Controller
                 'completion_rate'   => $completionRate,
             ]);
 
-            // ── Business Health Score (0–100) ────────────────────────────────
+            // ── Business Health Score nâng cao (0–100) ──────────────────────
+            // 7 chiều đánh giá: tài chính + vận hành + nhân sự + kho + NPS
             $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
             $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
+
+            // Điểm nhân sự: % nhân viên check-in đúng giờ hôm nay
+            $scheduledToday = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+                ->where('scheduled_date', today())->count();
+            $checkedInOnTime = $scheduledToday > 0
+                ? \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+                    ->where('scheduled_date', today())
+                    ->whereNotNull('check_in_at')
+                    ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.work_shift_id))'))
+                    ->count()
+                : null;
+            $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
+                ? min(100, ($checkedInOnTime / $scheduledToday) * 100)
+                : 75; // giá trị trung tính nếu chưa có ca hôm nay
+
+            // Điểm kho: % nguyên liệu có tồn kho > mức min
+            $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)->count();
+            $safeIngredients  = $totalIngredients > 0
+                ? \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+                    ->where('inventories.restaurant_id', $rid)
+                    ->whereRaw('inventories.quantity_on_hand > ingredients.min_stock_level')
+                    ->count()
+                : null;
+            $inventoryScore = $totalIngredients > 0 && $safeIngredients !== null
+                ? ($safeIngredients / $totalIngredients) * 100
+                : 80; // giá trị trung tính nếu chưa có dữ liệu kho
+
+            // Điểm NPS: lấy NPS 7 ngày gần nhất (scale 0–100 từ -100 đến +100)
+            $npsData = \App\Models\CustomerFeedback::where('restaurant_id', $rid)
+                ->where('created_at', '>=', now()->subDays(7))
+                ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
+                ->first();
+            $npsScore = $npsData && $npsData->cnt > 0
+                ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100)) // scale 1–5 thành 0–100
+                : 70; // giá trị trung tính
+
             $healthScore = (int) round(
                 min(100, max(0,
-                    ($completionRate       * 0.35) +
-                    (max(0, 100 - $cancellationRate * 4) * 0.20) +
-                    ($revenueGrowthScore   * 0.30) +
-                    (min(100, $profitMargin * 1.5) * 0.15)
+                    ($completionRate    * 0.25) +   // Tỉ lệ hoàn thành đơn
+                    (max(0, 100 - $cancellationRate * 4) * 0.15) + // Kiểm soát hủy đơn
+                    ($revenueGrowthScore * 0.20) +  // Tăng trưởng doanh thu
+                    (min(100, $profitMargin * 1.5) * 0.15) + // Biên lợi nhuận
+                    ($punctualityScore  * 0.10) +   // Chấm công đúng giờ
+                    ($inventoryScore    * 0.10) +   // Sức khỏe kho
+                    ($npsScore          * 0.05)     // Đánh giá khách hàng
                 ))
             );
+            // Lưu cache để Inertia defer không tính lại từ đầu
+            Cache::put("health_score:{$rid}", $healthScore, 60);
 
             // ── Dự báo doanh thu ngày mai ────────────────────────────────────
             $forecastData = $this->forecast->forecastTomorrow($rid);
@@ -338,6 +380,7 @@ class DashboardController extends Controller
             'channelChartData'     => $restaurant ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id)) : [],
             'topProductsChartData' => $restaurant ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id)) : [],
             'forecastData'         => $restaurant ? Inertia::defer(fn () => $this->getForecastData($restaurant->id)) : null,
+            // Health score đã được tính và cache trong index() — defer chỉ đọc cache, không query lại
             'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id)) : null,
             'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id)) : [],
             'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id)) : null,
@@ -436,12 +479,20 @@ class DashboardController extends Controller
 
     private function getHealthScore(int $rid): int
     {
-        $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
+        // Đọc từ cache đã lưu trong index() — tránh tái query toàn bộ DB
+        $cached = Cache::get("health_score:{$rid}");
+        if ($cached !== null) {
+            return (int) $cached;
+        }
+
+        // Fallback: tính lại nếu cache miss (ví dụ Defer chạy độc lập)
+        $todaySummary     = RestaurantRevenueSummary::where('restaurant_id', $rid)
             ->where('summary_date', today())->first();
         $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
             ->where('summary_date', today()->subDay())->first();
 
-        $ordersToday    = Order::where('restaurant_id', $rid)->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
+        $ordersToday    = Order::where('restaurant_id', $rid)
+            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
         $totalToday     = (clone $ordersToday)->count();
         $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
         $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
@@ -452,19 +503,16 @@ class DashboardController extends Controller
             ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
             : null;
 
-        $grossProfit = (float) ($todaySummary?->gross_profit ?? 0);
+        $grossProfit  = (float) ($todaySummary?->gross_profit ?? 0);
         $profitMargin = $revenueToday > 0
             ? round($grossProfit / $revenueToday * 100, 1)
             : 0.0;
 
-        $completionRate = $totalToday > 0
-            ? round($completedToday / $totalToday * 100, 1)
-            : 0.0;
-
+        $completionRate   = $totalToday > 0 ? round($completedToday / $totalToday * 100, 1) : 0.0;
         $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
         $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
 
-        return (int) round(
+        $score = (int) round(
             min(100, max(0,
                 ($completionRate       * 0.35) +
                 (max(0, 100 - $cancellationRate * 4) * 0.20) +
@@ -472,6 +520,10 @@ class DashboardController extends Controller
                 (min(100, $profitMargin * 1.5) * 0.15)
             ))
         );
+
+        Cache::put("health_score:{$rid}", $score, 60);
+
+        return $score;
     }
 
     private function getShiftRevenue(int $rid): array

@@ -22,6 +22,8 @@ class Inventory extends Model
     {
         return [
             'last_counted_at' => 'datetime',
+            'quantity_on_hand' => 'float',
+            'theoretical_quantity' => 'float',
         ];
     }
 
@@ -33,6 +35,31 @@ class Inventory extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(InventoryTransaction::class);
+    }
+
+    protected static function booted()
+    {
+        static::updated(function (Inventory $inventory) {
+            if ($inventory->wasChanged('quantity_on_hand')) {
+                try {
+                    $ingredient = Ingredient::withoutGlobalScopes()->find($inventory->ingredient_id);
+                    if ($ingredient && (float) $inventory->quantity_on_hand < (float) $ingredient->min_stock_level) {
+                        $restaurantId = $inventory->restaurant_id;
+                        
+                        $cooldown = \Illuminate\Support\Facades\Cache::has("low_stock_cooldown:{$restaurantId}");
+                        $pending  = \Illuminate\Support\Facades\Cache::has("low_stock_pending:{$restaurantId}");
+
+                        if (!$cooldown && !$pending) {
+                            \Illuminate\Support\Facades\Cache::put("low_stock_pending:{$restaurantId}", true, 1800);
+                            \App\Jobs\SendLowStockAlertEmail::dispatch($restaurantId)->delay(now()->addMinutes(30));
+                            \Illuminate\Support\Facades\Log::info("InventoryObserver: Dispatched SendLowStockAlertEmail with 30m delay for restaurant {$restaurantId}");
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error("InventoryObserver error: " . $e->getMessage());
+                }
+            }
+        });
     }
 
     protected static function newFactory(): Factory

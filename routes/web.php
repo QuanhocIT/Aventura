@@ -191,7 +191,17 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('orders/{order}', [\App\Http\Controllers\OrdersController::class, 'update'])->name('orders.update');
     Route::post('orders/{order}/pay', [\App\Http\Controllers\OrdersController::class, 'pay'])->name('orders.pay');
     Route::post('orders/{order}/confirm-qr', [\App\Http\Controllers\OrdersController::class, 'confirmQr'])->name('orders.confirm-qr');
+    Route::post('orders/{order}/refund', [\App\Http\Controllers\OrdersController::class, 'refund'])->name('orders.refund');
     Route::post('settings/toggle-auto-pay', [\App\Http\Controllers\OrdersController::class, 'toggleAutoPaySetting'])->name('settings.toggle-auto-pay');
+
+    // ── Đặt Bàn Trước (Table Reservations) ──────────────────────────────────
+    Route::prefix('reservations')->name('reservations.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\TableReservationController::class, 'index'])->name('index');
+        Route::post('{reservation}/confirm', [\App\Http\Controllers\TableReservationController::class, 'confirm'])->name('confirm');
+        Route::post('{reservation}/seat', [\App\Http\Controllers\TableReservationController::class, 'seat'])->name('seat');
+        Route::post('{reservation}/cancel', [\App\Http\Controllers\TableReservationController::class, 'cancel'])->name('cancel');
+        Route::post('{reservation}/no-show', [\App\Http\Controllers\TableReservationController::class, 'noShow'])->name('no-show');
+    });
 
     // Audit Logs (Owner & Manager — chỉ xem log của nhà hàng mình)
     Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
@@ -341,7 +351,10 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::post('api/customer/track-behavior', [\App\Http\Controllers\CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
     Route::get('api/orders/{order}/payment-qr', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
     Route::get('api/orders/{order}/payment-status', [\App\Http\Controllers\OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');
-    
+
+    // Public đặt bàn trước (khách quét QR đặt bàn)
+    Route::post('r/{restaurantId}/reservations', [\App\Http\Controllers\TableReservationController::class, 'publicStore'])->name('reservations.public-store');
+
     // Member Dashboard, Loyalty & Reservation Portal Routes
     Route::get('customer/portal/dashboard/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'showDashboard'])->name('customer.portal.dashboard');
     Route::post('customer/portal/redeem/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'redeemReward'])->name('customer.portal.redeem');
