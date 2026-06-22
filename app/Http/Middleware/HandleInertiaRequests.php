@@ -119,6 +119,10 @@ class HandleInertiaRequests extends Middleware
                 'temp_password' => $request->session()->get('temp_password'),
             ],
             'service_maintenance' => json_decode(@file_get_contents(storage_path('framework/service-maintenance.json')), true) ?: [],
+            'upcoming_maintenance' => \App\Models\SystemMaintenanceSchedule::whereIn('status', ['scheduled', 'active'])
+                ->where('downtime_start', '<=', now()->addHours(24))
+                ->where('downtime_end', '>', now())
+                ->first()?->only(['title', 'downtime_start', 'downtime_end', 'banner_message', 'status', 'services']),
         ];
     }
 }
