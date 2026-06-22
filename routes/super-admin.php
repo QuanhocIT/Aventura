@@ -14,12 +14,19 @@ use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
 use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 use App\Http\Controllers\SuperAdmin\ChurnController;
+use App\Http\Controllers\SuperAdmin\RestaurantCrmController;
+use App\Http\Controllers\SuperAdmin\GlobalSearchController;
+use App\Http\Controllers\SuperAdmin\MaintenanceScheduleController;
 
 
 Route::prefix('super-admin')
     ->name('superadmin.')
     ->middleware(['auth', 'verified', 'permission.cache.clear', 'role:super_admin', 'role.superadmin.2fa'])
     ->group(function () {
+        Route::get('global-search', [GlobalSearchController::class, 'search'])->name('global-search');
+        Route::get('maintenance-schedules', [MaintenanceScheduleController::class, 'index'])->name('maintenance-schedules.index');
+        Route::post('maintenance-schedules', [MaintenanceScheduleController::class, 'store'])->name('maintenance-schedules.store');
+        Route::delete('maintenance-schedules/{schedule}', [MaintenanceScheduleController::class, 'destroy'])->name('maintenance-schedules.destroy');
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('dashboard/segments/{segment}', [DashboardController::class, 'segmentRestaurants'])->name('dashboard.segments');
         Route::get('dashboard/export/csv', [DashboardController::class, 'exportCsv'])->name('dashboard.export.csv');
@@ -31,7 +38,19 @@ Route::prefix('super-admin')
         Route::get('billing/invoices/{invoice}/download', [BillingController::class, 'downloadInvoice'])->name('billing.invoices.download');
         Route::post('billing/invoices/{invoice}/resend', [BillingController::class, 'resendInvoice'])->name('billing.invoices.resend');
         Route::post('billing/invoices/{invoice}/regenerate', [BillingController::class, 'regenerateInvoice'])->name('billing.invoices.regenerate');
+        Route::patch('billing/invoices/{invoice}/write-off', [BillingController::class, 'writeOffInvoice'])->name('billing.invoices.write-off');
         Route::post('billing/webhooks/{webhook}/retry', [BillingController::class, 'retryWebhook'])->name('billing.webhooks.retry');
+        // Financial Ledger (Sổ Cái)
+        Route::get('billing/ledger', [BillingController::class, 'ledger'])->name('billing.ledger');
+        Route::get('billing/ledger/export', [BillingController::class, 'ledgerExport'])->name('billing.ledger.export');
+        // Revenue Recognition
+        Route::get('billing/revenue-recognition', [BillingController::class, 'revenueRecognition'])->name('billing.revenue-recognition');
+        // Dunning Dashboard
+        Route::get('billing/dunning', [BillingController::class, 'dunning'])->name('billing.dunning');
+        Route::post('billing/dunning/{subscription}/send', [BillingController::class, 'sendDunning'])->name('billing.dunning.send');
+        Route::post('billing/dunning/{subscription}/pause', [BillingController::class, 'pauseDunning'])->name('billing.dunning.pause');
+        // Lifecycle Analytics
+        Route::get('billing/lifecycle', [BillingController::class, 'lifecycle'])->name('billing.lifecycle');
 
         Route::get('coupons', [CouponController::class, 'index'])->name('coupons.index');
         Route::post('coupons', [CouponController::class, 'store'])->name('coupons.store');
@@ -50,6 +69,14 @@ Route::prefix('super-admin')
         Route::patch('restaurants/{restaurant}/storage-quota', [RestaurantController::class, 'updateStorageQuota'])->name('restaurants.storage-quota');
         Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
         Route::post('restaurants/{restaurant}/custom-plan', [CustomPlanBuilderController::class, 'store'])->name('restaurants.custom-plan.store');
+
+        // Restaurant CRM
+        Route::post('restaurants/{restaurant}/notes', [RestaurantCrmController::class, 'storeNote'])->name('restaurants.notes.store');
+        Route::delete('restaurants/{restaurant}/notes/{note}', [RestaurantCrmController::class, 'destroyNote'])->name('restaurants.notes.destroy');
+        Route::post('restaurants/{restaurant}/tags', [RestaurantCrmController::class, 'storeTag'])->name('restaurants.tags.store');
+        Route::delete('restaurants/{restaurant}/tags/{tag}', [RestaurantCrmController::class, 'destroyTag'])->name('restaurants.tags.destroy');
+        Route::post('restaurants/{restaurant}/followups', [RestaurantCrmController::class, 'storeFollowup'])->name('restaurants.followups.store');
+        Route::patch('restaurants/{restaurant}/followups/{followup}/complete', [RestaurantCrmController::class, 'completeFollowup'])->name('restaurants.followups.complete');
 
         // Garbage Collector UI
         Route::get('garbage-collector', [\App\Http\Controllers\SuperAdmin\GarbageCollectorController::class, 'index'])->name('garbage-collector.index');

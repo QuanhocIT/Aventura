@@ -72,6 +72,21 @@ class Restaurant extends Model
         return $this->belongsTo(SubscriptionPlan::class, 'plan_id');
     }
 
+    public function internalNotes(): HasMany
+    {
+        return $this->hasMany(RestaurantInternalNote::class)->latest();
+    }
+
+    public function tags(): HasMany
+    {
+        return $this->hasMany(RestaurantTag::class);
+    }
+
+    public function followups(): HasMany
+    {
+        return $this->hasMany(RestaurantFollowup::class)->latest();
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_user_id');

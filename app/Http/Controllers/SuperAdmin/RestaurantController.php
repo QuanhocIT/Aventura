@@ -157,6 +157,97 @@ class RestaurantController extends Controller
             'revenue' => (float) \App\Models\Payment::where('restaurant_id', $restaurant->id)->where('status', 'paid')->whereDate('paid_at', $today)->sum('amount'),
         ];
 
+        // CRM data
+        $crmNotes = $restaurant->internalNotes()
+            ->with('user:id,name')
+            ->latest()
+            ->get()
+            ->map(fn($n) => [
+                'id' => $n->id,
+                'note' => $n->note,
+                'created_at' => $n->created_at->format('d/m/Y H:i'),
+                'user' => [
+                    'name' => $n->user?->name ?? 'Admin',
+                ]
+            ]);
+
+        $crmTags = $restaurant->tags()->get()->map(fn($t) => [
+            'id' => $t->id,
+            'name' => $t->name,
+            'color' => $t->color,
+        ]);
+
+        $crmFollowups = $restaurant->followups()
+            ->with('assignedUser:id,name')
+            ->latest()
+            ->get()
+            ->map(fn($f) => [
+                'id' => $f->id,
+                'note' => $f->note,
+                'remind_at' => $f->remind_at->format('d/m/Y H:i'),
+                'status' => $f->status,
+                'assigned_user' => [
+                    'name' => $f->assignedUser?->name ?? 'Chương trình',
+                ]
+            ]);
+
+        $admins = \App\Models\User::whereHas('roles', function($q) {
+            $q->whereIn('name', ['super_admin', 'admin']);
+        })->get(['id', 'name']);
+
+        // Activity Timeline
+        $activityTimeline = \App\Models\AuditLog::where('restaurant_id', $restaurant->id)
+            ->with('user:id,name')
+            ->latest()
+            ->take(15)
+            ->get()
+            ->map(fn($l) => [
+                'id' => $l->id,
+                'event' => $l->event,
+                'action' => $l->action,
+                'user_name' => $l->user?->name ?? 'Hệ thống',
+                'created_at' => $l->created_at->format('d/m/Y H:i'),
+            ]);
+
+        // Anomaly alerts
+        $ordersToday = \App\Models\Order::where('restaurant_id', $restaurant->id)->whereDate('created_at', today())->count();
+        $orders7dAvg = \App\Models\Order::where('restaurant_id', $restaurant->id)
+            ->where('created_at', '>=', now()->subDays(7)->startOfDay())
+            ->where('created_at', '<', today())
+            ->count() / 7;
+        
+        $orders12h = \App\Models\Order::where('restaurant_id', $restaurant->id)
+            ->where('created_at', '>=', now()->subHours(12))
+            ->count();
+
+        $anomalies = [];
+        if ($restaurant->status === 'active' && $orders12h === 0) {
+            $anomalies[] = [
+                'type' => 'no_orders_12h',
+                'severity' => 'warning',
+                'title' => 'Không phát sinh đơn hàng mới',
+                'message' => 'Hệ thống ghi nhận không có đơn hàng nào trong 12 giờ gần nhất mặc dù trạng thái nhà hàng là Hoạt động.',
+            ];
+        }
+
+        if ($orders7dAvg > 3 && $ordersToday < ($orders7dAvg * 0.5)) {
+            $anomalies[] = [
+                'type' => 'revenue_drop',
+                'severity' => 'danger',
+                'title' => 'Đơn hàng sụt giảm mạnh',
+                'message' => sprintf('Số lượng đơn hàng hôm nay (%d đơn) giảm hơn 50%% so với trung bình 7 ngày qua (%.1f đơn/ngày).', $ordersToday, $orders7dAvg),
+            ];
+        }
+
+        // Feature usage map
+        $featuresMap = [
+            'menu' => \App\Models\Product::where('restaurant_id', $restaurant->id)->exists(),
+            'ordering' => \App\Models\Order::where('restaurant_id', $restaurant->id)->exists(),
+            'shifts' => \App\Models\WorkShift::where('restaurant_id', $restaurant->id)->exists(),
+            'reservations' => \App\Models\TableReservation::where('restaurant_id', $restaurant->id)->exists(),
+            'chatbot' => \App\Models\ChatbotSession::where('restaurant_id', $restaurant->id)->exists(),
+        ];
+
         return Inertia::render('super-admin/restaurants/Show', [
             'restaurant' => [
                 'id'           => $restaurant->id,
@@ -195,6 +286,13 @@ class RestaurantController extends Controller
             'adjustments' => $adjustments,
             'webhooks' => $webhooks,
             'plans'         => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
+            'crm_notes'     => $crmNotes,
+            'crm_tags'      => $crmTags,
+            'crm_followups' => $crmFollowups,
+            'admins'        => $admins,
+            'activity_timeline' => $activityTimeline,
+            'anomalies'     => $anomalies,
+            'features_map'  => $featuresMap,
         ]);
     }
 

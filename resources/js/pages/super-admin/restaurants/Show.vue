@@ -16,6 +16,14 @@ import {
     Activity,
     AlertTriangle,
     HardDrive,
+    Tag,
+    Calendar,
+    Trash2,
+    CheckCircle2,
+    Plus,
+    Clock,
+    Info,
+    MessageSquare,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -52,6 +60,13 @@ const props = defineProps<{
     adjustments: Array<{ id: number; type: string; days: number; discount_amount: string; reason: string; created_at: string; creator: string }>;
     webhooks: Array<{ id: number; provider: string; status: string; event_type: string; transaction_code: string; processed_at: string }>;
     plans: Array<{ id: number; code: string; name: string }>;
+    crm_notes: Array<{ id: number; note: string; created_at: string; user: { name: string } }>;
+    crm_tags: Array<{ id: number; name: string; color: string }>;
+    crm_followups: Array<{ id: number; note: string; remind_at: string; status: string; assigned_user: { name: string } }>;
+    admins: Array<{ id: number; name: string }>;
+    activity_timeline: Array<{ id: number; event: string; action: string; user_name: string; created_at: string }>;
+    anomalies: Array<{ type: string; severity: string; title: string; message: string }>;
+    features_map: { menu: boolean; ordering: boolean; shifts: boolean; reservations: boolean; chatbot: boolean };
 }>();
 
 const statusForm = useForm({ status: props.restaurant.status, reason: '' });
@@ -293,6 +308,68 @@ function openSubsDialog() {
     showSubsDialog.value = true;
     loadSubsHistory(1);
 }
+
+// CRM - Notes
+const noteForm = useForm({ note: '' });
+function addNote() {
+    noteForm.post(`/super-admin/restaurants/${props.restaurant.id}/notes`, {
+        preserveScroll: true,
+        onSuccess: () => noteForm.reset()
+    });
+}
+function deleteNote(noteId: number) {
+    if (confirm('Bạn có chắc chắn muốn xóa ghi chú này?')) {
+        router.delete(`/super-admin/restaurants/${props.restaurant.id}/notes/${noteId}`, {
+            preserveScroll: true
+        });
+    }
+}
+
+// CRM - Tags
+const tagForm = useForm({ name: '', color: 'slate' });
+const tagPresets = [
+    { name: 'VIP', color: 'amber' },
+    { name: 'At Risk', color: 'rose' },
+    { name: 'Referral', color: 'emerald' },
+    { name: 'Chăm sóc', color: 'blue' }
+];
+function addTag(name: string, color: string) {
+    tagForm.name = name;
+    tagForm.color = color;
+    tagForm.post(`/super-admin/restaurants/${props.restaurant.id}/tags`, {
+        preserveScroll: true
+    });
+}
+function removeTag(tagId: number) {
+    if (confirm('Bạn có chắc chắn muốn gỡ nhãn này?')) {
+        router.delete(`/super-admin/restaurants/${props.restaurant.id}/tags/${tagId}`, {
+            preserveScroll: true
+        });
+    }
+}
+
+// CRM - Followups
+const followupForm = useForm({ note: '', remind_at: '', assigned_to: '' });
+function addFollowup() {
+    followupForm.post(`/super-admin/restaurants/${props.restaurant.id}/followups`, {
+        preserveScroll: true,
+        onSuccess: () => followupForm.reset()
+    });
+}
+function markFollowupComplete(followupId: number) {
+    router.patch(`/super-admin/restaurants/${props.restaurant.id}/followups/${followupId}/complete`, {}, {
+        preserveScroll: true
+    });
+}
+
+// Helpers
+const tagBgColors: Record<string, string> = {
+    amber: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50',
+    rose: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50',
+    emerald: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50',
+    blue: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50',
+    slate: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-950/40 dark:text-slate-300 dark:border-slate-900/50',
+};
 </script>
 
 <template>
@@ -306,6 +383,17 @@ function openSubsDialog() {
             <div class="flex-1">
                 <h1 class="text-2xl font-bold tracking-tight">{{ restaurant.name }}</h1>
                 <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} · Billing Center</p>
+                <div class="mt-2 flex flex-wrap gap-2 items-center">
+                    <span v-for="tag in crm_tags" :key="tag.id" :class="['inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm transition-all', tagBgColors[tag.color] || tagBgColors.slate]">
+                        <Tag class="size-3" />
+                        {{ tag.name }}
+                        <button type="button" @click="removeTag(tag.id)" class="hover:text-rose-500 font-bold focus:outline-none ml-1 leading-none">&times;</button>
+                    </span>
+                    <span class="text-[10px] text-muted-foreground uppercase font-black tracking-wider self-center">Gắn nhãn:</span>
+                    <button v-for="preset in tagPresets" :key="preset.name" @click="addTag(preset.name, preset.color)" class="inline-flex items-center gap-1 rounded-full border border-border/75 px-2 py-0.5 text-[10px] font-semibold hover:bg-muted transition-colors">
+                        <Plus class="size-2.5" /> {{ preset.name }}
+                    </button>
+                </div>
             </div>
             <Button
                 v-if="restaurant.owner && restaurant.owner.id"
@@ -319,6 +407,17 @@ function openSubsDialog() {
             <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status] || 'bg-slate-100 text-slate-800']">
                 {{ statusLabel[restaurant.status] ?? restaurant.status }}
             </span>
+        </div>
+
+        <!-- Anomaly Alerts Banner -->
+        <div v-if="anomalies && anomalies.length > 0" class="flex flex-col gap-3">
+            <div v-for="anomaly in anomalies" :key="anomaly.type" :class="['flex items-start gap-3 rounded-xl border p-4 text-sm shadow-sm transition-all', anomaly.severity === 'danger' ? 'bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-300' : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-300']">
+                <AlertTriangle class="size-5 shrink-0 animate-bounce mt-0.5" />
+                <div>
+                    <h4 class="font-bold text-base leading-none mb-1">{{ anomaly.title }}</h4>
+                    <p class="text-sm opacity-90 font-medium">{{ anomaly.message }}</p>
+                </div>
+            </div>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[1.5fr,0.9fr]">
@@ -359,6 +458,129 @@ function openSubsDialog() {
                                 <div v-if="!res.unlimited" :class="['h-full rounded-full transition-all', barColor(res.percentage, res.can_add)]" :style="{ width: `${res.percentage}%` }" />
                                 <div v-else class="h-full w-full rounded-full bg-emerald-500/30" />
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Feature Adoption Map -->
+                <Card>
+                    <CardHeader class="pb-3">
+                        <CardTitle class="flex items-center gap-2 text-base">
+                            <Activity class="size-4.5 text-indigo-500" /> Bản đồ độ phủ tính năng (Feature Adoption)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="grid gap-3 grid-cols-2 sm:grid-cols-5 text-center text-xs">
+                        <div v-for="(active, feat) in features_map" :key="feat" :class="['rounded-xl border p-3 flex flex-col items-center gap-2 transition-all shadow-sm', active ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300' : 'bg-slate-50 border-border/70 text-muted-foreground dark:bg-slate-900/20']">
+                            <span class="text-xl">{{ feat === 'menu' ? '🍔' : feat === 'ordering' ? '📦' : feat === 'shifts' ? '📅' : feat === 'reservations' ? '🛎️' : '🤖' }}</span>
+                            <span class="font-semibold">{{ feat === 'menu' ? 'Thực đơn' : feat === 'ordering' ? 'Đơn hàng' : feat === 'shifts' ? 'Ca làm việc' : feat === 'reservations' ? 'Đặt bàn' : 'Chatbot AI' }}</span>
+                            <span :class="['rounded-full px-2 py-0.5 text-[10px] font-bold', active ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400']">
+                                {{ active ? 'Đang dùng' : 'Chưa dùng' }}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- CRM Ghi chú & Lịch hẹn chăm sóc -->
+                <div class="grid gap-6 md:grid-cols-2">
+                    <!-- CRM Ghi chú -->
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base text-sky-600 dark:text-sky-400">
+                                <MessageSquare class="size-4.5" /> Ghi chú nội bộ (SuperAdmin Notes)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-4">
+                            <form @submit.prevent="addNote" class="flex gap-2">
+                                <Input v-model="noteForm.note" placeholder="Thêm ghi chú nội bộ về nhà hàng..." required class="flex-1 bg-background text-sm border-border rounded-xl" />
+                                <Button type="submit" size="sm" :disabled="noteForm.processing" class="shrink-0 bg-sky-600 hover:bg-sky-700 rounded-xl">Lưu</Button>
+                            </form>
+                            
+                            <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                <div v-for="n in crm_notes" :key="n.id" class="rounded-xl border border-border/70 p-3 bg-muted/30 relative group">
+                                    <p class="text-sm text-foreground pr-6">{{ n.note }}</p>
+                                    <div class="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                        <span>Bởi: <strong>{{ n.user.name }}</strong></span>
+                                        <span>{{ n.created_at }}</span>
+                                    </div>
+                                    <button @click="deleteNote(n.id)" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-700 transition-opacity">
+                                        <Trash2 class="size-3.5" />
+                                    </button>
+                                </div>
+                                <p v-if="!crm_notes.length" class="py-8 text-center text-xs text-muted-foreground">Chưa có ghi chú nội bộ nào.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- CRM Lịch hẹn chăm sóc -->
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base text-violet-600 dark:text-violet-400">
+                                <Calendar class="size-4.5" /> Lịch hẹn chăm sóc (Follow-ups)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-4">
+                            <form @submit.prevent="addFollowup" class="space-y-3 p-3 border rounded-xl bg-muted/20">
+                                <div class="grid gap-2">
+                                    <Input v-model="followupForm.note" placeholder="Nội dung hẹn gọi lại..." required class="text-xs bg-background border-border" />
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-[10px] text-muted-foreground">Ngày nhắc:</label>
+                                        <Input type="datetime-local" v-model="followupForm.remind_at" required class="text-xs bg-background border-border h-8 py-0 px-2" />
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-muted-foreground">Người xử lý:</label>
+                                        <select v-model="followupForm.assigned_to" required class="w-full text-xs h-8 rounded-md border border-border bg-background px-2">
+                                            <option value="">Chọn Admin...</option>
+                                            <option v-for="adm in admins" :key="adm.id" :value="adm.id">{{ adm.name }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <Button type="submit" size="sm" :disabled="followupForm.processing" class="w-full text-xs bg-violet-600 hover:bg-violet-700 h-8 rounded-lg">Đặt lịch</Button>
+                            </form>
+
+                            <div class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                <div v-for="f in crm_followups" :key="f.id" class="rounded-xl border border-border/70 p-3 flex justify-between items-start gap-2 bg-muted/30">
+                                    <div class="flex-1 space-y-1">
+                                        <p :class="['text-xs font-medium', f.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground']">{{ f.note }}</p>
+                                        <div class="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                                            <span class="flex items-center gap-1"><Clock class="size-2.5" /> {{ f.remind_at }}</span>
+                                            <span>Nhận việc: <strong>{{ f.assigned_user.name }}</strong></span>
+                                        </div>
+                                    </div>
+                                    <span v-if="f.status === 'completed'" class="rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 px-2 py-0.5 shrink-0 border border-emerald-200/50">Xong</span>
+                                    <Button v-else @click="markFollowupComplete(f.id)" size="sm" variant="ghost" class="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100 rounded-full shrink-0">
+                                        <CheckCircle2 class="size-4" />
+                                    </Button>
+                                </div>
+                                <p v-if="!crm_followups.length" class="py-8 text-center text-xs text-muted-foreground">Chưa có lịch chăm sóc nào.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Activity Timeline -->
+                <Card>
+                    <CardHeader class="pb-3">
+                        <CardTitle class="flex items-center gap-2 text-base">
+                            <Clock class="size-4.5 text-blue-500" /> Dòng thời gian hoạt động thực tế (Activity Feed)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="space-y-4">
+                        <div class="relative pl-6 border-l border-border space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                            <div v-for="log in activity_timeline" :key="log.id" class="relative">
+                                <!-- dot -->
+                                <div class="absolute -left-[30px] top-1 bg-background border-2 border-blue-500 size-3 rounded-full" />
+                                <div class="flex items-start justify-between gap-3 text-xs">
+                                    <div>
+                                        <span class="font-semibold text-foreground mr-1.5">{{ log.user_name }}</span>
+                                        <span class="text-muted-foreground">đã thực hiện</span>
+                                        <span class="ml-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-100 font-mono text-[10px] dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">{{ log.action }}</span>
+                                    </div>
+                                    <span class="text-muted-foreground shrink-0">{{ log.created_at }}</span>
+                                </div>
+                            </div>
+                            <p v-if="!activity_timeline.length" class="py-8 text-center text-xs text-muted-foreground">Không ghi nhận hoạt động nào gần đây.</p>
                         </div>
                     </CardContent>
                 </Card>
