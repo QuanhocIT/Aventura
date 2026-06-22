@@ -5,18 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\NewsPost;
 use App\Models\Order;
 use App\Models\RestaurantRevenueSummary;
+use App\Models\ViolationReport;
 use App\Services\ForecastService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class DashboardController extends Controller
 {
     public function __construct(private ForecastService $forecast) {}
 
-    public function index(): mixed
+    public function index(Request $request): mixed
     {
-        $user       = auth()->user();
+        $user       = $request->user();
         $restaurant = $user?->restaurant;
 
         if ($user && $user->can('manage_kitchen') && !$user->can('view_report')) {
@@ -25,6 +26,19 @@ class DashboardController extends Controller
 
         if ($user && $user->can('create_orders') && !$user->can('view_report')) {
             return app(CashierDashboardController::class)->index();
+        }
+
+        $branchId = $request->query('branch_id');
+        if ($branchId === 'all' || $branchId === '') {
+            $branchId = null;
+        } elseif ($branchId !== null) {
+            $branchId = (int) $branchId;
+        }
+
+        // Restrict non-owners to their assigned branch if employee profile exists
+        $employee = \App\Models\Employee::where('user_id', $user->id)->first();
+        if ($employee && $employee->branch_id && !$user->hasRole('owner')) {
+            $branchId = $employee->branch_id;
         }
 
         $stats        = null;
@@ -40,16 +54,38 @@ class DashboardController extends Controller
         $healthScore   = null;
         $shiftRevenue  = [];
         $ownerSummary  = null;
+        $branches      = [];
+        $branchComparisons = [];
 
         if ($restaurant) {
             $rid = $restaurant->id;
 
-            $todaySummary    = RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->where('summary_date', today())->first();
-            $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->where('summary_date', today()->subDay())->first();
+            $branches = $restaurant->branches()->get(['id', 'name'])->toArray();
 
-            $ordersToday    = Order::where('restaurant_id', $rid)->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
+            // Today summary & Yesterday summary for active branch/consolidated
+            $todaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('summary_date', today())
+                ->where('summary_type', 'daily');
+
+            $yesterdaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('summary_date', today()->subDay())
+                ->where('summary_type', 'daily');
+
+            if ($branchId) {
+                $todaySummaryQuery->where('branch_id', $branchId);
+                $yesterdaySummaryQuery->where('branch_id', $branchId);
+            } else {
+                $todaySummaryQuery->whereNull('branch_id');
+                $yesterdaySummaryQuery->whereNull('branch_id');
+            }
+
+            $todaySummary = $todaySummaryQuery->first();
+            $yesterdaySummary = $yesterdaySummaryQuery->first();
+
+            $ordersToday = Order::where('restaurant_id', $rid)
+                ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId));
+
             $totalToday     = (clone $ordersToday)->count();
             $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
             $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
@@ -76,13 +112,14 @@ class DashboardController extends Controller
                 ? round($completedToday / $totalToday * 100, 1)
                 : 0.0;
 
-            // Cache resource counts (thay đổi ít, không cần query mỗi request)
-            $resourceCounts = Cache::remember("dashboard_counts:{$rid}", 300, function () use ($restaurant) {
+            // Cache resource counts per branch or consolidated
+            $cacheSuffix = $branchId ? ":{$branchId}" : "";
+            $resourceCounts = Cache::remember("dashboard_counts:{$rid}{$cacheSuffix}", 300, function () use ($restaurant, $branchId) {
                 return [
-                    'products_count'  => $restaurant->products()->count(),
-                    'employees_count' => $restaurant->employees()->where('status', 'active')->count(),
+                    'products_count'  => $restaurant->products()->when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
+                    'employees_count' => $restaurant->employees()->where('status', 'active')->when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
                     'branches_count'  => $restaurant->branches()->count(),
-                    'tables_count'    => $restaurant->tables()->count(),
+                    'tables_count'    => $restaurant->tables()->when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
                 ];
             });
 
@@ -91,77 +128,26 @@ class DashboardController extends Controller
                 'revenue_today'     => $revenueToday,
                 'orders_completed'  => $completedToday,
                 'orders_cancelled'  => $cancelledToday,
-                // Xu hướng + chỉ số bổ sung
                 'revenue_trend'     => $revTrend,
                 'order_trend'       => $orderTrend,
                 'profit_margin_today' => $profitMargin,
                 'completion_rate'   => $completionRate,
             ]);
 
-            // ── Business Health Score nâng cao (0–100) ──────────────────────
-            // 7 chiều đánh giá: tài chính + vận hành + nhân sự + kho + NPS
-            $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
-            $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
-
-            // Điểm nhân sự: % nhân viên check-in đúng giờ hôm nay
-            $scheduledToday = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
-                ->where('scheduled_date', today())->count();
-            $checkedInOnTime = $scheduledToday > 0
-                ? \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
-                    ->where('scheduled_date', today())
-                    ->whereNotNull('check_in_at')
-                    ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.work_shift_id))'))
-                    ->count()
-                : null;
-            $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
-                ? min(100, ($checkedInOnTime / $scheduledToday) * 100)
-                : 75; // giá trị trung tính nếu chưa có ca hôm nay
-
-            // Điểm kho: % nguyên liệu có tồn kho > mức min
-            $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)->count();
-            $safeIngredients  = $totalIngredients > 0
-                ? \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                    ->where('inventories.restaurant_id', $rid)
-                    ->whereRaw('inventories.quantity_on_hand > ingredients.min_stock_level')
-                    ->count()
-                : null;
-            $inventoryScore = $totalIngredients > 0 && $safeIngredients !== null
-                ? ($safeIngredients / $totalIngredients) * 100
-                : 80; // giá trị trung tính nếu chưa có dữ liệu kho
-
-            // Điểm NPS: lấy NPS 7 ngày gần nhất (scale 0–100 từ -100 đến +100)
-            $npsData = \App\Models\CustomerFeedback::where('restaurant_id', $rid)
-                ->where('created_at', '>=', now()->subDays(7))
-                ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
-                ->first();
-            $npsScore = $npsData && $npsData->cnt > 0
-                ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100)) // scale 1–5 thành 0–100
-                : 70; // giá trị trung tính
-
-            $healthScore = (int) round(
-                min(100, max(0,
-                    ($completionRate    * 0.25) +   // Tỉ lệ hoàn thành đơn
-                    (max(0, 100 - $cancellationRate * 4) * 0.15) + // Kiểm soát hủy đơn
-                    ($revenueGrowthScore * 0.20) +  // Tăng trưởng doanh thu
-                    (min(100, $profitMargin * 1.5) * 0.15) + // Biên lợi nhuận
-                    ($punctualityScore  * 0.10) +   // Chấm công đúng giờ
-                    ($inventoryScore    * 0.10) +   // Sức khỏe kho
-                    ($npsScore          * 0.05)     // Đánh giá khách hàng
-                ))
-            );
-            // Lưu cache để Inertia defer không tính lại từ đầu
-            Cache::put("health_score:{$rid}", $healthScore, 60);
+            // Compute health score dynamically
+            $healthScore = $this->calculateBranchHealthScore($rid, $branchId);
+            Cache::put("health_score:{$rid}{$cacheSuffix}", $healthScore, 60);
 
             // ── Dự báo doanh thu ngày mai ────────────────────────────────────
-            $forecastData = $this->forecast->forecastTomorrow($rid);
-
-            // Các dữ liệu biểu đồ và thống kê nặng đã được bóc tách và tải chậm (Inertia Defer)
+            $forecastData = $this->forecast->forecastTomorrow($rid, $branchId);
 
             // ── AI Cảnh báo mới ──────────────────────────────────────────────
             // Alert 1: Pending > 30 phút
             $stuckPending = Order::where('restaurant_id', $rid)
                 ->where('status', 'pending')
-                ->where('created_at', '<', now()->subMinutes(30))->count();
+                ->where('created_at', '<', now()->subMinutes(30))
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->count();
             if ($stuckPending > 0) {
                 $alerts[] = [
                     'type'    => 'warning',
@@ -183,7 +169,9 @@ class DashboardController extends Controller
             // Alert 3: Đơn đang chế biến lâu
             $stuckProcessing = Order::where('restaurant_id', $rid)
                 ->whereIn('status', ['confirmed', 'preparing'])
-                ->where('updated_at', '<', now()->subHour())->count();
+                ->where('updated_at', '<', now()->subHour())
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->count();
             if ($stuckProcessing > 0) {
                 $alerts[] = [
                     'type'    => 'info',
@@ -212,6 +200,9 @@ class DashboardController extends Controller
                 ->where('scheduled_date', today())
                 ->where('status', 'scheduled')
                 ->whereHas('shift', fn ($q) => $q->where('start_time', '<=', now()->format('H:i:s')))
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+                })
                 ->count();
             if ($missingCheckIns > 0) {
                 $alerts[] = [
@@ -226,6 +217,7 @@ class DashboardController extends Controller
             $splitAlertsCount = Order::where('restaurant_id', $rid)
                 ->where('is_split', true)
                 ->where('is_red_flagged', true)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->count();
             if ($splitAlertsCount > 0) {
                 $alerts[] = [
@@ -235,12 +227,14 @@ class DashboardController extends Controller
                 ];
             }
 
-
-
             // ── Activity Feed ────────────────────────────────────────────────
             $feedItems = [];
             $ordersForFeed = Order::with('table')
-                ->where('restaurant_id', $rid)->latest()->take(8)->get();
+                ->where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->latest()
+                ->take(8)
+                ->get();
 
             $channelLabels = [
                 'dine_in' => 'Tại bàn', 'takeaway' => 'Mang về',
@@ -274,6 +268,7 @@ class DashboardController extends Controller
                 ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
                 ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
                 ->where('inventories.restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
                 ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
                 ->select('ingredients.name as ingredient_name', 'inventories.quantity_on_hand',
                     'ingredients.min_stock_level', 'units.name as unit_name', 'inventories.updated_at')
@@ -292,7 +287,11 @@ class DashboardController extends Controller
 
             $activeSchedulesForFeed = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
                 ->where('restaurant_id', $rid)->where('scheduled_date', today())
-                ->whereNotNull('check_in_at')->latest('check_in_at')->take(4)->get();
+                ->whereNotNull('check_in_at')
+                ->whereHas('employee', fn($emp) => $emp->when($branchId, fn($q) => $q->where('branch_id', $branchId)))
+                ->latest('check_in_at')
+                ->take(4)
+                ->get();
 
             foreach ($activeSchedulesForFeed as $sa) {
                 $time = $sa->check_in_at;
@@ -310,7 +309,10 @@ class DashboardController extends Controller
 
             // ── Table grid ───────────────────────────────────────────────────
             $tablesData = \App\Models\RestaurantTable::with(['area', 'activeOrder'])
-                ->where('restaurant_id', $rid)->orderBy('name')->get()
+                ->where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->orderBy('name')
+                ->get()
                 ->map(function ($t) {
                     $status = $t->status;
                     if ($status === 'occupied') {
@@ -332,6 +334,7 @@ class DashboardController extends Controller
                 ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
                 ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
                 ->where('inventories.restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
                 ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
                 ->select('ingredients.id', 'ingredients.name as ingredient_name',
                     'inventories.quantity_on_hand', 'ingredients.min_stock_level',
@@ -348,7 +351,11 @@ class DashboardController extends Controller
 
             // ── Recent orders ────────────────────────────────────────────────
             $recentOrders = Order::with('table')
-                ->where('restaurant_id', $rid)->latest()->take(5)->get()
+                ->where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->latest()
+                ->take(5)
+                ->get()
                 ->map(fn (Order $o) => [
                     'id'             => $o->id,
                     'order_number'   => $o->order_number,
@@ -359,6 +366,55 @@ class DashboardController extends Controller
                     'channel'        => $o->channel,
                     'created_at'     => $o->created_at?->format('H:i'),
                 ])->all();
+
+            // ── Multi-branch Consolidated comparison ──────────────────────────
+            if (!$branchId && count($branches) > 1) {
+                foreach ($branches as $b) {
+                    $bRevToday = (float) Order::where('restaurant_id', $rid)
+                        ->where('branch_id', $b['id'])
+                        ->where('status', 'completed')
+                        ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
+                        ->sum('total_amount');
+
+                    $bTodaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                        ->where('branch_id', $b['id'])
+                        ->where('summary_date', today())
+                        ->first();
+
+                    $bGrossProfit = $bTodaySummary ? (float) $bTodaySummary->gross_profit : 0.0;
+                    $bMargin = $bRevToday > 0 ? round(($bGrossProfit / $bRevToday) * 100, 1) : 0.0;
+
+                    if (!$bTodaySummary && $bRevToday > 0) {
+                        $totalCogs = (float) \App\Models\OrderItem::whereHas('order', function ($q) use ($b) {
+                            $q->where('branch_id', $b['id'])
+                                ->where('status', 'completed')
+                                ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
+                        })->join('products', 'order_items.product_id', '=', 'products.id')
+                        ->sum(\Illuminate\Support\Facades\DB::raw('order_items.quantity * products.cost_price'));
+
+                        $bGrossProfit = $bRevToday - $totalCogs;
+                        $bMargin = round(($bGrossProfit / $bRevToday) * 100, 1);
+                    }
+
+                    $bHealth = $this->calculateBranchHealthScore($rid, $b['id']);
+
+                    $bViolations = ViolationReport::where('restaurant_id', $rid)
+                        ->whereHas('employee', function ($q) use ($b) {
+                            $q->where('branch_id', $b['id']);
+                        })
+                        ->where('occurred_at', '>=', now()->subDays(30))
+                        ->count();
+
+                    $branchComparisons[] = [
+                        'id'               => $b['id'],
+                        'name'             => $b['name'],
+                        'revenue'          => $bRevToday,
+                        'profit_margin'    => $bMargin,
+                        'health_score'     => $bHealth,
+                        'violations_count' => $bViolations,
+                    ];
+                }
+            }
         }
 
         $onboardingStatus   = $user?->onboarding_status ?? [];
@@ -369,6 +425,9 @@ class DashboardController extends Controller
         );
 
         return Inertia::render('Dashboard', [
+            'branchId'             => $branchId,
+            'branches'             => $branches,
+            'branchComparisons'    => $branchComparisons,
             'operationFeed'        => $operationFeed,
             'tablesData'           => $tablesData,
             'lowStockInventory'    => $lowStockInventory,
@@ -376,23 +435,125 @@ class DashboardController extends Controller
             'onboardingComplete'   => $onboardingComplete,
             'recentOrders'         => $recentOrders,
             'alerts'               => $alerts,
-            'revenueChartData'     => $restaurant ? Inertia::defer(fn () => $this->getRevenueChartData($restaurant->id)) : [],
-            'channelChartData'     => $restaurant ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id)) : [],
-            'topProductsChartData' => $restaurant ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id)) : [],
-            'forecastData'         => $restaurant ? Inertia::defer(fn () => $this->getForecastData($restaurant->id)) : null,
-            // Health score đã được tính và cache trong index() — defer chỉ đọc cache, không query lại
-            'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id)) : null,
-            'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id)) : [],
-            'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id)) : null,
+            'revenueChartData'     => $restaurant ? Inertia::defer(fn () => $this->getRevenueChartData($restaurant->id, $branchId)) : [],
+            'channelChartData'     => $restaurant ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id, $branchId)) : [],
+            'topProductsChartData' => $restaurant ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id, $branchId)) : [],
+            'forecastData'         => $restaurant ? Inertia::defer(fn () => $this->getForecastData($restaurant->id, $branchId)) : null,
+            'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id, $branchId)) : null,
+            'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id, $branchId)) : [],
+            'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id, $branchId)) : null,
         ]);
     }
 
-    private function getRevenueChartData(int $rid): array
+    private function calculateBranchHealthScore(int $rid, ?int $branchId = null): int
+    {
+        $todaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->where('summary_date', today())
+            ->where('summary_type', 'daily');
+        if ($branchId) {
+            $todaySummary->where('branch_id', $branchId);
+        } else {
+            $todaySummary->whereNull('branch_id');
+        }
+        $todaySummary = $todaySummary->first();
+
+        $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->where('summary_date', today()->subDay())
+            ->where('summary_type', 'daily');
+        if ($branchId) {
+            $yesterdaySummary->where('branch_id', $branchId);
+        } else {
+            $yesterdaySummary->whereNull('branch_id');
+        }
+        $yesterdaySummary = $yesterdaySummary->first();
+
+        $ordersToday = Order::where('restaurant_id', $rid)
+            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId));
+
+        $totalToday     = (clone $ordersToday)->count();
+        $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
+        $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
+
+        $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);
+        $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
+        $revTrend = $revenueYesterday > 0
+            ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
+            : null;
+
+        $grossProfit  = (float) ($todaySummary?->gross_profit ?? 0);
+        $profitMargin = $revenueToday > 0
+            ? round($grossProfit / $revenueToday * 100, 1)
+            : 0.0;
+
+        $completionRate   = $totalToday > 0 ? round($completedToday / $totalToday * 100, 1) : 0.0;
+        $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
+        $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
+
+        // Punctuality
+        $scheduledToday = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+            ->where('scheduled_date', today())
+            ->when($branchId, function ($q) use ($branchId) {
+                $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+            })->count();
+        $checkedInOnTime = $scheduledToday > 0
+            ? \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+                ->where('scheduled_date', today())
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+                })
+                ->whereNotNull('check_in_at')
+                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.work_shift_id))'))
+                ->count()
+            : null;
+        $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
+            ? min(100, ($checkedInOnTime / $scheduledToday) * 100)
+            : 75;
+
+        // Inventory
+        $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->count();
+        $safeIngredients  = $totalIngredients > 0
+            ? \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+                ->where('inventories.restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
+                ->whereRaw('inventories.quantity_on_hand > ingredients.min_stock_level')
+                ->count()
+            : null;
+        $inventoryScore = $totalIngredients > 0 && $safeIngredients !== null
+            ? ($safeIngredients / $totalIngredients) * 100
+            : 80;
+
+        // NPS
+        $npsData = \App\Models\CustomerFeedback::where('restaurant_id', $rid)
+            ->where('created_at', '>=', now()->subDays(7))
+            ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->first();
+        $npsScore = $npsData && $npsData->cnt > 0
+            ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100))
+            : 70;
+
+        return (int) round(
+            min(100, max(0,
+                ($completionRate    * 0.25) +
+                (max(0, 100 - $cancellationRate * 4) * 0.15) +
+                ($revenueGrowthScore * 0.20) +
+                (min(100, $profitMargin * 1.5) * 0.15) +
+                ($punctualityScore  * 0.10) +
+                ($inventoryScore    * 0.10) +
+                ($npsScore          * 0.05)
+            ))
+        );
+    }
+
+    private function getRevenueChartData(int $rid, ?int $branchId = null): array
     {
         $sevenDaysAgo = now()->subDays(6)->startOfDay();
         $dailyStats = Order::where('restaurant_id', $rid)
             ->where('status', 'completed')
             ->where('created_at', '>=', $sevenDaysAgo)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
             ->groupBy('date')
             ->get()
@@ -412,7 +573,7 @@ class DashboardController extends Controller
             ];
         }
 
-        $forecast7 = $this->forecast->forecast7Days($rid);
+        $forecast7 = $this->forecast->forecast7Days($rid, $branchId);
         foreach ($forecast7 as $f) {
             $revenueChartData[] = $f;
         }
@@ -420,11 +581,12 @@ class DashboardController extends Controller
         return $revenueChartData;
     }
 
-    private function getChannelChartData(int $rid): array
+    private function getChannelChartData(int $rid, ?int $branchId = null): array
     {
         $sevenDaysAgo = now()->subDays(6)->startOfDay();
         $channelStats = Order::where('restaurant_id', $rid)
             ->where('created_at', '>=', $sevenDaysAgo)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->selectRaw("channel, COUNT(*) as count")
             ->groupBy('channel')
             ->get();
@@ -451,12 +613,13 @@ class DashboardController extends Controller
         return $channelChartData;
     }
 
-    private function getTopProductsChartData(int $rid): array
+    private function getTopProductsChartData(int $rid, ?int $branchId = null): array
     {
         return \App\Models\OrderItem::query()
             ->join('orders',   'order_items.order_id',   '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('orders.restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->where('orders.created_at', '>=', now()->subDays(30))
             ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.quantity * order_items.unit_price) as total_revenue')
@@ -472,72 +635,36 @@ class DashboardController extends Controller
             ->all();
     }
 
-    private function getForecastData(int $rid): ?array
+    private function getForecastData(int $rid, ?int $branchId = null): ?array
     {
-        return $this->forecast->forecastTomorrow($rid);
+        return $this->forecast->forecastTomorrow($rid, $branchId);
     }
 
-    private function getHealthScore(int $rid): int
+    private function getHealthScore(int $rid, ?int $branchId = null): int
     {
-        // Đọc từ cache đã lưu trong index() — tránh tái query toàn bộ DB
-        $cached = Cache::get("health_score:{$rid}");
+        $cached = Cache::get("health_score:{$rid}" . ($branchId ? ":{$branchId}" : ""));
         if ($cached !== null) {
             return (int) $cached;
         }
 
-        // Fallback: tính lại nếu cache miss (ví dụ Defer chạy độc lập)
-        $todaySummary     = RestaurantRevenueSummary::where('restaurant_id', $rid)
-            ->where('summary_date', today())->first();
-        $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
-            ->where('summary_date', today()->subDay())->first();
-
-        $ordersToday    = Order::where('restaurant_id', $rid)
-            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
-        $totalToday     = (clone $ordersToday)->count();
-        $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
-        $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
-
-        $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);
-        $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
-        $revTrend = $revenueYesterday > 0
-            ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
-            : null;
-
-        $grossProfit  = (float) ($todaySummary?->gross_profit ?? 0);
-        $profitMargin = $revenueToday > 0
-            ? round($grossProfit / $revenueToday * 100, 1)
-            : 0.0;
-
-        $completionRate   = $totalToday > 0 ? round($completedToday / $totalToday * 100, 1) : 0.0;
-        $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
-        $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
-
-        $score = (int) round(
-            min(100, max(0,
-                ($completionRate       * 0.35) +
-                (max(0, 100 - $cancellationRate * 4) * 0.20) +
-                ($revenueGrowthScore   * 0.30) +
-                (min(100, $profitMargin * 1.5) * 0.15)
-            ))
-        );
-
-        Cache::put("health_score:{$rid}", $score, 60);
+        $score = $this->calculateBranchHealthScore($rid, $branchId);
+        Cache::put("health_score:{$rid}" . ($branchId ? ":{$branchId}" : ""), $score, 60);
 
         return $score;
     }
 
-    private function getShiftRevenue(int $rid): array
+    private function getShiftRevenue(int $rid, ?int $branchId = null): array
     {
         $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
             ->where('status', 'active')
             ->orderBy('start_time')
             ->get();
 
-        // Bulk load all completed orders from the last 7 days to calculate revenues in memory
         $sevenDaysAgo = now()->subDays(6)->startOfDay();
         $orders = Order::where('restaurant_id', $rid)
             ->where('status', 'completed')
             ->where('completed_at', '>=', $sevenDaysAgo)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->select('total_amount', 'completed_at')
             ->get();
 
@@ -551,7 +678,6 @@ class DashboardController extends Controller
                     ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
                     : $day->copy()->setTimeFromTimeString($shift->end_time);
 
-                // Filter in memory to avoid running a database query in loop
                 $rev = $orders->filter(function ($order) use ($start, $end) {
                     return $order->completed_at >= $start && $order->completed_at <= $end;
                 })->sum('total_amount');
@@ -567,12 +693,13 @@ class DashboardController extends Controller
         return $shiftRevenue;
     }
 
-    private function getOwnerSummary(int $rid): array
+    private function getOwnerSummary(int $rid, ?int $branchId = null): array
     {
         $topTodayProducts = \App\Models\OrderItem::query()
             ->join('orders',   'order_items.order_id',   '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('orders.restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
             ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
@@ -591,6 +718,9 @@ class DashboardController extends Controller
             ->where('restaurant_id', $rid)
             ->where('scheduled_date', today())
             ->whereIn('status', ['checked_in', 'scheduled'])
+            ->when($branchId, function ($q) use ($branchId) {
+                $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+            })
             ->get()
             ->map(fn ($a) => [
                 'name'   => $a->employee?->full_name ?? '—',
@@ -602,6 +732,7 @@ class DashboardController extends Controller
         $pendingOrders = Order::where('restaurant_id', $rid)
             ->where('status', 'pending')
             ->where('created_at', '<', now()->subMinutes(20))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->count();
 
         return [
@@ -610,10 +741,14 @@ class DashboardController extends Controller
             'pending_over_20min' => $pendingOrders,
             'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                 ->where('summary_type', 'daily')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                 ->whereBetween('summary_date', [today()->startOfWeek(), today()])
                 ->sum('net_revenue'),
             'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                 ->where('summary_type', 'daily')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                 ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
                 ->sum('net_revenue'),
         ];

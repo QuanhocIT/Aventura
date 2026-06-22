@@ -11,20 +11,23 @@ class ForecastService
      * Dự báo doanh thu cho ngày mai bằng Seasonal Moving Average.
      * Lấy 4 tuần gần nhất cùng ngày trong tuần, tính trung bình có trọng số.
      */
-    private ?array $cachedForecast = null;
+    private array $cachedForecasts = [];
 
-    private function getAiRevenueForecast(int $restaurantId): array
+    private function getAiRevenueForecast(int $restaurantId, ?int $branchId = null): array
     {
-        if ($this->cachedForecast !== null) {
-            return $this->cachedForecast;
+        $key = $branchId ?? 'all';
+        if (isset($this->cachedForecasts[$key])) {
+            return $this->cachedForecasts[$key];
         }
 
-        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data";
-        $this->cachedForecast = \Illuminate\Support\Facades\Cache::remember($cacheKey, 7200, function () use ($restaurantId) {
+        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data" . ($branchId ? ":{$branchId}" : "");
+        $this->cachedForecasts[$key] = \Illuminate\Support\Facades\Cache::remember($cacheKey, 7200, function () use ($restaurantId, $branchId) {
             $historicals = RestaurantRevenueSummary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
                 ->where('summary_date', '<', today())
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                 ->orderBy('summary_date')
                 ->take(30)
                 ->get();
@@ -71,6 +74,8 @@ class ForecastService
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
                 ->where('summary_date', '<', today())
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                 ->whereRaw("{$dayOfWeekField} = ?", [$dayOfWeek + 1])
                 ->orderByDesc('summary_date')
                 ->take(8)
@@ -97,7 +102,7 @@ class ForecastService
             }
 
             $forecast = $totalWeight > 0 ? round($weightedSum / $totalWeight) : 0;
-            $trendFactor = $this->weeklyTrendFactor($restaurantId);
+            $trendFactor = $this->weeklyTrendFactor($restaurantId, $branchId);
             $forecast = (int) round($forecast * $trendFactor);
 
             $count = $weeklyHist->count();
@@ -113,6 +118,8 @@ class ForecastService
                     ->where('restaurant_id', $restaurantId)
                     ->where('summary_type', 'daily')
                     ->where('summary_date', '<', today())
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                     ->whereRaw("{$dayOfWeekField} = ?", [$targetDayOfWeek + 1])
                     ->orderByDesc('summary_date')
                     ->take(4)
@@ -137,13 +144,13 @@ class ForecastService
             ];
         });
 
-        return $this->cachedForecast;
+        return $this->cachedForecasts[$key];
     }
 
-    public function forecastTomorrow(int $restaurantId): array
+    public function forecastTomorrow(int $restaurantId, ?int $branchId = null): array
     {
         $tomorrow = Carbon::tomorrow();
-        $forecast = $this->getAiRevenueForecast($restaurantId);
+        $forecast = $this->getAiRevenueForecast($restaurantId, $branchId);
 
         return [
             'amount'           => $forecast['tomorrow']['amount'],
@@ -155,9 +162,9 @@ class ForecastService
         ];
     }
 
-    public function forecast7Days(int $restaurantId): array
+    public function forecast7Days(int $restaurantId, ?int $branchId = null): array
     {
-        $forecast = $this->getAiRevenueForecast($restaurantId);
+        $forecast = $this->getAiRevenueForecast($restaurantId, $branchId);
         return $forecast['next_7_days'];
     }
 
@@ -165,17 +172,21 @@ class ForecastService
      * Tính hệ số xu hướng: tuần này / tuần trước.
      * Trả về giá trị trong [0.7, 1.3] để tránh outlier.
      */
-    private function weeklyTrendFactor(int $restaurantId): float
+    private function weeklyTrendFactor(int $restaurantId, ?int $branchId = null): float
     {
         $thisWeek = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('summary_type', 'daily')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
             ->whereBetween('summary_date', [today()->startOfWeek(), today()])
             ->sum('net_revenue');
 
         $lastWeek = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('summary_type', 'daily')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
             ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
             ->sum('net_revenue');
 
