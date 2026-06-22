@@ -317,6 +317,7 @@ class ComprehensiveValidationTest extends TestCase
 
     public function test_schedule_11_hour_rest_rule_validation(): void
     {
+        Carbon::setTestNow('2026-06-08 00:00:00');
         $this->actingAs($this->owner);
 
         // Monday is 2026-06-08, Tuesday is 2026-06-09
@@ -353,6 +354,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $response->assertSessionHasErrors(['shift_name']);
         $this->assertStringContainsString('nghỉ 11h', strtolower(session()->get('errors')->get('shift_name')[0]));
+        Carbon::setTestNow();
     }
 
     public function test_inventory_profit_margin_and_expiry_validation(): void
