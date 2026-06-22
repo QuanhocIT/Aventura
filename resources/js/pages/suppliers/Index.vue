@@ -3,7 +3,8 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { 
     Plus, Edit2, Trash2, ShoppingBag, CheckCircle, 
     AlertTriangle, Sparkles, TrendingUp, TrendingDown,
-    FileText, Upload, RefreshCw, X, Check, ArrowLeftRight, History
+    FileText, Upload, RefreshCw, X, Check, ArrowLeftRight, History,
+    Gauge, BarChart3, Package, Star, Award, ShieldCheck
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ const showAddModal = ref(false);
 const showEditModal = ref(false);
 const showPoModal = ref(false);
 const showVerifyModal = ref(false);
-const activeTab = ref('list'); // 'list' | 'pos' | 'analytics' | 'sla'
+const activeTab = ref('list'); // 'list' | 'cockpit' | 'pos' | 'analytics' | 'sla' | 'transfers'
 
 // Selected / Editing entities
 const selectedSupplier = ref<any>(null);
@@ -66,6 +67,94 @@ const verifyForm = useForm({
 // Analytics state
 const analyticsData = ref<any>(null);
 const loadingAnalytics = ref(false);
+
+// Cockpit state
+const cockpitRecommendations = ref<any[]>([]);
+const loadingCockpit = ref(false);
+const selectedCockpitIds = ref<number[]>([]);
+
+const fetchCockpitData = async () => {
+    loadingCockpit.value = true;
+    try {
+        const res = await fetch(route('suppliers.replenish-cockpit'));
+        const data = await res.json();
+        cockpitRecommendations.value = data.recommendations || [];
+        // By default, select all recommendations that have a supplier
+        selectedCockpitIds.value = cockpitRecommendations.value
+            .filter(r => r.optimal_supplier)
+            .map(r => r.ingredient_id);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        loadingCockpit.value = false;
+    }
+};
+
+const toggleSelectAllCockpit = () => {
+    const validRecs = cockpitRecommendations.value.filter(r => r.optimal_supplier);
+    if (selectedCockpitIds.value.length === validRecs.length) {
+        selectedCockpitIds.value = [];
+    } else {
+        selectedCockpitIds.value = validRecs.map(r => r.ingredient_id);
+    }
+};
+
+const submitBulkDraftPo = () => {
+    if (selectedCockpitIds.value.length === 0) return;
+
+    const itemsToSend = cockpitRecommendations.value
+        .filter(r => selectedCockpitIds.value.includes(r.ingredient_id))
+        .map(r => ({
+            ingredient_id: r.ingredient_id,
+            quantity: r.suggested_quantity,
+            supplier_id: r.optimal_supplier?.id,
+            price: r.optimal_price
+        }));
+
+    const missingSupplier = itemsToSend.some(it => !it.supplier_id);
+    if (missingSupplier) {
+        alert("Không thể tạo đơn PO cho các mặt hàng chưa xác định nhà cung cấp.");
+        return;
+    }
+
+    if (confirm(`Bạn có chắc chắn muốn tự động tạo PO nháp cho ${itemsToSend.length} mặt hàng đã chọn?`)) {
+        router.post(route('suppliers.draft-po-bulk'), {
+            items: itemsToSend
+        }, {
+            onSuccess: () => {
+                activeTab.value = 'pos';
+                selectedCockpitIds.value = [];
+            }
+        });
+    }
+};
+
+// SLA Dashboard state
+const slaDashboardData = ref<any>(null);
+const loadingSlaDashboard = ref(false);
+
+const fetchSlaDashboard = async () => {
+    loadingSlaDashboard.value = true;
+    selectedSupplier.value = null;
+    try {
+        const res = await fetch(route('suppliers.sla-dashboard'));
+        slaDashboardData.value = await res.json();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        loadingSlaDashboard.value = false;
+    }
+};
+
+const getSupplierGrade = (onTime: number, accuracy: number, rating: number) => {
+    const normalizedRating = (rating / 5.0) * 100;
+    const score = (onTime * 0.4) + (accuracy * 0.4) + (normalizedRating * 0.2);
+    
+    if (score >= 90) return { label: 'Hạng A (Xuất sắc)', color: 'bg-emerald-500 text-white' };
+    if (score >= 75) return { label: 'Hạng B (Tốt)', color: 'bg-blue-500 text-white' };
+    if (score >= 55) return { label: 'Hạng C (Trung bình)', color: 'bg-amber-500 text-white' };
+    return { label: 'Hạng D (Kém)', color: 'bg-rose-500 text-white' };
+};
 
 // SLA state
 const slaData = ref<any>(null);
@@ -520,11 +609,17 @@ return null;
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 self-start">
+        <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 self-start flex-wrap">
             <button @click="activeTab = 'list'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
                 Danh sách đối tác
+            </button>
+            <button @click="activeTab = 'cockpit'; fetchCockpitData()"
+                class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
+                :class="activeTab === 'cockpit' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <Gauge class="w-3.5 h-3.5" />
+                Cockpit Nhập hàng
             </button>
             <button @click="activeTab = 'pos'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
@@ -540,6 +635,12 @@ return null;
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'sla' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
                 Báo cáo SLA & Đánh giá
+            </button>
+            <button @click="activeTab = 'sla-dashboard'; fetchSlaDashboard()"
+                class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
+                :class="activeTab === 'sla-dashboard' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <Award class="w-3.5 h-3.5" />
+                Bảng xếp hạng NCC
             </button>
             <button @click="activeTab = 'transfers'; fetchTransfers()"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
@@ -602,6 +703,198 @@ return null;
                 <p class="text-muted-foreground font-medium text-sm">Chưa có nhà cung cấp nào được cấu hình.</p>
                 <Button @click="openAddModal" class="mt-4 bg-emerald-600 text-white hover:bg-emerald-700">Thêm đối tác ngay</Button>
             </div>
+        </div>
+
+        <!-- Tab Content: Supply Chain Cockpit -->
+        <div v-if="activeTab === 'cockpit'" class="space-y-6">
+            <!-- Cockpit Header -->
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <Gauge class="w-5 h-5 text-indigo-500" />
+                        Cockpit Tự Động Nhập Hàng
+                    </h3>
+                    <p class="text-xs text-muted-foreground mt-0.5">AI quét kho tự động, phát hiện tồn kho dưới ngưỡng và soạn PO nháp gửi nhà cung cấp tối ưu nhất (giá thấp nhất).</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <Button 
+                        @click="fetchCockpitData" 
+                        variant="outline"
+                        :disabled="loadingCockpit"
+                        class="h-9 text-xs font-semibold flex items-center gap-1.5"
+                    >
+                        <RefreshCw class="w-4 h-4" :class="loadingCockpit ? 'animate-spin' : ''" />
+                        Quét lại kho
+                    </Button>
+                    <Button 
+                        v-if="selectedCockpitIds.length > 0"
+                        @click="submitBulkDraftPo" 
+                        class="h-9 text-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold flex items-center gap-1.5 shadow-lg"
+                    >
+                        <Package class="w-4 h-4" />
+                        Tạo PO nháp ({{ selectedCockpitIds.length }} mặt hàng)
+                    </Button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="loadingCockpit" class="flex flex-col items-center justify-center py-20 space-y-3">
+                <RefreshCw class="w-8 h-8 text-indigo-500 animate-spin" />
+                <p class="text-muted-foreground text-sm font-medium">Đang quét tồn kho và tìm nhà cung cấp tối ưu...</p>
+            </div>
+
+            <template v-else>
+                <!-- Summary Stats -->
+                <div v-if="cockpitRecommendations.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card class="p-4 border-l-4 border-l-rose-500 bg-gradient-to-r from-rose-50/50 to-transparent dark:from-rose-950/20">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Mặt hàng thiếu hụt</p>
+                                <p class="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">{{ cockpitRecommendations.length }}</p>
+                            </div>
+                            <AlertTriangle class="w-8 h-8 text-rose-400 opacity-60" />
+                        </div>
+                    </Card>
+                    <Card class="p-4 border-l-4 border-l-indigo-500 bg-gradient-to-r from-indigo-50/50 to-transparent dark:from-indigo-950/20">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Đã chọn tạo PO</p>
+                                <p class="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">{{ selectedCockpitIds.length }}</p>
+                            </div>
+                            <ShoppingBag class="w-8 h-8 text-indigo-400 opacity-60" />
+                        </div>
+                    </Card>
+                    <Card class="p-4 border-l-4 border-l-emerald-500 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Có NCC tối ưu</p>
+                                <p class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{{ cockpitRecommendations.filter(r => r.optimal_supplier).length }}</p>
+                            </div>
+                            <CheckCircle class="w-8 h-8 text-emerald-400 opacity-60" />
+                        </div>
+                    </Card>
+                </div>
+
+                <!-- Recommendations Table -->
+                <Card class="overflow-hidden">
+                    <div class="p-4 border-b flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles class="w-4 h-4 text-indigo-500" />
+                            Danh sách đề xuất nhập hàng tự động
+                        </h4>
+                        <button 
+                            v-if="cockpitRecommendations.length > 0"
+                            @click="toggleSelectAllCockpit"
+                            class="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer"
+                        >
+                            {{ selectedCockpitIds.length === cockpitRecommendations.filter(r => r.optimal_supplier).length ? 'Bỏ chọn tất cả' : 'Chọn tất cả' }}
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-foreground">
+                            <thead class="bg-muted/40 text-muted-foreground uppercase text-[10px] font-semibold tracking-wider border-b border-border">
+                                <tr>
+                                    <th class="px-4 py-3 w-10">
+                                        <input 
+                                            type="checkbox" 
+                                            :checked="selectedCockpitIds.length === cockpitRecommendations.filter(r => r.optimal_supplier).length && cockpitRecommendations.length > 0"
+                                            @change="toggleSelectAllCockpit"
+                                            class="rounded border-input accent-indigo-600"
+                                        />
+                                    </th>
+                                    <th class="px-4 py-3">Nguyên liệu</th>
+                                    <th class="px-4 py-3 text-center">Tồn hiện tại</th>
+                                    <th class="px-4 py-3 text-center">Tồn tối thiểu</th>
+                                    <th class="px-4 py-3 text-center">Thiếu hụt</th>
+                                    <th class="px-4 py-3 text-center">SL đề xuất (×1.2)</th>
+                                    <th class="px-4 py-3">NCC tối ưu</th>
+                                    <th class="px-4 py-3 text-right">Giá tối ưu</th>
+                                    <th class="px-4 py-3 text-right">Thành tiền dự kiến</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                <tr 
+                                    v-for="rec in cockpitRecommendations" 
+                                    :key="rec.ingredient_id"
+                                    class="hover:bg-muted/10 transition-colors"
+                                    :class="selectedCockpitIds.includes(rec.ingredient_id) ? 'bg-indigo-50/30 dark:bg-indigo-950/10' : ''"
+                                >
+                                    <td class="px-4 py-3">
+                                        <input 
+                                            type="checkbox" 
+                                            :value="rec.ingredient_id"
+                                            v-model="selectedCockpitIds"
+                                            :disabled="!rec.optimal_supplier"
+                                            class="rounded border-input accent-indigo-600"
+                                        />
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div>
+                                            <p class="font-bold text-sm">{{ rec.ingredient_name }}</p>
+                                            <p class="text-[10px] text-muted-foreground font-mono">{{ rec.sku }}</p>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="font-semibold" :class="rec.current_stock <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'">
+                                            {{ Number(rec.current_stock).toFixed(2) }}
+                                        </span>
+                                        <span class="text-[10px] text-muted-foreground ml-0.5">{{ rec.unit_symbol }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-muted-foreground font-semibold">
+                                        {{ Number(rec.min_stock).toFixed(2) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50">
+                                            -{{ Number(rec.deficit).toFixed(2) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center font-extrabold text-indigo-600 dark:text-indigo-400">
+                                        {{ Number(rec.suggested_quantity).toFixed(2) }}
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span v-if="rec.optimal_supplier" class="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                            {{ rec.optimal_supplier.name }}
+                                        </span>
+                                        <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                                            <AlertTriangle class="w-3 h-3 mr-1" />
+                                            Chưa có NCC
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-semibold">
+                                        <span v-if="rec.optimal_price">{{ Number(rec.optimal_price).toLocaleString('vi-VN') }}đ</span>
+                                        <span v-else class="text-muted-foreground">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-bold">
+                                        <span v-if="rec.optimal_price">{{ (Number(rec.optimal_price) * Number(rec.suggested_quantity)).toLocaleString('vi-VN') }}đ</span>
+                                        <span v-else class="text-muted-foreground">—</span>
+                                    </td>
+                                </tr>
+                                <tr v-if="cockpitRecommendations.length === 0">
+                                    <td colspan="9" class="text-center py-16">
+                                        <CheckCircle class="w-10 h-10 text-emerald-500 mx-auto mb-3 opacity-60" />
+                                        <p class="text-muted-foreground font-medium text-sm">Toàn bộ kho hàng đang ở mức an toàn.</p>
+                                        <p class="text-muted-foreground text-xs mt-1">Không có mặt hàng nào cần nhập thêm.</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <!-- Total row -->
+                            <tfoot v-if="selectedCockpitIds.length > 0">
+                                <tr class="bg-indigo-50/50 dark:bg-indigo-950/20 border-t-2 border-indigo-200 dark:border-indigo-900">
+                                    <td colspan="8" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Tổng giá trị đơn PO nháp:
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-extrabold text-indigo-700 dark:text-indigo-300 text-base">
+                                        {{ cockpitRecommendations
+                                            .filter(r => selectedCockpitIds.includes(r.ingredient_id) && r.optimal_price)
+                                            .reduce((sum, r) => sum + (Number(r.optimal_price) * Number(r.suggested_quantity)), 0)
+                                            .toLocaleString('vi-VN') }}đ
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </Card>
+            </template>
         </div>
 
         <!-- Tab Content: PO logs -->
@@ -943,6 +1236,160 @@ return null;
                     <p class="text-sm font-medium">Vui lòng chọn nhà cung cấp để hiển thị báo cáo SLA.</p>
                 </div>
             </Card>
+        </div>
+
+        <!-- Tab Content: Aggregate SLA Dashboard -->
+        <div v-if="activeTab === 'sla-dashboard'" class="space-y-6">
+            <!-- Dashboard Header -->
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <Award class="w-5 h-5 text-amber-500" />
+                        Bảng Xếp Hạng Nhà Cung Cấp (SLA Dashboard)
+                    </h3>
+                    <p class="text-xs text-muted-foreground mt-0.5">Chấm điểm tổng hợp dựa trên: Giao đúng hạn (40%), Độ chính xác (40%), Chất lượng đánh giá (20%).</p>
+                </div>
+                <Button 
+                    @click="fetchSlaDashboard" 
+                    variant="outline"
+                    :disabled="loadingSlaDashboard"
+                    class="h-9 text-xs font-semibold flex items-center gap-1.5"
+                >
+                    <RefreshCw class="w-4 h-4" :class="loadingSlaDashboard ? 'animate-spin' : ''" />
+                    Làm mới dữ liệu
+                </Button>
+            </div>
+
+            <!-- Loading -->
+            <div v-if="loadingSlaDashboard" class="flex flex-col items-center justify-center py-20 space-y-3">
+                <RefreshCw class="w-8 h-8 text-amber-500 animate-spin" />
+                <p class="text-muted-foreground text-sm font-medium">Đang tổng hợp dữ liệu SLA toàn bộ nhà cung cấp...</p>
+            </div>
+
+            <template v-else-if="slaDashboardData">
+                <!-- Aggregate Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card class="p-4 border-l-4 border-l-emerald-500 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20">
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Tổng nhà cung cấp</p>
+                        <p class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{{ slaDashboardData.suppliers?.length || 0 }}</p>
+                    </Card>
+                    <Card class="p-4 border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-950/20">
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Giao đúng hạn</p>
+                        <p class="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">
+                            {{ slaDashboardData.suppliers?.length > 0 
+                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.on_time_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1) 
+                                : '—' }}%
+                        </p>
+                    </Card>
+                    <Card class="p-4 border-l-4 border-l-teal-500 bg-gradient-to-r from-teal-50/50 to-transparent dark:from-teal-950/20">
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Độ chính xác</p>
+                        <p class="text-2xl font-extrabold text-teal-600 dark:text-teal-400 mt-1">
+                            {{ slaDashboardData.suppliers?.length > 0 
+                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.accuracy_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1) 
+                                : '—' }}%
+                        </p>
+                    </Card>
+                    <Card class="p-4 border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-950/20">
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Đánh giá sao</p>
+                        <p class="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+                            {{ slaDashboardData.suppliers?.length > 0 
+                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.average_rating || 0), 0) / slaDashboardData.suppliers.length).toFixed(2) 
+                                : '—' }} ★
+                        </p>
+                    </Card>
+                </div>
+
+                <!-- Supplier Ranking Table -->
+                <Card class="overflow-hidden">
+                    <div class="p-4 border-b">
+                        <h4 class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <BarChart3 class="w-4 h-4 text-amber-500" />
+                            Xếp hạng nhà cung cấp theo chỉ số SLA tổng hợp
+                        </h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-foreground">
+                            <thead class="bg-muted/40 text-muted-foreground uppercase text-[10px] font-semibold tracking-wider border-b border-border">
+                                <tr>
+                                    <th class="px-5 py-3 w-12">#</th>
+                                    <th class="px-5 py-3">Nhà cung cấp</th>
+                                    <th class="px-5 py-3 text-center">Tổng PO</th>
+                                    <th class="px-5 py-3 text-center">Đúng hạn (%)</th>
+                                    <th class="px-5 py-3 text-center">Chính xác (%)</th>
+                                    <th class="px-5 py-3 text-center">Đánh giá (★)</th>
+                                    <th class="px-5 py-3 text-center">Điểm tổng hợp</th>
+                                    <th class="px-5 py-3 text-center">Hạng</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                <tr 
+                                    v-for="(sup, idx) in slaDashboardData.suppliers" 
+                                    :key="sup.supplier_id"
+                                    class="hover:bg-muted/10 transition-colors"
+                                    :class="idx === 0 ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''"
+                                >
+                                    <td class="px-5 py-3 font-extrabold text-lg">
+                                        <span v-if="idx === 0" class="text-amber-500">🥇</span>
+                                        <span v-else-if="idx === 1" class="text-slate-400">🥈</span>
+                                        <span v-else-if="idx === 2" class="text-amber-700">🥉</span>
+                                        <span v-else class="text-muted-foreground text-sm">{{ idx + 1 }}</span>
+                                    </td>
+                                    <td class="px-5 py-3">
+                                        <p class="font-bold">{{ sup.supplier_name }}</p>
+                                    </td>
+                                    <td class="px-5 py-3 text-center font-semibold text-muted-foreground">{{ sup.total_orders_analyzed }}</td>
+                                    <td class="px-5 py-3 text-center">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <span class="font-bold" :class="Number(sup.on_time_rate) >= 80 ? 'text-emerald-600 dark:text-emerald-400' : Number(sup.on_time_rate) >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'">
+                                                {{ sup.on_time_rate }}%
+                                            </span>
+                                            <div class="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full transition-all" :class="Number(sup.on_time_rate) >= 80 ? 'bg-emerald-500' : Number(sup.on_time_rate) >= 60 ? 'bg-amber-500' : 'bg-rose-500'" :style="{ width: `${sup.on_time_rate}%` }"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3 text-center">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <span class="font-bold" :class="Number(sup.accuracy_rate) >= 80 ? 'text-teal-600 dark:text-teal-400' : Number(sup.accuracy_rate) >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'">
+                                                {{ sup.accuracy_rate }}%
+                                            </span>
+                                            <div class="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full transition-all" :class="Number(sup.accuracy_rate) >= 80 ? 'bg-teal-500' : Number(sup.accuracy_rate) >= 60 ? 'bg-amber-500' : 'bg-rose-500'" :style="{ width: `${sup.accuracy_rate}%` }"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3 text-center">
+                                        <span class="text-amber-500 font-bold">{{ sup.average_rating }} ★</span>
+                                    </td>
+                                    <td class="px-5 py-3 text-center">
+                                        <span class="text-lg font-extrabold" :class="getSupplierGrade(Number(sup.on_time_rate), Number(sup.accuracy_rate), Number(sup.average_rating)).color.includes('emerald') ? 'text-emerald-600 dark:text-emerald-400' : getSupplierGrade(Number(sup.on_time_rate), Number(sup.accuracy_rate), Number(sup.average_rating)).color.includes('blue') ? 'text-blue-600 dark:text-blue-400' : getSupplierGrade(Number(sup.on_time_rate), Number(sup.accuracy_rate), Number(sup.average_rating)).color.includes('amber') ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'">
+                                            {{ ((Number(sup.on_time_rate) * 0.4) + (Number(sup.accuracy_rate) * 0.4) + ((Number(sup.average_rating) / 5) * 100 * 0.2)).toFixed(1) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-3 text-center">
+                                        <span :class="['inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider', getSupplierGrade(Number(sup.on_time_rate), Number(sup.accuracy_rate), Number(sup.average_rating)).color]">
+                                            {{ getSupplierGrade(Number(sup.on_time_rate), Number(sup.accuracy_rate), Number(sup.average_rating)).label }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="!slaDashboardData.suppliers || slaDashboardData.suppliers.length === 0">
+                                    <td colspan="8" class="text-center py-16">
+                                        <ShieldCheck class="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+                                        <p class="text-muted-foreground font-medium text-sm">Chưa có dữ liệu SLA để xếp hạng.</p>
+                                        <p class="text-muted-foreground text-xs mt-1">Hãy giao nhận ít nhất một đơn PO để hệ thống bắt đầu chấm điểm.</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </template>
+
+            <!-- Empty / Not loaded yet -->
+            <div v-else class="flex flex-col items-center justify-center py-24 text-muted-foreground">
+                <Award class="w-12 h-12 mb-3 opacity-40" />
+                <p class="text-sm font-medium">Nhấn "Làm mới dữ liệu" để tải bảng xếp hạng nhà cung cấp.</p>
+            </div>
         </div>
 
         <!-- Tab Content: Internal Transfers -->

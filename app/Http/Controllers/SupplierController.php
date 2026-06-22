@@ -709,10 +709,8 @@ class SupplierController extends Controller
     /**
      * Lấy chỉ số SLA đối soát và giao nhận của Nhà cung cấp.
      */
-    public function getSlaMetrics(Request $request, Supplier $supplier)
+    private function calculateSlaForSupplier(Supplier $supplier): array
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
-
         $pos = PurchaseOrder::where('supplier_id', $supplier->id)
             ->whereIn('status', ['delivered', 'frozen'])
             ->get();
@@ -754,6 +752,9 @@ class SupplierController extends Controller
             ->get()
             ->groupBy('ingredient_id');
 
+        $totalVolatility = 0;
+        $volatilityCount = 0;
+
         foreach ($ingredients as $ing) {
             $prices = isset($histories[$ing->id])
                 ? $histories[$ing->id]->pluck('price')->toArray()
@@ -779,7 +780,14 @@ class SupplierController extends Controller
                 'price_history_count' => $count,
                 'volatility_percent' => round($volatility, 2),
             ];
+
+            if ($count > 1) {
+                $totalVolatility += $volatility;
+                $volatilityCount++;
+            }
         }
+
+        $avgVolatility = $volatilityCount > 0 ? ($totalVolatility / $volatilityCount) : 0;
 
         // Get recent ratings
         $recentRatings = $pos->whereNotNull('rating')->map(fn($po) => [
@@ -791,16 +799,202 @@ class SupplierController extends Controller
 
         $averageRating = $pos->whereNotNull('rating')->avg('rating') ?? 5.0;
 
-        return response()->json([
+        return [
             'supplier_id' => $supplier->id,
             'supplier_name' => $supplier->name,
             'total_orders_analyzed' => $totalPos,
             'on_time_rate' => round($onTimeRate, 1),
             'accuracy_rate' => round($accuracyRate, 1),
             'average_rating' => round($averageRating, 1),
+            'average_volatility' => round($avgVolatility, 1),
             'price_volatility' => $priceVolatility,
             'recent_ratings' => $recentRatings,
+        ];
+    }
+
+    /**
+     * Lấy chỉ số SLA đối soát và giao nhận của Nhà cung cấp.
+     */
+    public function getSlaMetrics(Request $request, Supplier $supplier)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $metrics = $this->calculateSlaForSupplier($supplier);
+
+        return response()->json($metrics);
+    }
+
+    /**
+     * Lấy báo cáo SLA cho toàn bộ nhà cung cấp của nhà hàng.
+     */
+    public function getSlaDashboard(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $user = $request->user();
+        $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->get();
+
+        $dashboard = [];
+        foreach ($suppliers as $supplier) {
+            $dashboard[] = $this->calculateSlaForSupplier($supplier);
+        }
+
+        return response()->json([
+            'suppliers' => $dashboard
         ]);
+    }
+
+    /**
+     * Lấy danh sách nguyên vật liệu dưới ngưỡng tồn tối thiểu cùng nhà cung cấp tối ưu nhất.
+     */
+    public function getReplenishCockpit(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $restaurantId = $request->user()->restaurant_id;
+
+        // Fetch active ingredients of the restaurant
+        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->with(['unit', 'supplier'])
+            ->get();
+
+        // Get total stock levels grouped by ingredient across all branches
+        $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
+            ->groupBy('ingredient_id')
+            ->get()
+            ->keyBy('ingredient_id');
+
+        $suppliers = Supplier::where('restaurant_id', $restaurantId)->get()->keyBy('id');
+        $supplierIds = $suppliers->keys()->toArray();
+
+        $cockpitData = [];
+
+        foreach ($ingredients as $ing) {
+            $inv = $inventories->get($ing->id);
+            $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
+            $minStock = (float) ($ing->min_stock_level ?? 0.0);
+
+            // Understock check
+            if ($currentStock < $minStock) {
+                $deficit = $minStock - $currentStock;
+                $safetyMarginFactor = 1.2;
+                $suggestedQty = round($deficit * $safetyMarginFactor, 3);
+
+                // Find optimal supplier based on lowest price in history
+                $priceHistories = SupplierPriceHistory::where('ingredient_id', $ing->id)
+                    ->whereIn('supplier_id', $supplierIds)
+                    ->orderBy('effective_date', 'desc')
+                    ->get()
+                    ->unique('supplier_id');
+
+                $cheapestRecord = $priceHistories->sortBy('price')->first();
+
+                $optimalSupplier = null;
+                $optimalPrice = (float) $ing->average_cost;
+                $isCheapestFromHistory = false;
+
+                if ($cheapestRecord) {
+                    $optimalSupplier = $suppliers->get($cheapestRecord->supplier_id);
+                    $optimalPrice = (float) $cheapestRecord->price;
+                    $isCheapestFromHistory = true;
+                } elseif ($ing->supplier_id) {
+                    $optimalSupplier = $suppliers->get($ing->supplier_id);
+                }
+
+                $cockpitData[] = [
+                    'ingredient_id' => $ing->id,
+                    'ingredient_name' => $ing->name,
+                    'sku' => $ing->sku,
+                    'unit_symbol' => $ing->unit?->symbol ?? '—',
+                    'current_stock' => $currentStock,
+                    'min_stock_level' => $minStock,
+                    'suggested_quantity' => $suggestedQty,
+                    'optimal_supplier' => $optimalSupplier ? [
+                        'id' => $optimalSupplier->id,
+                        'name' => $optimalSupplier->name,
+                    ] : null,
+                    'optimal_price' => $optimalPrice,
+                    'is_cheapest_from_history' => $isCheapestFromHistory,
+                    'default_supplier' => $ing->supplier ? [
+                        'id' => $ing->supplier->id,
+                        'name' => $ing->supplier->name,
+                    ] : null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'recommendations' => $cockpitData
+        ]);
+    }
+
+    /**
+     * Soạn thảo đơn đặt hàng nháp PO gửi các nhà cung cấp tối ưu hàng loạt.
+     */
+    public function draftPoBulk(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'items.*.supplier_id' => ['required', 'exists:suppliers,id'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $user = $request->user();
+        $items = $request->input('items');
+
+        // Group by supplier
+        $grouped = collect($items)->groupBy('supplier_id');
+
+        $createdCount = 0;
+
+        DB::transaction(function () use ($grouped, $user, &$createdCount) {
+            foreach ($grouped as $supplierId => $poItems) {
+                $totalAmount = 0;
+                $itemsData = [];
+
+                foreach ($poItems as $item) {
+                    $qty = (float) $item['quantity'];
+                    $price = (float) $item['price'];
+                    $cost = $qty * $price;
+                    $totalAmount += $cost;
+
+                    $itemsData[] = [
+                        'ingredient_id' => $item['ingredient_id'],
+                        'quantity_ordered' => $qty,
+                        'price_per_unit' => $price,
+                        'total_cost' => $cost,
+                    ];
+                }
+
+                // Create draft PO (pending_approval)
+                $po = PurchaseOrder::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'supplier_id' => $supplierId,
+                    'po_number' => 'PO-' . now()->format('Ymd') . '-DRAFT-' . Str::upper(Str::random(4)),
+                    'status' => 'pending_approval',
+                    'total_amount' => $totalAmount,
+                    'created_by' => $user->id,
+                    'notes' => 'Đơn hàng tự động nháp được đề xuất bởi Cockpit Tự Động Hóa Chuỗi Cung Ứng.',
+                    'delivery_due_date' => now()->addDays(2), // default lead time
+                ]);
+
+                foreach ($itemsData as $itData) {
+                    $po->items()->create($itData);
+                }
+
+                $createdCount++;
+            }
+        });
+
+        return back()->with('success', "Đã tự động soạn thảo thành công {$createdCount} đơn hàng PO nháp gửi đến các nhà cung cấp tối ưu nhất.");
     }
 
     /**

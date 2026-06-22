@@ -211,6 +211,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('suppliers/{supplier}/sla', [\App\Http\Controllers\SupplierPortalController::class, 'getSlaMetrics'])->name('suppliers.sla');
     Route::post('suppliers/auto-replenish', [\App\Http\Controllers\SupplierController::class, 'triggerAutoReplenish'])->name('suppliers.auto-replenish');
     Route::post('suppliers/ocr-invoice', [\App\Http\Controllers\SupplierController::class, 'ocrInvoice'])->name('suppliers.ocr-invoice');
+    Route::get('api/suppliers/replenish-cockpit', [\App\Http\Controllers\SupplierController::class, 'getReplenishCockpit'])->name('suppliers.replenish-cockpit');
+    Route::post('api/suppliers/draft-po-bulk', [\App\Http\Controllers\SupplierController::class, 'draftPoBulk'])->name('suppliers.draft-po-bulk');
+    Route::get('api/suppliers/sla-dashboard', [\App\Http\Controllers\SupplierController::class, 'getSlaDashboard'])->name('suppliers.sla-dashboard');
 
     // Điều phối và chuyển kho nội bộ liên chi nhánh
     Route::get('api/inventory/transfer-recommendations', [\App\Http\Controllers\InternalTransferController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
