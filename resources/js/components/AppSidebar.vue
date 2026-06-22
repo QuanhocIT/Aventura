@@ -125,6 +125,7 @@ const superAdminNav: NavItem[] = [
     { title: 'Sao lưu & Tối ưu DB', href: '/super-admin/backup-maintenance', icon: Database },
     { title: 'Meilisearch Console', href: '/super-admin/meilisearch-console', icon: Database },
     { title: 'Giám sát Dịch vụ', href: '/super-admin/service-monitor', icon: Activity },
+    { title: 'Lịch bảo trì hệ thống', href: '/super-admin/maintenance-schedules', icon: CalendarDays },
     { title: 'Audit Log',      href: '/super-admin/audit-logs',  icon: FileSearch2 },
     { title: 'DevOps & Support', href: '/super-admin/support',  icon: Headset },
     { title: 'Dự đoán rời bỏ', href: '/super-admin/churn-prediction', icon: ShieldAlert },

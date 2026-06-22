@@ -11,6 +11,7 @@ import FlashToast from '@/components/FlashToast.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import OnboardingTour from '@/components/OnboardingTour.vue';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
+import CommandPalette from '@/components/CommandPalette.vue';
 import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
 
@@ -24,6 +25,7 @@ withDefaults(defineProps<Props>(), {
 
 const page = usePage();
 const isImpersonating = computed(() => !!page.props.is_impersonating);
+const upcomingMaintenance = computed(() => page.props.upcoming_maintenance as any);
 
 const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
@@ -64,6 +66,19 @@ function openUpgradeModal() {
     <AppShell variant="sidebar">
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
+            <!-- Upcoming Maintenance Banner -->
+            <div v-if="upcomingMaintenance" class="bg-gradient-to-r from-rose-600 to-red-700 text-white px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm font-medium border-b border-rose-800/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-bounce text-white" />
+                    <span>
+                        <strong>Hệ thống chuẩn bị bảo trì định kỳ:</strong> {{ upcomingMaintenance.title }}.
+                        Thời gian: <strong>{{ new Date(upcomingMaintenance.downtime_start).toLocaleString('vi-VN') }}</strong> đến <strong>{{ new Date(upcomingMaintenance.downtime_end).toLocaleString('vi-VN') }}</strong>.
+                        Ảnh hưởng: <span v-for="serv in upcomingMaintenance.services" :key="serv" class="bg-red-900/60 px-1.5 py-0.5 rounded font-mono text-[10px] mr-1 uppercase">{{ serv }}</span>.
+                        {{ upcomingMaintenance.banner_message }}
+                    </span>
+                </div>
+            </div>
+
             <!-- Impersonation Warning Banner -->
             <div v-if="isImpersonating" class="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-xs sm:text-sm font-medium border-b border-amber-600/30 w-full shrink-0">
                 <div class="flex items-center gap-2">
@@ -104,5 +119,6 @@ function openUpgradeModal() {
         <GlobalCampaignListener />
         <OnboardingTour />
         <ChatbotWidget v-if="showChatbot" source="support" />
+        <CommandPalette v-if="isSuperAdmin" />
     </AppShell>
 </template>
