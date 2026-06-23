@@ -319,4 +319,18 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::patch('shippers/{shipper}', [\App\Http\Controllers\Delivery\ShipperController::class, 'update'])->name('shippers.update');
         Route::delete('shippers/{shipper}', [\App\Http\Controllers\Delivery\ShipperController::class, 'destroy'])->name('shippers.destroy');
     });
+
+    // Employee Self-Service Portal
+    Route::prefix('employee-portal')->name('employee-portal.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\EmployeePortalController::class, 'index'])->name('index');
+        Route::get('/data', [\App\Http\Controllers\EmployeePortalController::class, 'getDashboardData'])->name('data');
+        Route::get('/salaries', [\App\Http\Controllers\EmployeePortalController::class, 'getSalaries'])->name('salaries');
+        Route::get('/leaves', [\App\Http\Controllers\EmployeePortalController::class, 'getLeaves'])->name('leaves');
+        Route::post('/leaves', [\App\Http\Controllers\EmployeePortalController::class, 'storeLeaveRequest'])->name('leaves.store');
+        Route::get('/swaps', [\App\Http\Controllers\EmployeePortalController::class, 'getSwaps'])->name('swaps');
+        Route::post('/swaps/request', [\App\Http\Controllers\EmployeePortalController::class, 'requestSwap'])->name('swaps.request');
+        Route::post('/swaps/{swap}/respond', [\App\Http\Controllers\EmployeePortalController::class, 'respondSwap'])->name('swaps.respond');
+        Route::post('/notifications/read-all', [\App\Http\Controllers\EmployeePortalController::class, 'readAllNotifications'])->name('notifications.read-all');
+    });
 });
+

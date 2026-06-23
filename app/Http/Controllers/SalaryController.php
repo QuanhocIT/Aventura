@@ -7,6 +7,7 @@ use App\Models\SalaryAdjustment;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\SalaryService;
+use App\Notifications\SalaryReadyNotification;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -117,6 +118,15 @@ class SalaryController extends Controller
             'approved_by' => $request->user()->id,
         ]);
 
+        $employeeUser = $salary->employee?->user;
+        if ($employeeUser) {
+            $periodStr = $salary->pay_period_start ? Carbon::parse($salary->pay_period_start)->format('m/Y') : '';
+            $employeeUser->notify(new SalaryReadyNotification(
+                $salary,
+                "Phiếu lương kỳ {$periodStr} đã được phê duyệt. Bạn có thể xem chi tiết ngay."
+            ));
+        }
+
         return back()->with('success', 'Đã duyệt bảng lương.');
     }
 
@@ -129,6 +139,15 @@ class SalaryController extends Controller
             'status'  => 'paid',
             'paid_at' => now(),
         ]);
+
+        $employeeUser = $salary->employee?->user;
+        if ($employeeUser) {
+            $periodStr = $salary->pay_period_start ? Carbon::parse($salary->pay_period_start)->format('m/Y') : '';
+            $employeeUser->notify(new SalaryReadyNotification(
+                $salary,
+                "Lương kỳ {$periodStr} đã được thanh toán. Hãy kiểm tra tài khoản của bạn."
+            ));
+        }
 
         return back()->with('success', 'Đã đánh dấu đã thanh toán lương.');
     }

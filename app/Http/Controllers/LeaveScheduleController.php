@@ -9,6 +9,7 @@ use App\Models\ScheduleRegistration;
 use App\Models\ShiftSwap;
 use App\Models\WorkShift;
 use App\Services\SalaryService;
+use App\Notifications\ScheduleUpdatedNotification;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -265,6 +266,15 @@ class LeaveScheduleController extends Controller
         ], [
             'status' => 'scheduled',
         ]);
+
+        $employeeUser = $employee->user;
+        if ($employeeUser) {
+            $dateFormatted = Carbon::parse($scheduledDate)->format('d/m/Y');
+            $employeeUser->notify(new ScheduleUpdatedNotification(
+                "Bạn đã được phân công ca trực mới vào ngày {$dateFormatted}.",
+                $scheduledDate
+            ));
+        }
 
         return back()->with('success', 'Xếp ca thành công.');
     }

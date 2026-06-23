@@ -273,48 +273,40 @@ const supplierNav: NavItem[] = [
     { title: 'Đấu thầu RFP',        href: '/supplier/rfps',      icon: ScrollText },
 ];
 
-// ─── Chọn menu dựa trên role và hạn gói ──────────────────────────────────────────
 const mainNavItems = computed<NavItem[]>(() => {
+    let items: NavItem[] = [];
+
     if (isSuperAdmin.value) {
-        return superAdminNav;
-    }
-
-    if (isSupplier.value) {
-        return supplierNav;
-    }
-
-    if (isShipper.value) {
-        return shipperNav;
-    }
-    
-    // Nếu gói hết hạn / bị khóa, giới hạn chỉ cho phép xem Tổng quan
-    if (!isSubscriptionActive.value) {
-        return [
+        items = superAdminNav;
+    } else if (isSupplier.value) {
+        items = supplierNav;
+    } else if (isShipper.value) {
+        items = shipperNav;
+    } else if (!isSubscriptionActive.value) {
+        items = [
             { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid }
         ];
+    } else if (isOwner.value || isManager.value) {
+        items = [...ownerNav.value];
+    } else if (isCashier.value) {
+        items = [...cashierNav];
+    } else if (isKitchen.value) {
+        items = [...kitchenNav];
+    } else if (isInventory.value) {
+        items = [...inventoryNav];
+    } else if (isCustomer.value) {
+        items = [...customerNav];
     }
-    
-    if (isOwner.value || isManager.value)      {
-return ownerNav.value;
-}
 
-    if (isCashier.value)    {
-return cashierNav;
-}
+    const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value;
+    if (showPortalLink && items.length > 0) {
+        items = [
+            { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
+            ...items
+        ];
+    }
 
-    if (isKitchen.value)    {
-return kitchenNav;
-}
-
-    if (isInventory.value)  {
-return inventoryNav;
-}
-
-    if (isCustomer.value)   {
-return customerNav;
-}
-
-    return [];
+    return items;
 });
 
 const footerNavItems: NavItem[] = [
