@@ -136,6 +136,16 @@ class Employee extends Model
         return $this->hasMany(Salary::class);
     }
 
+    public function kpis(): HasMany
+    {
+        return $this->hasMany(EmployeeKpi::class);
+    }
+
+    public function performanceReviews(): HasMany
+    {
+        return $this->hasMany(PerformanceReview::class);
+    }
+
     public function salaryAdjustments(): HasMany
     {
         return $this->hasMany(SalaryAdjustment::class);

@@ -414,7 +414,69 @@ class SalaryService
             }
         }
 
-        // 4. Tính toán lại tổng các khoản và cập nhật net_salary thực lãnh
+        // 4. Cộng thưởng & Hoa hồng KPI từ đánh giá hiệu suất đã duyệt (finalized)
+        $period = Carbon::parse($salary->pay_period_start)->format('Y-m');
+        $kpi = \App\Models\EmployeeKpi::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->where('period', $period)
+            ->where('status', 'finalized')
+            ->first();
+
+        if ($kpi) {
+            // Hoa hồng doanh số KPI
+            if ((float)$kpi->total_commission > 0) {
+                $commissionExists = SalaryAdjustment::withoutGlobalScopes()
+                    ->where('salary_id', $salary->id)
+                    ->where('employee_id', $employee->id)
+                    ->where('type', 'bonus')
+                    ->where('reference_id', $kpi->id)
+                    ->where('reference_type', \App\Models\EmployeeKpi::class)
+                    ->where('reason', 'like', 'Thưởng hoa hồng%')
+                    ->exists();
+
+                if (!$commissionExists) {
+                    SalaryAdjustment::create([
+                        'salary_id'      => $salary->id,
+                        'restaurant_id'  => $restaurantId,
+                        'employee_id'    => $employee->id,
+                        'type'           => 'bonus',
+                        'amount'         => (float)$kpi->total_commission,
+                        'reason'         => "Thưởng hoa hồng doanh số theo hiệu suất KPI kỳ " . $kpi->period,
+                        'reference_id'   => $kpi->id,
+                        'reference_type' => \App\Models\EmployeeKpi::class,
+                        'status'         => 'applied',
+                    ]);
+                }
+            }
+
+            // Thưởng vượt chỉ tiêu KPI
+            if ((float)$kpi->total_bonus > 0) {
+                $bonusExists = SalaryAdjustment::withoutGlobalScopes()
+                    ->where('salary_id', $salary->id)
+                    ->where('employee_id', $employee->id)
+                    ->where('type', 'bonus')
+                    ->where('reference_id', $kpi->id)
+                    ->where('reference_type', \App\Models\EmployeeKpi::class)
+                    ->where('reason', 'like', 'Thưởng vượt chỉ tiêu%')
+                    ->exists();
+
+                if (!$bonusExists) {
+                    SalaryAdjustment::create([
+                        'salary_id'      => $salary->id,
+                        'restaurant_id'  => $restaurantId,
+                        'employee_id'    => $employee->id,
+                        'type'           => 'bonus',
+                        'amount'         => (float)$kpi->total_bonus,
+                        'reason'         => "Thưởng vượt chỉ tiêu KPI kỳ " . $kpi->period,
+                        'reference_id'   => $kpi->id,
+                        'reference_type' => \App\Models\EmployeeKpi::class,
+                        'status'         => 'applied',
+                    ]);
+                }
+            }
+        }
+
+        // 5. Tính toán lại tổng các khoản và cập nhật net_salary thực lãnh
         $this->recalculate($salary);
     }
 }

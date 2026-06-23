@@ -183,6 +183,15 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/customers/{customer}/credit', [\App\Http\Controllers\DebtController::class, 'updateCustomerCredit'])->name('customers.credit');
     });
 
+    // KPI & Đánh giá hiệu suất nhân sự
+    Route::prefix('kpis')->name('kpis.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\KpiController::class, 'index'])->name('index');
+        Route::post('/recalculate', [\App\Http\Controllers\KpiController::class, 'recalculate'])->name('recalculate');
+        Route::post('/{kpi}/finalize', [\App\Http\Controllers\KpiController::class, 'finalize'])->name('finalize');
+        Route::post('/reviews', [\App\Http\Controllers\KpiController::class, 'storeReview'])->name('reviews.store');
+        Route::post('/metrics/{metric}', [\App\Http\Controllers\KpiController::class, 'updateMetricConfig'])->name('metrics.update');
+    });
+
     // Bảng lương
     Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
     Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');
