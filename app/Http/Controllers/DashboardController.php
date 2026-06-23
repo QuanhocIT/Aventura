@@ -227,6 +227,49 @@ class DashboardController extends Controller
                 ];
             }
 
+            // Alert 7 (Cash discrepancy > 2% of expected cash at close)
+            $closedRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where('status', 'closed')
+                ->where('closed_at', '>=', now()->subDays(7))
+                ->where('expected_closing_balance', '>', 0)
+                ->get();
+
+            $discrepancyRegistersCount = $closedRegisters->filter(function ($r) {
+                return (float) $r->expected_closing_balance > 0
+                    && (abs((float) $r->difference) / (float) $r->expected_closing_balance) > 0.02;
+            })->count();
+            if ($discrepancyRegistersCount > 0) {
+                $alerts[] = [
+                    'type'    => 'danger',
+                    'message' => "⚠️ Phát hiện {$discrepancyRegistersCount} ca chốt két tiền mặt chênh lệch vượt quá 2% so với hệ thống trong 7 ngày qua!",
+                    'href'    => '/cash-flow',
+                ];
+            }
+
+            // Alert 8 (Active registers expense budget overrun)
+            $overrunRegistersCount = 0;
+            $openRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where('status', 'open')
+                ->where('expense_budget', '>', 0)
+                ->get();
+            foreach ($openRegisters as $or) {
+                $expensesSum = (float) \App\Models\CashTransaction::where('cash_register_id', $or->id)
+                    ->where('type', 'out')
+                    ->sum('amount');
+                if ($expensesSum > (float) $or->expense_budget) {
+                    $overrunRegistersCount++;
+                }
+            }
+            if ($overrunRegistersCount > 0) {
+                $alerts[] = [
+                    'type'    => 'warning',
+                    'message' => "⚠️ Ca trực hiện tại đang có chi tiêu tiền mặt vượt quá ngân sách chi ngoài hệ thống!",
+                    'href'    => '/cash-flow',
+                ];
+            }
+
             // ── Activity Feed ────────────────────────────────────────────────
             $feedItems = [];
             $ordersForFeed = Order::with('table')
@@ -442,6 +485,7 @@ class DashboardController extends Controller
             'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id, $branchId)) : null,
             'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id, $branchId)) : [],
             'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id, $branchId)) : null,
+            'cashFlowSummary'      => $restaurant ? Inertia::defer(fn () => $this->getCashFlowSummary($restaurant->id, $branchId)) : null,
         ]);
     }
 
@@ -751,6 +795,51 @@ class DashboardController extends Controller
                 ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
                 ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
                 ->sum('net_revenue'),
+        ];
+    }
+
+    private function getCashFlowSummary(int $rid, ?int $branchId = null): array
+    {
+        $activeRegister = \App\Models\CashRegister::where('restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->where('status', 'open')
+            ->first();
+
+        $currentCash = 0.0;
+        if ($activeRegister) {
+            $in = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'in')->sum('amount');
+            $out = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'out')->sum('amount');
+            $currentCash = (float) $activeRegister->opening_balance + $in - $out;
+        }
+
+        $sevenDaysAgo = now()->subDays(6)->startOfDay();
+        $recentTransactions = \App\Models\CashTransaction::where('restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->where('occurred_at', '>=', $sevenDaysAgo)
+            ->selectRaw("DATE(occurred_at) as date, type, SUM(amount) as total")
+            ->groupBy('date', 'type')
+            ->get();
+
+        $chart = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i);
+            $dateStr = $date->toDateString();
+            $label = $date->format('d/m');
+            $in = (float) $recentTransactions->where('date', $dateStr)->where('type', 'in')->sum('total');
+            $out = (float) $recentTransactions->where('date', $dateStr)->where('type', 'out')->sum('total');
+            $chart[] = [
+                'date' => $label,
+                'in' => $in,
+                'out' => $out
+            ];
+        }
+
+        return [
+            'active_register_status' => $activeRegister ? 'open' : 'closed',
+            'current_cash' => $currentCash,
+            'seven_days_in' => (float) $recentTransactions->where('type', 'in')->sum('total'),
+            'seven_days_out' => (float) $recentTransactions->where('type', 'out')->sum('total'),
+            'chart' => $chart,
         ];
     }
 }

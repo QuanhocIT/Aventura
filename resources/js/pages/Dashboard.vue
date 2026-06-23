@@ -13,6 +13,7 @@ import ChannelShareChart from '@/components/dashboard/charts/ChannelShareChart.v
 import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastChart.vue';
 import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
 import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
+import CashFlowWidget from '@/components/dashboard/charts/CashFlowWidget.vue';
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
 import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
@@ -148,6 +149,7 @@ const props = defineProps<{
     branchId?: number | null;
     branches?: { id: number; name: string }[];
     branchComparisons?: BranchComparison[];
+    cashFlowSummary?: any;
 }>();
 
 const page = usePage();
@@ -353,6 +355,7 @@ const formatVND = (value: number) => {
             </div>
             <div>
                 <div class="space-y-6">
+                    <CashFlowWidget :cash-flow-summary="props.cashFlowSummary" />
                     <AIInsightsCard
                         :forecast-data="props.forecastData"
                         :stats="props.stats"

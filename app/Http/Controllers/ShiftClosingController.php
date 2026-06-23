@@ -167,7 +167,37 @@ class ShiftClosingController extends Controller
             })
             ->sum('total_amount');
 
-        $expectedCashAfterPenalty = max(0.0, $expectedCash - $splitPenaltyTotal);
+        // Cash register checking
+        $branchId = $request->user()->branch_id;
+        $employee = \App\Models\Employee::where('user_id', $request->user()->id)->first();
+        if ($employee && $employee->branch_id) {
+            $branchId = $employee->branch_id;
+        }
+
+        $register = \App\Models\CashRegister::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->where('shift_id', $shift->id)
+            ->where('status', 'open')
+            ->first();
+
+        $openingBalance = 0.0;
+        $otherCashIn = 0.0;
+        $otherCashOut = 0.0;
+        $hasRegister = false;
+
+        if ($register) {
+            $hasRegister = true;
+            $openingBalance = (float) $register->opening_balance;
+            $otherCashIn = (float) \App\Models\CashTransaction::where('cash_register_id', $register->id)
+                ->where('type', 'in')
+                ->where('source', 'other')
+                ->sum('amount');
+            $otherCashOut = (float) \App\Models\CashTransaction::where('cash_register_id', $register->id)
+                ->where('type', 'out')
+                ->sum('amount');
+        }
+
+        $expectedCashAfterPenalty = max(0.0, $openingBalance + $expectedCash - $splitPenaltyTotal + $otherCashIn - $otherCashOut);
         $netRevenueAfterPenalty   = max(0.0, $netRevenue - $splitPenaltyTotal);
 
         $splitOrders = Order::withoutGlobalScopes()
@@ -223,6 +253,10 @@ class ShiftClosingController extends Controller
             'already_closed'     => $alreadyClosed,
             'split_penalty_total'=> (float) $splitPenaltyTotal,
             'split_orders'       => $splitOrders,
+            'opening_balance'    => $openingBalance,
+            'other_cash_in'      => $otherCashIn,
+            'other_cash_out'     => $otherCashOut,
+            'has_register'       => $hasRegister,
         ]);
     }
 
@@ -274,7 +308,13 @@ class ShiftClosingController extends Controller
             }
         }
 
-        $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date']);
+        $branchId = $user->branch_id;
+        $employee = \App\Models\Employee::where('user_id', $user->id)->first();
+        if ($employee && $employee->branch_id) {
+            $branchId = $employee->branch_id;
+        }
+
+        $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date'], $branchId);
 
         $cashDifference = (float) $data['actual_cash'] - $calculated['expected_cash'];
         $status = $request->boolean('submit') ? 'submitted' : 'draft';
@@ -297,7 +337,22 @@ class ShiftClosingController extends Controller
             'notes'                => $notes,
             'status'               => $status,
             'closed_at'            => now(),
+            'cash_register_id'     => $calculated['register_id'],
         ]);
+
+        if ($calculated['register_id'] && $status === 'submitted') {
+            $register = \App\Models\CashRegister::find($calculated['register_id']);
+            if ($register) {
+                $register->update([
+                    'status' => 'closed',
+                    'closed_by' => $user->id,
+                    'closed_at' => now(),
+                    'closing_balance' => $data['actual_cash'],
+                    'expected_closing_balance' => $calculated['expected_cash'],
+                    'difference' => $cashDifference,
+                ]);
+            }
+        }
 
         $message = $status === 'submitted'
             ? 'Đã nộp phiếu chốt ca, chờ manager xét duyệt.'
@@ -371,7 +426,7 @@ class ShiftClosingController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date): array
+    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null): array
     {
         $shift = WorkShift::withoutGlobalScopes()->findOrFail($shiftId);
         $closingDate = Carbon::parse($date);
@@ -404,10 +459,36 @@ class ShiftClosingController extends Controller
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
         $expectedCash = max(0.0, $expectedCash - $splitPenaltyTotal);
 
+        $register = \App\Models\CashRegister::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->where('shift_id', $shiftId)
+            ->where('status', 'open')
+            ->first();
+
+        $openingBalance = 0.0;
+        $otherCashIn = 0.0;
+        $otherCashOut = 0.0;
+        $registerId = null;
+
+        if ($register) {
+            $registerId = $register->id;
+            $openingBalance = (float) $register->opening_balance;
+            $otherCashIn = (float) \App\Models\CashTransaction::where('cash_register_id', $register->id)
+                ->where('type', 'in')
+                ->where('source', 'other')
+                ->sum('amount');
+            $otherCashOut = (float) \App\Models\CashTransaction::where('cash_register_id', $register->id)
+                ->where('type', 'out')
+                ->sum('amount');
+        }
+
+        $expectedCashTotal = max(0.0, $openingBalance + $expectedCash - $splitPenaltyTotal + $otherCashIn - $otherCashOut);
+
         return [
-            'expected_cash'   => $expectedCash,
+            'expected_cash'   => $expectedCashTotal,
             'transfer_amount' => (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount'),
             'split_penalty_total' => (float) $splitPenaltyTotal,
+            'register_id' => $registerId,
         ];
     }
 

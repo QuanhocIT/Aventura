@@ -158,6 +158,7 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report' },
         { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },
         { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet },
         { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
         { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
         { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
@@ -200,6 +201,7 @@ const managerNav = computed<NavItem[]>(() => {
         { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report' },
         { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },
         { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
+        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet },
         { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
         { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
         { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
@@ -220,6 +222,7 @@ const cashierNav: NavItem[] = [
     { title: 'Trang chủ',       href: '/dashboard',               icon: LayoutGrid },
     { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
     { title: 'Doanh thu ca',     href: '/shift-closings',          icon: ClipboardCheck },
+    { title: 'Dòng tiền',        href: '/cash-flow',               icon: Wallet },
     { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays },
     { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
 ];

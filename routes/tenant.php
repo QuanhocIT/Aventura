@@ -176,6 +176,12 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('shift-closings/{closing}/confirm', [\App\Http\Controllers\ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
     Route::patch('shift-closings/{closing}/dispute', [\App\Http\Controllers\ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
 
+    // Cash Flow Management
+    Route::get('cash-flow', [\App\Http\Controllers\CashFlowController::class, 'index'])->name('cash-flow.index');
+    Route::post('cash-flow/registers', [\App\Http\Controllers\CashFlowController::class, 'openRegister'])->name('cash-flow.registers.open');
+    Route::post('cash-flow/transactions', [\App\Http\Controllers\CashFlowController::class, 'storeTransaction'])->name('cash-flow.transactions.store');
+    Route::get('cash-flow/forecast', [\App\Http\Controllers\CashFlowController::class, 'getForecast'])->name('cash-flow.forecast');
+
     // Support booking demo
     Route::post('support/bookings', [SupportController::class, 'storeBooking'])->name('support.bookings.store');
 

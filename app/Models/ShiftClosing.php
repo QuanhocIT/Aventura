@@ -72,4 +72,9 @@ class ShiftClosing extends Model
     {
         return $this->morphMany(SalaryAdjustment::class, 'reference');
     }
+
+    public function cashRegister(): BelongsTo
+    {
+        return $this->belongsTo(CashRegister::class, 'cash_register_id');
+    }
 }

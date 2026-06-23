@@ -91,6 +91,10 @@ type Preview = {
     transfer_amount: number;
     pending_orders: number;
     already_closed: boolean;
+    opening_balance?: number;
+    other_cash_in?: number;
+    other_cash_out?: number;
+    has_register?: boolean;
 };
 
 const props = defineProps<{
@@ -1142,6 +1146,39 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
                         >
                             <AlertTriangle class="mt-0.5 size-4 shrink-0 animate-pulse text-amber-600" />
                             <span>Còn <strong>{{ previewData.pending_orders }}</strong> đơn chưa hoàn tất trong ca trực. Dữ liệu các đơn này sẽ tạm thời không được cộng vào tổng doanh thu chốt ca.</span>
+                        </div>
+
+                        <!-- Cash Register Reconciliation Details -->
+                        <div v-if="previewData.has_register" class="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/10 p-3.5 space-y-2 text-xs">
+                            <p class="font-bold text-indigo-700 flex items-center gap-1">
+                                <Wallet class="size-3.5" /> Đối soát két tiền mặt đầu/cuối ca
+                            </p>
+                            <div class="space-y-1.5 font-semibold text-slate-650">
+                                <div class="flex justify-between">
+                                    <span>1. Số dư két mở đầu ca:</span>
+                                    <span class="font-mono text-slate-700">{{ vnd(previewData.opening_balance || 0) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>2. Doanh thu tiền mặt từ đơn hàng:</span>
+                                    <span class="font-mono text-emerald-600">+{{ vnd(previewData.expected_cash - (previewData.opening_balance || 0) - (previewData.other_cash_in || 0) + (previewData.other_cash_out || 0)) }}</span>
+                                </div>
+                                <div v-if="previewData.other_cash_in > 0" class="flex justify-between">
+                                    <span>3. Các khoản thu khác:</span>
+                                    <span class="font-mono text-emerald-600">+{{ vnd(previewData.other_cash_in) }}</span>
+                                </div>
+                                <div v-if="previewData.other_cash_out > 0" class="flex justify-between text-rose-600">
+                                    <span>4. Các khoản chi ngoài (đi chợ/sửa chữa):</span>
+                                    <span class="font-mono">-{{ vnd(previewData.other_cash_out) }}</span>
+                                </div>
+                                <div class="flex justify-between border-t pt-2 font-bold text-indigo-700">
+                                    <span>Kỳ vọng thực tế trong két (1+2+3-4):</span>
+                                    <span class="font-mono text-sm">{{ vnd(previewData.expected_cash) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-250 bg-amber-50 p-3.5 text-xs text-amber-700">
+                            <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-600" />
+                            <span><strong>Lưu ý:</strong> Ca trực này chưa được mở két đầu ca trong hệ thống Quản lý Dòng tiền. Dữ liệu đối soát kì vọng sẽ tạm thời tính từ doanh thu đơn hàng thanh toán tiền mặt với số dư ban đầu mặc định là 0đ.</span>
                         </div>
 
                         <!-- Input actual cash -->
