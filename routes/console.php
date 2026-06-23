@@ -20,6 +20,7 @@ app(Schedule::class)->command('billing:sync-statuses')->hourly();
 app(Schedule::class)->command('reports:generate-daily')->dailyAt('23:59');
 app(Schedule::class)->command('dashboard:send-scheduled-reports')->dailyAt('07:30');
 app(Schedule::class)->command('news:publish-scheduled')->everyFiveMinutes();
+app(Schedule::class)->command('expenses:process-recurring')->dailyAt('00:05');
 
 app(Schedule::class)->call(function () {
     app(\App\Services\SupportPortalService::class)->evaluateAlerts();

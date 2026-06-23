@@ -160,6 +160,21 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('reports/generate', [\App\Http\Controllers\ReportsController::class, 'generate'])->name('reports.generate');
     Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
 
+    // Expenses / OPEX Tracker
+    Route::prefix('expenses')->name('expenses.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ExpenseController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\ExpenseController::class, 'store'])->name('store');
+        Route::patch('/{expense}', [\App\Http\Controllers\ExpenseController::class, 'update'])->name('update');
+        Route::delete('/{expense}', [\App\Http\Controllers\ExpenseController::class, 'destroy'])->name('destroy');
+
+        Route::post('/recurring', [\App\Http\Controllers\ExpenseController::class, 'storeRecurring'])->name('recurring.store');
+        Route::patch('/recurring/{recurring}', [\App\Http\Controllers\ExpenseController::class, 'updateRecurring'])->name('recurring.update');
+        Route::delete('/recurring/{recurring}', [\App\Http\Controllers\ExpenseController::class, 'destroyRecurring'])->name('recurring.destroy');
+
+        Route::post('/categories', [\App\Http\Controllers\ExpenseController::class, 'storeCategory'])->name('categories.store');
+        Route::delete('/categories/{category}', [\App\Http\Controllers\ExpenseController::class, 'destroyCategory'])->name('categories.destroy');
+    });
+
     // Bảng lương
     Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
     Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');

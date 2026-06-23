@@ -234,7 +234,7 @@ class ReportsController extends Controller
             ];
         }
 
-        // ── Net Profit = Gross Profit - Payroll ───────────────────────────────
+        // ── Net Profit = Gross Profit - Payroll - OPEX ────────────────────────
         $totalCogs = $summaries->sum('cogs_amount');
 
         $totalPayroll = (float) Salary::withoutGlobalScopes()
@@ -243,18 +243,23 @@ class ReportsController extends Controller
             ->whereBetween('pay_period_start', [$startDate->toDateString(), $endDate->toDateString()])
             ->sum('net_salary');
 
+        $totalOpex = (float) \App\Models\OperatingExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->sum('amount');
+
         $grossProfit = (float) $totals['gross_profit'];
-        $netProfit   = $grossProfit - $totalPayroll;
+        $netProfit   = $grossProfit - $totalPayroll - $totalOpex;
         $netRevenue  = (float) $totals['net_revenue'];
 
         $profitBreakdown = [
             'gross_profit'   => $grossProfit,
             'total_cogs'     => (float) $totalCogs,
             'total_payroll'  => $totalPayroll,
+            'total_opex'     => $totalOpex,
             'net_profit'     => $netProfit,
             'net_profit_pct' => $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 1) : 0.0,
             'cogs_pct'       => $netRevenue > 0 ? round(($totalCogs / $netRevenue) * 100, 1) : 0.0,
             'payroll_pct'    => $netRevenue > 0 ? round(($totalPayroll / $netRevenue) * 100, 1) : 0.0,
+            'opex_pct'       => $netRevenue > 0 ? round(($totalOpex / $netRevenue) * 100, 1) : 0.0,
         ];
 
         // ── Product analysis (BCG + margins) ─────────────────────────────────

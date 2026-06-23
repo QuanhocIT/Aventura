@@ -62,6 +62,7 @@ type ComparisonCards = {
 
 type ProfitBreakdown = {
     gross_profit: number; total_cogs: number; total_payroll: number;
+    total_opex: number; opex_pct: number;
     net_profit: number; net_profit_pct: number; cogs_pct: number; payroll_pct: number;
 };
 
@@ -536,7 +537,7 @@ return null;
         </div>
 
         <!-- ── Profit Breakdown ─────────────────────────────────────────────── -->
-        <Card v-if="profitBreakdown.total_cogs > 0 || profitBreakdown.total_payroll > 0">
+        <Card v-if="profitBreakdown.total_cogs > 0 || profitBreakdown.total_payroll > 0 || (profitBreakdown.total_opex && profitBreakdown.total_opex > 0)">
             <CardContent class="pt-5">
                 <div class="flex items-center gap-2 mb-3">
                     <TrendingUp class="size-4 text-muted-foreground" />
@@ -552,6 +553,9 @@ return null;
                     <div class="h-full bg-blue-400 transition-all"
                         :style="{ width: Math.max(profitBreakdown.payroll_pct, 0) + '%' }"
                         :title="'Lương: ' + profitBreakdown.payroll_pct + '%'" />
+                    <div class="h-full bg-amber-400 transition-all"
+                        :style="{ width: Math.max(profitBreakdown.opex_pct, 0) + '%' }"
+                        :title="'OPEX: ' + profitBreakdown.opex_pct + '%'" />
                     <div class="h-full bg-violet-400 transition-all flex-1"
                         :title="'Lợi nhuận ròng: ' + profitBreakdown.net_profit_pct + '%'" />
                 </div>
@@ -568,6 +572,12 @@ return null;
                         <span class="text-muted-foreground">Chi phí lương</span>
                         <span class="font-bold">{{ profitBreakdown.payroll_pct }}%</span>
                         <span class="text-muted-foreground">· {{ formatCompact(profitBreakdown.total_payroll) }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="h-3 w-3 rounded-full bg-amber-400 shrink-0"></span>
+                        <span class="text-muted-foreground">Chi phí vận hành (OPEX)</span>
+                        <span class="font-bold">{{ profitBreakdown.opex_pct }}%</span>
+                        <span class="text-muted-foreground">· {{ formatCompact(profitBreakdown.total_opex) }}</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="h-3 w-3 rounded-full bg-violet-400 shrink-0"></span>
