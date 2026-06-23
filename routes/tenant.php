@@ -175,6 +175,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::delete('/categories/{category}', [\App\Http\Controllers\ExpenseController::class, 'destroyCategory'])->name('categories.destroy');
     });
 
+    // Quản lý Công nợ (Accounts Receivable / Payable)
+    Route::prefix('debts')->name('debts.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\DebtController::class, 'index'])->name('index');
+        Route::post('/payables/{payable}/pay', [\App\Http\Controllers\DebtController::class, 'paySupplier'])->name('payables.pay');
+        Route::post('/receivables/{receivable}/collect', [\App\Http\Controllers\DebtController::class, 'collectCustomer'])->name('receivables.collect');
+        Route::post('/customers/{customer}/credit', [\App\Http\Controllers\DebtController::class, 'updateCustomerCredit'])->name('customers.credit');
+    });
+
     // Bảng lương
     Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
     Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');

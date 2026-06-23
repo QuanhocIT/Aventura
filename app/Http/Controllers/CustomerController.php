@@ -61,6 +61,10 @@ class CustomerController extends Controller
                 'total_spent' => (float) ($c->total_spent ?? 0),
                 'last_order_at' => $c->last_order_at ? Carbon::parse($c->last_order_at)->format('H:i d/m/Y') : 'Chưa có',
                 'created_at' => $c->created_at->format('d/m/Y'),
+                'is_vip' => (bool) $c->is_vip,
+                'is_b2b' => (bool) $c->is_b2b,
+                'credit_limit' => (float) ($c->credit_limit ?? 0),
+                'current_debt' => (float) ($c->current_debt ?? 0),
             ]);
 
         // Tính toán thống kê CRM
@@ -184,6 +188,10 @@ class CustomerController extends Controller
                 'loyalty_points' => $customer->loyalty_points,
                 'membership_level' => $customer->membership_level ?? 'silver',
                 'total_spent' => (float) ($customer->total_spent ?? 0),
+                'is_vip' => (bool) $customer->is_vip,
+                'is_b2b' => (bool) $customer->is_b2b,
+                'credit_limit' => (float) ($customer->credit_limit ?? 0),
+                'current_debt' => (float) ($customer->current_debt ?? 0),
             ]
         ]);
     }

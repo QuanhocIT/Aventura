@@ -188,6 +188,7 @@ class SupplierController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
             'delivery_due_date' => ['nullable', 'date'],
+            'payment_terms' => ['nullable', 'string', 'in:COD,NET_15,NET_30,NET_60'],
         ]);
 
         $user = $request->user();
@@ -216,6 +217,14 @@ class SupplierController extends Controller
             $isOwner = $user->hasRole('owner');
             $status = $isOwner ? 'approved' : 'pending_approval';
 
+            $paymentTerms = $request->input('payment_terms', 'COD');
+            $dueDate = match ($paymentTerms) {
+                'NET_15' => now()->addDays(15),
+                'NET_30' => now()->addDays(30),
+                'NET_60' => now()->addDays(60),
+                default => now(), // COD
+            };
+
             $po = PurchaseOrder::create([
                 'restaurant_id' => $user->restaurant_id,
                 'supplier_id' => $supplier->id,
@@ -226,6 +235,8 @@ class SupplierController extends Controller
                 'approved_by' => $isOwner ? $user->id : null,
                 'notes' => $request->input('notes'),
                 'delivery_due_date' => $request->input('delivery_due_date'),
+                'payment_terms' => $paymentTerms,
+                'due_date' => $dueDate->toDateString(),
             ]);
 
             foreach ($itemsData as $item) {
@@ -402,12 +413,27 @@ class SupplierController extends Controller
 
             } else {
                 // Success: update status and add to inventory
+                $isCod = $purchaseOrder->payment_terms === 'COD' || empty($purchaseOrder->payment_terms);
+                $paymentStatus = $isCod ? 'paid' : 'unpaid';
+
                 $purchaseOrder->update([
                     'status' => 'delivered',
                     'is_frozen' => false,
                     'is_discrepant' => false,
-                    'payment_status' => 'paid',
+                    'payment_status' => $paymentStatus,
                 ]);
+
+                if (!$isCod) {
+                    \App\Models\AccountPayable::create([
+                        'restaurant_id' => $purchaseOrder->restaurant_id,
+                        'purchase_order_id' => $purchaseOrder->id,
+                        'supplier_id' => $purchaseOrder->supplier_id,
+                        'amount' => $invoiceTotalAmount,
+                        'paid_amount' => 0,
+                        'due_date' => $purchaseOrder->due_date ?? now()->toDateString(),
+                        'status' => 'unpaid',
+                    ]);
+                }
 
                 foreach ($purchaseOrder->items as $item) {
                     $inventory = Inventory::firstOrCreate(
@@ -984,6 +1010,8 @@ class SupplierController extends Controller
                     'created_by' => $user->id,
                     'notes' => 'Đơn hàng tự động nháp được đề xuất bởi Cockpit Tự Động Hóa Chuỗi Cung Ứng.',
                     'delivery_due_date' => now()->addDays(2), // default lead time
+                    'payment_terms' => 'COD',
+                    'due_date' => now()->toDateString(),
                 ]);
 
                 foreach ($itemsData as $itData) {

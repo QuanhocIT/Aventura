@@ -142,6 +142,7 @@ const paymentMethods = [
     { id: 'bank_transfer' as const, label: 'Chuyển khoản' },
     { id: 'card' as const, label: 'Thẻ ATM/Visa' },
     { id: 'ewallet' as const, label: 'Ví điện tử' },
+    { id: 'debt' as const, label: 'Ghi nợ (VIP/B2B)' },
 ];
 const selfServiceTabs = [
     { id: 'schedule' as const, label: 'Đăng ký lịch' },
@@ -200,7 +201,7 @@ return null;
 
 // Payment State
 const showPaymentModal = ref(false);
-const paymentMethod = ref<'cash' | 'bank_transfer' | 'card' | 'ewallet'>('cash');
+const paymentMethod = ref<'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt'>('cash');
 const cashReceived = ref<number | undefined>(undefined);
 const changeAmount = computed(() => {
     if (!activeTable.value?.active_order || paymentMethod.value !== 'cash' || !cashReceived.value) {
@@ -663,6 +664,7 @@ openTableOrder(updated);
 
 // Payment Dialog
 const openPayment = () => {
+    paymentMethod.value = 'cash';
     cashReceived.value = activeTable.value?.active_order?.total_amount ?? 0;
     foundCustomer.value = null;
     searchCustomerPhone.value = '';
@@ -1652,13 +1654,50 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                             <span class="font-mono">{{ number_format(changeAmount) }}đ</span>
                         </div>
                     </div>
+
+                    <!-- Thông tin ghi nợ VIP/B2B -->
+                    <div class="flex flex-col gap-2 p-1 rounded-xl text-xs text-left" v-if="paymentMethod === 'debt'">
+                        <div v-if="!foundCustomer" class="text-rose-500 font-bold bg-rose-50 dark:bg-rose-950/20 p-2.5 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                            ⚠️ Giao dịch ghi nợ yêu cầu chọn khách hàng trước.
+                        </div>
+                        <div v-else-if="!foundCustomer.is_vip && !foundCustomer.is_b2b" class="text-rose-500 font-bold bg-rose-50 dark:bg-rose-950/20 p-2.5 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                            ⚠️ Khách hàng này không được cấp quyền mua nợ (Không phải VIP/B2B).
+                        </div>
+                        <div v-else class="flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-900/20 p-3 rounded-xl border">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Hạn mức nợ tối đa:</span>
+                                <span class="font-mono font-bold">{{ number_format(foundCustomer.credit_limit) }}đ</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Dư nợ hiện tại:</span>
+                                <span class="font-mono font-bold text-rose-500">{{ number_format(foundCustomer.current_debt) }}đ</span>
+                            </div>
+                            <div class="flex justify-between border-t pt-1.5 dark:border-slate-800">
+                                <span class="text-slate-500 font-bold">Khả năng nợ còn lại:</span>
+                                <span class="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    {{ number_format(foundCustomer.credit_limit - foundCustomer.current_debt) }}đ
+                                </span>
+                            </div>
+                            <div class="flex justify-between mt-1 text-[11px]" v-if="foundCustomer.credit_limit - foundCustomer.current_debt >= (activeTable?.active_order?.total_amount ?? 0)">
+                                <span class="text-emerald-600 font-bold">✓ Đủ hạn mức tín dụng.</span>
+                                <span class="text-slate-400">Còn lại: {{ number_format(foundCustomer.credit_limit - foundCustomer.current_debt - (activeTable?.active_order?.total_amount ?? 0)) }}đ</span>
+                            </div>
+                            <div v-else class="text-rose-500 font-bold mt-1 text-[11px]">
+                                ❌ Vượt quá hạn mức nợ còn lại! Thiếu {{ number_format((activeTable?.active_order?.total_amount ?? 0) - (foundCustomer.credit_limit - foundCustomer.current_debt)) }}đ.
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex gap-2">
                     <Button variant="outline" class="flex-1 rounded-xl text-xs" @click="showPaymentModal = false">
                         Hủy
                     </Button>
-                    <Button class="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700" :disabled="isPaying" @click="processPayment">
+                    <Button 
+                        class="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700" 
+                        :disabled="isPaying || (paymentMethod === 'debt' && (!foundCustomer || (!foundCustomer.is_vip && !foundCustomer.is_b2b) || (foundCustomer.credit_limit - foundCustomer.current_debt < (activeTable?.active_order?.total_amount ?? 0))))" 
+                        @click="processPayment"
+                    >
                         {{ isPaying ? 'Đang xử lý...' : 'Hoàn tất & In hóa đơn' }}
                     </Button>
                 </div>

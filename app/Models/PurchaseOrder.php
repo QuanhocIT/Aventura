@@ -25,6 +25,7 @@ class PurchaseOrder extends Model
             'invoice_total_amount' => 'decimal:2',
             'delivery_due_date' => 'datetime',
             'delivered_at' => 'datetime',
+            'due_date' => 'date',
         ];
     }
 
@@ -46,5 +47,10 @@ class PurchaseOrder extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function accountPayable(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AccountPayable::class);
     }
 }

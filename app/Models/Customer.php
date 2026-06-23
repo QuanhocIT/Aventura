@@ -18,6 +18,16 @@ class Customer extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'is_vip' => 'boolean',
+            'is_b2b' => 'boolean',
+            'credit_limit' => 'decimal:2',
+            'current_debt' => 'decimal:2',
+        ];
+    }
+
     protected static function newFactory(): Factory
     {
         return CustomerFactory::new();
@@ -31,6 +41,11 @@ class Customer extends Model
     public function behaviorLogs()
     {
         return $this->hasMany(CustomerBehaviorLog::class);
+    }
+
+    public function accountReceivables()
+    {
+        return $this->hasMany(AccountReceivable::class);
     }
 }
 

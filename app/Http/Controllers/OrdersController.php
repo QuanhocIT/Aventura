@@ -369,7 +369,7 @@ class OrdersController extends Controller
         abort_if($order->payment_status === 'paid', 422, 'Đơn hàng này đã được thanh toán rồi.');
 
         $data = $request->validate([
-            'payment_method' => ['required', 'in:cash,bank_transfer,card,ewallet'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,ewallet,debt'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change_amount' => ['nullable', 'numeric', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
@@ -378,6 +378,111 @@ class OrdersController extends Controller
 
         if (isset($data['customer_id']) && $data['customer_id']) {
             $order->update(['customer_id' => $data['customer_id']]);
+        }
+
+        if ($data['payment_method'] === 'debt') {
+            $customerId = $order->customer_id ?: ($data['customer_id'] ?? null);
+            if (!$customerId) {
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => 'Giao dịch ghi nợ yêu cầu thông tin khách hàng.'], 422);
+                }
+                return back()->withErrors(['customer_id' => 'Giao dịch ghi nợ yêu cầu thông tin khách hàng.']);
+            }
+
+            $customer = \App\Models\Customer::find($customerId);
+            if (!$customer || (!$customer->is_vip && !$customer->is_b2b)) {
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => 'Khách hàng không được cấp quyền ghi nợ (Yêu cầu VIP/B2B).'], 422);
+                }
+                return back()->withErrors(['customer_id' => 'Khách hàng không được cấp quyền ghi nợ (Yêu cầu VIP/B2B).']);
+            }
+
+            $newDebt = (float)$customer->current_debt + (float)$order->total_amount;
+            if ($newDebt > (float)$customer->credit_limit) {
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => 'Hạn mức tín dụng của khách hàng không đủ.'], 422);
+                }
+                return back()->withErrors(['customer_id' => 'Hạn mức tín dụng của khách hàng không đủ.']);
+            }
+
+            // Perform transaction
+            DB::transaction(function () use ($order, $customer, $data, $user) {
+                // Apply membership discount
+                if (!str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
+                    $lvl = $customer->membership_level ?? 'silver';
+                    $loyaltyDiscount = 0.0;
+                    if ($lvl === 'diamond') {
+                        $loyaltyDiscount = round($order->subtotal * 0.10, 2);
+                    } elseif ($lvl === 'gold') {
+                        $loyaltyDiscount = round($order->subtotal * 0.05, 2);
+                    }
+                    
+                    if ($loyaltyDiscount > 0) {
+                        $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
+                        $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
+                        $order->note = ($order->note ? $order->note . ' ' : '') . "[Ưu đãi Hội viên " . ($lvl === 'diamond' ? 'Kim Cương' : 'Vàng') . ": -" . number_format($loyaltyDiscount) . "đ]";
+                        $order->save();
+                    }
+                }
+
+                // Increment customer debt
+                $customer->increment('current_debt', $order->total_amount);
+
+                // Create AccountReceivable record
+                \App\Models\AccountReceivable::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'order_id' => $order->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $order->total_amount,
+                    'received_amount' => 0,
+                    'due_date' => now()->addDays(30)->toDateString(), // 30-day payment term
+                    'status' => 'unpaid',
+                ]);
+
+                // Create Payment record
+                \App\Models\Payment::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'order_id' => $order->id,
+                    'processed_by' => $user->id,
+                    'payment_method' => 'debt',
+                    'status' => 'unpaid',
+                    'amount' => $order->total_amount,
+                    'cash_received' => 0,
+                    'change_amount' => 0,
+                    'paid_at' => null,
+                ]);
+
+                // Deduct inventory
+                app(\App\Services\InventoryService::class)->deductInventoryForOrder($order, $user);
+
+                // Update order to completed and payment_status to unpaid
+                $order->update([
+                    'status' => 'completed',
+                    'payment_status' => 'unpaid',
+                    'completed_at' => now(),
+                    'cashier_user_id' => $user->id,
+                ]);
+
+                // Release table
+                if ($order->table_id) {
+                    \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                }
+
+                // Customer updates
+                $customer->update(['last_order_at' => now()]);
+                \App\Services\CdpService::calculateRfmForCustomer($customer);
+
+                \App\Models\AuditLog::log('order_paid_with_debt', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'unpaid']);
+            });
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Ghi nợ đơn hàng thành công!',
+                ]);
+            }
+            return back()->with('success', 'Ghi nợ đơn hàng thành công!');
         }
 
         $this->orderService->payOrder($order, $data, $user);
