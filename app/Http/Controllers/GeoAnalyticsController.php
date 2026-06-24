@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\GeoAnalyticsService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class GeoAnalyticsController extends Controller
+{
+    public function __construct(private GeoAnalyticsService $geo) {}
+
+    public function index(Request $request): Response
+    {
+        $restaurantId = $request->user()->restaurant_id;
+        $days = max(1, min(365, (int) ($request->days ?? 30)));
+
+        $restaurant = $request->user()->restaurant;
+
+        return Inertia::render('geo-analytics/Index', [
+            'restaurant' => [
+                'lat' => (float) ($restaurant->latitude ?? 0),
+                'lng' => (float) ($restaurant->longitude ?? 0),
+                'name' => $restaurant->name,
+            ],
+            'heatmap' => $this->geo->getOrderHeatmap($restaurantId, $days),
+            'zoneStats' => $this->geo->getDeliveryZoneStats($restaurantId, $days),
+            'topAreas' => $this->geo->getTopAreas($restaurantId, $days),
+            'channels' => $this->geo->getChannelBreakdown($restaurantId, $days),
+            'branchSuggestions' => $this->geo->getBranchSuggestions($restaurantId),
+            'days' => $days,
+        ]);
+    }
+
+    public function apiHeatmap(Request $request): JsonResponse
+    {
+        $days = max(1, min(365, (int) ($request->days ?? 30)));
+
+        return response()->json($this->geo->getOrderHeatmap($request->user()->restaurant_id, $days));
+    }
+}
