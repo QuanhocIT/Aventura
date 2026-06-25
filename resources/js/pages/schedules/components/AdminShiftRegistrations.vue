@@ -48,6 +48,7 @@ const approveRegistration = (regId: number) => {
     router.post('/schedules/approve-registration', {
         registration_id: regId
     }, {
+        only: ['assignments', 'stats', 'weeklyAssignments', 'registrations', 'monthlyAssignments'],
         onSuccess: () => {
             import('vue-sonner').then(m => m.toast.success('Đã xếp lịch trực từ ca rảnh thành công!'));
         },

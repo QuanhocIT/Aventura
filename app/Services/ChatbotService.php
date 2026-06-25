@@ -31,7 +31,7 @@ class ChatbotService
             ];
         }
 
-        if (empty($this->baseUrl)) {
+        if (empty($this->baseUrl) || \Illuminate\Support\Facades\Cache::has('chatbot_service_offline')) {
             return $this->unavailableResponse();
         }
 
@@ -58,6 +58,9 @@ class ChatbotService
             Log::error('ChatbotService: không kết nối được Python service', [
                 'error' => $e->getMessage(),
             ]);
+
+            // Cache the offline status for 2 minutes to prevent subsequent blocking calls
+            \Illuminate\Support\Facades\Cache::put('chatbot_service_offline', true, 120);
 
             return $this->unavailableResponse();
         }
@@ -134,7 +137,7 @@ class ChatbotService
             ];
         }
 
-        if (empty($this->baseUrl)) {
+        if (empty($this->baseUrl) || \Illuminate\Support\Facades\Cache::has('chatbot_service_offline')) {
             return $this->unavailableResponse();
         }
 
@@ -160,6 +163,9 @@ class ChatbotService
             Log::error('ChatbotService: không kết nối được Python service /advisor-chat', [
                 'error' => $e->getMessage(),
             ]);
+
+            // Cache the offline status for 2 minutes to prevent subsequent blocking calls
+            \Illuminate\Support\Facades\Cache::put('chatbot_service_offline', true, 120);
 
             return $this->unavailableResponse();
         }

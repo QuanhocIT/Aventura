@@ -106,7 +106,7 @@ onUnmounted(() => {
 
 <template>
     <!-- ── Testimonials (Premium Redesign) ──────────────────────────────────────── -->
-    <section class="relative overflow-hidden border-y border-border/80 bg-gradient-to-b from-muted/10 via-muted/30 to-muted/10 px-4 py-8 lg:py-10 lg:px-8">
+    <section id="testimonials" class="relative overflow-hidden border-y border-border/80 bg-gradient-to-b from-muted/10 via-muted/30 to-muted/10 px-4 py-8 lg:py-10 lg:px-8">
         <!-- Hiệu ứng ánh sáng nền (Glow Effect) -->
         <div class="pointer-events-none absolute top-1/2 left-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/5 blur-[140px]"></div>
         <div class="pointer-events-none absolute top-1/2 right-1/4 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[140px]"></div>

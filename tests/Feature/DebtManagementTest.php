@@ -349,11 +349,11 @@ class DebtManagementTest extends TestCase
         $this->assertEquals(0, $exitCode);
 
         // Verify emails were sent
-        Mail::assertSent(DebtReminderMail::class, function ($mail) {
+        Mail::assertQueued(DebtReminderMail::class, function ($mail) {
             return $mail->type === 'payable' && $mail->hasTo('owner@example.com');
         });
 
-        Mail::assertSent(DebtReminderMail::class, function ($mail) {
+        Mail::assertQueued(DebtReminderMail::class, function ($mail) {
             return $mail->type === 'receivable' && $mail->hasTo('vip@example.com');
         });
     }

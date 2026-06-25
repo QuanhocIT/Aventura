@@ -194,7 +194,7 @@ class SlaTest extends TestCase
         $ticket->refresh();
         $this->assertNotNull($ticket->escalated_at);
 
-        Mail::assertSent(SupportTicketEscalationMail::class);
+        Mail::assertQueued(SupportTicketEscalationMail::class);
     }
 
     public function test_superadmin_can_access_sla_dashboard_and_manually_trigger_action(): void
@@ -232,6 +232,6 @@ class SlaTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHas('success');
 
-        Mail::assertSent(SupportTicketEscalationMail::class);
+        Mail::assertQueued(SupportTicketEscalationMail::class);
     }
 }

@@ -39,19 +39,24 @@ class PriceAnalyticsService
         // 2. Call FastAPI
         $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/price-analytics";
+        $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
 
-        try {
-            $response = Http::timeout(5)->post($url, [
-                'history' => $historyPayload,
-            ]);
+        if (!$isOffline && !empty($baseUrl)) {
+            try {
+                $response = Http::timeout(5)->post($url, [
+                    'history' => $historyPayload,
+                ]);
 
-            if ($response->successful()) {
-                return $response->json();
+                if ($response->successful()) {
+                    return $response->json();
+                }
+
+                Log::warning("PriceAnalyticsService: Python service returned error code " . $response->status());
+            } catch (\Throwable $e) {
+                Log::error("PriceAnalyticsService: Failed to contact Python microservice: " . $e->getMessage());
+                // Cache the offline status for 5 minutes
+                \Illuminate\Support\Facades\Cache::put('analytics_service_offline', true, 300);
             }
-
-            Log::warning("PriceAnalyticsService: Python service returned error code " . $response->status());
-        } catch (\Throwable $e) {
-            Log::error("PriceAnalyticsService: Failed to contact Python microservice: " . $e->getMessage());
         }
 
         // Fallback PHP implementation

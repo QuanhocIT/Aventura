@@ -103,7 +103,7 @@ class AutomatedValidatorTest extends TestCase
         $this->assertFalse($check->is_flagged);
 
         // Kiểm định đã gửi email báo cáo cho superadmin
-        Mail::assertSent(SuperAdminValidatorReportMail::class, function ($mail) {
+        Mail::assertQueued(SuperAdminValidatorReportMail::class, function ($mail) {
             return $mail->hasTo($this->superAdmin->email);
         });
     }
@@ -137,7 +137,7 @@ class AutomatedValidatorTest extends TestCase
         $this->assertTrue($check->is_flagged);
 
         // Kiểm định đã gửi email báo cáo cho superadmin
-        Mail::assertSent(SuperAdminValidatorReportMail::class);
+        Mail::assertQueued(SuperAdminValidatorReportMail::class);
     }
 
     public function test_superadmin_can_unflag_restaurant(): void

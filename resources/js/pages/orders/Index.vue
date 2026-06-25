@@ -54,7 +54,10 @@ const isOwner = computed(() => roles.value.includes('owner'));
 const canUpdateStatus = computed(() => !roles.value.includes('kitchen'));
 
 const toggleAutoPay = () => {
-    router.post('/settings/toggle-auto-pay', {}, { preserveScroll: true });
+    router.post('/settings/toggle-auto-pay', {}, { 
+        preserveScroll: true,
+        only: ['autoPayEnabled']
+    });
 };
 
 const dateInput  = ref(props.filters.date);
@@ -70,7 +73,10 @@ const setStatus = (s: string) => {
 };
 
 const updateOrderStatus = (order: Order, newStatus: string) => {
-    router.patch(`/orders/${order.id}/status`, { status: newStatus }, { preserveScroll: true });
+    router.patch(`/orders/${order.id}/status`, { status: newStatus }, { 
+        preserveScroll: true,
+        only: ['orders', 'summary']
+    });
 };
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {

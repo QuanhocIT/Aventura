@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     BarChart3,
@@ -106,13 +106,19 @@ const props = defineProps<{
     kpiConfigs: KpiMetricConfig[];
     employees: Employee[];
     leaderboard: LeaderboardItem[];
-    reviews: PerformanceReview[];
+    reviews?: PerformanceReview[];
     period: string;
     canManage: boolean;
 }>();
 
 // --- Active Tab ---
 const activeTab = ref<'leaderboard' | 'performance' | 'reviews' | 'settings'>('leaderboard');
+
+watch(activeTab, (newTab) => {
+    if (newTab === 'reviews' && !props.reviews) {
+        router.reload({ only: ['reviews'] });
+    }
+});
 
 // --- Period Filter ---
 const selectedPeriod = ref(props.period);
@@ -186,8 +192,8 @@ const submitReview = () => {
             isReviewModalOpen.value = false;
             reviewForm.reset();
         },
-        onError: (errs) => {
-            Object.values(errs).forEach(e => toast.error(e));
+        onError: (errs: Record<string, string>) => {
+            Object.values(errs).forEach((e: string) => toast.error(e));
         }
     });
 };
@@ -216,8 +222,8 @@ const updateConfig = () => {
             toast.success('Đã cập nhật cấu hình chỉ tiêu KPI thành công!');
             activeConfigEdit.value = null;
         },
-        onError: (errs) => {
-            Object.values(errs).forEach(e => toast.error(e));
+        onError: (errs: Record<string, string>) => {
+            Object.values(errs).forEach((e: string) => toast.error(e));
         }
     });
 };
@@ -388,7 +394,7 @@ const getRoleText = (role: string | null) => {
                 class="px-5 py-3 border-b-2 text-sm font-semibold flex items-center gap-2 transition"
                 :class="activeTab === 'reviews' ? 'border-amber-600 text-amber-605 dark:border-amber-500 dark:text-amber-500' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-250'"
             >
-                <MessageSquare class="w-4 h-4" /> Đánh Giá 360° ({{ reviews.length }})
+                <MessageSquare class="w-4 h-4" /> Đánh Giá 360° ({{ reviews?.length ?? 0 }})
             </button>
             <button 
                 v-if="canManage"
@@ -543,7 +549,7 @@ const getRoleText = (role: string | null) => {
                         </div>
                     </CardHeader>
                     <CardContent class="p-6">
-                        <div v-if="reviews.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-500 dark:text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/20 dark:bg-slate-950/20">
+                        <div v-if="!reviews || reviews.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-500 dark:text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/20 dark:bg-slate-950/20">
                             <AlertCircle class="w-12 h-12 text-slate-350 dark:text-slate-600 mb-2" />
                             Chưa có phiếu đánh giá nào được gửi lên tháng này.
                         </div>

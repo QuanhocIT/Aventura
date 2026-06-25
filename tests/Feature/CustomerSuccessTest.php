@@ -186,7 +186,7 @@ class CustomerSuccessTest extends TestCase
         $this->assertNotNull($this->restaurant->churn_risk_flagged_at);
 
         // Assert that care email was triggered
-        Mail::assertSent(ChurnEarlyWarningMail::class, function ($mail) {
+        Mail::assertQueued(ChurnEarlyWarningMail::class, function ($mail) {
             return $mail->hasTo('owner@example.com') &&
                    $mail->restaurantName === 'Burger Queen' &&
                    $mail->ownerName === 'Owner Name' &&
@@ -233,6 +233,6 @@ class CustomerSuccessTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHas('success');
 
-        Mail::assertSent(ChurnEarlyWarningMail::class);
+        Mail::assertQueued(ChurnEarlyWarningMail::class);
     }
 }

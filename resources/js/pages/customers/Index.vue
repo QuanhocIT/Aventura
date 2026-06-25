@@ -161,10 +161,18 @@ const editForm = useForm({
     notes: '',
 });
 
+import debounce from 'lodash/debounce';
+
 // --- ACTIONS ---
 const handleSearch = () => {
     router.get('/customers', { search: searchQuery.value }, { preserveState: true, replace: true });
 };
+
+const debouncedSearch = debounce(handleSearch, 300);
+
+watch(searchQuery, () => {
+    debouncedSearch();
+});
 
 const openAddModal = () => {
     form.reset();

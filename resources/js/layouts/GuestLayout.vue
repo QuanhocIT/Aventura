@@ -16,9 +16,9 @@ function toggleDarkMode() {
 }
 
 const navLinks = [
-    { label: 'Tính năng', href: '#tinh-nang' },
-    { label: 'Cách hoạt động', href: '#cach-hoat-dong' },
-    { label: 'Bảng giá', href: '#bang-gia' },
+    { label: 'Tính năng', href: '/#features' },
+    { label: 'Cách hoạt động', href: '/#how-it-works' },
+    { label: 'Bảng giá', href: '/#pricing' },
 ];
 </script>
 

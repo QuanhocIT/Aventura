@@ -17,6 +17,7 @@ const rejectNotes = ref('');
 
 const approveSwap = (swapId: number) => {
     router.patch(`/schedules/swap/${swapId}/approve`, {}, {
+        only: ['assignments', 'weeklyAssignments', 'monthlyAssignments', 'allPendingSwaps', 'stats'],
         onSuccess: () => {
             import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đổi ca thành công!'));
         },
@@ -41,6 +42,7 @@ return;
     router.patch(`/schedules/swap/${activeRejectSwapId.value}/reject`, {
         notes: rejectNotes.value
     }, {
+        only: ['assignments', 'weeklyAssignments', 'monthlyAssignments', 'allPendingSwaps', 'stats'],
         onSuccess: () => {
             isRejectingSwap.value = false;
             import('vue-sonner').then(m => m.toast.success('Đã từ chối đổi ca thành công!'));

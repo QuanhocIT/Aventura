@@ -51,6 +51,7 @@ url = '/schedules/absent-employee';
         penalty_amount: penaltyAmount.value,
         violation_notes: violationNotes.value
     }, {
+        only: ['assignments', 'stats', 'weeklyAssignments', 'monthlyAssignments'],
         onSuccess: () => {
             emit('success');
             import('vue-sonner').then(m => m.toast.success('Ghi nhận điều chỉnh chấm công thành công!'));

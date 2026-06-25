@@ -32,7 +32,7 @@ class KpiController extends Controller
         // 2. Fetch employees and eager load their finalized/draft KPIs for the target period
         $employees = Employee::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
-            ->with(['role', 'kpis' => function ($query) use ($period) {
+            ->with(['role', 'roles', 'kpis' => function ($query) use ($period) {
                 $query->where('period', $period)->with('metrics');
             }])
             ->get()
@@ -79,29 +79,26 @@ class KpiController extends Controller
                 'total_commission' => (float) $kpi->total_commission,
             ]);
 
-        // 4. Eager load 360-degree reviews for the period
-        $reviews = PerformanceReview::where('restaurant_id', $restaurantId)
-            ->where('period', $period)
-            ->with(['employee:id,full_name', 'reviewer:id,name'])
-            ->get()
-            ->map(fn($rev) => [
-                'id' => $rev->id,
-                'employee_id' => $rev->employee_id,
-                'employee_name' => $rev->employee?->full_name ?? 'Unknown',
-                'reviewer_name' => $rev->reviewer?->name ?? 'Unknown',
-                'reviewer_type' => $rev->reviewer_type,
-                'ratings' => $rev->ratings,
-                'average_score' => (float)$rev->average_score,
-                'comments' => $rev->comments,
-                'status' => $rev->status,
-                'created_at' => $rev->created_at->format('d/m/Y'),
-            ]);
-
         return Inertia::render('kpis/Index', [
             'kpiConfigs' => $kpiConfigs,
             'employees' => $employees,
             'leaderboard' => $leaderboard,
-            'reviews' => $reviews,
+            'reviews' => Inertia::lazy(fn() => PerformanceReview::where('restaurant_id', $restaurantId)
+                ->where('period', $period)
+                ->with(['employee:id,full_name', 'reviewer:id,name'])
+                ->get()
+                ->map(fn($rev) => [
+                    'id' => $rev->id,
+                    'employee_id' => $rev->employee_id,
+                    'employee_name' => $rev->employee?->full_name ?? 'Unknown',
+                    'reviewer_name' => $rev->reviewer?->name ?? 'Unknown',
+                    'reviewer_type' => $rev->reviewer_type,
+                    'ratings' => $rev->ratings,
+                    'average_score' => (float)$rev->average_score,
+                    'comments' => $rev->comments,
+                    'status' => $rev->status,
+                    'created_at' => $rev->created_at->format('d/m/Y'),
+                ])),
             'period' => $period,
             'canManage' => $user->hasAnyRole(['owner', 'manager']),
         ]);
@@ -119,6 +116,7 @@ class KpiController extends Controller
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->with(['role', 'roles'])
             ->get();
 
         $calculatedCount = 0;

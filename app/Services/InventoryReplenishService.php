@@ -103,19 +103,24 @@ class InventoryReplenishService
         $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/inventory-forecast-replenish";
         $forecastResults = null;
+        $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
 
-        try {
-            $response = Http::timeout(5)->post($url, [
-                'ingredients' => $payload,
-            ]);
+        if (!$isOffline && !empty($baseUrl)) {
+            try {
+                $response = Http::timeout(5)->post($url, [
+                    'ingredients' => $payload,
+                ]);
 
-            if ($response->successful()) {
-                $forecastResults = $response->json()['forecasts'] ?? null;
-            } else {
-                Log::warning("InventoryReplenishService: Python service returned code " . $response->status());
+                if ($response->successful()) {
+                    $forecastResults = $response->json()['forecasts'] ?? null;
+                } else {
+                    Log::warning("InventoryReplenishService: Python service returned code " . $response->status());
+                }
+            } catch (\Throwable $e) {
+                Log::error("InventoryReplenishService: Failed to contact Python service: " . $e->getMessage());
+                // Cache the offline status for 5 minutes
+                \Illuminate\Support\Facades\Cache::put('analytics_service_offline', true, 300);
             }
-        } catch (\Throwable $e) {
-            Log::error("InventoryReplenishService: Failed to contact Python service: " . $e->getMessage());
         }
 
         // Fallback to PHP if Python fails

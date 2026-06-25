@@ -26,7 +26,7 @@ const howItWorksSteps = [
 
 <template>
     <!-- ── Cách hoạt động ─────────────────────────────────── -->
-    <section class="px-4 py-10 lg:py-12 lg:px-8">
+    <section id="how-it-works" class="px-4 py-10 lg:py-12 lg:px-8">
         <div class="mx-auto max-w-7xl">
             <div class="text-center">
                 <Badge variant="outline" class="mb-3">3 bước đơn giản</Badge>
