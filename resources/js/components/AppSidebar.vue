@@ -325,10 +325,20 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value;
     if (showPortalLink && items.length > 0) {
-        items = [
-            { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
-            ...items
-        ];
+        if (items[0] && (items[0].title === 'Tổng quan' || items[0].title === 'Trang chủ')) {
+            const first = items[0];
+            const rest = items.slice(1);
+            items = [
+                first,
+                { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
+                ...rest
+            ];
+        } else {
+            items = [
+                { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
+                ...items
+            ];
+        }
     }
 
     return items;

@@ -4,10 +4,11 @@ use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Billing\CheckoutController;
 use App\Http\Controllers\Billing\PaymentWebhookController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\EmployeeManagementController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NewsController;
-// Chatbot API  public (rate limited)
+// Chatbot API — public (rate limited)
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('throttle:30,1')->group(function () {

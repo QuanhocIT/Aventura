@@ -36,13 +36,13 @@ class KpiController extends Controller
                 $query->where('period', $period)->with('metrics');
             }])
             ->get()
-            ->map(function ($emp) use ($kpiService) {
+            ->map(function ($emp) {
                 return [
                     'id' => $emp->id,
                     'full_name' => $emp->full_name,
                     'job_title' => $emp->job_title ?? 'Staff',
                     'role_name' => $emp->role?->name ?? 'None',
-                    'role' => $kpiService->getKpiRole($emp),
+                    'role' => $this->kpiService->getKpiRole($emp),
                     'current_kpi' => $emp->kpis->first() ? [
                         'id' => $emp->kpis->first()->id,
                         'total_score' => (float)$emp->kpis->first()->total_score,

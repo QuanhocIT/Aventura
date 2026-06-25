@@ -115,7 +115,7 @@ class StaffQROrderController extends Controller
         event(new TemporaryOrderUpdated($temporaryOrder));
 
         // Lấy gợi ý Upselling AI dựa trên các món ăn trong đơn hàng
-        $promotionController = new PromotionController();
+        $promotionController = app(PromotionController::class);
         $itemNames = collect($temporaryOrder->cart_data)->pluck('name')->filter()->toArray();
         $upsellRequest = new Request(['items' => $itemNames]);
         $upsellRequest->setUserResolver(fn() => $user);

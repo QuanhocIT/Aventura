@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RestaurantFollowup extends Model
 {
+    use BelongsToRestaurant;
+
     protected $fillable = ['restaurant_id', 'assigned_to', 'note', 'remind_at', 'status'];
 
     protected function casts(): array

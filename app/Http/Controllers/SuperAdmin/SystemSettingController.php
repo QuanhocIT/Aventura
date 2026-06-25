@@ -192,17 +192,17 @@ class SystemSettingController extends Controller
             config([
                 'mail.mailers.test_smtp' => [
                     'transport'  => 'smtp',
-                    'host'       => $data['mail_smtp_host'] ?: SystemSetting::get('mail_smtp_host', config('mail.mailers.smtp.host')),
-                    'port'       => (int) ($data['mail_smtp_port'] ?: SystemSetting::get('mail_smtp_port', config('mail.mailers.smtp.port'))),
-                    'username'   => $data['mail_smtp_username'] ?: SystemSetting::get('mail_smtp_username', config('mail.mailers.smtp.username')),
-                    'password'   => $data['mail_smtp_password'] ?: SystemSetting::get('mail_smtp_password', config('mail.mailers.smtp.password')),
-                    'encryption' => $data['mail_smtp_encryption'] === 'none' ? null : ($data['mail_smtp_encryption'] ?: 'tls'),
+                    'host'       => ($data['mail_smtp_host'] ?? null) ?: SystemSetting::get('mail_smtp_host', config('mail.mailers.smtp.host')),
+                    'port'       => (int) (($data['mail_smtp_port'] ?? null) ?: SystemSetting::get('mail_smtp_port', config('mail.mailers.smtp.port'))),
+                    'username'   => ($data['mail_smtp_username'] ?? null) ?: SystemSetting::get('mail_smtp_username', config('mail.mailers.smtp.username')),
+                    'password'   => ($data['mail_smtp_password'] ?? null) ?: SystemSetting::get('mail_smtp_password', config('mail.mailers.smtp.password')),
+                    'encryption' => ($data['mail_smtp_encryption'] ?? null) === 'none' ? null : (($data['mail_smtp_encryption'] ?? null) ?: 'tls'),
                 ],
             ]);
         }
 
-        $fromAddress = $data['mail_from_address'] ?: SystemSetting::get('mail_from_address', config('mail.from.address'));
-        $fromName = $data['mail_from_name'] ?: SystemSetting::get('mail_from_name', config('mail.from.name'));
+        $fromAddress = ($data['mail_from_address'] ?? null) ?: SystemSetting::get('mail_from_address', config('mail.from.address'));
+        $fromName = ($data['mail_from_name'] ?? null) ?: SystemSetting::get('mail_from_name', config('mail.from.name'));
 
         try {
             $mailerName = $driver === 'smtp' ? 'test_smtp' : $driver;

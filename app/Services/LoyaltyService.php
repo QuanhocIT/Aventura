@@ -19,9 +19,23 @@ class LoyaltyService
 {
     public function getProgram(int $restaurantId): ?LoyaltyProgram
     {
-        return LoyaltyProgram::withoutGlobalScopes()
+        $program = LoyaltyProgram::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->first();
+
+        if (!$program) {
+            $program = new LoyaltyProgram([
+                'restaurant_id' => $restaurantId,
+                'is_active' => true,
+                'points_per_vnd' => 0.0001,
+                'point_value_vnd' => 100.00,
+                'min_redeem_points' => 10,
+                'birthday_bonus_points' => 50,
+                'enable_qr_card' => true,
+            ]);
+        }
+
+        return $program;
     }
 
     public function earnPoints(Customer $customer, Order $order, float $orderTotal): int

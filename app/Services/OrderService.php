@@ -412,10 +412,23 @@ class OrderService
             if ($customer && !str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
                 $tier = $customer->loyaltyTier;
                 $discountPct = $tier ? (float) $tier->discount_percent : 0;
+                $tierName = $tier->name ?? null;
+
+                if (!$tier) {
+                    $lvl = $customer->membership_level ?? 'silver';
+                    if ($lvl === 'diamond') {
+                        $discountPct = 10;
+                        $tierName = 'Kim Cương';
+                    } elseif ($lvl === 'gold') {
+                        $discountPct = 5;
+                        $tierName = 'Vàng';
+                    }
+                }
+
                 $loyaltyDiscount = $discountPct > 0 ? round($order->subtotal * ($discountPct / 100), 2) : 0;
 
                 if ($loyaltyDiscount > 0) {
-                    $tierName = $tier->name ?? 'Thành viên';
+                    $tierName = $tierName ?? 'Thành viên';
                     $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
                     $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
                     $order->note = ($order->note ? $order->note . ' ' : '') . "[Ưu đãi Hội viên {$tierName}: -" . number_format($loyaltyDiscount) . "đ]";
@@ -433,7 +446,7 @@ class OrderService
                 if ($redeemDiscount > 0) {
                     $order->discount_amount = (float) $order->discount_amount + $redeemDiscount;
                     $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
-                    $order->note = ($order->note ? $order->note . ' ' : '') . "[Đã quy đổi điểm loyalty: -" . number_format($redeemDiscount) . "đ]";
+                    $order->note = ($order->note ? $order->note . ' ' : '') . "[Đã quy đổi {$redeemedPoints} điểm loyalty thưởng: -" . number_format($redeemDiscount) . "đ]";
                     $order->save();
                     $customer->refresh();
                 }

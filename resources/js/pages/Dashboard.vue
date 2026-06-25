@@ -198,25 +198,26 @@ const formatVND = (value: number) => {
     />
 
     <!-- Main Content Section -->
-    <div class="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-6">
+    <div class="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-7 relative">
+        
         <!-- Branch selection dropdown (Only if owner has multiple branches) -->
-        <div v-if="props.branches && props.branches.length > 1" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div v-if="props.branches && props.branches.length > 1" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
             <div>
-                <h2 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <span class="size-2 bg-teal-500 rounded-full animate-pulse" />
+                <h2 class="text-xl font-black tracking-tight text-slate-850 dark:text-slate-100 flex items-center gap-2.5">
+                    <span class="size-2.5 bg-teal-500 rounded-full animate-pulse shadow-sm shadow-teal-500" />
                     {{ branchId ? 'Báo cáo chi nhánh' : 'Trung tâm chỉ huy chuỗi' }}
                 </h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
                     {{ branchId ? 'Giám sát vận hành và hiệu suất của chi nhánh hiện tại.' : 'Tổng quan hiệu suất và sức khỏe hoạt động của toàn chuỗi.' }}
                 </p>
             </div>
             
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-slate-500">Chi nhánh:</span>
+            <div class="flex items-center gap-2.5">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Chi nhánh:</span>
                 <select 
                     id="branch-selector"
                     v-model="selectedBranch"
-                    class="min-w-[200px] text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2 focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none shadow-sm dark:text-slate-350 cursor-pointer"
+                    class="min-w-[220px] text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-2.5 focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 outline-none shadow-sm dark:text-slate-300 cursor-pointer transition-all"
                 >
                     <option value="all">🌐 Toàn chuỗi (Hợp nhất)</option>
                     <option v-for="b in props.branches" :key="b.id" :value="b.id">
@@ -233,23 +234,27 @@ const formatVND = (value: number) => {
         />
 
         <!-- Consolidated Branch Comparisons (only in consolidated view) -->
-        <Card v-if="!branchId && props.branchComparisons && props.branchComparisons.length > 0" class="shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-            <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
-                <div>
-                    <CardTitle class="text-sm font-bold flex items-center gap-2">
-                        <Building2 class="size-4 text-teal-600 dark:text-teal-400" />
-                        Hiệu suất chi tiết từng chi nhánh
-                    </CardTitle>
-                    <CardDescription class="text-xs">
-                        So sánh doanh thu hôm nay, biên lợi nhuận, sức khỏe vận hành và tổng lỗi sai phạm trong 30 ngày qua.
-                    </CardDescription>
+        <Card v-if="!branchId && props.branchComparisons && props.branchComparisons.length > 0" class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 backdrop-blur-md">
+            <CardHeader class="pb-4 border-b border-slate-100 dark:border-slate-850 bg-slate-50/30 dark:bg-slate-900/10">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                        <Building2 class="size-4.5" />
+                    </div>
+                    <div>
+                        <CardTitle class="text-sm font-bold text-slate-850 dark:text-slate-100">
+                            Hiệu suất chi tiết từng chi nhánh
+                        </CardTitle>
+                        <CardDescription class="text-xs mt-0.5">
+                            So sánh doanh thu hôm nay, biên lợi nhuận, sức khỏe vận hành và tổng lỗi sai phạm trong 30 ngày qua.
+                        </CardDescription>
+                    </div>
                 </div>
             </CardHeader>
             
             <CardContent class="p-0 overflow-x-auto">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead>
-                        <tr class="bg-slate-50/30 dark:bg-slate-900/5 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold">
+                        <tr class="bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-850 text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider text-[10px]">
                             <th class="p-4 pl-6">Chi nhánh</th>
                             <th class="p-4 text-right">Doanh thu hôm nay</th>
                             <th class="p-4 text-right">Biên lợi nhuận</th>
@@ -258,27 +263,27 @@ const formatVND = (value: number) => {
                             <th class="p-4 pr-6 text-center">Hành động</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-850">
                         <tr 
                             v-for="b in props.branchComparisons" 
                             :key="b.id"
-                            class="hover:bg-slate-50/40 dark:hover:bg-slate-900/30 transition duration-150 text-slate-700 dark:text-slate-350"
+                            class="hover:bg-slate-55/40 dark:hover:bg-slate-900/40 transition duration-150 text-slate-700 dark:text-slate-300"
                         >
                             <td class="p-4 pl-6 font-bold flex items-center gap-2">
-                                <span class="size-2 rounded-full bg-teal-500 shrink-0" />
+                                <span class="size-2 rounded-full bg-teal-500 shrink-0 shadow-sm" />
                                 {{ b.name }}
                             </td>
-                            <td class="p-4 text-right font-mono font-bold text-teal-600 dark:text-teal-400">
+                            <td class="p-4 text-right font-mono font-black text-teal-600 dark:text-teal-400">
                                 {{ formatVND(b.revenue) }}
                             </td>
-                            <td class="p-4 text-right font-semibold">
-                                <div class="inline-flex items-center gap-1">
-                                    <TrendingUp class="size-3.5 text-emerald-500" />
+                            <td class="p-4 text-right font-bold">
+                                <div class="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md text-[11px]">
+                                    <TrendingUp class="size-3" />
                                     <span>{{ b.profit_margin }}%</span>
                                 </div>
                             </td>
                             <td class="p-4 text-center">
-                                <div class="flex items-center justify-center gap-2">
+                                <div class="flex items-center justify-center gap-2.5">
                                     <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                                         <div 
                                             class="h-full rounded-full transition-all"
@@ -291,10 +296,10 @@ const formatVND = (value: number) => {
                                     </div>
                                     <span 
                                         :class="[
-                                            'px-1.5 py-0.5 rounded-md font-bold text-[10px] scale-95',
-                                            b.health_score >= 80 ? 'bg-emerald-55 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-450' :
-                                            b.health_score >= 50 ? 'bg-amber-55 text-amber-700 dark:bg-amber-950/30 dark:text-amber-450' :
-                                            'bg-rose-55 text-rose-700 dark:bg-rose-950/30 dark:text-rose-455'
+                                            'px-2 py-0.5 rounded-md font-bold text-[10px] scale-95 border',
+                                            b.health_score >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/20' :
+                                            b.health_score >= 50 ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/20' :
+                                            'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/30 dark:text-rose-455 dark:border-rose-900/20'
                                         ]"
                                     >
                                         {{ b.health_score }}
@@ -305,14 +310,14 @@ const formatVND = (value: number) => {
                                 <div class="flex justify-center">
                                     <span 
                                         v-if="b.violations_count > 0"
-                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 animate-pulse"
+                                        class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-750 border border-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/30 animate-pulse"
                                     >
                                         <ShieldAlert class="size-3" />
                                         {{ b.violations_count }} lỗi
                                     </span>
                                     <span 
                                         v-else
-                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                        class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30"
                                     >
                                         ✅ 0 lỗi
                                     </span>
@@ -322,7 +327,7 @@ const formatVND = (value: number) => {
                                 <Button 
                                     size="sm" 
                                     variant="outline"
-                                    class="h-7 text-[10px] rounded-lg border-teal-200 text-teal-600 hover:bg-teal-50 dark:border-teal-800 dark:hover:bg-teal-950/30 dark:text-teal-400"
+                                    class="h-7 text-[10px] font-bold rounded-lg border-teal-200 text-teal-650 hover:bg-teal-50 dark:border-teal-900/50 dark:hover:bg-teal-950/30 dark:text-teal-400 cursor-pointer"
                                     @click="selectBranchDirectly(b.id)"
                                 >
                                     Xem chi tiết <ArrowRight class="size-3 ml-1" />
