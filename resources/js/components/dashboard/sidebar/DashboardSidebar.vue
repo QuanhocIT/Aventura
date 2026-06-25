@@ -40,6 +40,11 @@ const props = defineProps<{
     user: any;
 }>();
 
+import { useFeatureGate } from '@/composables/useFeatureGate';
+
+const { planCode } = useFeatureGate();
+const activePlanCode = computed(() => planCode());
+
 // Onboarding steps derived from user's onboarding_status
 const onboardingSteps = computed(() => {
     const status = (props.user?.onboarding_status as any) ?? {};
@@ -158,7 +163,7 @@ function formatMoneyFull(v: number): string {
         </template>
 
         <!-- ── 1. Đơn hàng gần đây ───────────────────── -->
-        <div>
+        <div v-if="activePlanCode !== 'free' && activePlanCode !== 'basic'">
             <div class="flex items-center justify-between">
                 <h2 class="text-base font-semibold">Đơn hàng gần đây</h2>
                 <Link href="/orders" class="flex items-center gap-1 text-xs text-primary hover:underline">

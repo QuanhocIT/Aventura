@@ -13,11 +13,14 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { useCountUp } from '@/composables/useCountUp';
+import { useFeatureGate } from '@/composables/useFeatureGate';
 
 const props = defineProps<{
     stats: any;
     healthScore: number | null | undefined;
 }>();
+
+const { can, planCode } = useFeatureGate();
 
 // ── Health Score helpers ─────────────────────────────────────────────────────
 const healthScoreColor = computed(() => {
@@ -78,7 +81,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
 <template>
     <div class="space-y-5">
         <!-- Today's KPI row -->
-        <div v-if="stats" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div v-if="stats" :class="['grid grid-cols-2 sm:grid-cols-4 gap-3', can('advanced_analytics') ? 'lg:grid-cols-8' : 'lg:grid-cols-7']">
             
             <!-- Đơn hàng -->
             <div class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
@@ -156,7 +159,16 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
             </div>
 
             <!-- Chi nhánh / Bàn -->
-            <div class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
+            <div v-if="planCode() === 'free'" class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
+                <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0 group-hover:scale-105 transition-all">
+                    <Building2 class="size-4.5" />
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bàn ăn</p>
+                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100">{{ stats.tables_count }} bàn</p>
+                </div>
+            </div>
+            <div v-else class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
                 <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0 group-hover:scale-105 transition-all">
                     <Building2 class="size-4.5" />
                 </div>
@@ -167,7 +179,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
             </div>
 
             <!-- Biên lợi nhuận hôm nay -->
-            <div class="group relative rounded-2xl border border-violet-100 dark:border-violet-900/30 bg-violet-500/5 dark:bg-violet-950/10 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-violet-200 dark:hover:border-violet-850/80 hover:translate-y-[-2px]">
+            <div v-if="can('advanced_analytics')" class="group relative rounded-2xl border border-violet-100 dark:border-violet-900/30 bg-violet-500/5 dark:bg-violet-950/10 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-violet-200 dark:hover:border-violet-850/80 hover:translate-y-[-2px]">
                 <div class="p-2 rounded-xl bg-violet-500/10 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 shrink-0 group-hover:scale-105 transition-all">
                     <Percent class="size-4.5" />
                 </div>
@@ -210,7 +222,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
         </div>
 
         <!-- Business Health Score -->
-        <div v-if="healthScore !== null && healthScore !== undefined"
+        <div v-if="healthScore !== null && healthScore !== undefined && (can('advanced_analytics') || can('hr_timekeeping'))"
             :class="['group relative rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center gap-5 transition-all duration-500 hover:shadow-lg', healthScoreColor.bg]">
             
             <div class="flex items-center gap-4 shrink-0">

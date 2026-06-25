@@ -16,7 +16,11 @@ import {
     Package
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { useFeatureGate } from '@/composables/useFeatureGate';
 import ShiftHeatmap from './ShiftHeatmap.vue';
+
+const { can, planCode } = useFeatureGate();
+const activePlanCode = computed(() => planCode());
 
 interface OperationFeedItem {
     type: string;
@@ -92,8 +96,8 @@ function getFeedColorClasses(colorName: string) {
         case 'violet':  return 'border-violet-100 bg-violet-50 text-violet-600 dark:border-violet-900/30 dark:bg-violet-950/20 dark:text-violet-400';
         case 'emerald': return 'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-400';
         case 'rose':    return 'border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-455';
-        case 'sky':     return 'border-sky-100 bg-sky-50 text-sky-600 dark:border-sky-900/30 dark:bg-sky-950/20 dark:text-sky-400';
-        default:        return 'border-slate-100 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-450';
+        case 'sky':     return 'border-sky-100 bg-sky-50 text-sky-650 text-sky-600 dark:border-sky-900/30 dark:bg-sky-950/20 dark:text-sky-400';
+        default:        return 'border-slate-100 bg-slate-50 text-slate-650 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-450';
     }
 }
 
@@ -141,7 +145,7 @@ function formatMoneyFull(v: number): string {
             </div>
             
             <!-- Tab Switcher -->
-            <div class="flex flex-wrap p-1 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 text-muted-foreground text-xs self-start md:self-auto shadow-inner border border-slate-200/50 dark:border-slate-800/40">
+            <div v-if="activePlanCode !== 'free'" class="flex flex-wrap p-1 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 text-muted-foreground text-xs self-start md:self-auto shadow-inner border border-slate-200/50 dark:border-slate-800/40">
                 <button
                     @click="activeTab = 'feed'"
                     :class="activeTab === 'feed' ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white shadow-sm font-bold' : 'hover:text-slate-900 dark:hover:text-white font-medium'"
@@ -158,7 +162,7 @@ function formatMoneyFull(v: number): string {
                     <BarChart3 class="size-3.5" />
                     Sơ đồ Bàn
                 </button>
-                <button
+                <button v-if="can('inventory_basic')"
                     @click="activeTab = 'inventory'"
                     :class="activeTab === 'inventory' ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white shadow-sm font-bold' : 'hover:text-slate-900 dark:hover:text-white font-medium'"
                     class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all cursor-pointer"
@@ -380,7 +384,7 @@ function formatMoneyFull(v: number): string {
                 </div>
 
                 <!-- Nhân viên đang làm việc -->
-                <div class="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/20">
+                <div v-if="can('hr_timekeeping')" class="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/20">
                     <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                         <span>👥</span> Nhân sự làm việc hôm nay
                     </p>
@@ -407,7 +411,7 @@ function formatMoneyFull(v: number): string {
         </div>
 
         <!-- Heatmap component below the tabs -->
-        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/30 p-4 shadow-sm">
+        <div v-if="can('hr_timekeeping')" class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/30 p-4 shadow-sm">
             <ShiftHeatmap :shift-revenue="shiftRevenue" />
         </div>
     </div>

@@ -237,6 +237,13 @@ class CashFlowTest extends TestCase
 
     public function test_dashboard_alerts_appear_on_variance_and_budget_overrun(): void
     {
+        $this->restaurant->plan->update([
+            'features' => array_merge($this->restaurant->plan->features ?? [], [
+                'inventory_basic' => true,
+                'advanced_analytics' => true,
+            ])
+        ]);
+
         $this->actingAs($this->owner);
 
         // 1. Create a closed register with discrepancy > 2% of expected closing balance

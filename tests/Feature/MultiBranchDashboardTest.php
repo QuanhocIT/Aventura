@@ -28,6 +28,12 @@ class MultiBranchDashboardTest extends TestCase
         $this->restaurant = Restaurant::factory()->create([
             'owner_user_id' => $this->owner->id,
         ]);
+        $this->restaurant->plan->update([
+            'max_branches' => 5,
+            'features' => array_merge($this->restaurant->plan->features ?? [], [
+                'advanced_analytics' => true,
+            ])
+        ]);
         $this->owner->update(['restaurant_id' => $this->restaurant->id]);
 
         $this->branch1 = RestaurantBranch::factory()->create([

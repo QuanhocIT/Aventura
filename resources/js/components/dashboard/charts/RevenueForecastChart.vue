@@ -2,6 +2,10 @@
 import { TrendingUp, Sparkles, BarChart3 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useFeatureGate } from '@/composables/useFeatureGate';
+import { Link } from '@inertiajs/vue3';
+
+const { can } = useFeatureGate();
 
 interface RevenueDay {
     date: string;
@@ -25,6 +29,10 @@ const props = defineProps<{
 }>();
 
 const activeHoverIndex = ref<number | null>(null);
+
+const hasForecast = computed(() => {
+    return can('ai_forecasting') && props.revenueChartData?.some(d => d.is_forecast);
+});
 
 const revenueChartList = computed(() => props.revenueChartData ?? []);
 
@@ -71,11 +79,12 @@ function formatMoneyFull(v: number): string {
                 <div>
                     <CardTitle class="text-base font-bold flex items-center gap-2">
                         <TrendingUp class="size-4 text-violet-500" />
-                        Doanh thu 7 ngày qua + 7 ngày dự báo
+                        {{ hasForecast ? 'Doanh thu 7 ngày qua + 7 ngày dự báo' : 'Phân tích doanh thu 7 ngày qua' }}
                     </CardTitle>
                     <p class="text-xs text-muted-foreground mt-0.5">
-                        Cột đặc = thực tế · Cột mờ = <span class="text-indigo-400 font-medium">AI dự báo</span>
-                        <span v-if="forecastData?.confidence_label" class="ml-1 inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-semibold">
+                        <span v-if="hasForecast">Cột đặc = thực tế · Cột mờ = <span class="text-indigo-400 font-medium">AI dự báo</span></span>
+                        <span v-else>Theo dõi doanh thu thực tế và tổng số lượng đơn hàng theo ngày.</span>
+                        <span v-if="hasForecast && forecastData?.confidence_label" class="ml-1 inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-semibold">
                             <Sparkles class="size-2.5" /> Độ tin cậy: {{ forecastData.confidence_label }}
                         </span>
                     </p>
@@ -175,6 +184,13 @@ function formatMoneyFull(v: number): string {
             <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground text-sm">
                 <BarChart3 class="size-8 text-muted-foreground/30 mb-2" />
                 Chưa có dữ liệu doanh số tuần này.
+            </div>
+            <!-- Tip upgrade AI forecasting -->
+            <div v-if="!can('ai_forecasting')" class="p-3 bg-slate-50/50 dark:bg-slate-900/10 flex items-center justify-between text-xs rounded-b-2xl border-t border-dashed border-border/80">
+                <span class="text-muted-foreground font-medium">💡 Muốn dự báo doanh thu 7 ngày tiếp theo bằng Trí Tuệ Nhân Tạo?</span>
+                <Link href="/billing/history" class="text-indigo-650 dark:text-indigo-400 font-extrabold hover:underline flex items-center gap-0.5">
+                    Nâng cấp Doanh Nghiệp →
+                </Link>
             </div>
         </CardContent>
     </Card>

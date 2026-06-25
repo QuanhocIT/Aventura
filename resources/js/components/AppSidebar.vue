@@ -59,6 +59,9 @@ import {
 import { dashboard } from '@/routes';
 import { dashboard as superAdminDashboard } from '@/routes/superadmin';
 import type { NavItem } from '@/types';
+import { useFeatureGate } from '@/composables/useFeatureGate';
+
+const { can: canFeature } = useFeatureGate();
 
 const page = usePage();
 
@@ -67,12 +70,12 @@ const pendingApprovalCount = computed(() => (page.props.pendingApprovalCount as 
 
 const isSubscriptionActive = computed(() => {
     if (isSuperAdmin.value) {
-return true;
-}
+        return true;
+    }
 
     if (!tenant.value) {
-return true;
-}
+        return true;
+    }
 
     return tenant.value.status === 'active' || tenant.value.status === 'trial';
 });
@@ -106,8 +109,8 @@ const permissions = computed(() => {
 // Kiểm tra quyền Spatie
 const can = (permission: string) => {
     if (isSuperAdmin.value) {
-return true;
-}
+        return true;
+    }
 
     return permissions.value.includes(permission);
 };
@@ -154,23 +157,23 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
         { title: 'Quản lý đơn hàng', href: '/orders',                 icon: ShoppingCart },
         { title: 'Thực đơn & Món',   href: '/products',               icon: UtensilsCrossed },
-        { title: 'Menu Engineering',  href: '/menu-engineering',       icon: BarChart3 },
-        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
-        { title: 'Hao hụt & Lãng phí', href: '/waste-management',     icon: Trash2 },
-        { title: 'BI Dashboard',        href: '/bi-dashboard',           icon: BarChart3, permission: 'view_report' },
-        { title: 'Phân tích địa lý',   href: '/geo-analytics',          icon: Route },
-        { title: 'Mục tiêu & OKR',     href: '/business-goals',         icon: BarChart3 },
+        { title: 'Menu Engineering',  href: '/menu-engineering',       icon: BarChart3, feature: 'advanced_analytics' },
+        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package, feature: 'inventory_basic' },
+        { title: 'Hao hụt & Lãng phí', href: '/waste-management',     icon: Trash2, feature: 'inventory_basic' },
+        { title: 'BI Dashboard',        href: '/bi-dashboard',           icon: BarChart3, permission: 'view_report', feature: 'advanced_analytics' },
+        { title: 'Phân tích địa lý',   href: '/geo-analytics',          icon: Route, feature: 'advanced_analytics' },
+        { title: 'Mục tiêu & OKR',     href: '/business-goals',         icon: BarChart3, feature: 'advanced_analytics' },
         { title: 'Phân quyền thao tác', href: '/operation-policies',    icon: ShieldCheck },
         { title: 'Thiết bị & Bảo trì', href: '/equipment',             icon: Settings },
         { title: 'Đào tạo nhân viên', href: '/training',              icon: BookOpen },
         { title: 'Checklist vận hành', href: '/operations-checklist', icon: ClipboardCheck },
-        { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck },
-        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText },
+        { title: 'Nhà cung cấp',     href: '/suppliers',              icon: Truck, feature: 'inventory_basic' },
+        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText, feature: 'supplier_portal' },
         { title: 'Giao hàng',        href: '/delivery',               icon: Route },
         { title: 'Đặt hàng Online', href: '/online-store',            icon: Globe },
-        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
-        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
-        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
+        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck, feature: 'hr_timekeeping' },
+        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays, feature: 'hr_timekeeping' },
+        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary', feature: 'hr_full' },
         { title: 'Phê duyệt',        href: '/approvals',              icon: ShieldCheck, badge: pendingApprovalCount.value },
         { title: 'Khách hàng',       href: '/customers',              icon: Users },
         { title: 'Khách hàng thân thiết', href: '/loyalty',           icon: Gift },
@@ -178,17 +181,17 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Hóa đơn & Gói cước', href: '/billing/history',      icon: Receipt },
         { title: 'Giới thiệu & Hoa hồng', href: '/settings/referrals', icon: Gift },
         { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
-        { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report' },
-        { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },
-        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
-        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet },
-        { title: 'Quản lý chi phí',  href: '/expenses',               icon: Receipt },
-        { title: 'Quản lý công nợ', href: '/debts',                  icon: BadgeDollarSign },
-        { title: 'Đánh giá & KPI',   href: '/kpis',                   icon: BarChart3 },
-        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
-        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
+        { title: 'Báo cáo & AI',     href: '/reports',                icon: BarChart3, permission: 'view_report', feature: 'advanced_analytics' },
+        { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report', feature: 'ai_advisor' },
+        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck, feature: 'inventory_basic' },
+        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet, feature: 'inventory_basic' },
+        { title: 'Quản lý chi phí',  href: '/expenses',               icon: Receipt, feature: 'inventory_basic' },
+        { title: 'Quản lý công nợ', href: '/debts',                  icon: BadgeDollarSign, feature: 'inventory_basic' },
+        { title: 'Đánh giá & KPI',   href: '/kpis',                   icon: BarChart3, feature: 'hr_full' },
+        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert, feature: 'fraud_detection' },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations', feature: 'fraud_detection' },
         { title: 'Sơ đồ bàn',        href: '/tables',                 icon: Building2 },
-        { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText, permission: 'view_audit_log' },
+        { title: 'Audit Log',        href: '/audit-logs',             icon: ScrollText, permission: 'view_audit_log', feature: 'advanced_analytics' },
         { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
         { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
     ];
@@ -200,8 +203,12 @@ const ownerNav = computed<NavItem[]>(() => {
             }
         }
 
-        if (item.permission) {
-            return can(item.permission);
+        if (item.permission && !can(item.permission)) {
+            return false;
+        }
+
+        if (item.feature && !canFeature(item.feature as any)) {
+            return false;
         }
 
         return true;
@@ -213,35 +220,39 @@ const managerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan',        href: '/dashboard',              icon: LayoutGrid },
         { title: 'Đơn hàng hôm nay', href: '/orders',                 icon: ShoppingCart },
-        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package },
-        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText },
+        { title: 'Kho nguyên liệu',  href: '/inventory',              icon: Package, feature: 'inventory_basic' },
+        { title: 'Đấu thầu RFP',     href: '/rfps',                   icon: ScrollText, feature: 'supplier_portal' },
         { title: 'Giao hàng',        href: '/delivery',               icon: Route },
         { title: 'Đặt hàng Online', href: '/online-store',            icon: Globe },
-        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck },
-        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays },
-        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary' },
+        { title: 'Nhân sự',          href: '/employees',              icon: UserCheck, feature: 'hr_timekeeping' },
+        { title: 'Chấm công & Lịch', href: '/schedules',              icon: CalendarDays, feature: 'hr_timekeeping' },
+        { title: 'Bảng lương',       href: '/salaries',               icon: Wallet, permission: 'manage_salary', feature: 'hr_full' },
         { title: 'Khách hàng',       href: '/customers',              icon: Users },
         { title: 'Khách hàng thân thiết', href: '/loyalty',           icon: Gift },
         { title: 'Khuyến mãi',       href: '/promotions',             icon: Tag },
         { title: 'Hóa đơn & Gói cước', href: '/billing/history',      icon: Receipt },
         { title: 'Giới thiệu & Hoa hồng', href: '/settings/referrals', icon: Gift },
         { title: 'Phản hồi KH',      href: '/feedback',               icon: MessageSquare, permission: 'manage_feedback' },
-        { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report' },
-        { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report' },
-        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck },
-        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet },
-        { title: 'Quản lý chi phí',  href: '/expenses',               icon: Receipt },
-        { title: 'Quản lý công nợ', href: '/debts',                  icon: BadgeDollarSign },
-        { title: 'Đánh giá & KPI',   href: '/kpis',                   icon: BarChart3 },
-        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert },
-        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations' },
+        { title: 'Báo cáo doanh thu', href: '/reports',               icon: BarChart3, permission: 'view_report', feature: 'advanced_analytics' },
+        { title: 'Trợ lý AI Chiến lược', href: '/ai-advisor',             icon: Bot, permission: 'view_report', feature: 'ai_advisor' },
+        { title: 'Chốt ca',          href: '/shift-closings',         icon: ClipboardCheck, feature: 'inventory_basic' },
+        { title: 'Quản lý dòng tiền', href: '/cash-flow',             icon: Wallet, feature: 'inventory_basic' },
+        { title: 'Quản lý chi phí',  href: '/expenses',               icon: Receipt, feature: 'inventory_basic' },
+        { title: 'Quản lý công nợ', href: '/debts',                  icon: BadgeDollarSign, feature: 'inventory_basic' },
+        { title: 'Đánh giá & KPI',   href: '/kpis',                   icon: BarChart3, feature: 'hr_full' },
+        { title: 'Kiểm toán Gian lận', href: '/fraud',                icon: ShieldAlert, feature: 'fraud_detection' },
+        { title: 'Vi phạm nội bộ',   href: '/violations',             icon: FileSearch2, permission: 'view_violations', feature: 'fraud_detection' },
         { title: 'Tin tức',          href: '/tin-tuc',                icon: Newspaper },
         { title: 'Liên hệ & Hỗ trợ', href: '/support',                icon: Headset },
     ];
 
     return nav.filter(item => {
-        if (item.permission) {
-            return can(item.permission);
+        if (item.permission && !can(item.permission)) {
+            return false;
+        }
+
+        if (item.feature && !canFeature(item.feature as any)) {
+            return false;
         }
 
         return true;

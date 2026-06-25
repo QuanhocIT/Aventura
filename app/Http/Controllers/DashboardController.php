@@ -7,13 +7,17 @@ use App\Models\Order;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\ViolationReport;
 use App\Services\ForecastService;
+use App\Services\QuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function __construct(private ForecastService $forecast) {}
+    public function __construct(
+        private ForecastService $forecast,
+        private QuotaService $quotaService
+    ) {}
 
     public function index(Request $request): mixed
     {
@@ -28,11 +32,21 @@ class DashboardController extends Controller
             return app(CashierDashboardController::class)->index();
         }
 
+        $hasAdvancedAnalytics = $restaurant && $this->quotaService->hasFeature($restaurant, 'advanced_analytics');
+        $hasAiForecasting     = $restaurant && $this->quotaService->hasFeature($restaurant, 'ai_forecasting');
+        $hasHrTimekeeping     = $restaurant && $this->quotaService->hasFeature($restaurant, 'hr_timekeeping');
+        $hasInventoryBasic    = $restaurant && $this->quotaService->hasFeature($restaurant, 'inventory_basic');
+
         $branchId = $request->query('branch_id');
         if ($branchId === 'all' || $branchId === '') {
             $branchId = null;
         } elseif ($branchId !== null) {
             $branchId = (int) $branchId;
+        }
+
+        // Enforce branch limits: Free plan allows only 1 branch
+        if ($restaurant && $this->quotaService->getLimit($restaurant, 'branches') <= 1) {
+            $branchId = null;
         }
 
         // Restrict non-owners to their assigned branch if employee profile exists
@@ -139,7 +153,7 @@ class DashboardController extends Controller
             Cache::put("health_score:{$rid}{$cacheSuffix}", $healthScore, 60);
 
             // ── Dự báo doanh thu ngày mai ────────────────────────────────────
-            $forecastData = $this->forecast->forecastTomorrow($rid, $branchId);
+            $forecastData = $hasAiForecasting ? $this->forecast->forecastTomorrow($rid, $branchId) : null;
 
             // ── AI Cảnh báo mới ──────────────────────────────────────────────
             // Alert 1: Pending > 30 phút
@@ -181,93 +195,101 @@ class DashboardController extends Controller
             }
 
             // Alert 4 (AI): Doanh thu hôm nay thấp hơn dự báo > 30%
-            $forecast = $forecastData['amount'] ?? 0;
-            if ($forecast > 0 && $revenueToday > 0 && now()->hour >= 14) {
-                $pctOfForecast = $revenueToday / $forecast * 100;
-                if ($pctOfForecast < 70) {
-                    $gap = round(100 - $pctOfForecast);
-                    $alerts[] = [
-                        'type'    => 'warning',
-                        'ai'      => true,
-                        'message' => "⚡ Doanh thu hôm nay thấp hơn dự báo {$gap}% — hãy kích hoạt khuyến mãi flash",
-                        'href'    => '/promotions',
-                    ];
+            if ($hasAiForecasting && $this->quotaService->hasFeature($restaurant, 'ai_advisor') && $forecastData) {
+                $forecast = $forecastData['amount'] ?? 0;
+                if ($forecast > 0 && $revenueToday > 0 && now()->hour >= 14) {
+                    $pctOfForecast = $revenueToday / $forecast * 100;
+                    if ($pctOfForecast < 70) {
+                        $gap = round(100 - $pctOfForecast);
+                        $alerts[] = [
+                            'type'    => 'warning',
+                            'ai'      => true,
+                            'message' => "⚡ Doanh thu hôm nay thấp hơn dự báo {$gap}% — hãy kích hoạt khuyến mãi flash",
+                            'href'    => '/promotions',
+                        ];
+                    }
                 }
             }
 
             // Alert 5 (AI): Nhân viên chưa check-in dù đã qua giờ ca
-            $missingCheckIns = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
-                ->where('scheduled_date', today())
-                ->where('status', 'scheduled')
-                ->whereHas('shift', fn ($q) => $q->where('start_time', '<=', now()->format('H:i:s')))
-                ->when($branchId, function ($q) use ($branchId) {
-                    $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
-                })
-                ->count();
-            if ($missingCheckIns > 0) {
-                $alerts[] = [
-                    'type'    => 'warning',
-                    'ai'      => true,
-                    'message' => "⚡ {$missingCheckIns} nhân viên chưa check-in dù đã qua giờ bắt đầu ca",
-                    'href'    => '/schedules',
-                ];
+            if ($hasHrTimekeeping) {
+                $missingCheckIns = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+                    ->where('scheduled_date', today())
+                    ->where('status', 'scheduled')
+                    ->whereHas('shift', fn ($q) => $q->where('start_time', '<=', now()->format('H:i:s')))
+                    ->when($branchId, function ($q) use ($branchId) {
+                        $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+                    })
+                    ->count();
+                if ($missingCheckIns > 0) {
+                    $alerts[] = [
+                        'type'    => 'warning',
+                        'ai'      => true,
+                        'message' => "⚡ {$missingCheckIns} nhân viên chưa check-in dù đã qua giờ bắt đầu ca",
+                        'href'    => '/schedules',
+                    ];
+                }
             }
 
             // Alert 6 (Fraud): Đơn bị tách chưa đối soát
-            $splitAlertsCount = Order::where('restaurant_id', $rid)
-                ->where('is_split', true)
-                ->where('is_red_flagged', true)
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->count();
-            if ($splitAlertsCount > 0) {
-                $alerts[] = [
-                    'type'    => 'danger',
-                    'message' => "⚠️ Phát hiện {$splitAlertsCount} đơn hàng bị tách chưa được đối soát (Có nguy cơ gian lận!)",
-                    'href'    => '/orders',
-                ];
+            if ($restaurant && $this->quotaService->hasFeature($restaurant, 'fraud_detection')) {
+                $splitAlertsCount = Order::where('restaurant_id', $rid)
+                    ->where('is_split', true)
+                    ->where('is_red_flagged', true)
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->count();
+                if ($splitAlertsCount > 0) {
+                    $alerts[] = [
+                        'type'    => 'danger',
+                        'message' => "⚠️ Phát hiện {$splitAlertsCount} đơn hàng bị tách chưa được đối soát (Có nguy cơ gian lận!)",
+                        'href'    => '/orders',
+                    ];
+                }
             }
 
             // Alert 7 (Cash discrepancy > 2% of expected cash at close)
-            $closedRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->where('status', 'closed')
-                ->where('closed_at', '>=', now()->subDays(7))
-                ->where('expected_closing_balance', '>', 0)
-                ->get();
+            if ($hasInventoryBasic || $hasAdvancedAnalytics) {
+                $closedRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->where('status', 'closed')
+                    ->where('closed_at', '>=', now()->subDays(7))
+                    ->where('expected_closing_balance', '>', 0)
+                    ->get();
 
-            $discrepancyRegistersCount = $closedRegisters->filter(function ($r) {
-                return (float) $r->expected_closing_balance > 0
-                    && (abs((float) $r->difference) / (float) $r->expected_closing_balance) > 0.02;
-            })->count();
-            if ($discrepancyRegistersCount > 0) {
-                $alerts[] = [
-                    'type'    => 'danger',
-                    'message' => "⚠️ Phát hiện {$discrepancyRegistersCount} ca chốt két tiền mặt chênh lệch vượt quá 2% so với hệ thống trong 7 ngày qua!",
-                    'href'    => '/cash-flow',
-                ];
-            }
-
-            // Alert 8 (Active registers expense budget overrun)
-            $overrunRegistersCount = 0;
-            $openRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->where('status', 'open')
-                ->where('expense_budget', '>', 0)
-                ->get();
-            foreach ($openRegisters as $or) {
-                $expensesSum = (float) \App\Models\CashTransaction::where('cash_register_id', $or->id)
-                    ->where('type', 'out')
-                    ->sum('amount');
-                if ($expensesSum > (float) $or->expense_budget) {
-                    $overrunRegistersCount++;
+                $discrepancyRegistersCount = $closedRegisters->filter(function ($r) {
+                    return (float) $r->expected_closing_balance > 0
+                        && (abs((float) $r->difference) / (float) $r->expected_closing_balance) > 0.02;
+                })->count();
+                if ($discrepancyRegistersCount > 0) {
+                    $alerts[] = [
+                        'type'    => 'danger',
+                        'message' => "⚠️ Phát hiện {$discrepancyRegistersCount} ca chốt két tiền mặt chênh lệch vượt quá 2% so với hệ thống trong 7 ngày qua!",
+                        'href'    => '/cash-flow',
+                    ];
                 }
-            }
-            if ($overrunRegistersCount > 0) {
-                $alerts[] = [
-                    'type'    => 'warning',
-                    'message' => "⚠️ Ca trực hiện tại đang có chi tiêu tiền mặt vượt quá ngân sách chi ngoài hệ thống!",
-                    'href'    => '/cash-flow',
-                ];
+
+                // Alert 8 (Active registers expense budget overrun)
+                $overrunRegistersCount = 0;
+                $openRegisters = \App\Models\CashRegister::where('restaurant_id', $rid)
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->where('status', 'open')
+                    ->where('expense_budget', '>', 0)
+                    ->get();
+                foreach ($openRegisters as $or) {
+                    $expensesSum = (float) \App\Models\CashTransaction::where('cash_register_id', $or->id)
+                        ->where('type', 'out')
+                        ->sum('amount');
+                    if ($expensesSum > (float) $or->expense_budget) {
+                        $overrunRegistersCount++;
+                    }
+                }
+                if ($overrunRegistersCount > 0) {
+                    $alerts[] = [
+                        'type'    => 'warning',
+                        'message' => "⚠️ Ca trực hiện tại đang có chi tiêu tiền mặt vượt quá ngân sách chi ngoài hệ thống!",
+                        'href'    => '/cash-flow',
+                    ];
+                }
             }
 
             // ── Activity Feed ────────────────────────────────────────────────
@@ -307,15 +329,18 @@ class DashboardController extends Controller
                 }
             }
 
-            $lowStocksForFeed = \App\Models\Inventory::query()
-                ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                ->where('inventories.restaurant_id', $rid)
-                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
-                ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                ->select('ingredients.name as ingredient_name', 'inventories.quantity_on_hand',
-                    'ingredients.min_stock_level', 'units.name as unit_name', 'inventories.updated_at')
-                ->take(4)->get();
+            $lowStocksForFeed = [];
+            if ($hasInventoryBasic) {
+                $lowStocksForFeed = \App\Models\Inventory::query()
+                    ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+                    ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
+                    ->where('inventories.restaurant_id', $rid)
+                    ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
+                    ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
+                    ->select('ingredients.name as ingredient_name', 'inventories.quantity_on_hand',
+                        'ingredients.min_stock_level', 'units.name as unit_name', 'inventories.updated_at')
+                    ->take(4)->get();
+            }
 
             foreach ($lowStocksForFeed as $item) {
                 $time = $item->updated_at ?? now();
@@ -328,13 +353,16 @@ class DashboardController extends Controller
                 ];
             }
 
-            $activeSchedulesForFeed = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
-                ->where('restaurant_id', $rid)->where('scheduled_date', today())
-                ->whereNotNull('check_in_at')
-                ->whereHas('employee', fn($emp) => $emp->when($branchId, fn($q) => $q->where('branch_id', $branchId)))
-                ->latest('check_in_at')
-                ->take(4)
-                ->get();
+            $activeSchedulesForFeed = [];
+            if ($hasHrTimekeeping) {
+                $activeSchedulesForFeed = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
+                    ->where('restaurant_id', $rid)->where('scheduled_date', today())
+                    ->whereNotNull('check_in_at')
+                    ->whereHas('employee', fn($emp) => $emp->when($branchId, fn($q) => $q->where('branch_id', $branchId)))
+                    ->latest('check_in_at')
+                    ->take(4)
+                    ->get();
+            }
 
             foreach ($activeSchedulesForFeed as $sa) {
                 $time = $sa->check_in_at;
@@ -373,24 +401,27 @@ class DashboardController extends Controller
                 })->all();
 
             // ── Low stock ────────────────────────────────────────────────────
-            $lowStockInventory = \App\Models\Inventory::query()
-                ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                ->where('inventories.restaurant_id', $rid)
-                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
-                ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                ->select('ingredients.id', 'ingredients.name as ingredient_name',
-                    'inventories.quantity_on_hand', 'ingredients.min_stock_level',
-                    'ingredients.reorder_level', 'units.name as unit_name')
-                ->orderBy('inventories.quantity_on_hand')->take(8)->get()
-                ->map(fn ($item) => [
-                    'id' => $item->id,
-                    'ingredient_name' => $item->ingredient_name,
-                    'quantity_on_hand' => (float) $item->quantity_on_hand,
-                    'min_stock_level'  => (float) $item->min_stock_level,
-                    'reorder_level'    => (float) $item->reorder_level,
-                    'unit_name'        => $item->unit_name ?? 'đv',
-                ])->all();
+            $lowStockInventory = [];
+            if ($hasInventoryBasic) {
+                $lowStockInventory = \App\Models\Inventory::query()
+                    ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+                    ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
+                    ->where('inventories.restaurant_id', $rid)
+                    ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
+                    ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
+                    ->select('ingredients.id', 'ingredients.name as ingredient_name',
+                        'inventories.quantity_on_hand', 'ingredients.min_stock_level',
+                        'ingredients.reorder_level', 'units.name as unit_name')
+                    ->orderBy('inventories.quantity_on_hand')->take(8)->get()
+                    ->map(fn ($item) => [
+                        'id' => $item->id,
+                        'ingredient_name' => $item->ingredient_name,
+                        'quantity_on_hand' => (float) $item->quantity_on_hand,
+                        'min_stock_level'  => (float) $item->min_stock_level,
+                        'reorder_level'    => (float) $item->reorder_level,
+                        'unit_name'        => $item->unit_name ?? 'đv',
+                    ])->all();
+            }
 
             // ── Recent orders ────────────────────────────────────────────────
             $recentOrders = Order::with('table')
@@ -411,7 +442,7 @@ class DashboardController extends Controller
                 ])->all();
 
             // ── Multi-branch Consolidated comparison ──────────────────────────
-            if (!$branchId && count($branches) > 1) {
+            if (!$branchId && count($branches) > 1 && $hasAdvancedAnalytics) {
                 foreach ($branches as $b) {
                     $bRevToday = (float) Order::where('restaurant_id', $rid)
                         ->where('branch_id', $b['id'])
@@ -478,14 +509,14 @@ class DashboardController extends Controller
             'onboardingComplete'   => $onboardingComplete,
             'recentOrders'         => $recentOrders,
             'alerts'               => $alerts,
-            'revenueChartData'     => $restaurant ? Inertia::defer(fn () => $this->getRevenueChartData($restaurant->id, $branchId)) : [],
-            'channelChartData'     => $restaurant ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id, $branchId)) : [],
-            'topProductsChartData' => $restaurant ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id, $branchId)) : [],
-            'forecastData'         => $restaurant ? Inertia::defer(fn () => $this->getForecastData($restaurant->id, $branchId)) : null,
-            'healthScore'          => $restaurant ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id, $branchId)) : null,
-            'shiftRevenue'         => $restaurant ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id, $branchId)) : [],
-            'ownerSummary'         => $restaurant ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id, $branchId)) : null,
-            'cashFlowSummary'      => $restaurant ? Inertia::defer(fn () => $this->getCashFlowSummary($restaurant->id, $branchId)) : null,
+            'revenueChartData'     => $restaurant ? Inertia::defer(fn () => $this->getRevenueChartData($restaurant->id, $branchId, $hasAiForecasting)) : [],
+            'channelChartData'     => ($restaurant && ($hasAdvancedAnalytics || $hasInventoryBasic)) ? Inertia::defer(fn () => $this->getChannelChartData($restaurant->id, $branchId)) : [],
+            'topProductsChartData' => ($restaurant && $hasAdvancedAnalytics) ? Inertia::defer(fn () => $this->getTopProductsChartData($restaurant->id, $branchId)) : [],
+            'forecastData'         => ($restaurant && $hasAiForecasting) ? Inertia::defer(fn () => $this->getForecastData($restaurant->id, $branchId)) : null,
+            'healthScore'          => ($restaurant && ($hasAdvancedAnalytics || $hasHrTimekeeping)) ? Inertia::defer(fn () => $this->getHealthScore($restaurant->id, $branchId)) : null,
+            'shiftRevenue'         => ($restaurant && $hasHrTimekeeping) ? Inertia::defer(fn () => $this->getShiftRevenue($restaurant->id, $branchId)) : [],
+            'ownerSummary'         => ($restaurant && ($hasAdvancedAnalytics || $hasHrTimekeeping)) ? Inertia::defer(fn () => $this->getOwnerSummary($restaurant->id, $branchId)) : null,
+            'cashFlowSummary'      => ($restaurant && ($hasAdvancedAnalytics || $hasInventoryBasic)) ? Inertia::defer(fn () => $this->getCashFlowSummary($restaurant->id, $branchId)) : null,
         ]);
     }
 
@@ -591,7 +622,7 @@ class DashboardController extends Controller
         );
     }
 
-    private function getRevenueChartData(int $rid, ?int $branchId = null): array
+    private function getRevenueChartData(int $rid, ?int $branchId = null, bool $hasAiForecasting = false): array
     {
         $sevenDaysAgo = now()->subDays(6)->startOfDay();
         $dailyStats = Order::where('restaurant_id', $rid)
@@ -617,9 +648,11 @@ class DashboardController extends Controller
             ];
         }
 
-        $forecast7 = $this->forecast->forecast7Days($rid, $branchId);
-        foreach ($forecast7 as $f) {
-            $revenueChartData[] = $f;
+        if ($hasAiForecasting) {
+            $forecast7 = $this->forecast->forecast7Days($rid, $branchId);
+            foreach ($forecast7 as $f) {
+                $revenueChartData[] = $f;
+            }
         }
 
         return $revenueChartData;

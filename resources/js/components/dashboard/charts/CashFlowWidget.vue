@@ -36,7 +36,7 @@ const maxVal = computed(() => {
 </script>
 
 <template>
-    <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden hover:translate-y-[-2px] transition-all duration-200">
+    <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden hover:translate-y-[-2px] transition-all duration-200 relative group">
         <CardHeader class="pb-3 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center justify-between">
                 <div>
