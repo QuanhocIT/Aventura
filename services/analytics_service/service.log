@@ -1,0 +1,11 @@
+INFO:     127.0.0.1:50417 - "GET /health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50440 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50871 - "POST /api/analytics/revenue-forecast HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51051 - "POST /api/analytics/upsell-suggestion HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:51065 - "POST /api/analytics/upsell-suggestion HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51267 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52731 - "POST /api/analytics/revenue-forecast HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53350 - "POST /api/analytics/revenue-forecast HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54716 - "POST /api/analytics/revenue-forecast HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57510 - "POST /api/analytics/inventory-forecast HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59061 - "POST /api/analytics/revenue-forecast HTTP/1.1" 200 OK
