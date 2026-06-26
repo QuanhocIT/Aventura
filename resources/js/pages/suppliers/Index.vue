@@ -4,7 +4,8 @@ import {
     Plus, Edit2, Trash2, ShoppingBag, CheckCircle, 
     AlertTriangle, Sparkles, TrendingUp, TrendingDown,
     FileText, Upload, RefreshCw, X, Check, ArrowLeftRight, History,
-    Gauge, BarChart3, Package, Star, Award, ShieldCheck
+    Gauge, BarChart3, Package, Star, Award, ShieldCheck,
+    Search, Mail, Phone, MapPin, User, Users, Truck, Info, ClipboardList, Building
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,42 @@ const roles = computed(() => {
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));
+
+// Search & Filters
+const searchQuery = ref('');
+const statusFilter = ref('all'); // 'all' | 'active' | 'inactive'
+
+const filteredSuppliers = computed(() => {
+    return props.suppliers.filter(sup => {
+        const matchesSearch = !searchQuery.value || 
+            sup.name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.contact_name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.phone?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.email?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.address?.toLowerCase().includes(searchQuery.value.toLowerCase());
+            
+        const matchesStatus = statusFilter.value === 'all' || sup.status === statusFilter.value;
+        
+        return matchesSearch && matchesStatus;
+    });
+});
+
+const kpis = computed(() => {
+    const total = props.suppliers.length;
+    const active = props.suppliers.filter(s => s.status === 'active').length;
+    const inactive = total - active;
+    const totalIngredients = props.ingredients.length;
+    const totalPOs = props.purchaseOrders.length;
+    
+    return {
+        total,
+        active,
+        inactive,
+        totalIngredients,
+        totalPOs
+    };
+});
+
 
 // Modals
 const showAddModal = ref(false);
@@ -613,6 +650,7 @@ return null;
             <button @click="activeTab = 'list'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <Users class="w-3.5 h-3.5" />
                 Danh sách đối tác
             </button>
             <button @click="activeTab = 'cockpit'; fetchCockpitData()"
@@ -624,16 +662,19 @@ return null;
             <button @click="activeTab = 'pos'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'pos' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <ClipboardList class="w-3.5 h-3.5" />
                 Nhật ký đặt hàng (PO)
             </button>
             <button @click="activeTab = 'analytics'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'analytics' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <TrendingUp class="w-3.5 h-3.5" />
                 AI Phân tích biến động giá
             </button>
             <button @click="activeTab = 'sla'"
                 class="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5"
                 :class="activeTab === 'sla' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'">
+                <ShieldCheck class="w-3.5 h-3.5" />
                 Báo cáo SLA & Đánh giá
             </button>
             <button @click="activeTab = 'sla-dashboard'; fetchSlaDashboard()"
@@ -651,57 +692,169 @@ return null;
         </div>
 
         <!-- Tab Content: Suppliers List -->
-        <div v-if="activeTab === 'list'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card 
-                v-for="sup in suppliers" 
-                :key="sup.id" 
-                class="hover:shadow-md transition-all flex flex-col justify-between"
-            >
-                <CardHeader class="pb-3 flex flex-row items-start justify-between space-y-0">
+        <div v-if="activeTab === 'list'" class="space-y-6">
+            <!-- KPI Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-card/40 backdrop-blur-md border border-border hover:border-emerald-500/20 hover:shadow-emerald-500/[0.02] hover:shadow-md transition-all duration-300 rounded-2xl p-5 flex items-center justify-between group">
                     <div class="space-y-1">
-                        <CardTitle class="text-base font-bold">{{ sup.name }}</CardTitle>
-                        <div class="pt-0.5">
-                            <span :class="['text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider', sup.status === 'active' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400']">
-                                {{ sup.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa' }}
-                            </span>
-                        </div>
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tổng đối tác</p>
+                        <h3 class="text-2xl font-extrabold tracking-tight group-hover:text-emerald-500 transition-colors">{{ kpis.total }}</h3>
                     </div>
-                    <div class="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" @click="openEditModal(sup)" class="h-8 w-8 text-muted-foreground hover:text-amber-500">
-                            <Edit2 class="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" @click="deleteSupplier(sup)" class="h-8 w-8 text-muted-foreground hover:text-rose-500">
-                            <Trash2 class="w-4 h-4" />
-                        </Button>
+                    <div class="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform duration-300">
+                        <Users class="size-5" />
                     </div>
-                </CardHeader>
+                </div>
+                <div class="bg-card/40 backdrop-blur-md border border-border hover:border-emerald-500/20 hover:shadow-emerald-500/[0.02] hover:shadow-md transition-all duration-300 rounded-2xl p-5 flex items-center justify-between group">
+                    <div class="space-y-1">
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đang hoạt động</p>
+                        <h3 class="text-2xl font-extrabold tracking-tight text-emerald-500">{{ kpis.active }}</h3>
+                    </div>
+                    <div class="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform duration-300">
+                        <CheckCircle class="size-5" />
+                    </div>
+                </div>
+                <div class="bg-card/40 backdrop-blur-md border border-border hover:border-indigo-500/20 hover:shadow-indigo-500/[0.02] hover:shadow-md transition-all duration-300 rounded-2xl p-5 flex items-center justify-between group">
+                    <div class="space-y-1">
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nguyên liệu cung ứng</p>
+                        <h3 class="text-2xl font-extrabold tracking-tight group-hover:text-indigo-500 transition-colors">{{ kpis.totalIngredients }}</h3>
+                    </div>
+                    <div class="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:scale-110 transition-transform duration-300">
+                        <Package class="size-5" />
+                    </div>
+                </div>
+                <div class="bg-card/40 backdrop-blur-md border border-border hover:border-purple-500/20 hover:shadow-purple-500/[0.02] hover:shadow-md transition-all duration-300 rounded-2xl p-5 flex items-center justify-between group">
+                    <div class="space-y-1">
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đơn hàng PO</p>
+                        <h3 class="text-2xl font-extrabold tracking-tight group-hover:text-purple-500 transition-colors">{{ kpis.totalPOs }}</h3>
+                    </div>
+                    <div class="p-3 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform duration-300">
+                        <ClipboardList class="size-5" />
+                    </div>
+                </div>
+            </div>
 
-                <CardContent class="pb-4">
-                    <div class="text-xs text-muted-foreground space-y-1.5">
-                        <p v-if="sup.contact_name"><strong>Đại diện:</strong> {{ sup.contact_name }}</p>
-                        <p v-if="sup.phone"><strong>Điện thoại:</strong> {{ sup.phone }}</p>
-                        <p v-if="sup.email"><strong>Email:</strong> {{ sup.email }}</p>
-                        <p v-if="sup.address"><strong>Địa chỉ:</strong> {{ sup.address }}</p>
-                    </div>
+            <!-- Search & Filters -->
+            <div class="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card/30 border border-border p-3.5 rounded-2xl">
+                <div class="relative w-full sm:max-w-md">
+                    <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
+                    <Input 
+                        v-model="searchQuery" 
+                        type="text" 
+                        placeholder="Tìm kiếm đối tác (tên, email, số điện thoại, đại diện)..." 
+                        class="pl-9 h-9 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                    />
+                    <X 
+                        v-if="searchQuery" 
+                        @click="searchQuery = ''" 
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer size-4"
+                    />
+                </div>
+                <div class="flex items-center gap-2 self-end sm:self-auto shrink-0 w-full sm:w-auto">
+                    <span class="text-xs font-semibold text-muted-foreground hidden md:inline">Trạng thái:</span>
+                    <select 
+                        v-model="statusFilter"
+                        class="w-full sm:w-36 h-9 rounded-xl border border-border bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-foreground font-medium"
+                    >
+                        <option value="all">Tất cả trạng thái</option>
+                        <option value="active">Đang hoạt động</option>
+                        <option value="inactive">Tạm khóa</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Supplier Cards Grid -->
+            <div v-if="filteredSuppliers.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card 
+                    v-for="sup in filteredSuppliers" 
+                    :key="sup.id" 
+                    class="group hover:shadow-xl hover:shadow-emerald-500/[0.01] hover:-translate-y-1 hover:border-emerald-500/20 transition-all duration-300 flex flex-col justify-between overflow-hidden relative border-border bg-card/30 backdrop-blur-sm"
+                >
+                    <div class="absolute -right-16 -top-16 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors duration-300"></div>
                     
-                    <div class="flex gap-2 pt-4 border-t border-border mt-4">
-                        <Button 
-                            @click="openPoModal(sup)" 
-                            variant="outline"
-                            class="w-full h-8 text-xs border-emerald-200 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-850 dark:text-emerald-400 font-semibold"
-                        >
-                            <ShoppingBag class="w-3.5 h-3.5 mr-1.5" />
-                            Đặt hàng hàng ngày
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    <CardHeader class="pb-3 flex flex-row items-start justify-between space-y-0 relative z-10">
+                        <div class="flex gap-3">
+                            <!-- Initials Avatar with custom gradient based on status -->
+                            <div :class="['w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm text-white shadow-md shadow-black/10', sup.status === 'active' ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 shadow-emerald-500/10' : 'bg-gradient-to-tr from-rose-500 to-orange-400 shadow-rose-500/10']">
+                                {{ (sup.name || 'NCC').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() }}
+                            </div>
+                            <div class="space-y-1">
+                                <CardTitle class="text-sm font-extrabold tracking-tight group-hover:text-emerald-400 transition-colors duration-300">{{ sup.name }}</CardTitle>
+                                <div>
+                                    <span :class="['text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider', sup.status === 'active' ? 'bg-emerald-500/10 text-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-450' : 'bg-rose-500/10 text-rose-500 dark:bg-rose-950/40 dark:text-rose-455']">
+                                        {{ sup.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-0.5 shrink-0">
+                            <Button variant="ghost" size="icon" @click="openEditModal(sup)" class="h-8 w-8 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg">
+                                <Edit2 class="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" @click="deleteSupplier(sup)" class="h-8 w-8 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg">
+                                <Trash2 class="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </CardHeader>
 
-            <!-- Empty State -->
-            <div v-if="suppliers.length === 0" class="col-span-full py-16 text-center border border-dashed border-border rounded-2xl bg-muted/20">
-                <AlertTriangle class="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p class="text-muted-foreground font-medium text-sm">Chưa có nhà cung cấp nào được cấu hình.</p>
-                <Button @click="openAddModal" class="mt-4 bg-emerald-600 text-white hover:bg-emerald-700">Thêm đối tác ngay</Button>
+                    <CardContent class="pb-5 relative z-10 flex-1 flex flex-col justify-between">
+                        <div>
+                            <!-- Quick Statistics Badge Grid -->
+                            <div class="grid grid-cols-2 gap-2 p-2 rounded-xl bg-muted/40 border border-border/40 text-[10px] mb-4">
+                                <div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
+                                    <Package class="w-3.5 h-3.5 text-emerald-500" />
+                                    <span>Nguyên liệu:</span>
+                                    <span class="text-foreground font-bold font-mono">{{ sup.ingredients_count ?? 0 }}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
+                                    <ClipboardList class="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>Đơn PO:</span>
+                                    <span class="text-foreground font-bold font-mono">{{ sup.purchase_orders_count ?? 0 }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Contact Detail List with modern icons -->
+                            <div class="text-xs text-muted-foreground space-y-2 mt-1">
+                                <div v-if="sup.contact_name" class="flex items-center gap-2.5">
+                                    <User class="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                    <span class="truncate"><strong class="text-muted-foreground/80 font-medium">Đại diện:</strong> {{ sup.contact_name }}</span>
+                                </div>
+                                <div v-if="sup.phone" class="flex items-center gap-2.5">
+                                    <Phone class="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                    <span><strong class="text-muted-foreground/80 font-medium">Điện thoại:</strong> {{ sup.phone }}</span>
+                                </div>
+                                <div v-if="sup.email" class="flex items-center gap-2.5">
+                                    <Mail class="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                    <span class="truncate"><strong class="text-muted-foreground/80 font-medium">Email:</strong> {{ sup.email }}</span>
+                                </div>
+                                <div v-if="sup.address" class="flex items-start gap-2.5">
+                                    <MapPin class="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 mt-0.5" />
+                                    <span class="line-clamp-2"><strong class="text-muted-foreground/80 font-medium">Địa chỉ:</strong> {{ sup.address }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2 pt-4 border-t border-border mt-4">
+                            <Button 
+                                @click="openPoModal(sup)" 
+                                variant="outline"
+                                class="w-full h-8.5 text-xs border-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white dark:border-emerald-500/30 dark:hover:bg-emerald-500 dark:hover:text-black font-bold rounded-xl transition-all duration-300"
+                            >
+                                <ShoppingBag class="w-3.5 h-3.5 mr-1.5" />
+                                Đặt hàng hàng ngày
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <!-- Empty / No matches State -->
+            <div v-else class="py-16 text-center border border-dashed border-border rounded-2xl bg-card/25 backdrop-blur-xs flex flex-col items-center justify-center">
+                <div class="h-16 w-16 bg-muted/40 rounded-2xl flex items-center justify-center mb-4 text-muted-foreground">
+                    <Search class="w-8 h-8" />
+                </div>
+                <h4 class="font-bold text-base text-foreground mb-1">Không tìm thấy nhà cung cấp nào</h4>
+                <p class="text-muted-foreground text-xs max-w-sm">Không tìm thấy đối tác nào phù hợp với bộ lọc tìm kiếm hiện tại.</p>
+                <Button @click="searchQuery = ''; statusFilter = 'all'" variant="outline" class="mt-4 text-xs font-semibold rounded-xl">Xóa bộ lọc</Button>
             </div>
         </div>
 
@@ -1642,55 +1795,167 @@ return null;
         </div>
 
         <!-- Add/Edit Supplier Modals -->
-        <div v-if="showAddModal || showEditModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <Card class="w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-                <CardHeader class="flex flex-row items-center justify-between border-b pb-4">
-                    <CardTitle class="text-lg font-bold">{{ showAddModal ? 'Thêm nhà cung cấp mới' : 'Chỉnh sửa nhà cung cấp' }}</CardTitle>
-                    <Button variant="ghost" size="icon" @click="showAddModal = false; showEditModal = false;" class="h-8 w-8 text-muted-foreground">
-                        <X class="w-5 h-5" />
+        <div v-if="showAddModal || showEditModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <Card class="w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 border-border bg-card/95 backdrop-blur-md relative rounded-2xl">
+                <!-- Top Accent Line -->
+                <div class="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400 absolute top-0 left-0"></div>
+
+                <CardHeader class="flex flex-row items-center justify-between border-b border-border/60 pb-4 pt-5">
+                    <div>
+                        <CardTitle class="text-base font-extrabold tracking-tight text-foreground">{{ showAddModal ? 'Thêm nhà cung cấp mới' : 'Chỉnh sửa nhà cung cấp' }}</CardTitle>
+                        <p class="text-[10px] text-muted-foreground mt-0.5">Vui lòng điền thông tin đối tác cung cấp nguyên vật liệu.</p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="showAddModal = false; showEditModal = false;" class="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg">
+                        <X class="w-4 h-4" />
                     </Button>
                 </CardHeader>
 
-                <form @submit.prevent="saveSupplier" class="p-6 space-y-4">
+                <form @submit.prevent="saveSupplier" class="p-6 space-y-5">
                     <div class="grid grid-cols-2 gap-4">
+                        <!-- Supplier Name -->
                         <div class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tên nhà cung cấp <span class="text-rose-500">*</span></Label>
-                            <Input v-model="supplierForm.name" required type="text" />
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <Building class="w-3.5 h-3.5 text-emerald-500" />
+                                Tên nhà cung cấp <span class="text-rose-500">*</span>
+                            </Label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                    <Building class="w-4 h-4" />
+                                </span>
+                                <Input 
+                                    v-model="supplierForm.name" 
+                                    required 
+                                    type="text" 
+                                    placeholder="Nhập tên doanh nghiệp / hộ kinh doanh..."
+                                    class="pl-9 h-9.5 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                                />
+                            </div>
                         </div>
+
+                        <!-- Contact Name -->
                         <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Người đại diện</Label>
-                            <Input v-model="supplierForm.contact_name" type="text" />
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <User class="w-3.5 h-3.5 text-emerald-500" />
+                                Người đại diện
+                            </Label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                    <User class="w-4 h-4" />
+                                </span>
+                                <Input 
+                                    v-model="supplierForm.contact_name" 
+                                    type="text" 
+                                    placeholder="Tên người liên hệ..."
+                                    class="pl-9 h-9.5 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                                />
+                            </div>
                         </div>
+
+                        <!-- Phone -->
                         <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Điện thoại</Label>
-                            <Input v-model="supplierForm.phone" type="text" />
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <Phone class="w-3.5 h-3.5 text-emerald-500" />
+                                Điện thoại
+                            </Label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                    <Phone class="w-4 h-4" />
+                                </span>
+                                <Input 
+                                    v-model="supplierForm.phone" 
+                                    type="text" 
+                                    placeholder="Số điện thoại..."
+                                    class="pl-9 h-9.5 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                                />
+                            </div>
                         </div>
+
+                        <!-- Email -->
                         <div class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email liên hệ</Label>
-                            <Input v-model="supplierForm.email" type="email" />
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <Mail class="w-3.5 h-3.5 text-emerald-500" />
+                                Email liên hệ
+                            </Label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                    <Mail class="w-4 h-4" />
+                                </span>
+                                <Input 
+                                    v-model="supplierForm.email" 
+                                    type="email" 
+                                    placeholder="example@supplier.com"
+                                    class="pl-9 h-9.5 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                                />
+                            </div>
                         </div>
+
+                        <!-- Address -->
                         <div class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Địa chỉ</Label>
-                            <Input v-model="supplierForm.address" type="text" />
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <MapPin class="w-3.5 h-3.5 text-emerald-500" />
+                                Địa chỉ
+                            </Label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                    <MapPin class="w-4 h-4" />
+                                </span>
+                                <Input 
+                                    v-model="supplierForm.address" 
+                                    type="text" 
+                                    placeholder="Số nhà, tên đường, tỉnh/thành phố..."
+                                    class="pl-9 h-9.5 bg-background border-border/60 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 rounded-xl"
+                                />
+                            </div>
                         </div>
+
+                        <!-- Notes -->
                         <div class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ghi chú đối tác</Label>
-                            <textarea v-model="supplierForm.notes" rows="3" class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"></textarea>
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <ClipboardList class="w-3.5 h-3.5 text-emerald-500" />
+                                Ghi chú đối tác
+                            </Label>
+                            <div class="relative">
+                                <textarea 
+                                    v-model="supplierForm.notes" 
+                                    rows="3" 
+                                    placeholder="Ghi chú về năng lực cung ứng, lịch giao hàng hoặc chiết khấu thương mại..."
+                                    class="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 text-foreground placeholder:text-muted-foreground/50"
+                                ></textarea>
+                            </div>
                         </div>
+
+                        <!-- Status Select (for edit mode) -->
                         <div v-if="showEditModal" class="col-span-2 space-y-1.5">
-                            <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trạng thái</Label>
-                            <select v-model="supplierForm.status" class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                            <Label class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <Info class="w-3.5 h-3.5 text-emerald-500" />
+                                Trạng thái hoạt động
+                            </Label>
+                            <select 
+                                v-model="supplierForm.status" 
+                                class="w-full h-9.5 rounded-xl border border-border/60 bg-background px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-foreground font-medium"
+                            >
                                 <option value="active">Đang hoạt động</option>
                                 <option value="inactive">Tạm khóa</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="flex justify-end gap-2 pt-4 border-t mt-6">
-                        <Button type="button" variant="outline" @click="showAddModal = false; showEditModal = false;">
+                    <div class="flex justify-end gap-2 pt-4 border-t border-border/60 mt-6">
+                        <Button 
+                            type="button" 
+                            variant="outline" 
+                            @click="showAddModal = false; showEditModal = false;"
+                            class="h-9.5 px-4 text-xs font-semibold hover:bg-muted border-border/80 rounded-xl"
+                        >
                             Hủy bỏ
                         </Button>
-                        <Button type="submit" :disabled="supplierForm.processing" class="bg-emerald-600 text-white hover:bg-emerald-700">
+                        <Button 
+                            type="submit" 
+                            :disabled="supplierForm.processing" 
+                            class="h-9.5 px-4 text-xs bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold shadow-lg shadow-emerald-500/10 rounded-xl transition-all duration-300 flex items-center gap-1.5"
+                        >
+                            <Sparkles class="w-3.5 h-3.5" v-if="!supplierForm.processing" />
+                            <RefreshCw class="w-3.5 h-3.5 animate-spin" v-else />
                             {{ supplierForm.processing ? 'Đang lưu...' : 'Lưu thông tin' }}
                         </Button>
                     </div>
@@ -1699,7 +1964,7 @@ return null;
         </div>
 
         <!-- Place PO Modal -->
-        <div v-if="showPoModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div v-if="showPoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <Card class="w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
                 <CardHeader class="flex flex-row items-center justify-between border-b pb-4">
                     <CardTitle class="text-lg font-bold">Đặt hàng nguyên liệu: {{ selectedSupplier?.name }}</CardTitle>
@@ -1765,7 +2030,7 @@ return null;
         </div>
 
         <!-- Verify & Deliver Dual-Verification Modal -->
-        <div v-if="showVerifyModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div v-if="showVerifyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <Card class="w-full max-w-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
                 <CardHeader class="flex flex-row items-center justify-between border-b pb-4">
                     <div>

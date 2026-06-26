@@ -504,6 +504,7 @@ class DashboardController extends Controller
             'recentOrders'         => $recentOrders,
             'alerts'               => $alerts,
             'revenueChartData'     => $restaurant ? $this->getRevenueChartData($restaurant->id, $branchId, $hasAiForecasting) : [],
+            'peakHoursChartData'   => $restaurant ? $this->getPeakHoursChartData($restaurant->id, $branchId) : [],
             'channelChartData'     => ($restaurant && ($hasAdvancedAnalytics || $hasInventoryBasic)) ? $this->getChannelChartData($restaurant->id, $branchId) : [],
             'topProductsChartData' => ($restaurant && $hasAdvancedAnalytics) ? $this->getTopProductsChartData($restaurant->id, $branchId) : [],
             'forecastData'         => ($restaurant && $hasAiForecasting) ? $this->getForecastData($restaurant->id, $branchId) : null,
@@ -704,6 +705,32 @@ class DashboardController extends Controller
                 'revenue'  => (float) $item->total_revenue,
             ])
             ->all();
+    }
+
+    private function getPeakHoursChartData(int $rid, ?int $branchId = null): array
+    {
+        $thirtyDaysAgo = now()->subDays(30)->startOfDay();
+        $hourlyStats = Order::where('restaurant_id', $rid)
+            ->where('status', 'completed')
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->selectRaw("HOUR(created_at) as hour, COUNT(*) as count")
+            ->groupBy('hour')
+            ->orderBy('hour')
+            ->get()
+            ->keyBy('hour');
+
+        $peakHoursData = [];
+        for ($h = 6; $h <= 23; $h++) {
+            $stat = $hourlyStats->get($h);
+            $peakHoursData[] = [
+                'hour'  => $h,
+                'label' => sprintf('%02dh', $h),
+                'count' => $stat ? (int) $stat->count : 0,
+            ];
+        }
+
+        return $peakHoursData;
     }
 
     private function getForecastData(int $rid, ?int $branchId = null): ?array

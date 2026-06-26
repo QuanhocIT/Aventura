@@ -7,6 +7,13 @@ import {
     FileText,
     Gift,
     ArrowUpRight,
+    CreditCard,
+    Crown,
+    Clock,
+    CheckCircle2,
+    ShieldAlert,
+    AlertTriangle,
+    Zap
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +76,7 @@ const props = defineProps<{
 }>();
 
 function formatCurrency(val: number): string {
-    return val.toLocaleString('vi-VN') + ' ₫';
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 }
 
 const subscriptionStatusLabels: Record<string, string> = {
@@ -119,6 +126,35 @@ const restaurantStatusVariants: Record<string, 'default' | 'secondary' | 'destru
 };
 
 const totalInvoices = computed(() => props.invoices?.length ?? 0);
+
+const totalSpent = computed(() => {
+    return props.invoices.reduce((sum, inv) => sum + inv.total, 0);
+});
+
+const daysLeft = computed(() => {
+    const dateStr = props.restaurant.subscription_ends_at || props.restaurant.trial_ends_at;
+    if (!dateStr) return null;
+    
+    let targetDate: Date;
+    if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        targetDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    } else {
+        targetDate = new Date(dateStr);
+    }
+    
+    const diffTime = targetDate.getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+});
+
+const progressPercent = computed(() => {
+    if (daysLeft.value === null) return 100;
+    const cycle = props.restaurant.status === 'trial' ? 14 : 30; // default standard cycle mapping
+    const ratio = (daysLeft.value / cycle) * 100;
+    return Math.min(100, Math.max(0, ratio));
+});
+
 const formattedEndsAt = computed(() => {
     if (props.restaurant.subscription_ends_at) {
         return props.restaurant.subscription_ends_at;
@@ -149,7 +185,7 @@ const formattedEndsAt = computed(() => {
             </div>
 
             <div class="flex items-center gap-2">
-                <Button as-child size="sm" class="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 rounded-xl shadow-xs">
+                <Button as-child size="sm" class="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 rounded-xl shadow-xs cursor-pointer transition active:scale-95">
                     <Link href="/dashboard">
                         Nâng cấp / Đổi gói
                         <ArrowUpRight class="size-4" />
@@ -160,59 +196,83 @@ const formattedEndsAt = computed(() => {
 
         <!-- KPI STATS CARDS -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            
             <!-- Current Plan -->
-            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform">
+            <Card 
+                class="shadow-sm hover:translate-y-[-2px] transition-all duration-200 border"
+                :class="[
+                    restaurant.plan_code === 'enterprise' 
+                        ? 'border-purple-200 bg-purple-500/[0.01] dark:border-purple-950/30' 
+                        : (restaurant.plan_code === 'pro' || restaurant.plan_code === 'starter') 
+                        ? 'border-emerald-200 bg-emerald-500/[0.01] dark:border-emerald-950/30' 
+                        : 'border-border'
+                ]"
+            >
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
-                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-slate-400">Gói dịch vụ</CardDescription>
-                    <Sparkles class="size-4 text-slate-400" />
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-slate-400">Gói dịch vụ hiện tại</CardDescription>
+                    <component 
+                        :is="restaurant.plan_code === 'enterprise' ? Crown : (restaurant.plan_code === 'pro' ? Sparkles : Zap)" 
+                        class="size-4"
+                        :class="restaurant.plan_code === 'enterprise' ? 'text-purple-500' : 'text-emerald-500'" 
+                    />
                 </CardHeader>
-                <CardContent class="pb-3 flex flex-col gap-1.5">
+                <CardContent class="pb-3 flex flex-col gap-2">
                     <span class="text-2xl font-black text-slate-800 dark:text-slate-100">Gói {{ restaurant.plan_name ?? 'Chưa xác định' }}</span>
-                    <div>
-                        <Badge :variant="restaurantStatusVariants[restaurant.status] ?? 'outline'" class="text-[10px] py-0 px-1.5">
+                    <div class="flex items-center gap-2">
+                        <Badge :variant="restaurantStatusVariants[restaurant.status] ?? 'outline'" class="text-[10px] py-0.5 px-2 font-bold">
                             {{ restaurantStatusLabels[restaurant.status] ?? restaurant.status }}
                         </Badge>
+                        <span class="text-[10px] text-muted-foreground font-medium">Bản quyền của nhà hàng</span>
                     </div>
                 </CardContent>
             </Card>
 
-            <!-- Expiry Date -->
-            <Card class="shadow-xs border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-transform">
+            <!-- Expiry Date / Countdown -->
+            <Card class="shadow-sm border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-all duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
                     <CardDescription class="text-xs font-bold uppercase tracking-wider text-emerald-500">Thời hạn sử dụng</CardDescription>
                     <CalendarClock class="size-4 text-emerald-600 dark:text-emerald-400" />
                 </CardHeader>
-                <CardContent class="pb-3">
-                    <span class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formattedEndsAt }}</span>
-                    <p class="mt-0.5 text-xs text-muted-foreground">ngày hết hạn dịch vụ/dùng thử</p>
+                <CardContent class="pb-3 space-y-2">
+                    <div>
+                        <span class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formattedEndsAt }}</span>
+                        <p class="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                            <span v-if="daysLeft !== null" class="font-extrabold text-emerald-600 dark:text-emerald-400">Còn {{ daysLeft }} ngày</span>
+                            <span v-else>Không giới hạn thời gian sử dụng</span>
+                        </p>
+                    </div>
+                    <!-- Usage micro progress bar -->
+                    <div v-if="daysLeft !== null" class="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full bg-emerald-500 transition-all duration-500" :style="`width: ${progressPercent}%`" />
+                    </div>
                 </CardContent>
             </Card>
 
-            <!-- Total Invoices -->
-            <Card class="shadow-xs border-indigo-100 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-transform">
+            <!-- Total Cumulative Cost -->
+            <Card class="shadow-sm border-indigo-100 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-all duration-200">
                 <CardHeader class="pb-2 flex flex-row items-center justify-between">
-                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-indigo-500">Tổng hóa đơn</CardDescription>
-                    <FileText class="size-4 text-indigo-600 dark:text-indigo-400" />
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-indigo-500">Tổng chi tiêu</CardDescription>
+                    <CreditCard class="size-4 text-indigo-600 dark:text-indigo-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ totalInvoices }} hóa đơn</span>
-                    <p class="mt-0.5 text-xs text-muted-foreground">đã phát hành trên hệ thống</p>
+                    <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ formatCurrency(totalSpent) }}</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground font-medium">Đã phát hành {{ totalInvoices }} hóa đơn cước</p>
                 </CardContent>
             </Card>
         </div>
 
-        <!-- Annual savings hint -->
-        <div v-if="restaurant.plan_code && restaurant.plan_code !== 'free'" class="w-full rounded-2xl border border-indigo-100 dark:border-indigo-950/40 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm hover:translate-y-[-1px] transition-all duration-200">
+        <!-- Annual savings hint banner -->
+        <div v-if="restaurant.plan_code && restaurant.plan_code !== 'free'" class="w-full rounded-2xl border border-indigo-100 dark:border-indigo-950/40 bg-gradient-to-r from-indigo-500/[0.04] to-purple-500/[0.04] dark:from-indigo-950/20 dark:to-purple-950/20 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs hover:translate-y-[-1px] transition-all duration-200">
             <div class="flex items-center gap-3">
-                <div class="h-10 w-10 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center shrink-0">
-                    <Gift class="size-5" />
+                <div class="h-11 w-11 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center shrink-0 shadow-xs shadow-indigo-500/5 animate-pulse">
+                    <Gift class="size-5.5" />
                 </div>
                 <div>
-                    <p class="text-sm font-bold text-slate-800 dark:text-slate-100">Thanh toán năm tiết kiệm 20%</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Chuyển sang chu kỳ thanh toán theo năm để nhận ưu đãi chiết khấu cao nhất cho doanh nghiệp.</p>
+                    <p class="text-sm font-black text-slate-800 dark:text-slate-100">Ưu đãi thanh toán năm tiết kiệm 20%</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Chuyển đổi chu kỳ sang thanh toán theo năm để hưởng mức chiết khấu tốt nhất cho hoạt động lâu dài.</p>
                 </div>
             </div>
-            <Button as-child size="sm" class="shrink-0 h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-4 flex items-center gap-1">
+            <Button as-child size="sm" class="shrink-0 h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-4 flex items-center gap-1 shadow-sm transition active:scale-95 cursor-pointer">
                 <Link :href="`/billing/checkout?plan=${restaurant.plan_code}&cycle=yearly`">
                     Chuyển sang gói năm
                     <ArrowUpRight class="size-3.5" />
@@ -221,42 +281,54 @@ const formattedEndsAt = computed(() => {
         </div>
 
         <!-- Lịch sử gói cước -->
-        <Card class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/45">
-            <CardHeader class="border-b border-border/60 pb-4">
+        <Card class="shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+            <CardHeader class="border-b border-border bg-slate-50/40 dark:bg-slate-900/10 pb-4">
                 <CardTitle class="flex items-center gap-2 text-base font-bold">
-                    <Receipt class="size-4 text-indigo-500" /> Lịch sử gói cước
+                    <Receipt class="size-4.5 text-indigo-500 animate-pulse" /> 
+                    Lịch sử đăng ký & gia hạn gói cước
                 </CardTitle>
-                <CardDescription>Toàn bộ các lần đăng ký, gia hạn hoặc đổi gói dịch vụ.</CardDescription>
+                <CardDescription class="text-xs">Danh sách ghi nhận toàn bộ các lần kích hoạt, nâng cấp hoặc điều chỉnh chu kỳ gói dịch vụ.</CardDescription>
             </CardHeader>
             <CardContent class="p-0">
-                <div v-if="subscriptions.length === 0" class="py-12 text-center text-xs font-semibold text-slate-500">
-                    Chưa có lịch sử gói cước nào.
+                
+                <!-- Empty State -->
+                <div v-if="subscriptions.length === 0" class="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <div class="h-16 w-16 bg-slate-50 dark:bg-slate-900/60 text-slate-300 dark:text-slate-700 rounded-2xl flex items-center justify-center mb-3 border border-dashed border-slate-200 dark:border-slate-800">
+                        <Receipt class="size-7" />
+                    </div>
+                    <p class="text-xs font-bold text-slate-700 dark:text-slate-200">Chưa có lịch sử gói cước</p>
+                    <p class="text-[10px] text-muted-foreground mt-1 max-w-[280px] leading-normal">Thông tin về lịch sử đăng ký dịch vụ của nhà hàng sẽ hiển thị đầy đủ tại đây.</p>
                 </div>
-                <div v-else class="divide-y divide-border/60">
+
+                <!-- Subscriptions List -->
+                <div v-else class="divide-y divide-border">
                     <div
                         v-for="sub in subscriptions"
                         :key="sub.id"
-                        class="flex flex-col gap-3 py-4 px-6 hover:bg-muted/15 transition-colors sm:flex-row sm:items-center sm:justify-between"
+                        class="flex flex-col gap-3 py-4.5 px-6 hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-200 sm:flex-row sm:items-center sm:justify-between group"
                     >
                         <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-xs text-slate-800 dark:text-slate-100">{{ sub.plan_name ?? sub.plan_code ?? 'N/A' }}</span>
-                                <Badge :variant="subscriptionStatusVariants[sub.status] ?? 'outline'" class="text-[10px] py-0 px-1.5 font-semibold">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="size-2 rounded-full shrink-0" :class="sub.status === 'active' ? 'bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500' : 'bg-slate-300 dark:bg-slate-600'" />
+                                <span class="font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                    {{ sub.plan_name ?? sub.plan_code ?? 'N/A' }}
+                                </span>
+                                <Badge :variant="subscriptionStatusVariants[sub.status] ?? 'outline'" class="text-[9px] py-0 px-2 font-bold scale-95 uppercase tracking-wider">
                                     {{ subscriptionStatusLabels[sub.status] ?? sub.status }}
                                 </Badge>
-                                <Badge v-if="sub.billing_cycle" variant="outline" class="text-[10px] py-0 px-1.5 font-medium bg-slate-50 dark:bg-slate-800">
+                                <Badge v-if="sub.billing_cycle" variant="outline" class="text-[9px] py-0 px-2 font-bold scale-95 bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 uppercase tracking-wider">
                                     {{ sub.billing_cycle === 'yearly' ? 'Theo năm' : 'Theo tháng' }}
                                 </Badge>
                             </div>
-                            <p class="text-[11px] text-muted-foreground">
-                                Bắt đầu: {{ sub.started_at ?? '—' }} · Kết thúc: {{ sub.ended_at ?? '—' }}
-                                <span v-if="sub.coupon_code"> · Mã giảm giá: <span class="font-medium text-slate-700 dark:text-slate-350">{{ sub.coupon_code }}</span></span>
+                            <p class="text-[11px] text-muted-foreground font-medium">
+                                Bắt đầu: <span class="text-slate-700 dark:text-slate-350">{{ sub.started_at ?? '—' }}</span> · Kết thúc: <span class="text-slate-700 dark:text-slate-350">{{ sub.ended_at ?? '—' }}</span>
+                                <span v-if="sub.coupon_code" class="text-xs"> · Mã ưu đãi: <span class="font-bold text-indigo-500 uppercase tracking-wide bg-indigo-500/10 px-1.5 py-0.5 rounded-md dark:bg-indigo-950/20">{{ sub.coupon_code }}</span></span>
                             </p>
                         </div>
-                        <div class="text-left sm:text-right">
-                            <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ formatCurrency(sub.price) }}</p>
-                            <p v-if="sub.original_price > sub.price" class="text-[10px] text-muted-foreground mt-0.5">
-                                Giá gốc: <del>{{ formatCurrency(sub.original_price) }}</del>
+                        <div class="text-left sm:text-right shrink-0">
+                            <p class="text-sm font-mono font-black text-slate-850 dark:text-slate-100">{{ formatCurrency(sub.price) }}</p>
+                            <p v-if="sub.original_price > sub.price" class="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                                Giá gốc: <del class="font-mono">{{ formatCurrency(sub.original_price) }}</del>
                             </p>
                         </div>
                     </div>
@@ -265,39 +337,50 @@ const formattedEndsAt = computed(() => {
         </Card>
 
         <!-- Hóa đơn -->
-        <Card class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/45">
-            <CardHeader class="border-b border-border/60 pb-4">
+        <Card class="shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+            <CardHeader class="border-b border-border bg-slate-50/40 dark:bg-slate-900/10 pb-4">
                 <CardTitle class="flex items-center gap-2 text-base font-bold">
-                    <FileText class="size-4 text-indigo-500" /> Hóa đơn
+                    <FileText class="size-4.5 text-indigo-500" /> 
+                    Danh sách Hóa đơn
                 </CardTitle>
-                <CardDescription>Danh sách hóa đơn đã phát hành và sắp đến hạn thanh toán.</CardDescription>
+                <CardDescription class="text-xs">Bao gồm hóa đơn đã thanh toán cước phí và các khoản chưa hoàn thành trên hệ thống.</CardDescription>
             </CardHeader>
             <CardContent class="p-0">
-                <div v-if="invoices.length === 0" class="py-12 text-center text-xs font-semibold text-slate-500">
-                    Chưa có hóa đơn nào được phát hành.
+                
+                <!-- Empty State -->
+                <div v-if="invoices.length === 0" class="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <div class="h-16 w-16 bg-slate-50 dark:bg-slate-900/60 text-slate-300 dark:text-slate-700 rounded-2xl flex items-center justify-center mb-3 border border-dashed border-slate-200 dark:border-slate-800">
+                        <FileText class="size-7" />
+                    </div>
+                    <p class="text-xs font-bold text-slate-700 dark:text-slate-200">Không tìm thấy hóa đơn</p>
+                    <p class="text-[10px] text-muted-foreground mt-1 max-w-[280px] leading-normal">Nhà hàng của bạn chưa phát sinh bất kỳ hóa đơn nào trên hệ thống.</p>
                 </div>
-                <div v-else class="divide-y divide-border/60">
+
+                <!-- Invoices List -->
+                <div v-else class="divide-y divide-border">
                     <div
                         v-for="invoice in invoices"
                         :key="invoice.id"
-                        class="flex flex-col gap-3 py-4 px-6 hover:bg-muted/15 transition-colors sm:flex-row sm:items-center sm:justify-between"
+                        class="flex flex-col gap-3 py-4.5 px-6 hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-200 sm:flex-row sm:items-center sm:justify-between group"
                     >
                         <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-xs text-slate-850 dark:text-slate-100">{{ invoice.invoice_number }}</span>
-                                <Badge :variant="invoiceStatusVariants[invoice.status] ?? 'outline'" class="text-[10px] py-0 px-1.5 font-semibold">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-xs text-slate-850 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                    {{ invoice.invoice_number }}
+                                </span>
+                                <Badge :variant="invoiceStatusVariants[invoice.status] ?? 'outline'" class="text-[9px] py-0 px-2 font-bold scale-95 uppercase tracking-wider">
                                     {{ invoiceStatusLabels[invoice.status] ?? invoice.status }}
                                 </Badge>
                             </div>
-                            <p class="text-[11px] text-muted-foreground">
-                                Phát hành: {{ invoice.issued_on ?? '—' }} · Hạn thanh toán: {{ invoice.due_on ?? '—' }}
-                                <span v-if="invoice.sent_at"> · Đã gửi: {{ invoice.sent_at }}</span>
+                            <p class="text-[11px] text-muted-foreground font-medium">
+                                Ngày xuất: <span class="text-slate-700 dark:text-slate-350">{{ invoice.issued_on ?? '—' }}</span> · Hạn cuối: <span class="text-slate-700 dark:text-slate-350">{{ invoice.due_on ?? '—' }}</span>
+                                <span v-if="invoice.sent_at" class="text-muted-foreground"> · Đã gửi: {{ invoice.sent_at }}</span>
                             </p>
                         </div>
-                        <div class="text-left sm:text-right">
-                            <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ formatCurrency(invoice.total) }}</p>
-                            <p v-if="invoice.discount_amount > 0" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                                Đã giảm {{ formatCurrency(invoice.discount_amount) }}
+                        <div class="text-left sm:text-right shrink-0">
+                            <p class="text-sm font-mono font-black text-slate-850 dark:text-slate-100">{{ formatCurrency(invoice.total) }}</p>
+                            <p v-if="invoice.discount_amount > 0" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">
+                                Đã chiết khấu {{ formatCurrency(invoice.discount_amount) }}
                             </p>
                         </div>
                     </div>
@@ -306,33 +389,39 @@ const formattedEndsAt = computed(() => {
         </Card>
 
         <!-- Điều chỉnh billing -->
-        <Card v-if="adjustments.length > 0" class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/45">
-            <CardHeader class="border-b border-border/60 pb-4">
+        <Card v-if="adjustments.length > 0" class="shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+            <CardHeader class="border-b border-border bg-slate-50/40 dark:bg-slate-900/10 pb-4">
                 <CardTitle class="flex items-center gap-2 text-base font-bold">
-                    <Gift class="size-4 text-indigo-500" /> Điều chỉnh billing
+                    <Gift class="size-4.5 text-indigo-500 animate-bounce" /> 
+                    Các điều chỉnh tài khoản (Adjustments)
                 </CardTitle>
-                <CardDescription>Các điều chỉnh đặc biệt do quản trị viên áp dụng cho tài khoản của bạn.</CardDescription>
+                <CardDescription class="text-xs">Lịch sử điều chỉnh số dư, cộng ngày sử dụng hoặc giảm giá dịch vụ do quản trị viên cấp.</CardDescription>
             </CardHeader>
             <CardContent class="p-0">
-                <div class="divide-y divide-border/60">
+                <div class="divide-y divide-border">
                     <div
                         v-for="adj in adjustments"
                         :key="adj.id"
-                        class="flex flex-col gap-3 py-4 px-6 hover:bg-muted/15 transition-colors sm:flex-row sm:items-center sm:justify-between"
+                        class="flex flex-col gap-3 py-4.5 px-6 hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-200 sm:flex-row sm:items-center sm:justify-between"
                     >
                         <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <Badge variant="outline" class="text-[10px] py-0 px-1.5 font-semibold bg-slate-50 dark:bg-slate-800">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <Badge variant="outline" class="text-[9px] py-0 px-2 font-bold scale-95 bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700 text-slate-500 uppercase tracking-wider">
                                     {{ adjustmentTypeLabels[adj.type] ?? adj.type }}
                                 </Badge>
-                                <span v-if="adj.coupon_code" class="text-xs text-muted-foreground">Mã: {{ adj.coupon_code }}</span>
+                                <span v-if="adj.coupon_code" class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Coupon: {{ adj.coupon_code }}</span>
                             </div>
-                            <p v-if="adj.reason" class="text-[11px] text-slate-700 dark:text-slate-350 font-medium">{{ adj.reason }}</p>
+                            <p v-if="adj.reason" class="text-[11px] text-slate-850 dark:text-slate-100 font-bold">{{ adj.reason }}</p>
                             <p class="text-[10px] text-muted-foreground">{{ adj.created_at }}</p>
                         </div>
-                        <div class="text-left sm:text-right text-xs text-muted-foreground font-semibold">
-                            <p v-if="adj.days" class="text-indigo-650 dark:text-indigo-400 font-bold">+{{ adj.days }} ngày sử dụng</p>
-                            <p v-if="adj.discount_amount > 0" class="text-emerald-600 dark:text-emerald-400">Giảm {{ formatCurrency(adj.discount_amount) }}</p>
+                        <div class="text-left sm:text-right text-xs text-muted-foreground font-semibold shrink-0">
+                            <p v-if="adj.days" class="text-indigo-600 dark:text-indigo-400 font-extrabold text-sm flex items-center gap-1 justify-end">
+                                <Clock class="size-3.5" />
+                                +{{ adj.days }} ngày sử dụng
+                            </p>
+                            <p v-if="adj.discount_amount > 0" class="text-emerald-600 dark:text-emerald-400 font-bold">
+                                Khấu trừ {{ formatCurrency(adj.discount_amount) }}
+                            </p>
                         </div>
                     </div>
                 </div>

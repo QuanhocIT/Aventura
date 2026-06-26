@@ -4,7 +4,7 @@ import {
     BarChart3, CheckCircle2, TrendingDown, TrendingUp, XCircle,
     Percent, Banknote, ShoppingCart, Scale,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -57,6 +57,13 @@ function retentionColor(rate: number): string {
 
     return 'bg-gray-100 text-gray-400';
 }
+
+const needleRotation = computed(() => {
+    const ratio = props.unitEconomics.ltv_cac_ratio;
+    // Map ratio range [0, 4] to rotation [-90, 90] degrees
+    const pct = Math.min(1, Math.max(0, ratio / 4));
+    return -90 + (pct * 180);
+});
 </script>
 
 <template>
@@ -166,24 +173,75 @@ function retentionColor(rate: number): string {
                 </Card>
             </div>
 
-            <!-- Revenue trend bar chart -->
-            <Card>
-                <CardContent class="pt-5">
-                    <p class="font-semibold text-sm mb-1">Doanh thu 12 tháng & YoY</p>
-                    <p class="text-xs text-muted-foreground mb-4">Biểu đồ xu hướng doanh thu và tăng trưởng so với cùng kỳ</p>
-                    <div class="flex items-end gap-1 h-40">
-                        <div v-for="r in revenueTrend" :key="r.month" class="flex-1 flex flex-col items-center gap-1">
-                            <span v-if="r.yoy_growth != null" class="text-[9px] font-bold" :class="r.yoy_growth >= 0 ? 'text-green-600' : 'text-red-500'">
-                                {{ r.yoy_growth > 0 ? '+' : '' }}{{ r.yoy_growth }}%
-                            </span>
-                            <div class="w-full bg-indigo-400 dark:bg-indigo-600 rounded-t transition-all"
-                                :style="{ height: (r.revenue / maxRevenue * 100) + '%', minHeight: '4px' }"></div>
-                            <span class="text-[8px] text-muted-foreground">{{ r.month.slice(5) }}</span>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Revenue trend bar chart -->
+                <Card class="lg:col-span-2">
+                    <CardContent class="pt-5">
+                        <p class="font-semibold text-sm mb-1">Doanh thu 12 tháng & YoY</p>
+                        <p class="text-xs text-muted-foreground mb-4">Biểu đồ xu hướng doanh thu và tăng trưởng so với cùng kỳ</p>
+                        <div class="flex items-end gap-1 h-40">
+                            <div v-for="r in revenueTrend" :key="r.month" class="flex-1 flex flex-col items-center gap-1">
+                                <span v-if="r.yoy_growth != null" class="text-[9px] font-bold" :class="r.yoy_growth >= 0 ? 'text-green-600' : 'text-red-500'">
+                                    {{ r.yoy_growth > 0 ? '+' : '' }}{{ r.yoy_growth }}%
+                                </span>
+                                <div class="w-full bg-indigo-400 dark:bg-indigo-600 rounded-t transition-all"
+                                    :style="{ height: (r.revenue / maxRevenue * 100) + '%', minHeight: '4px' }"></div>
+                                <span class="text-[8px] text-muted-foreground">{{ r.month.slice(5) }}</span>
+                            </div>
                         </div>
-                    </div>
-                    <p v-if="!revenueTrend.length" class="text-center text-muted-foreground py-8">Chưa có dữ liệu.</p>
-                </CardContent>
-            </Card>
+                        <p v-if="!revenueTrend.length" class="text-center text-muted-foreground py-8">Chưa có dữ liệu.</p>
+                    </CardContent>
+                </Card>
+
+                <!-- LTV/CAC Health Gauge Card -->
+                <Card class="lg:col-span-1">
+                    <CardContent class="pt-5 flex flex-col items-center justify-between h-full min-h-[220px]">
+                        <div class="w-full text-left">
+                            <p class="font-semibold text-sm mb-1">Sức khỏe LTV/CAC</p>
+                            <p class="text-xs text-muted-foreground">Chỉ số đo lường hiệu quả chi phí & giá trị KH</p>
+                        </div>
+                        
+                        <div class="relative w-full max-w-[200px] aspect-[4/3] flex items-center justify-center mt-2">
+                            <svg viewBox="0 0 200 130" class="w-full h-full overflow-visible">
+                                <defs>
+                                    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stop-color="#ef4444" />
+                                        <stop offset="33%" stop-color="#f59e0b" />
+                                        <stop offset="75%" stop-color="#10b981" />
+                                    </linearGradient>
+                                </defs>
+                                <!-- Gauge background arc -->
+                                <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" class="dark:stroke-slate-800" />
+                                <!-- Gauge colored arc using gradient -->
+                                <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="0" />
+                                
+                                <!-- Center anchor dot -->
+                                <circle cx="100" cy="110" r="6" class="fill-slate-800 dark:fill-slate-100" />
+                                <circle cx="100" cy="110" r="2" class="fill-white dark:fill-slate-900" />
+
+                                <!-- Needle pointer line -->
+                                <line 
+                                    x1="100" y1="110" 
+                                    x2="100" y2="45" 
+                                    stroke="currentColor" 
+                                    stroke-width="3" 
+                                    stroke-linecap="round" 
+                                    class="text-slate-800 dark:text-slate-200 transition-transform duration-1000 ease-out origin-[100px_110px]"
+                                    :style="{ transform: `rotate(${needleRotation}deg)`, transformOrigin: '100px 110px' }"
+                                />
+                            </svg>
+                            
+                            <!-- Ratio overlay text -->
+                            <div class="absolute bottom-1 text-center flex flex-col items-center">
+                                <p class="text-2xl font-black tracking-tight" :class="ue.ltv_cac_ratio >= 3 ? 'text-emerald-500' : ue.ltv_cac_ratio >= 1.5 ? 'text-amber-500' : 'text-rose-500'">{{ ue.ltv_cac_ratio }}x</p>
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border mt-0.5" :class="ue.ltv_cac_ratio >= 3 ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400' : ue.ltv_cac_ratio >= 1.5 ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400' : 'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-455'">
+                                    {{ ue.ltv_cac_ratio >= 3 ? 'Khỏe mạnh' : ue.ltv_cac_ratio >= 1.5 ? 'Cần chú ý' : 'Cảnh báo' }}
+                                </span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
 
         <!-- Cohort tab -->
@@ -205,11 +263,18 @@ function retentionColor(rate: number): string {
                                 <tr v-for="c in cohorts" :key="c.cohort" class="border-t">
                                     <td class="px-2 py-1.5 font-medium">{{ c.cohort }}</td>
                                     <td class="px-2 py-1.5 text-center">{{ c.size }}</td>
-                                    <td v-for="m in [0,1,2,3,4,5]" :key="m" class="px-2 py-1.5 text-center">
-                                        <span v-if="c.retention[m]" :class="['inline-flex items-center justify-center w-10 h-6 rounded text-[10px] font-bold', retentionColor(c.retention[m].rate)]">
+                                    <td v-for="m in [0,1,2,3,4,5]" :key="m" class="p-1 text-center">
+                                        <div v-if="c.retention[m]" 
+                                             class="flex items-center justify-center h-8 rounded-lg text-[11px] font-extrabold transition-all duration-200 hover:scale-105 hover:shadow-sm"
+                                             :style="{
+                                                 backgroundColor: `rgba(99, 102, 241, ${Math.max(0.04, c.retention[m].rate / 100)})`,
+                                                 color: c.retention[m].rate >= 35 ? '#ffffff' : 'currentColor',
+                                                 border: c.retention[m].rate > 0 ? '1px solid rgba(99, 102, 241, 0.15)' : 'none'
+                                             }"
+                                        >
                                             {{ c.retention[m].rate }}%
-                                        </span>
-                                        <span v-else class="text-muted-foreground">—</span>
+                                        </div>
+                                        <div v-else class="flex items-center justify-center h-8 text-muted-foreground/40 bg-slate-50/30 dark:bg-slate-900/10 rounded-lg text-[10px]">—</div>
                                     </td>
                                 </tr>
                             </tbody>
