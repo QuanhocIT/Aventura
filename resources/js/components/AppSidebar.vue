@@ -17,7 +17,6 @@ import {
     Megaphone,
     ShoppingCart,
     Package,
-    ChefHat,
     Receipt,
     BarChart3,
     Clock,
@@ -56,10 +55,10 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useFeatureGate } from '@/composables/useFeatureGate';
 import { dashboard } from '@/routes';
 import { dashboard as superAdminDashboard } from '@/routes/superadmin';
 import type { NavItem } from '@/types';
-import { useFeatureGate } from '@/composables/useFeatureGate';
 
 const { can: canFeature } = useFeatureGate();
 
@@ -269,6 +268,7 @@ const cashierNav = computed<NavItem[]>(() => {
         { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays, feature: 'hr_timekeeping' },
         { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -281,6 +281,7 @@ const kitchenNav = computed<NavItem[]>(() => {
         { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
         { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -293,6 +294,7 @@ const inventoryNav = computed<NavItem[]>(() => {
         { title: 'Nhà cung cấp',    href: '/suppliers',                icon: Truck, feature: 'inventory_basic' },
         { title: 'Lịch làm việc',   href: '/schedules',                icon: CalendarDays, feature: 'hr_timekeeping' },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -345,7 +347,8 @@ const mainNavItems = computed<NavItem[]>(() => {
         items = [...customerNav];
     }
 
-    const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value;
+    const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value && !isOwner.value;
+
     if (showPortalLink && items.length > 0) {
         if (items[0] && (items[0].title === 'Tổng quan' || items[0].title === 'Trang chủ')) {
             const first = items[0];

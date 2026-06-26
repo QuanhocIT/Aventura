@@ -11,13 +11,22 @@ class PolicyEnforcementService
 {
     public function getPolicy(int $restaurantId): OperationPolicy
     {
-        return Cache::remember("operation_policy:{$restaurantId}", 600, function () use ($restaurantId) {
-            return OperationPolicy::withoutGlobalScopes()
-                ->firstOrCreate(
-                    ['restaurant_id' => $restaurantId],
-                    []
-                );
-        });
+        $cacheKey = "operation_policy:{$restaurantId}";
+        $cached = Cache::get($cacheKey);
+
+        if ($cached instanceof OperationPolicy) {
+            return $cached;
+        }
+
+        $policy = OperationPolicy::withoutGlobalScopes()
+            ->firstOrCreate(
+                ['restaurant_id' => $restaurantId],
+                []
+            );
+
+        Cache::put($cacheKey, $policy, 600);
+
+        return $policy;
     }
 
     public function canApplyDiscount(User $user, float $discountPercent): array

@@ -170,9 +170,9 @@ class BusinessIntelligenceService
             ->where('occurred_at', '>=', now()->subDays($days))
             ->sum('total_cost');
 
-        $fixedCost = (float) DB::table('expenses')
+        $fixedCost = (float) DB::table('operating_expenses')
             ->where('restaurant_id', $restaurantId)
-            ->where('is_recurring', true)
+            ->whereNotNull('recurring_expense_id')
             ->where('expense_date', '>=', now()->subDays($days))
             ->sum('amount');
 

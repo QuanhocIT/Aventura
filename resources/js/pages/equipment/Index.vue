@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    AlertTriangle, CheckCircle2, Loader2, Plus, Settings, Trash2, Wrench,
+    AlertTriangle, CheckCircle2, Plus, Settings, Wrench, TrendingUp,
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps<{
+defineProps<{
     equipment: any[];
     recentLogs: any[];
     stats: { total: number; active: number; broken: number; pending_maintenance: number; total_cost_ytd: number };
@@ -23,8 +23,13 @@ const props = defineProps<{
 
 const page = usePage();
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error) toast.error(flash.error);
+    if (flash?.success) {
+toast.success(flash.success);
+}
+
+    if (flash?.error) {
+toast.error(flash.error);
+}
 });
 
 const activeTab = ref<'list' | 'maintenance'>('list');
@@ -47,7 +52,9 @@ const addForm = useForm({
     serial_number: '', purchase_date: '', purchase_cost: 0, warranty_months: 12, location: '', notes: '',
 });
 function submitAdd() {
-    addForm.post('/equipment', { onSuccess: () => { showAddDialog.value = false; addForm.reset(); } });
+    addForm.post('/equipment', { onSuccess: () => {
+ showAddDialog.value = false; addForm.reset(); 
+} });
 }
 
 // Report issue
@@ -56,9 +63,13 @@ const reportForm = useForm({
     equipment_id: null as number | null, title: '', description: '',
     type: 'repair' as string, cost: 0, scheduled_date: '',
 });
-function openReport(eqId: number) { reportForm.reset(); reportForm.equipment_id = eqId; reportForm.type = 'repair'; showReportDialog.value = true; }
+function openReport(eqId: number) {
+ reportForm.reset(); reportForm.equipment_id = eqId; reportForm.type = 'repair'; showReportDialog.value = true; 
+}
 function submitReport() {
-    reportForm.post('/equipment/report-issue', { onSuccess: () => { showReportDialog.value = false; } });
+    reportForm.post('/equipment/report-issue', { onSuccess: () => {
+ showReportDialog.value = false; 
+} });
 }
 
 function completeLog(logId: number) {
@@ -69,71 +80,145 @@ function completeLog(logId: number) {
 <template>
     <Head title="Thiết bị & Bảo trì" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
-        <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+        <!-- HEADER -->
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
                     <Settings class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold">Quản Lý Thiết Bị & Bảo Trì</h1>
-                    <p class="text-sm text-muted-foreground">Danh sách thiết bị, lịch bảo trì, báo hỏng, chi phí sửa chữa.</p>
+                    <h1 class="text-2xl font-bold tracking-tight">Quản Lý Thiết Bị & Bảo Trì</h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Danh sách thiết bị, lịch bảo trì, báo hỏng, chi phí sửa chữa.</p>
                 </div>
             </div>
-            <Button @click="showAddDialog = true" class="gap-1.5"><Plus class="size-4" /> Thêm thiết bị</Button>
+
+            <div class="flex items-center gap-2">
+                <Button 
+                    @click="showAddDialog = true" 
+                    class="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5"
+                >
+                    <Plus class="size-4" />
+                    Thêm thiết bị
+                </Button>
+            </div>
         </div>
 
-        <!-- KPI -->
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            <Card><CardContent class="p-4"><p class="text-xs text-muted-foreground">Tổng thiết bị</p><p class="text-2xl font-bold">{{ stats.total }}</p></CardContent></Card>
-            <Card><CardContent class="p-4"><p class="text-xs text-muted-foreground">Hoạt động</p><p class="text-2xl font-bold text-green-600">{{ stats.active }}</p></CardContent></Card>
-            <Card><CardContent class="p-4"><p class="text-xs text-muted-foreground">Hỏng</p><p class="text-2xl font-bold text-red-600">{{ stats.broken }}</p></CardContent></Card>
-            <Card><CardContent class="p-4"><p class="text-xs text-muted-foreground">Chờ bảo trì</p><p class="text-2xl font-bold text-amber-600">{{ stats.pending_maintenance }}</p></CardContent></Card>
-            <Card><CardContent class="p-4"><p class="text-xs text-muted-foreground">Chi phí BT (năm)</p><p class="text-2xl font-bold">{{ stats.total_cost_ytd.toLocaleString() }}đ</p></CardContent></Card>
+        <!-- KPI STATS CARDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
+            <!-- Total Equipment -->
+            <Card class="shadow-xs hover:translate-y-[-2px] transition-transform">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-slate-400">Tổng thiết bị</CardDescription>
+                    <Settings class="size-4 text-slate-400" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <span class="text-3xl font-black text-slate-800 dark:text-slate-100">{{ stats.total }}</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground">thiết bị đã được đăng ký</p>
+                </CardContent>
+            </Card>
+
+            <!-- Active Equipment -->
+            <Card class="shadow-xs border-emerald-100 dark:border-emerald-950/20 hover:translate-y-[-2px] transition-transform">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-emerald-500">Hoạt động</CardDescription>
+                    <CheckCircle2 class="size-4 text-emerald-600 dark:text-emerald-400" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <span class="text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ stats.active }}</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground">đang vận hành ổn định</p>
+                </CardContent>
+            </Card>
+
+            <!-- Broken Equipment -->
+            <Card class="shadow-xs border-rose-100 dark:border-rose-950/20 hover:translate-y-[-2px] transition-transform">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-rose-500">Hỏng</CardDescription>
+                    <AlertTriangle class="size-4 text-rose-600 dark:text-rose-400" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <span class="text-3xl font-black text-rose-600 dark:text-rose-400">{{ stats.broken }}</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground">gặp sự cố cần khắc phục</p>
+                </CardContent>
+            </Card>
+
+            <!-- Pending Maintenance -->
+            <Card class="shadow-xs border-amber-100 dark:border-amber-950/20 hover:translate-y-[-2px] transition-transform">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-amber-500">Chờ bảo trì</CardDescription>
+                    <Wrench class="size-4 text-amber-600 dark:text-amber-400" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <span class="text-3xl font-black text-amber-600 dark:text-amber-400">{{ stats.pending_maintenance }}</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground">yêu cầu kiểm tra định kỳ</p>
+                </CardContent>
+            </Card>
+
+            <!-- YTD Cost -->
+            <Card class="shadow-xs border-indigo-100 dark:border-indigo-950/20 hover:translate-y-[-2px] transition-transform">
+                <CardHeader class="pb-2 flex flex-row items-center justify-between">
+                    <CardDescription class="text-xs font-bold uppercase tracking-wider text-indigo-500">Chi phí BT (năm)</CardDescription>
+                    <TrendingUp class="size-4 text-indigo-600 dark:text-indigo-400" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ stats.total_cost_ytd.toLocaleString() }}đ</span>
+                    <p class="mt-0.5 text-xs text-muted-foreground">tổng chi phí sửa chữa YTD</p>
+                </CardContent>
+            </Card>
         </div>
 
-        <!-- Tabs -->
-        <div class="flex gap-2 border-b pb-2">
-            <button v-for="tab in [{key:'list',label:'Danh sách thiết bị'},{key:'maintenance',label:'Nhật ký bảo trì'}]" :key="tab.key"
+        <!-- CDP sub-navigation (Tab bar) -->
+        <div class="flex items-center gap-2 border-b pb-2">
+            <button 
+                v-for="tab in [{key:'list',label:'Danh sách thiết bị', icon:'📋'},{key:'maintenance',label:'Nhật ký bảo trì', icon:'🔧'}]" 
+                :key="tab.key"
+                type="button"
                 @click="activeTab = tab.key as any"
-                :class="['px-4 py-2 rounded-lg text-sm font-semibold', activeTab === tab.key ? 'bg-slate-700 text-white dark:bg-slate-600' : 'hover:bg-muted']"
-            >{{ tab.label }}</button>
+                :class="[
+                    'px-4 py-2 text-xs font-bold border-b-2 transition-all focus:outline-none', 
+                    activeTab === tab.key 
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' 
+                        : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-350 dark:hover:text-slate-300'
+                ]"
+            >
+                {{ tab.icon }} {{ tab.label }}
+            </button>
         </div>
 
         <!-- Equipment list -->
         <div v-if="activeTab === 'list'">
-            <Card>
+            <Card class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/45">
                 <CardContent class="p-0">
-                    <table class="w-full text-sm">
-                        <thead class="border-b bg-muted/50">
-                            <tr class="text-left text-xs text-muted-foreground">
-                                <th class="px-4 py-3">Thiết bị</th>
-                                <th class="px-4 py-3">Loại</th>
-                                <th class="px-4 py-3">Trạng thái</th>
-                                <th class="px-4 py-3 text-right">Giá mua</th>
-                                <th class="px-4 py-3 text-right">Chi phí BT</th>
-                                <th class="px-4 py-3">Bảo hành</th>
-                                <th class="px-4 py-3 text-right">Thao tác</th>
+                    <table class="w-full text-xs text-left border-collapse">
+                        <thead class="bg-slate-100 dark:bg-slate-950 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                            <tr class="border-b">
+                                <th class="p-3.5">Thiết bị</th>
+                                <th class="p-3.5">Loại</th>
+                                <th class="p-3.5">Trạng thái</th>
+                                <th class="p-3.5 text-right">Giá mua</th>
+                                <th class="p-3.5 text-right">Chi phí BT</th>
+                                <th class="p-3.5">Bảo hành</th>
+                                <th class="p-3.5 text-right">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="e in equipment" :key="e.id" class="border-b last:border-0 hover:bg-muted/30">
-                                <td class="px-4 py-3">
-                                    <p class="font-medium">{{ e.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ e.brand }} {{ e.model_number }} · {{ e.location || '—' }}</p>
+                                <td class="p-3.5">
+                                    <p class="font-bold text-slate-800 dark:text-slate-200">{{ e.name }}</p>
+                                    <p class="text-[10px] text-muted-foreground mt-0.5">{{ e.brand }} {{ e.model_number }} · {{ e.location || '—' }}</p>
                                 </td>
-                                <td class="px-4 py-3 text-xs">{{ catLabel[e.category] ?? e.category }}</td>
-                                <td class="px-4 py-3"><Badge :class="statusColor[e.status]" class="text-xs">{{ statusLabel[e.status] }}</Badge></td>
-                                <td class="px-4 py-3 text-right text-xs">{{ Number(e.purchase_cost).toLocaleString() }}đ</td>
-                                <td class="px-4 py-3 text-right text-xs font-medium">{{ e.total_maintenance_cost.toLocaleString() }}đ</td>
-                                <td class="px-4 py-3 text-xs">
-                                    <span v-if="e.under_warranty" class="text-green-600">Còn BH</span>
-                                    <span v-else-if="e.warranty_expiry" class="text-red-500">Hết BH</span>
+                                <td class="p-3.5">{{ catLabel[e.category] ?? e.category }}</td>
+                                <td class="p-3.5"><Badge :class="statusColor[e.status]" class="text-xs">{{ statusLabel[e.status] }}</Badge></td>
+                                <td class="p-3.5 text-right font-mono">{{ Number(e.purchase_cost).toLocaleString() }}đ</td>
+                                <td class="p-3.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200">{{ e.total_maintenance_cost.toLocaleString() }}đ</td>
+                                <td class="p-3.5">
+                                    <span v-if="e.under_warranty" class="text-green-600 font-medium">Còn BH</span>
+                                    <span v-else-if="e.warranty_expiry" class="text-red-500 font-medium">Hết BH</span>
                                     <span v-else class="text-muted-foreground">—</span>
                                 </td>
-                                <td class="px-4 py-3 text-right">
-                                    <Button variant="ghost" size="sm" class="gap-1 text-xs text-amber-600" @click="openReport(e.id)">
-                                        <Wrench class="size-3" /> Báo hỏng
+                                <td class="p-3.5 text-right">
+                                    <Button variant="ghost" size="sm" class="h-8 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 font-semibold flex items-center gap-1 ml-auto" @click="openReport(e.id)">
+                                        <Wrench class="size-3.5" /> Báo hỏng
                                     </Button>
                                 </td>
                             </tr>
@@ -146,33 +231,33 @@ function completeLog(logId: number) {
 
         <!-- Maintenance logs -->
         <div v-if="activeTab === 'maintenance'">
-            <Card>
+            <Card class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/45">
                 <CardContent class="p-0">
-                    <table class="w-full text-sm">
-                        <thead class="border-b bg-muted/50">
-                            <tr class="text-left text-xs text-muted-foreground">
-                                <th class="px-4 py-3">Thiết bị</th>
-                                <th class="px-4 py-3">Loại</th>
-                                <th class="px-4 py-3">Mô tả</th>
-                                <th class="px-4 py-3">Trạng thái</th>
-                                <th class="px-4 py-3 text-right">Chi phí</th>
-                                <th class="px-4 py-3 text-right">Thao tác</th>
+                    <table class="w-full text-xs text-left border-collapse">
+                        <thead class="bg-slate-100 dark:bg-slate-950 border-b text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                            <tr class="border-b">
+                                <th class="p-3.5">Thiết bị</th>
+                                <th class="p-3.5">Loại</th>
+                                <th class="p-3.5">Mô tả</th>
+                                <th class="p-3.5">Trạng thái</th>
+                                <th class="p-3.5 text-right">Chi phí</th>
+                                <th class="p-3.5 text-right">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="log in recentLogs" :key="log.id" class="border-b last:border-0">
-                                <td class="px-4 py-3 font-medium">{{ log.equipment?.name ?? '—' }}</td>
-                                <td class="px-4 py-3 text-xs">{{ logTypeLabel[log.type] }}</td>
-                                <td class="px-4 py-3 text-xs max-w-xs truncate">{{ log.title }}</td>
-                                <td class="px-4 py-3">
+                            <tr v-for="log in recentLogs" :key="log.id" class="border-b last:border-0 hover:bg-muted/30">
+                                <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">{{ log.equipment?.name ?? '—' }}</td>
+                                <td class="p-3.5">{{ logTypeLabel[log.type] }}</td>
+                                <td class="p-3.5 max-w-xs truncate">{{ log.title }}</td>
+                                <td class="p-3.5">
                                     <Badge :variant="log.status === 'completed' ? 'default' : 'secondary'" class="text-xs">
                                         {{ log.status === 'completed' ? 'Xong' : log.status === 'pending' ? 'Chờ' : log.status }}
                                     </Badge>
                                 </td>
-                                <td class="px-4 py-3 text-right text-xs font-medium">{{ Number(log.cost).toLocaleString() }}đ</td>
-                                <td class="px-4 py-3 text-right">
-                                    <Button v-if="log.status !== 'completed'" variant="ghost" size="sm" class="gap-1 text-xs text-green-600" @click="completeLog(log.id)">
-                                        <CheckCircle2 class="size-3" /> Xong
+                                <td class="p-3.5 text-right font-mono font-bold">{{ Number(log.cost).toLocaleString() }}đ</td>
+                                <td class="p-3.5 text-right">
+                                    <Button v-if="log.status !== 'completed'" variant="ghost" size="sm" class="h-8 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 font-semibold flex items-center gap-1 ml-auto" @click="completeLog(log.id)">
+                                        <CheckCircle2 class="size-3.5" /> Xong
                                     </Button>
                                 </td>
                             </tr>

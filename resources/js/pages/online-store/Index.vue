@@ -4,7 +4,7 @@ import { ExternalLink, Globe, Loader2, Save } from 'lucide-vue-next';
 import { watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -17,10 +17,19 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error) toast.error(flash.error);
-});
+
+watch(
+    () => page.props.flash,
+    (flash: any) => {
+        if (flash?.success) {
+            toast.success(flash.success);
+        }
+
+        if (flash?.error) {
+            toast.error(flash.error);
+        }
+    }
+);
 
 const form = useForm({
     is_active: props.config.is_active ?? false,
@@ -46,100 +55,110 @@ function submit() {
 <template>
     <Head title="Cấu hình Cửa hàng Online" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
-        <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-5 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+        <!-- ── Header ──────────────────────────────────────────────────────── -->
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
             <div class="flex items-center gap-3">
-                <Globe class="size-6 text-blue-500" />
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Globe class="size-6 text-blue-600 dark:text-blue-400" />
+                </div>
                 <div>
-                    <h1 class="text-2xl font-bold">Cửa hàng Online</h1>
+                    <h1 class="text-xl font-bold tracking-tight">Cửa hàng Online</h1>
                     <p class="text-sm text-muted-foreground">Cấu hình trang đặt hàng online cho khách hàng.</p>
                 </div>
             </div>
-            <a v-if="storeUrl" :href="storeUrl" target="_blank" class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted">
-                <ExternalLink class="size-4" /> Xem trang
-            </a>
+            <div class="flex items-center gap-2 shrink-0">
+                <a v-if="storeUrl" :href="storeUrl" target="_blank"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95 text-foreground"
+                >
+                    <ExternalLink class="size-3.5" />
+                    Xem trang
+                </a>
+            </div>
         </div>
 
         <form @submit.prevent="submit" class="space-y-6">
-            <!-- General -->
+            <!-- General Settings -->
             <Card>
-                <CardHeader>
-                    <CardTitle class="text-base">Thiết lập chung</CardTitle>
-                </CardHeader>
-                <CardContent class="space-y-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" v-model="form.is_active" class="rounded" />
-                        <span class="text-sm font-medium">{{ form.is_active ? 'Cửa hàng đang mở' : 'Cửa hàng đang đóng' }}</span>
+                <CardContent class="pt-5 space-y-4">
+                    <p class="font-semibold text-sm mb-4">Thiết lập chung</p>
+                    
+                    <label class="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors w-fit">
+                        <input type="checkbox" v-model="form.is_active" class="rounded border-border accent-blue-600" />
+                        <span class="text-sm font-semibold text-foreground">{{ form.is_active ? 'Cửa hàng đang mở' : 'Cửa hàng đang đóng' }}</span>
                     </label>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
                         <div class="grid gap-1.5">
                             <Label>Đường dẫn (slug)</Label>
-                            <div class="flex items-center gap-1">
-                                <span class="text-xs text-muted-foreground">/order/</span>
-                                <Input v-model="form.slug" placeholder="ten-nha-hang" />
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-muted-foreground bg-muted px-2.5 py-2.5 rounded-lg border border-border">/order/</span>
+                                <Input v-model="form.slug" placeholder="ten-nha-hang" class="rounded-lg" />
                             </div>
-                            <p v-if="form.errors.slug" class="text-xs text-red-500">{{ form.errors.slug }}</p>
+                            <p v-if="form.errors.slug" class="text-xs text-rose-500 font-semibold mt-1">{{ form.errors.slug }}</p>
                         </div>
                         <div class="grid gap-1.5">
                             <Label>Banner URL</Label>
-                            <Input v-model="form.banner_url" placeholder="https://..." />
+                            <Input v-model="form.banner_url" placeholder="https://..." class="rounded-lg" />
                         </div>
                     </div>
 
                     <div class="grid gap-1.5">
                         <Label>Mô tả nhà hàng</Label>
-                        <Input v-model="form.description" placeholder="Mô tả ngắn về nhà hàng..." />
+                        <Input v-model="form.description" placeholder="Mô tả ngắn về nhà hàng..." class="rounded-lg" />
                     </div>
 
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="form.enable_takeaway" class="rounded" />
-                            <span class="text-sm">Mang về</span>
+                    <div class="flex flex-wrap gap-4 border-t border-border pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-muted/30">
+                            <input type="checkbox" v-model="form.enable_takeaway" class="rounded border-border" />
+                            <span class="text-sm font-medium text-foreground">Mang về</span>
                         </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="form.enable_delivery" class="rounded" />
-                            <span class="text-sm">Giao hàng</span>
+                        <label class="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-muted/30">
+                            <input type="checkbox" v-model="form.enable_delivery" class="rounded border-border" />
+                            <span class="text-sm font-medium text-foreground">Giao hàng</span>
                         </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="form.enable_preorder" class="rounded" />
-                            <span class="text-sm">Đặt trước</span>
+                        <label class="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-muted/30">
+                            <input type="checkbox" v-model="form.enable_preorder" class="rounded border-border" />
+                            <span class="text-sm font-medium text-foreground">Đặt trước</span>
                         </label>
                     </div>
                 </CardContent>
             </Card>
 
-            <!-- Delivery -->
+            <!-- Delivery Settings -->
             <Card>
-                <CardHeader>
-                    <CardTitle class="text-base">Giao hàng</CardTitle>
-                    <CardDescription>Cấu hình phí ship và phạm vi giao hàng.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CardContent class="pt-5 space-y-4">
+                    <div class="pb-1">
+                        <p class="font-semibold text-sm">Giao hàng</p>
+                        <p class="text-xs text-muted-foreground mt-0.5">Cấu hình phí ship và phạm vi giao hàng.</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-border pt-4">
                         <div class="grid gap-1.5">
                             <Label>Phí cơ bản (VND)</Label>
-                            <Input type="number" v-model="form.delivery_base_fee" />
+                            <Input type="number" v-model="form.delivery_base_fee" class="rounded-lg" />
                         </div>
                         <div class="grid gap-1.5">
                             <Label>Phí / km (VND)</Label>
-                            <Input type="number" v-model="form.delivery_fee_per_km" />
+                            <Input type="number" v-model="form.delivery_fee_per_km" class="rounded-lg" />
                         </div>
                         <div class="grid gap-1.5">
                             <Label>Bán kính tối đa (km)</Label>
-                            <Input type="number" step="0.5" v-model="form.max_delivery_km" />
+                            <Input type="number" step="0.5" v-model="form.max_delivery_km" class="rounded-lg" />
                         </div>
                     </div>
-                    <div class="grid gap-1.5 mt-4">
+                    <div class="grid gap-1.5 border-t border-border pt-4">
                         <Label>Đơn hàng tối thiểu (VND)</Label>
-                        <Input type="number" v-model="form.min_order_amount" />
+                        <Input type="number" v-model="form.min_order_amount" class="rounded-lg" />
                     </div>
                 </CardContent>
             </Card>
 
-            <!-- Submit -->
+            <!-- Submit Button -->
             <div class="flex justify-end">
-                <Button type="submit" :disabled="form.processing" class="gap-2 px-6">
+                <Button type="submit" :disabled="form.processing"
+                    class="gap-2 px-6 cursor-pointer rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition active:scale-95 disabled:opacity-50"
+                >
                     <Loader2 v-if="form.processing" class="size-4 animate-spin" />
                     <Save v-else class="size-4" />
                     {{ form.processing ? 'Đang lưu...' : 'Lưu cấu hình' }}

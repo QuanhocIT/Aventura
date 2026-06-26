@@ -16,14 +16,23 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class LoyaltyController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class LoyaltyController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(function ($request, $next) {
+                abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+                return $next($request);
+            }, only: ['updateSettings', 'storeTier', 'updateTier', 'destroyTier', 'storeReward', 'updateReward', 'destroyReward', 'toggleReward', 'adjustPoints']),
+        ];
+    }
+
     public function __construct(private LoyaltyService $loyalty)
     {
-        $this->middleware(function ($request, $next) {
-            abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-            return $next($request);
-        })->only(['updateSettings', 'storeTier', 'updateTier', 'destroyTier', 'storeReward', 'updateReward', 'destroyReward', 'toggleReward', 'adjustPoints']);
     }
 
     public function index(Request $request): Response
