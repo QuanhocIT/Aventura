@@ -1,0 +1,455 @@
+<script setup lang="ts">
+import { Link } from '@inertiajs/vue3';
+import { Check, X } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import { login } from '@/routes';
+
+interface DbPlan {
+    id: number;
+    code: string;
+    name: string;
+    price: number;
+    billing_cycle: string;
+    max_branches: number | null;
+    max_tables: number | null;
+    max_users: number | null;
+    features: Record<string, unknown>;
+}
+
+const props = defineProps<{
+    plans?: DbPlan[];
+    canRegister: boolean;
+    user?: any;
+}>();
+
+const staticPlans = [
+    {
+        code: 'free',
+        name: 'Free',
+        price: '0đ',
+        cycle: '/tháng',
+        maxBranches: '1 chi nhánh',
+        maxTables: '10 bàn',
+        maxUsers: '5 nhân viên',
+        note: 'Gói cơ bản, trải nghiệm POS miễn phí.',
+        features: [
+            '1 chi nhánh',
+            '10 bàn',
+            '5 nhân viên',
+            '500 MB lưu trữ',
+            'API: 30 req/phút',
+        ],
+        unsupportedFeatures: [
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
+        ],
+        isRecommended: false,
+    },
+    {
+        code: 'starter',
+        name: 'Cơ Bản',
+        price: '299.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Tối đa 3 chi nhánh',
+        maxTables: 'Tối đa 60 bàn',
+        maxUsers: 'Tối đa 20 nhân viên',
+        note: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+        features: [
+            '3 chi nhánh',
+            '60 bàn',
+            '20 nhân viên',
+            '5 GB lưu trữ',
+            'API: 120 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Cập nhật thời gian thực',
+        ],
+        unsupportedFeatures: [
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
+        ],
+        isRecommended: false,
+    },
+    {
+        code: 'pro',
+        name: 'Chuyên Nghiệp',
+        price: '699.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Tối đa 10 chi nhánh',
+        maxTables: 'Tối đa 200 bàn',
+        maxUsers: 'Tối đa 60 nhân viên',
+        note: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+        features: [
+            '10 chi nhánh',
+            '200 bàn',
+            '60 nhân viên',
+            '50 GB lưu trữ',
+            'API: 600 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+        ],
+        unsupportedFeatures: [
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
+        ],
+        isRecommended: true,
+    },
+    {
+        code: 'enterprise',
+        name: 'Doanh Nghiệp',
+        price: '1.499.000đ',
+        cycle: '/tháng',
+        maxBranches: 'Không giới hạn chi nhánh',
+        maxTables: 'Không giới hạn bàn',
+        maxUsers: 'Không giới hạn nhân viên',
+        note: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+        features: [
+            'Không giới hạn chi nhánh',
+            'Không giới hạn bàn',
+            'Không giới hạn nhân viên',
+            '200 GB lưu trữ',
+            'API: 3.000 req/phút',
+            'Màn hình Bếp (Kitchen Display)',
+            'Đặt món qua QR',
+            'Quản lý Tồn kho',
+            'Chấm công & Lịch làm việc',
+            'Lương & Nhân sự đầy đủ',
+            'Báo cáo Nâng cao',
+            'Cập nhật thời gian thực',
+            'Phát hiện Gian lận',
+            'Email Báo cáo tự động',
+            'AI Tư vấn chiến lược',
+            'Cổng Nhà cung cấp (Supplier)',
+            'AI Dự báo Tồn kho',
+            'Truy cập API',
+        ],
+        unsupportedFeatures: [],
+        isRecommended: false,
+    },
+];
+
+const planNotes: Record<string, string> = {
+    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+};
+
+const ALL_FEATURES = [
+    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
+    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
+    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
+    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
+    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
+    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
+    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
+    { key: 'api_access',         label: 'Truy cập API' },
+];
+
+function buildDisplayPlan(db: DbPlan) {
+    const lim = (v: number | null, unit: string) =>
+        v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
+
+    const mb  = (db.features.max_storage_mb as number) ?? 500;
+    const storage = mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`;
+    const rate = (db.features.api_rate_limit as number) ?? 60;
+
+    const features: string[] = [
+        lim(db.max_branches, 'chi nhánh'),
+        lim(db.max_tables, 'bàn'),
+        lim(db.max_users, 'nhân viên'),
+        storage,
+        `API: ${rate.toLocaleString('vi-VN')} req/phút`,
+    ];
+
+    const unsupportedFeatures: string[] = [];
+
+    for (const f of ALL_FEATURES) {
+        if (db.features[f.key]) {
+            features.push(f.label);
+        } else {
+            unsupportedFeatures.push(f.label);
+        }
+    }
+
+    return {
+        code:               db.code,
+        name:               db.name,
+        price:              db.price === 0 ? '0đ' : db.price.toLocaleString('vi-VN') + 'đ',
+        cycle:              db.billing_cycle === 'monthly' ? '/tháng' : '/năm',
+        note:               (db.features.description as string | undefined) || planNotes[db.code] || '',
+        features,
+        unsupportedFeatures,
+        isRecommended:      db.code === 'pro',
+        yearlyDiscountPercent: db.features.yearly_discount_percent !== undefined ? Number(db.features.yearly_discount_percent) : 20,
+    };
+}
+
+// Pricing toggle: monthly / yearly
+const billingCycle = ref<'monthly' | 'yearly'>('monthly');
+
+const displayPlans = computed(() => {
+    const plans = props.plans?.length ? props.plans.map(buildDisplayPlan) : staticPlans.map(p => ({ ...p, yearlyDiscountPercent: 20 }));
+
+    if (billingCycle.value === 'yearly') {
+        return plans.map(p => {
+            if (p.price === '0đ' || p.price === 'Miễn phí') {
+                return p;
+            }
+
+            let rawPrice = 0;
+
+            if (props.plans?.length) {
+                const dbPlan = props.plans.find(d => d.code === p.code);
+                rawPrice = dbPlan ? Number(dbPlan.price) : 0;
+            } else {
+                rawPrice = Number(p.price.replace(/[^\d]/g, ''));
+            }
+
+            if (rawPrice === 0) {
+                return p;
+            }
+
+            const discountPercent = p.yearlyDiscountPercent ?? 20;
+            const yearlyMonthly = Math.round(rawPrice * (1 - discountPercent / 100));
+
+            return {
+                ...p,
+                price: yearlyMonthly.toLocaleString('vi-VN') + 'đ',
+                cycle: '/tháng (thanh toán năm)',
+            };
+        });
+    }
+
+    return plans;
+});
+</script>
+
+<template>
+    <section id="pricing" class="px-4 py-10 lg:py-12 lg:px-8">
+        <div class="mx-auto max-w-7xl">
+            <div class="reveal-on-scroll flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-full">
+                <div class="max-w-2xl">
+                    <h2 class="text-3xl font-semibold heading-section text-gradient-brand">Gói dịch vụ linh hoạt</h2>
+                    <p class="mt-3 text-muted-foreground">
+                        Từ quán nhỏ đến chuỗi lớn — chọn gói phù hợp và nâng cấp bất kỳ lúc nào mà không mất dữ liệu.
+                    </p>
+                </div>
+                <!-- Billing toggle -->
+                <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 text-sm shrink-0 self-start sm:self-auto">
+                    <button
+                        @click="billingCycle = 'monthly'"
+                        class="rounded-lg px-4 py-1.5 font-medium transition-all"
+                        :class="billingCycle === 'monthly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >Tháng</button>
+                    <button
+                        @click="billingCycle = 'yearly'"
+                        class="rounded-lg px-4 py-1.5 font-medium transition-all flex items-center gap-1.5"
+                        :class="billingCycle === 'yearly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                    >
+                        Năm
+                        <span class="text-[10px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+                    </button>
+                </div>
+            </div>
+            <div
+                class="reveal-on-scroll mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+            >
+                <Card
+                    v-for="(plan, idx) in displayPlans"
+                    :key="plan.code"
+                    class="stagger-child flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                    :class="{
+                        'ring-2 ring-primary/40 border-primary/30 shadow-xl shadow-primary/10':
+                            plan.isRecommended,
+                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent':
+                            plan.code === 'enterprise' || plan.code === 'ultra',
+                    }"
+                >
+                    <CardHeader>
+                        <div class="mb-2 flex items-center justify-between">
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-2xl font-bold"
+                                :class="{
+                                    'text-primary': plan.isRecommended,
+                                    'text-violet-500':
+                                        plan.code === 'enterprise' || plan.code === 'ultra',
+                                }"
+                            >
+                                {{ plan.name }}
+                            </CardTitle>
+                            <Badge
+                                v-if="plan.code === 'free'"
+                                variant="secondary"
+                                >Mặc định</Badge
+                            >
+                            <Badge v-else-if="plan.isRecommended"
+                                >Khuyến nghị</Badge
+                            >
+                            <Badge
+                                v-else-if="plan.code === 'enterprise' || plan.code === 'ultra'"
+                                class="bg-violet-600 text-white hover:bg-violet-700"
+                                >VIP</Badge
+                            >
+                        </div>
+                        <div class="mt-2 flex items-end gap-1.5 min-h-[40px]">
+                            <Transition name="pricing-fade" mode="out-in">
+                                <div :key="plan.price" class="flex items-end gap-1.5 flex-wrap">
+                                    <span
+                                        class="text-3xl font-extrabold text-foreground"
+                                        :class="{
+                                            'text-primary': plan.isRecommended,
+                                            'text-violet-500':
+                                                plan.code === 'enterprise' || plan.code === 'ultra',
+                                        }"
+                                    >
+                                        {{ plan.price }}
+                                    </span>
+                                    <span
+                                        class="pb-1 text-xs text-muted-foreground"
+                                        >{{ plan.cycle }}</span
+                                    >
+                                    <Badge
+                                        v-if="billingCycle === 'yearly' && plan.yearlyDiscountPercent > 0"
+                                        variant="outline"
+                                        class="ml-1 text-[10px] font-bold border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-center"
+                                    >
+                                        Giảm {{ plan.yearlyDiscountPercent }}%
+                                    </Badge>
+                                </div>
+                            </Transition>
+                        </div>
+                        <CardDescription class="mt-2 min-h-[40px] text-xs">
+                            {{ plan.note }}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="flex-grow text-xs">
+                        <div class="max-h-[180px] overflow-y-auto pr-1.5 custom-scrollbar space-y-2">
+                            <p
+                                v-for="feat in plan.features"
+                                :key="feat"
+                                class="flex items-center gap-2"
+                            >
+                                <Check
+                                    class="size-4 flex-shrink-0 text-emerald-500"
+                                    :class="{
+                                        'text-primary': plan.isRecommended,
+                                        'text-violet-500':
+                                            plan.code === 'enterprise' || plan.code === 'ultra',
+                                    }"
+                                />
+                                <span>{{ feat }}</span>
+                            </p>
+                            <p
+                                v-for="unfeat in plan.unsupportedFeatures"
+                                :key="unfeat"
+                                class="flex items-center gap-2 text-muted-foreground opacity-60"
+                            >
+                                <X class="size-4 flex-shrink-0" />
+                                <span>{{ unfeat }}</span>
+                            </p>
+                        </div>
+                    </CardContent>
+                    <div class="mt-4 px-6 pb-6">
+                        <Button
+                            v-if="canRegister"
+                            as-child
+                            :variant="
+                                plan.isRecommended
+                                    ? 'default'
+                                    : (plan.code === 'enterprise' || plan.code === 'ultra')
+                                      ? 'default'
+                                      : 'outline'
+                            "
+                            class="w-full text-xs font-semibold"
+                            :class="{
+                                'border-0 bg-violet-600 text-white hover:bg-violet-700':
+                                    plan.code === 'enterprise' || plan.code === 'ultra',
+                            }"
+                        >
+                            <Link :href="user ? `/billing/checkout?plan=${plan.code}&cycle=${billingCycle}` : login.url({ query: { status: 'Bạn cần đăng nhập tài khoản để nâng gói', plan: plan.code, cycle: billingCycle } })"
+                                >Chọn {{ plan.name }}</Link
+                            >
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </div>
+    </section>
+</template>
+
+<style scoped>
+/* Pricing cross-fade switch */
+.pricing-fade-enter-active,
+.pricing-fade-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.pricing-fade-enter-from {
+    opacity: 0;
+    transform: translateY(4px);
+}
+.pricing-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+</style>

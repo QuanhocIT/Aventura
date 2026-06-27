@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chào mừng đến với Aventura</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; }
+  .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); padding: 40px 32px; text-align: center; }
+  .header h1 { margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 15px; }
+  .body { padding: 40px 32px; }
+  .greeting { font-size: 22px; font-weight: 600; color: #1e3a5f; margin: 0 0 16px; }
+  .text { font-size: 15px; line-height: 1.7; color: #555; margin: 0 0 20px; }
+  .highlight-box { background: #f0f7ff; border-left: 4px solid #2d6a9f; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 24px 0; }
+  .highlight-box p { margin: 0; font-size: 15px; color: #1e3a5f; }
+  .highlight-box strong { font-size: 16px; }
+  .features { margin: 24px 0; }
+  .feature-item { display: flex; align-items: flex-start; margin-bottom: 12px; }
+  .feature-icon { width: 22px; height: 22px; background: #2d6a9f; border-radius: 50%; color: white; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; margin-top: 1px; }
+  .feature-text { font-size: 14px; color: #555; line-height: 1.5; }
+  .cta-section { text-align: center; margin: 32px 0; }
+  .cta-btn { display: inline-block; background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); color: #ffffff !important; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  .trial-badge { display: inline-block; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .divider { height: 1px; background: #eee; margin: 28px 0; }
+  .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; }
+  .footer p { margin: 4px 0; font-size: 13px; color: #888; }
+  .footer a { color: #2d6a9f; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>🍽️ Aventura</h1>
+    <p>Hệ thống quản lý nhà hàng thông minh</p>
+  </div>
+
+  <div class="body">
+    <p class="greeting">Xin chào {{ name }}! 👋</p>
+
+    <p class="text">
+      Chúc mừng bạn đã đăng ký thành công nhà hàng <strong>{{ restaurant_name }}</strong> trên nền tảng Aventura.
+      Chúng tôi rất vui được đồng hành cùng hành trình phát triển kinh doanh của bạn!
+    </p>
+
+    <div class="highlight-box">
+      <p>
+        <strong>🎁 Dùng thử miễn phí {{ trial_days }} ngày</strong><br />
+        Tài khoản của bạn đang trong giai đoạn Trial. Bạn có thể trải nghiệm đầy đủ các tính năng trong {{ trial_days }} ngày tới.
+      </p>
+    </div>
+
+    <p class="text">Những gì bạn có thể làm ngay hôm nay:</p>
+
+    <div class="features">
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text"><strong>Quản lý đơn hàng</strong> — Tạo đơn, gửi bếp, thanh toán realtime</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text"><strong>Sơ đồ bàn</strong> — Xem trạng thái bàn trống/có khách trực tiếp</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text"><strong>Quản lý kho</strong> — Theo dõi nguyên liệu, cảnh báo thiếu hàng</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text"><strong>QR Order</strong> — Khách quét mã QR tại bàn để tự gọi món</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text"><strong>Báo cáo doanh thu</strong> — Xem thống kê ngày/tuần/tháng</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="cta-section">
+      <div class="trial-badge">⏰ Còn {{ trial_days }} ngày dùng thử miễn phí</div><br />
+      <a href="{{ login_url }}" class="cta-btn">Đăng nhập ngay →</a>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="text" style="font-size:14px; color:#777;">
+      Cần hỗ trợ? Đội ngũ Aventura luôn sẵn sàng giúp bạn. Liên hệ qua email hoặc hệ thống ticket trong ứng dụng.
+    </p>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 Aventura — Hệ thống quản lý nhà hàng SaaS</p>
+    <p>Email này được gửi tự động, vui lòng không reply trực tiếp.</p>
+  </div>
+</div>
+</body>
+</html>
