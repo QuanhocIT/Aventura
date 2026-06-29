@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
+import { Bell, CalendarCheck, LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
 
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
 import FlashToast from '@/components/FlashToast.vue';
@@ -40,6 +40,31 @@ const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.
 const isStaff = computed(() => roles.value.length > 0);
 const tenant = computed(() => (page.props as any).tenant ?? null);
 const isMobileOpen = ref(false);
+
+// Scroll-based navbar hide/show
+const navHidden = ref(false);
+let lastScrollY = 0;
+let ticking = false;
+
+function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const diff = currentY - lastScrollY;
+        // Hide when scrolling down more than 60px from top, show when scrolling up
+        if (currentY > 120) {
+            navHidden.value = diff > 0;
+        } else {
+            navHidden.value = false;
+        }
+        lastScrollY = currentY;
+        ticking = false;
+    });
+}
+
+onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }));
+onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
 const props = withDefaults(
     defineProps<{
@@ -95,10 +120,13 @@ const handleLogout = () => {
 
 <template>
     <header
-        class="z-40 transition-all duration-300"
-        :class="transparent
-            ? 'absolute top-0 left-0 right-0 bg-transparent border-b border-white/10 text-white'
-            : 'sticky top-0 border-b border-border bg-background/95 backdrop-blur text-foreground'"
+        class="z-40 transition-all duration-500"
+        :class="[
+            transparent
+                ? 'absolute top-0 left-0 right-0 bg-transparent border-b border-white/10 text-white'
+                : 'sticky top-0 border-b border-border bg-background/95 backdrop-blur text-foreground',
+            !transparent && navHidden ? '-translate-y-full shadow-none' : 'translate-y-0'
+        ]"
     >
         <div
             class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8"
