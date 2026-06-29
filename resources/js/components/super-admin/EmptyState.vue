@@ -3,7 +3,7 @@ import type { Component, HTMLAttributes } from 'vue';
 import { Inbox } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 
-withDefaults(
+const props = withDefaults(
     defineProps<{
         icon?: Component;
         title: string;

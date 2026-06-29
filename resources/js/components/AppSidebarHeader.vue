@@ -36,6 +36,8 @@ const navItems = [
     { label: 'Nhân viên', href: '/employees' },
     { label: 'Hỗ trợ', href: '/support' },
 ];
+
+const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
 </script>
 
 <template>
@@ -47,7 +49,7 @@ const navItems = [
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
-            <nav v-else-if="user" class="hidden items-center gap-0.5 md:flex">
+            <nav v-else-if="user && !isSuperAdminRoute" class="hidden items-center gap-0.5 md:flex">
                 <Link
                     v-for="item in navItems"
                     :key="item.href"

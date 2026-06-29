@@ -4,7 +4,7 @@ import { Filter } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
-defineProps<{
+const props = defineProps<{
     class?: HTMLAttributes['class'];
 }>();
 </script>

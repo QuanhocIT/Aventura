@@ -3,7 +3,7 @@ import type { HTMLAttributes } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { cn } from '@/lib/utils';
 
-defineProps<{
+const props = defineProps<{
     links: Array<{ url: string | null; label: string; active: boolean }>;
     class?: HTMLAttributes['class'];
 }>();
