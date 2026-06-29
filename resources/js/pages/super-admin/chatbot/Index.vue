@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
-    Bot, ChevronDown, ChevronUp, Edit2, Eye, FlaskConical, MessageSquare,
+    Bot, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit2, Eye, FlaskConical, MessageSquare,
     Plus, RefreshCcw, ThumbsUp, Trash2, X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -53,7 +53,42 @@ const props = defineProps<{
 const searchQuery = ref(props.filters.search ?? '');
 const categoryFilter = ref(props.filters.category ?? '');
 
+// ── Pagination state ─────────────────────────────────────────────────────────
+const currentPage = ref(1);
+const itemsPerPage = 10;
+
+const totalPages = computed(() => Math.ceil(props.items.length / itemsPerPage));
+
+const paginatedItems = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return props.items.slice(start, end);
+});
+
+const visiblePages = computed(() => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - 2);
+    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+
+watch(() => props.items, () => {
+    if (currentPage.value > totalPages.value) {
+        currentPage.value = Math.max(1, totalPages.value);
+    }
+});
+
 function applyFilters() {
+    currentPage.value = 1;
     router.get('/super-admin/chatbot', {
         search: searchQuery.value || undefined,
         category: categoryFilter.value || undefined,
@@ -61,6 +96,7 @@ function applyFilters() {
 }
 
 function clearFilters() {
+    currentPage.value = 1;
     searchQuery.value = '';
     categoryFilter.value = '';
     router.get('/super-admin/chatbot', {}, { preserveState: true, replace: true });
@@ -366,7 +402,7 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <template v-for="item in items" :key="item.id">
+                                    <template v-for="item in paginatedItems" :key="item.id">
                                         <!-- Main row -->
                                         <tr
                                             class="border-b border-border/30 transition hover:bg-muted/20 cursor-pointer"
@@ -453,6 +489,66 @@ const hasActiveFilters = computed(() => !!searchQuery.value || !!categoryFilter.
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div v-if="totalPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30 px-4 py-3 bg-muted/5">
+                            <div class="text-xs text-muted-foreground font-semibold">
+                                Hiển thị {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, items.length) }} trong tổng số {{ items.length }} câu hỏi
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-8 rounded-lg cursor-pointer hover:bg-muted"
+                                    :disabled="currentPage === 1"
+                                    @click="currentPage = 1"
+                                >
+                                    <span class="sr-only">Trang đầu</span>
+                                    <span class="text-xs font-bold">&laquo;</span>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-8 rounded-lg cursor-pointer hover:bg-muted"
+                                    :disabled="currentPage === 1"
+                                    @click="currentPage--"
+                                >
+                                    <ChevronLeft class="size-4" />
+                                </Button>
+                                
+                                <Button
+                                    v-for="page in visiblePages"
+                                    :key="page"
+                                    :variant="currentPage === page ? 'default' : 'outline'"
+                                    size="sm"
+                                    class="h-8 min-w-8 rounded-lg cursor-pointer font-bold text-xs"
+                                    :class="currentPage === page ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-xs' : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted'"
+                                    @click="currentPage = page"
+                                >
+                                    {{ page }}
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-8 rounded-lg cursor-pointer hover:bg-muted"
+                                    :disabled="currentPage === totalPages"
+                                    @click="currentPage++"
+                                >
+                                    <ChevronRight class="size-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-8 rounded-lg cursor-pointer hover:bg-muted"
+                                    :disabled="currentPage === totalPages"
+                                    @click="currentPage = totalPages"
+                                >
+                                    <span class="sr-only">Trang cuối</span>
+                                    <span class="text-xs font-bold">&raquo;</span>
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
