@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { MessageSquare, Star, ThumbsUp, ThumbsDown, Search } from 'lucide-vue-next';
+import { MessageSquare, Star, ThumbsUp, ThumbsDown, Search, Sparkles, TrendingUp, CheckCircle, XCircle, AlertCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, FilterBar, DataTable, Pagination, AlertBanner } from '@/components/super-admin';
+import { PageHeader, StatCard, FilterBar, DataTable, Pagination, AlertBanner, ProgressBar, SectionCard } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
+import AreaChart from '@/components/charts/AreaChart.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -22,12 +23,15 @@ const props = defineProps<{
         last_page: number;
     };
     stats: { total: number; avg_rating: number; positive: number; negative: number };
+    ratingDistribution: Record<string, number>;
+    dailySentiment: Array<{ label: string; value: number }>;
+    aiInsights: { summary: string; strengths: string[]; weaknesses: string[]; recommendations: string[] };
     restaurants: Array<{ id: number; name: string; code: string }>;
     filters: { restaurant_id?: string; rating?: string; search?: string };
 }>();
 
-const restaurantId = ref(props.filters.restaurant_id ?? '');
-const rating = ref(props.filters.rating ?? '');
+const restaurantId = ref(props.filters.restaurant_id || 'all');
+const rating = ref(props.filters.rating || 'all');
 const search = ref(props.filters.search ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
@@ -35,8 +39,8 @@ watch(search, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 400);
 
 function applyFilter() {
     router.get('/super-admin/feedback', {
-        restaurant_id: restaurantId.value || undefined,
-        rating: rating.value || undefined,
+        restaurant_id: restaurantId.value !== 'all' ? restaurantId.value : undefined,
+        rating: rating.value !== 'all' ? rating.value : undefined,
         search: search.value || undefined,
     }, { preserveState: true, replace: true });
 }
@@ -87,6 +91,133 @@ const columns: Column[] = [
             <StatCard label="Tiêu cực (1-2★)" :value="stats.negative" :icon="ThumbsDown" color="rose" class="" />
         </div>
 
+        <!-- Analytics & AI Insights Row -->
+        <div class="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+            <!-- Sentiment Trend & AI Insights -->
+            <SectionCard accent-color="emerald" class="flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                        <div class="space-y-1">
+                            <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
+                                <TrendingUp class="size-4 text-emerald-500" /> Xu hướng & Phân tích Đánh giá
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Điểm số trung bình theo ngày và tóm tắt AI Insights</p>
+                        </div>
+                        <span class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Sparkles class="size-3" /> AI Powered
+                        </span>
+                    </div>
+
+                    <!-- Area Chart of Daily average rating -->
+                    <div class="h-44 flex items-end">
+                        <AreaChart
+                            v-if="dailySentiment && dailySentiment.length > 0"
+                            :series="dailySentiment"
+                            gradient-id="sentimentTrendGrad"
+                            color="#10b981"
+                            class="w-full h-full"
+                        >
+                            <template #tooltip="{ point }">
+                                <div class="flex flex-col gap-0.5 text-[10px] font-bold text-foreground">
+                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
+                                    <span>Đánh giá TB: {{ point.value }}★</span>
+                                </div>
+                            </template>
+                        </AreaChart>
+                        <div v-else class="w-full text-center py-10 text-xs text-muted-foreground">
+                            Không có dữ liệu xu hướng
+                        </div>
+                    </div>
+
+                    <!-- AI Insights Block -->
+                    <div class="mt-5 p-4 bg-secondary/15 rounded-xl border border-border/40 space-y-3.5">
+                        <div class="flex items-start gap-2.5">
+                            <Sparkles class="size-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div class="space-y-1">
+                                <h4 class="font-bold text-xs text-foreground">Tóm tắt AI (Phản hồi & Cảm xúc)</h4>
+                                <p class="text-xs text-muted-foreground leading-relaxed">{{ aiInsights.summary }}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2 pt-2 border-t border-border/30">
+                            <!-- Điểm mạnh -->
+                            <div class="space-y-1.5">
+                                <h5 class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <CheckCircle class="size-3.5" /> Điểm mạnh nổi bật
+                                </h5>
+                                <ul class="list-disc list-inside text-[10px] text-muted-foreground space-y-1">
+                                    <li v-for="(str, idx) in aiInsights.strengths" :key="idx">{{ str }}</li>
+                                </ul>
+                            </div>
+                            <!-- Điểm yếu -->
+                            <div class="space-y-1.5">
+                                <h5 class="text-[10px] font-bold uppercase tracking-wider text-rose-500 flex items-center gap-1">
+                                    <XCircle class="size-3.5" /> Điểm phàn nàn chính
+                                </h5>
+                                <ul class="list-disc list-inside text-[10px] text-muted-foreground space-y-1">
+                                    <li v-for="(weak, idx) in aiInsights.weaknesses" :key="idx">{{ weak }}</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Đề xuất CSKH -->
+                        <div class="pt-2.5 border-t border-border/30 space-y-1">
+                            <h5 class="text-[10px] font-bold uppercase tracking-wider text-amber-500 flex items-center gap-1">
+                                <AlertCircle class="size-3.5" /> Đề xuất hành động CSKH gợi ý
+                            </h5>
+                            <ul class="list-inside text-[10px] text-muted-foreground space-y-1.5 pl-1">
+                                <li v-for="(rec, idx) in aiInsights.recommendations" :key="idx" class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 shrink-0">•</span>
+                                    <span>{{ rec }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </SectionCard>
+
+            <!-- Stars Rating Distribution Progress Bars -->
+            <SectionCard accent-color="violet" class="flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                        <div class="space-y-1">
+                            <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
+                                <Star class="size-4 text-violet-500" /> Phân bổ Sao Đánh giá
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Tỷ lệ số sao được đánh giá trong hệ thống</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4.5 mt-6">
+                        <div v-for="star in ['5', '4', '3', '2', '1']" :key="star" class="space-y-1">
+                            <div class="flex items-center justify-between text-xs font-semibold">
+                                <span class="text-foreground flex items-center gap-1 font-bold">
+                                    {{ star }} ★
+                                </span>
+                                <span class="text-muted-foreground tabular-nums">
+                                    {{ ratingDistribution[star] || 0 }} phản hồi 
+                                    ({{ stats.total > 0 ? Math.round(((ratingDistribution[star] || 0) / stats.total) * 100) : 0 }}%)
+                                </span>
+                            </div>
+                            <div class="h-2 w-full rounded-full bg-secondary overflow-hidden">
+                                <div
+                                    class="h-full rounded-full transition-all duration-500"
+                                    :class="{
+                                        'bg-emerald-500': star === '5',
+                                        'bg-teal-400': star === '4',
+                                        'bg-amber-400': star === '3',
+                                        'bg-rose-400': star === '2',
+                                        'bg-rose-600': star === '1'
+                                    }"
+                                    :style="{ width: `${stats.total > 0 ? ((ratingDistribution[star] || 0) / stats.total) * 100 : 0}%` }"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </SectionCard>
+        </div>
+
         <FilterBar>
             <div class="relative min-w-48 flex-1">
                 <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
@@ -97,7 +228,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả nhà hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả nhà hàng</SelectItem>
+                    <SelectItem value="all">Tất cả nhà hàng</SelectItem>
                     <SelectItem v-for="r in restaurants" :key="r.id" :value="String(r.id)">{{ r.name }}</SelectItem>
                 </SelectContent>
             </Select>
@@ -106,7 +237,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả sao" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả</SelectItem>
+                    <SelectItem value="all">Tất cả sao</SelectItem>
                     <SelectItem value="5">5 ★</SelectItem>
                     <SelectItem value="4">4 ★</SelectItem>
                     <SelectItem value="3">3 ★</SelectItem>
@@ -138,13 +269,13 @@ const columns: Column[] = [
             </template>
 
             <template #cell-rating="{ row }">
-                <span :class="['text-sm tracking-wider', ratingColor[row.rating] ?? 'text-muted-foreground']">
+                <span :class="['text-sm tracking-wider font-bold', ratingColor[row.rating] ?? 'text-muted-foreground']">
                     {{ renderStars(row.rating) }}
                 </span>
             </template>
 
             <template #cell-comment="{ row }">
-                <p class="max-w-xs truncate text-sm text-muted-foreground">{{ row.comment || '—' }}</p>
+                <p class="max-w-md break-words text-sm text-foreground/90">{{ row.comment || '—' }}</p>
             </template>
 
             <template #cell-order_number="{ row }">

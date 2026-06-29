@@ -713,8 +713,8 @@ const planColor = (code: string) => PLAN_COLORS[code?.toLowerCase()] ?? { bar: '
 
 // --- D4: Banner cảnh báo ngưỡng — gộp cảnh báo SaaS tính trực tiếp + SystemAlert đang mở ---
 const alertSeverityStyle: Record<string, { card: string; badge: string; icon: string }> = {
-    critical: { card: 'border-rose-500/30 bg-rose-500/[0.06]', badge: 'text-rose-500 bg-rose-500/10 border-rose-500/25', icon: 'text-rose-500' },
-    warning: { card: 'border-amber-500/30 bg-amber-500/[0.06]', badge: 'text-amber-500 bg-amber-500/10 border-amber-500/25', icon: 'text-amber-500' },
+    critical: { card: 'border-rose-500/20 bg-rose-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(244,63,94,0.03)] hover:border-rose-500/40 transition-all', badge: 'text-rose-500 bg-rose-500/10 border-rose-500/20 font-black', icon: 'text-rose-500 animate-pulse' },
+    warning: { card: 'border-amber-500/20 bg-amber-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.03)] hover:border-amber-500/40 transition-all', badge: 'text-amber-500 bg-amber-500/10 border-amber-500/20 font-black', icon: 'text-amber-500' },
 };
 
 // --- D2: Doanh thu theo gói (stacked bar ngang theo tháng) ---
@@ -759,59 +759,70 @@ return 'bg-amber-500/70 text-white';
                     <Activity class="size-4 text-primary animate-pulse" /> Trung tâm dữ liệu vĩ mô và hỗ trợ giám sát toàn hệ thống
                 </p>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <DropdownMenu>
-                    <DropdownMenuTrigger as-child>
-                        <button type="button"
-                            class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
-                            <LayoutGrid class="size-3.5" /> Tuỳ chỉnh khối
-                            <Badge v-if="hiddenSectionsCount > 0" variant="secondary" class="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[9px] font-bold">
-                                {{ hiddenSectionsCount }}
-                            </Badge>
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" class="w-72">
-                        <DropdownMenuLabel class="text-xs">Hiển thị / Ẩn khối phân tích</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuCheckboxItem
-                            v-for="section in DASHBOARD_SECTIONS"
-                            :key="section.key"
-                            :model-value="isSectionVisible(section.key)"
-                            class="text-xs"
-                            @select="(e: Event) => e.preventDefault()"
-                            @update:model-value="(v: boolean) => toggleSectionVisibility(section.key, v)">
-                            {{ section.label }}
-                        </DropdownMenuCheckboxItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <button type="button" @click="toggleCompactMode"
-                    :title="compactMode ? 'Chuyển về chế độ xem đầy đủ' : 'Chuyển sang chế độ xem thu gọn'"
-                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
-                    <component :is="compactMode ? Maximize2 : Minimize2" class="size-3.5" /> {{ compactMode ? 'Xem đầy đủ' : 'Thu gọn' }}
-                </button>
-                <button type="button" @click="exportDashboardCsv"
-                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
-                    <Download class="size-3.5" /> Xuất CSV
-                </button>
-                <button type="button" @click="openPrintableReport"
-                    class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs cursor-pointer">
-                    <Printer class="size-3.5" /> Xuất báo cáo (PDF)
-                </button>
-                <Link href="/super-admin/restaurants" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
-                    <Building2 class="size-3.5" /> Tenants
-                </Link>
-                <Link href="/super-admin/support" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
-                    <Siren class="size-3.5" /> Support Portal
-                </Link>
-                <Link href="/super-admin/accounts" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
-                    <ShieldCheck class="size-3.5" /> Accounts
-                </Link>
-                <Link href="/super-admin/referrals" class="inline-flex items-center gap-2 rounded-xl border border-border/80 px-4 py-2 text-xs font-semibold hover:bg-muted/70 transition-all shadow-xs">
-                    <Crown class="size-3.5" /> Hoa hồng &amp; Rút tiền
-                </Link>
-                <Link href="/super-admin/audit-logs" class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-md">
-                    <FileText class="size-3.5" /> Audit Log
-                </Link>
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Group 1: Configuration controls -->
+                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                            <button type="button"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
+                                <LayoutGrid class="size-3.5" /> <span>Khối</span>
+                                <Badge v-if="hiddenSectionsCount > 0" variant="secondary" class="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[8px] font-bold">
+                                    {{ hiddenSectionsCount }}
+                                </Badge>
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-72">
+                            <DropdownMenuLabel class="text-xs">Hiển thị / Ẩn khối phân tích</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuCheckboxItem
+                                v-for="section in DASHBOARD_SECTIONS"
+                                :key="section.key"
+                                :model-value="isSectionVisible(section.key)"
+                                class="text-xs"
+                                @select="(e: Event) => e.preventDefault()"
+                                @update:model-value="(v: boolean) => toggleSectionVisibility(section.key, v)">
+                                {{ section.label }}
+                            </DropdownMenuCheckboxItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <button type="button" @click="toggleCompactMode"
+                        :title="compactMode ? 'Chuyển về chế độ xem đầy đủ' : 'Chuyển sang chế độ xem thu gọn'"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
+                        <component :is="compactMode ? Maximize2 : Minimize2" class="size-3.5" /> <span>{{ compactMode ? 'Đầy đủ' : 'Thu gọn' }}</span>
+                    </button>
+                </div>
+
+                <!-- Group 2: Management shortcuts -->
+                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
+                    <Link href="/super-admin/restaurants" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
+                        <Building2 class="size-3.5 text-muted-foreground" /> <span>Tenants</span>
+                    </Link>
+                    <Link href="/super-admin/support" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
+                        <Siren class="size-3.5 text-muted-foreground" /> <span>Support</span>
+                    </Link>
+                    <Link href="/super-admin/accounts" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
+                        <ShieldCheck class="size-3.5 text-muted-foreground" /> <span>Accounts</span>
+                    </Link>
+                    <Link href="/super-admin/referrals" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
+                        <Crown class="size-3.5 text-muted-foreground" /> <span>Hoa hồng</span>
+                    </Link>
+                </div>
+
+                <!-- Group 3: Reporting & Logs -->
+                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
+                    <button type="button" @click="exportDashboardCsv"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
+                        <Download class="size-3.5 text-sky-500" /> <span>CSV</span>
+                    </button>
+                    <button type="button" @click="openPrintableReport"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
+                        <Printer class="size-3.5 text-emerald-500" /> <span>PDF</span>
+                    </button>
+                    <Link href="/super-admin/audit-logs" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[11px] font-bold text-primary-foreground hover:bg-primary/95 transition-all shadow-md">
+                        <FileText class="size-3.5 text-white" /> <span>Audit Log</span>
+                    </Link>
+                </div>
             </div>
         </div>
 
@@ -834,48 +845,48 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- Cảnh báo sớm Churn (At-risk Alerts) -->
-        <div v-if="churnRiskAlerts && churnRiskAlerts.length" class="bg-rose-500/[0.06] border border-rose-500/20 rounded-2xl p-4 space-y-3 shadow-xs">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                    <AlertTriangle class="size-4 text-rose-500 animate-bounce" />
-                    <h3 class="font-black text-xs uppercase tracking-wider">Cảnh báo rủi ro rời bỏ cao (Early Churn Warning)</h3>
+        <div v-if="churnRiskAlerts && churnRiskAlerts.length" class="bg-rose-500/[0.03] backdrop-blur-md border border-rose-500/20 rounded-2xl p-4.5 space-y-3.5 shadow-[0_0_20px_rgba(244,63,94,0.02)]">
+            <div class="flex items-center justify-between border-b border-rose-500/10 pb-2.5">
+                <div class="flex items-center gap-2 text-rose-500">
+                    <AlertTriangle class="size-4.5 animate-bounce" />
+                    <h3 class="font-black text-xs uppercase tracking-widest">Hệ thống Giám sát Rời bỏ (Early Churn Monitor)</h3>
                 </div>
-                <Link href="/super-admin/churn-prediction" class="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">
+                <Link href="/super-admin/churn-prediction" class="text-[10px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 hover:underline">
                     Xử lý &amp; Xem tất cả &rarr;
                 </Link>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div v-for="risk in churnRiskAlerts" :key="risk.id" class="bg-card border border-rose-200 dark:border-rose-950/80 rounded-xl p-3 shadow-xs space-y-2">
-                    <div class="flex items-center justify-between">
-                        <span class="font-extrabold text-xs text-slate-800 dark:text-slate-200">{{ risk.name }}</span>
-                        <Badge variant="destructive" class="text-[9px] px-1.5 py-0.5 font-black bg-rose-600 text-white leading-none">Điểm: {{ risk.health_score }}</Badge>
+            <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                <div v-for="risk in churnRiskAlerts" :key="risk.id" class="bg-card/45 backdrop-blur-md border border-rose-500/20 hover:border-rose-500/40 hover:shadow-[0_0_15px_rgba(244,63,94,0.05)] rounded-xl p-3.5 transition-all duration-300 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-black text-xs text-slate-800 dark:text-slate-100 truncate">{{ risk.name }}</span>
+                        <Badge variant="destructive" class="text-[9px] px-2 py-0.5 font-black bg-rose-600 text-white shadow-sm shadow-rose-600/10 leading-none">RỦI RO: {{ risk.health_score }}%</Badge>
                     </div>
-                    <p class="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-medium">{{ risk.churn_risk_reason }}</p>
-                    <div class="flex items-center justify-between text-[9px] text-muted-foreground pt-1.5 border-t border-border/40 font-semibold">
-                        <span>Lh: {{ risk.owner_name }}</span>
-                        <span>Sđt: {{ risk.owner_phone }}</span>
+                    <p class="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-semibold">{{ risk.churn_risk_reason }}</p>
+                    <div class="flex items-center justify-between text-[9px] text-muted-foreground pt-2 border-t border-dashed border-border/40 font-bold">
+                        <span class="truncate">Lh: {{ risk.owner_name }}</span>
+                        <span class="font-mono">{{ risk.owner_phone }}</span>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- C2: Bật/tắt báo cáo định kỳ qua email -->
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/50 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md px-4 py-3.5 shadow-[var(--shadow-premium)] hover:border-border/60 transition-all">
             <div class="flex items-center gap-3">
-                <div class="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <div class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-white shadow-md shadow-sky-500/10">
                     <FileText class="size-4.5" />
                 </div>
                 <div>
                     <p class="text-xs font-bold text-slate-800 dark:text-slate-100">Báo cáo định kỳ qua email</p>
-                    <p class="text-[11px] text-muted-foreground">
+                    <p class="text-[11px] text-muted-foreground font-medium">
                         Nhận tóm tắt KPI &amp; cảnh báo tự động vào email của bạn
-                        <span v-if="reportSubscription.last_sent_at"> · Lần gửi gần nhất: {{ reportSubscription.last_sent_at }}</span>
+                        <span v-if="reportSubscription.last_sent_at" class="text-primary"> · Lần gửi gần nhất: {{ reportSubscription.last_sent_at }}</span>
                     </p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
                 <Select v-model="reportSubFrequency" :disabled="!reportSubActive || reportSubSaving" @update:modelValue="saveReportSubscription">
-                    <SelectTrigger class="h-8 w-[110px] text-xs">
+                    <SelectTrigger class="h-8 w-[110px] text-xs bg-background/50 border-border/60">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -883,10 +894,25 @@ return 'bg-amber-500/70 text-white';
                         <SelectItem value="monthly">Hàng tháng</SelectItem>
                     </SelectContent>
                 </Select>
-                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground cursor-pointer select-none">
-                    <Checkbox :checked="reportSubActive" :disabled="reportSubSaving" @update:checked="toggleReportSubscription" />
-                    {{ reportSubActive ? 'Đang bật' : 'Đang tắt' }}
-                </label>
+                <div class="flex items-center gap-2">
+                    <button 
+                        type="button" 
+                        :disabled="reportSubSaving"
+                        @click="toggleReportSubscription(!reportSubActive)"
+                        :class="[
+                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20',
+                            reportSubActive ? 'bg-primary' : 'bg-muted-foreground/30'
+                        ]"
+                    >
+                        <span 
+                            :class="[
+                                'pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                reportSubActive ? 'translate-x-4' : 'translate-x-0'
+                            ]"
+                        />
+                    </button>
+                    <span class="text-[10px] font-bold text-muted-foreground select-none uppercase tracking-wider">{{ reportSubActive ? 'Đang bật' : 'Đang tắt' }}</span>
+                </div>
             </div>
         </div>
 
@@ -1001,99 +1027,124 @@ return 'bg-amber-500/70 text-white';
             <!-- Right Column: SaaS Health & Usage -->
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <!-- SaaS Health Card -->
-                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                    <CardHeader class="pb-2 border-b border-border/40">
-                        <CardTitle class="text-base font-bold flex items-center gap-2">
-                            <Activity class="size-4.5 text-emerald-500" /> Sức khỏe SaaS (SaaS Health)
+                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
+                    <CardHeader class="pb-2.5 border-b border-border/30">
+                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center justify-between text-foreground">
+                            <span class="flex items-center gap-2">
+                                <Activity class="size-4 text-emerald-500 animate-pulse" /> 
+                                <span>Sức khỏe SaaS</span>
+                            </span>
+                            <LedIndicator :status="saasMetrics.churn_rate > 5 ? 'warning' : 'online'" />
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="pt-4 space-y-3.5 font-semibold text-xs">
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
                             <span class="text-muted-foreground">Active Subscription</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ saasMetrics.active_subscriptions }}</span>
+                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.active_subscriptions }}</span>
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
                             <span class="text-muted-foreground">Paid Tenants</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ saasMetrics.paid_tenants }}</span>
+                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.paid_tenants }}</span>
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
+                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
                             <span class="text-muted-foreground">Churn Rate</span>
-                            <span :class="['font-bold font-mono', saasMetrics.churn_rate > 5 ? 'text-rose-500' : 'text-emerald-500']">
+                            <span :class="['font-bold font-mono px-2 py-0.5 rounded', saasMetrics.churn_rate > 5 ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10']">
                                 {{ saasMetrics.churn_rate }}%
                             </span>
                         </div>
                         <div class="flex items-center justify-between pb-0">
                             <span class="text-muted-foreground">Rời bỏ tháng này</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ saasMetrics.churned_this_month }}</span>
+                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.churned_this_month }}</span>
                         </div>
                     </CardContent>
                 </Card>
 
-                <!-- D3: NRR/GRR — Doanh thu giữ lại (Net/Gross Revenue Retention) -->
-                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                    <CardHeader class="pb-2 border-b border-border/40">
-                        <CardTitle class="text-base font-bold flex items-center gap-2">
-                            <TrendingUp class="size-4.5 text-cyan-500" /> Doanh thu giữ lại (NRR / GRR)
+                <!-- D3: NRR/GRR — Doanh thu giữ lại -->
+                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
+                    <CardHeader class="pb-2.5 border-b border-border/30">
+                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
+                            <TrendingUp class="size-4 text-cyan-500" /> 
+                            <span>Doanh thu giữ lại (NRR / GRR)</span>
                         </CardTitle>
-                        <p class="text-[11px] text-muted-foreground font-medium">So sánh MRR {{ revenueRetention.previous_label }} → {{ revenueRetention.period_label }}</p>
+                        <p class="text-[10px] text-muted-foreground font-semibold italic">So sánh MRR {{ revenueRetention.previous_label }} → {{ revenueRetention.period_label }}</p>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-3.5 font-semibold text-xs">
+                    <CardContent class="pt-4 space-y-4 font-semibold text-xs">
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="rounded-xl border border-border/40 bg-muted/20 p-3 text-center">
-                                <p class="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">NRR</p>
-                                <p :class="['mt-1 text-xl font-black font-mono', revenueRetention.nrr === null ? 'text-muted-foreground' : revenueRetention.nrr >= 100 ? 'text-emerald-500' : 'text-amber-500']">
+                            <div class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner">
+                                <p class="text-[9px] font-black uppercase tracking-widest text-muted-foreground">NRR</p>
+                                <p :class="['mt-1 text-lg font-black font-mono', revenueRetention.nrr === null ? 'text-muted-foreground' : revenueRetention.nrr >= 100 ? 'text-emerald-500' : 'text-amber-500']">
                                     {{ revenueRetention.nrr !== null ? `${revenueRetention.nrr}%` : '—' }}
                                 </p>
                             </div>
-                            <div class="rounded-xl border border-border/40 bg-muted/20 p-3 text-center">
-                                <p class="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">GRR</p>
-                                <p :class="['mt-1 text-xl font-black font-mono', revenueRetention.grr === null ? 'text-muted-foreground' : revenueRetention.grr >= 90 ? 'text-emerald-500' : 'text-amber-500']">
+                            <div class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner">
+                                <p class="text-[9px] font-black uppercase tracking-widest text-muted-foreground">GRR</p>
+                                <p :class="['mt-1 text-lg font-black font-mono', revenueRetention.grr === null ? 'text-muted-foreground' : revenueRetention.grr >= 90 ? 'text-emerald-500' : 'text-amber-500']">
                                     {{ revenueRetention.grr !== null ? `${revenueRetention.grr}%` : '—' }}
                                 </p>
                             </div>
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">MRR đầu kỳ</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ formatCurrency(revenueRetention.starting_mrr) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">Mở rộng (Expansion)</span>
-                            <span class="font-bold text-emerald-500 font-mono">+{{ formatCurrency(revenueRetention.expansion) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">Co lại (Contraction)</span>
-                            <span class="font-bold text-amber-500 font-mono">-{{ formatCurrency(revenueRetention.contraction) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between pb-0">
-                            <span class="text-muted-foreground">Mất đi (Churned)</span>
-                            <span class="font-bold text-rose-500 font-mono">-{{ formatCurrency(revenueRetention.churned) }}</span>
+                        
+                        <div class="space-y-2 pt-1">
+                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
+                                <span class="text-muted-foreground">MRR đầu kỳ</span>
+                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ formatCurrency(revenueRetention.starting_mrr) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
+                                <span class="text-muted-foreground">Mở rộng (Expansion)</span>
+                                <span class="font-bold text-emerald-500 font-mono bg-emerald-500/10 px-2 py-0.5 rounded">+{{ formatCurrency(revenueRetention.expansion) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
+                                <span class="text-muted-foreground">Co lại (Contraction)</span>
+                                <span class="font-bold text-amber-500 font-mono bg-amber-500/10 px-2 py-0.5 rounded">-{{ formatCurrency(revenueRetention.contraction) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between pb-0">
+                                <span class="text-muted-foreground">Mất đi (Churned)</span>
+                                <span class="font-bold text-rose-500 font-mono bg-rose-500/10 px-2 py-0.5 rounded">-{{ formatCurrency(revenueRetention.churned) }}</span>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 <!-- Resource Usage Card -->
-                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                    <CardHeader class="pb-2 border-b border-border/40">
-                        <CardTitle class="text-base font-bold flex items-center gap-2">
-                            <Server class="size-4.5 text-sky-500" /> Sử dụng tài nguyên (Resources)
+                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
+                    <CardHeader class="pb-2.5 border-b border-border/30">
+                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
+                            <Server class="size-4 text-sky-500" /> 
+                            <span>Sử dụng tài nguyên (Resources)</span>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-3.5 font-semibold text-xs">
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">Orders (30 ngày qua)</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ resourceInsights.totals.orders_last_30_days }}</span>
+                    <CardContent class="pt-4 space-y-4 font-semibold text-xs">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground">Orders (30 ngày qua)</span>
+                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ resourceInsights.totals.orders_last_30_days }}</span>
+                            </div>
+                            <!-- Orders Capacity Bar (out of 50,000 max orders for example) -->
+                            <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                                <div class="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-700 shadow" :style="{ width: `${Math.min(100, Math.round((resourceInsights.totals.orders_last_30_days / 50000) * 100))}%` }" />
+                            </div>
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">Dung lượng Cloud</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ formatBytes(resourceInsights.totals.storage_bytes) }}</span>
+                        
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground">Dung lượng Cloud</span>
+                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ formatBytes(resourceInsights.totals.storage_bytes) }}</span>
+                            </div>
+                            <!-- Storage Capacity Bar (out of 100GB max for example) -->
+                            <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                                <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-700 shadow" :style="{ width: `${Math.min(100, Math.round((resourceInsights.totals.storage_bytes / (100 * 1024 * 1024 * 1024)) * 100))}%` }" />
+                            </div>
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/30">
-                            <span class="text-muted-foreground">Doanh thu MRR</span>
-                            <span class="font-bold text-cyan-600 dark:text-cyan-400 font-mono">{{ formatCurrency(saasMetrics.mrr) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between pb-0">
-                            <span class="text-muted-foreground">Doanh thu ARR dự báo</span>
-                            <span class="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{{ formatCurrency(saasMetrics.arr) }}</span>
+
+                        <div class="border-t border-dashed border-border/40 pt-2 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground">Doanh thu MRR</span>
+                                <span class="font-bold text-cyan-600 dark:text-cyan-400 font-mono">{{ formatCurrency(saasMetrics.mrr) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground">Doanh thu ARR dự báo</span>
+                                <span class="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{{ formatCurrency(saasMetrics.arr) }}</span>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -1103,36 +1154,36 @@ return 'bg-amber-500/70 text-white';
         <!-- Restructured Top KPI Section: Left Detail Console & Right 2x3 KPI Grid -->
         <div v-if="isSectionVisible('kpi_console')" class="grid gap-4 lg:grid-cols-[1fr_1.3fr]">
             <!-- LEFT: 1 Big Detailed Card (Terminal Console style) -->
-            <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-6 text-slate-200 shadow-2xl flex flex-col justify-between h-auto lg:h-[500px] hover:border-slate-700/60 transition-all duration-300">
+            <div class="relative overflow-hidden rounded-3xl border border-cyan-500/20 bg-slate-950 p-6 text-slate-200 shadow-[0_0_30px_rgba(6,182,212,0.08)] flex flex-col justify-between h-auto lg:h-[500px] hover:border-cyan-500/40 transition-all duration-500" style="background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 0); background-size: 20px 20px;">
                 <!-- Mac style header dots -->
                 <div class="absolute top-4 left-5 flex items-center gap-1.5 select-none">
                     <span class="size-3 rounded-full bg-rose-500/90 shadow-[0_0_8px_#f43f5e]"></span>
                     <span class="size-3 rounded-full bg-amber-500/90 shadow-[0_0_8px_#f59e0b]"></span>
                     <span class="size-3 rounded-full bg-emerald-500/90 shadow-[0_0_8px_#10b981]"></span>
-                    <span class="text-[9px] font-mono text-slate-500 ml-2 uppercase font-extrabold tracking-wider">Business Insights Monitor v1.2.0</span>
+                    <span class="text-[9px] font-mono text-slate-500 ml-2 uppercase font-extrabold tracking-widest">Business Insights Console v1.3.0</span>
                 </div>
                 <!-- Status tag -->
                 <div class="absolute top-3.5 right-5 flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[9px] font-bold text-emerald-400">
                     <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    STATUS: LIVE
+                    CONSOLE: ACTIVE
                 </div>
-
+ 
                 <!-- Step Title & Info -->
                 <div class="space-y-4 mt-8">
-                    <div class="space-y-1.5">
-                        <h3 class="text-sm font-black uppercase tracking-wider text-cyan-400 font-mono">
-                            {{ activeKpi.step }}
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-black uppercase tracking-wider text-cyan-400 font-mono flex items-center gap-2">
+                            <span class="text-cyan-500 font-bold">&gt;_</span> {{ activeKpi.step }}
                         </h3>
                         <p class="text-xs font-semibold text-slate-400 leading-relaxed">
                             {{ activeKpi.desc }}
                         </p>
                     </div>
-
+ 
                     <!-- Business Operational Metrics -->
                     <div class="space-y-3.5 border-t border-slate-800/80 pt-4 text-xs font-semibold">
                         <div class="space-y-0.5">
                             <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">📊 {{ activeKpi.metric1_label }}</p>
-                            <p class="text-lg font-black text-white font-mono tracking-wide">
+                            <p class="text-xl font-black text-white font-mono tracking-wide">
                                 {{ activeKpi.metric1_value }}
                             </p>
                         </div>
@@ -1150,20 +1201,20 @@ return 'bg-amber-500/70 text-white';
                         </div>
                     </div>
                 </div>
-
+ 
                 <!-- Visual Allocation & AI Strategic Recommendation -->
                 <div class="space-y-3.5 border-t border-slate-800/80 pt-4 mt-4 text-xs font-semibold">
                     <div class="space-y-1.5">
                         <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">🔍 PHÂN BỔ CHI TIẾT (STATE DISTRIBUTION)</p>
                         <div class="flex flex-wrap gap-1.5">
                             <Badge v-for="tag in activeKpi.tables" :key="tag" 
-                                class="rounded-lg text-[10px] font-extrabold px-2.5 py-0.5 bg-slate-900 border border-slate-850 text-slate-300">
+                                class="rounded-lg text-[10px] font-extrabold px-2.5 py-0.5 bg-slate-900 border border-slate-800 text-slate-300">
                                 {{ tag }}
                             </Badge>
                         </div>
                     </div>
                     
-                    <div class="rounded-2xl bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-violet-500/25 p-3.5 space-y-1.5 shadow-sm">
+                    <div class="rounded-2xl bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-violet-500/20 p-3.5 space-y-1.5 shadow-sm">
                         <p class="text-[9px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-1.5">
                             🤖 AI STRATEGIC GROWTH RECOMMENDATION
                         </p>
@@ -1173,16 +1224,16 @@ return 'bg-amber-500/70 text-white';
                     </div>
                 </div>
             </div>
-
+ 
             <!-- RIGHT: KPI Cards Grid -->
             <div class="grid gap-4 sm:grid-cols-2 h-auto lg:h-[500px] overflow-y-auto pr-1">
                 <div v-for="(card, index) in statCards" :key="card.label" 
                     @click="selectedKpiIdx = index"
                     :class="[
-                        'group relative overflow-hidden transition-all duration-300 rounded-2xl border p-5 cursor-pointer bg-card/60 dark:bg-card/30 backdrop-blur-xs select-none flex flex-col justify-between min-h-[116px]',
+                        'group relative overflow-hidden transition-all duration-350 rounded-2xl border p-5 cursor-pointer bg-card/45 dark:bg-card/25 backdrop-blur-md select-none flex flex-col justify-between min-h-[116px]',
                         selectedKpiIdx === index 
-                            ? 'border-primary ring-1 ring-primary shadow-lg dark:bg-card/50' 
-                            : 'hover:-translate-y-0.5 hover:shadow-md hover:border-primary/25 border-border/80'
+                            ? 'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/5 dark:bg-card/40' 
+                            : 'hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30 border-border/60'
                     ]"
                 >
                     <!-- Active indicator dot -->
@@ -1190,18 +1241,18 @@ return 'bg-amber-500/70 text-white';
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                     </div>
-
+ 
                     <div class="flex items-center justify-between gap-4">
                         <div class="space-y-1">
                             <p class="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{{ card.label }}</p>
                             <p class="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 font-mono">{{ card.value }}</p>
                         </div>
-                        <div :class="['flex size-10 items-center justify-center rounded-xl border transition-all duration-500 group-hover:scale-105 shrink-0', card.color]">
+                        <div :class="['flex size-10 items-center justify-center rounded-xl border transition-all duration-500 group-hover:scale-110 shrink-0', card.color]">
                             <component :is="card.icon" class="size-4.5" />
                         </div>
                     </div>
                     <div class="flex items-center gap-1.5 text-[10px] font-bold mt-2.5">
-                        <span :class="[card.trend === 'up' ? 'text-emerald-500' : 'text-slate-400']">
+                        <span :class="[card.trend === 'up' ? 'text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full' : 'text-slate-400 bg-slate-400/10 border border-slate-400/20 px-2 py-0.5 rounded-full']">
                             {{ card.trend === 'up' ? '↑' : '•' }} {{ card.change }}
                         </span>
                     </div>
@@ -1730,56 +1781,59 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- D1: Cohort Analysis Heatmap -->
-        <Card v-if="isSectionVisible('cohort_heatmap')" class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
-            <CardHeader class="pb-2 border-b border-border/40">
-                <CardTitle class="text-base font-bold flex items-center gap-2">
-                    <Users class="size-4.5 text-emerald-500" /> Phân tích Cohort — Tỷ lệ giữ chân theo nhóm đăng ký
+        <Card v-if="isSectionVisible('cohort_heatmap')" class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)] overflow-hidden">
+            <CardHeader class="pb-3 border-b border-border/30">
+                <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
+                    <Users class="size-4.5 text-emerald-500" /> 
+                    <span>Phân tích Cohort — Tỷ lệ giữ chân theo nhóm đăng ký</span>
                 </CardTitle>
-                <p class="text-[11px] text-muted-foreground font-medium">Tỷ lệ % nhà hàng còn hoạt động (active, có đơn hàng) ở các mốc M+1 / M+3 / M+6 sau khi đăng ký</p>
+                <p class="text-[10px] text-muted-foreground font-semibold">Tỷ lệ % nhà hàng còn hoạt động (có phát sinh đơn hàng) ở các cột mốc thời gian M+1 / M+3 / M+6 kể từ khi đăng ký</p>
             </CardHeader>
             <CardContent class="pt-4">
-                <div class="overflow-x-auto w-full">
-                    <table class="w-full text-xs text-left">
-                        <thead class="text-muted-foreground font-bold">
-                            <tr>
-                                <th class="px-4 py-2 font-bold uppercase tracking-wider">Cohort (tháng đăng ký)</th>
-                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">Số tenant</th>
-                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+1</th>
-                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+3</th>
-                                <th class="px-3 py-2 font-bold uppercase tracking-wider text-center">M+6</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in cohortAnalysis" :key="row.month" class="font-semibold text-slate-700 dark:text-slate-300">
-                                <td class="px-4 py-1.5 font-bold font-mono">{{ row.cohort }}</td>
-                                <td class="px-3 py-1.5 text-center font-mono">{{ row.total }}</td>
-                                <td class="px-2 py-1.5 text-center">
-                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m1)]">
-                                        {{ row.m1 !== null ? `${row.m1}%` : '—' }}
-                                    </span>
-                                </td>
-                                <td class="px-2 py-1.5 text-center">
-                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m3)]">
-                                        {{ row.m3 !== null ? `${row.m3}%` : '—' }}
-                                    </span>
-                                </td>
-                                <td class="px-2 py-1.5 text-center">
-                                    <span :class="['inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-[11px] font-extrabold font-mono', cohortCellStyle(row.m6)]">
-                                        {{ row.m6 !== null ? `${row.m6}%` : '—' }}
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr v-if="!cohortAnalysis.length">
-                                <td colspan="5" class="px-5 py-10 text-center text-muted-foreground font-semibold">Chưa có đủ dữ liệu cohort để phân tích.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="overflow-hidden rounded-xl border border-border/50 bg-background/30">
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-muted/50 text-muted-foreground border-b border-border/50">
+                                <tr>
+                                    <th class="px-4 py-3 font-black uppercase tracking-wider">Cohort (tháng đăng ký)</th>
+                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">Số tenant</th>
+                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+1</th>
+                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+3</th>
+                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+6</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border/40">
+                                <tr v-for="row in cohortAnalysis" :key="row.month" class="hover:bg-muted/40 transition-colors font-semibold text-slate-700 dark:text-slate-200">
+                                    <td class="px-4 py-2 font-bold font-mono">{{ row.cohort }}</td>
+                                    <td class="px-3 py-2 text-center font-mono">{{ row.total }}</td>
+                                    <td class="px-2 py-2 text-center">
+                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m1)]">
+                                            {{ row.m1 !== null ? `${row.m1}%` : '—' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-2 py-2 text-center">
+                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m3)]">
+                                            {{ row.m3 !== null ? `${row.m3}%` : '—' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-2 py-2 text-center">
+                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m6)]">
+                                            {{ row.m6 !== null ? `${row.m6}%` : '—' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="!cohortAnalysis.length">
+                                    <td colspan="5" class="px-5 py-12 text-center text-muted-foreground font-semibold">Chưa có đủ dữ liệu cohort để phân tích.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <p class="mt-3 text-[10px] text-muted-foreground font-semibold flex flex-wrap items-center gap-3">
+                <p class="mt-4 text-[10px] text-muted-foreground font-bold flex flex-wrap items-center gap-4 bg-muted/30 px-3.5 py-2.5 rounded-xl border border-border/40">
                     <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-emerald-500/80" /> ≥ 70% — Giữ chân tốt</span>
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-amber-500/70" /> 40–69% — Cần theo dõi</span>
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-amber-500/70" /> 40–69% — Cần theo dõi sát</span>
                     <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-rose-500/70" /> &lt; 40% — Nguy cơ rời bỏ cao</span>
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-muted/40 border border-border" /> — Chưa đủ thời gian quan sát</span>
+                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-muted border border-border/80" /> — Chưa đủ dữ liệu quan sát</span>
                 </p>
             </CardContent>
         </Card>
