@@ -193,7 +193,8 @@ class DashboardController extends Controller
                 'plan_code'  => $r->plan?->code ?? 'free',
                 'owner'      => $r->owner?->name ?? '-',
                 'created_at' => $r->created_at->format('d/m/Y'),
-            ]));
+            ])
+            ->all());
 
         $planDistribution = Cache::remember('superadmin_dashboard_plan_distribution', self::CACHE_TTL, fn () => SubscriptionPlan::withCount('restaurants')
             ->get()
@@ -201,7 +202,8 @@ class DashboardController extends Controller
                 'name'  => $p->name,
                 'code'  => $p->code,
                 'count' => $p->restaurants_count,
-            ]));
+            ])
+            ->all());
 
         $cohortAnalysis = Cache::remember(
             'superadmin_dashboard_cohort_analysis',

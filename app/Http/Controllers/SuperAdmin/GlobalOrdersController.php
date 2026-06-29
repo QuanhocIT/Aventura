@@ -14,7 +14,7 @@ class GlobalOrdersController extends Controller
     {
         $filters = $request->only(['restaurant_id', 'status', 'payment_status', 'search', 'date_from', 'date_to']);
 
-        $query = Order::withoutGlobalScopes();
+        $query = Order::with(['items.product', 'customer', 'table'])->withoutGlobalScopes();
 
         if (!empty($filters['restaurant_id'])) {
             $query->where('restaurant_id', $filters['restaurant_id']);
@@ -51,18 +51,53 @@ class GlobalOrdersController extends Controller
             'status' => $o->status,
             'payment_status' => $o->payment_status,
             'total_amount' => number_format($o->total_amount ?? 0, 0, ',', '.'),
-            'total_raw' => $o->total_amount ?? 0,
+            'total_raw' => (float)($o->total_amount ?? 0),
             'channel' => $o->channel ?? 'pos',
             'note' => $o->note,
             'created_at' => $o->created_at?->format('d/m/Y H:i'),
+            'customer_name' => $o->customer?->name ?? 'Khách vãng lai',
+            'customer_phone' => $o->customer?->phone ?? '—',
+            'table_name' => $o->table?->name ?? '—',
+            'items' => $o->items->map(fn($item) => [
+                'id' => $item->id,
+                'product_name' => $item->product?->name ?? 'Sản phẩm đã xóa',
+                'quantity' => $item->quantity,
+                'price' => number_format($item->price ?? 0, 0, ',', '.'),
+                'total' => number_format(($item->price * $item->quantity) ?? 0, 0, ',', '.'),
+            ])->toArray(),
         ]);
 
         $today = now()->toDateString();
+        
+        $posToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'pos')->count();
+        $qrToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'qr')->count();
+        $onlineToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'online')->count();
+        $deliveryToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'delivery')->count();
+
+        $revenueTrend = collect(range(6, 0))->map(function($daysAgo) {
+            $date = now()->subDays($daysAgo)->toDateString();
+            $label = now()->subDays($daysAgo)->format('d/m');
+            $revenue = Order::withoutGlobalScopes()
+                ->whereDate('created_at', $date)
+                ->where('status', 'completed')
+                ->sum('total_amount') ?? 0;
+            return [
+                'date' => $label,
+                'revenue' => (float)$revenue,
+            ];
+        })->toArray();
+
         $stats = [
             'total_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->count(),
-            'revenue_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'completed')->sum('total_amount'),
+            'revenue_today' => (float)Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'completed')->sum('total_amount'),
             'completed_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'completed')->count(),
             'cancelled_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'cancelled')->count(),
+            
+            'pos_today' => $posToday,
+            'qr_today' => $qrToday,
+            'online_today' => $onlineToday,
+            'delivery_today' => $deliveryToday,
+            'revenue_trend' => $revenueTrend,
         ];
 
         $restaurants = Restaurant::select('id', 'name', 'code')->orderBy('name')->get();

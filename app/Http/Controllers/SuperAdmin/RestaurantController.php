@@ -13,6 +13,7 @@ use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Services\QuotaService;
+use App\Services\AiInsightsClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -60,6 +61,55 @@ class RestaurantController extends Controller
             'flagged'   => Restaurant::where('is_inactive_flagged', true)->count(),
         ];
 
+        // Fetch AI Insights
+        $now = now();
+        $windowStart = $now->copy()->subDays(30);
+        $orderCounts = \App\Models\Order::query()
+            ->selectRaw('restaurant_id, COUNT(*) as cnt')
+            ->where('created_at', '>=', $windowStart)
+            ->groupBy('restaurant_id')
+            ->pluck('cnt', 'restaurant_id');
+
+        $restaurantsData = Restaurant::with(['plan', 'activeSubscription'])
+            ->get()
+            ->map(fn (Restaurant $r) => [
+                'id'                           => $r->id,
+                'name'                         => $r->name,
+                'plan_code'                    => $r->plan?->code ?? 'free',
+                'status'                       => $r->status,
+                'is_trial'                     => $r->activeSubscription?->status === 'trial',
+                'days_since_created'           => (int) $r->created_at->diffInDays($now),
+                'days_until_subscription_ends' => $r->subscription_ends_at
+                    ? (int) $now->diffInDays($r->subscription_ends_at, false)
+                    : -1,
+                'order_count_30d'              => (int) ($orderCounts[$r->id] ?? 0),
+                'subscription_status'          => $r->activeSubscription?->status ?? 'none',
+            ])->toArray();
+
+        $tenantGrowthSeries = $this->getTenantGrowthSeries();
+        $aiInsights = app(AiInsightsClient::class)->getInsights($restaurantsData, $tenantGrowthSeries);
+
+        // Fetch Plan Distribution (Active restaurants)
+        $planDistribution = SubscriptionPlan::withCount(['restaurants' => function($q) {
+            $q->where('status', 'active');
+        }])->get()->map(fn ($p) => [
+            'name' => $p->name,
+            'code' => $p->code,
+            'count' => $p->restaurants_count,
+        ])->toArray();
+
+        // Fetch Registration Growth for AreaChart (past 6 months)
+        $registrationGrowth = collect(range(5, 0))->map(function ($offset) use ($now) {
+            $month = $now->copy()->subMonths($offset);
+            $start = $month->copy()->startOfMonth();
+            $end = $month->copy()->endOfMonth();
+            $count = Restaurant::whereBetween('created_at', [$start, $end])->count();
+            return [
+                'label' => $month->format('m/Y'),
+                'value' => $count,
+            ];
+        })->values()->all();
+
         return Inertia::render('super-admin/restaurants/Index', [
             'restaurants' => $restaurants->through(fn ($r) => [
                 'id'              => $r->id,
@@ -84,6 +134,9 @@ class RestaurantController extends Controller
             'plans'   => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
             'filters' => $request->only(['status', 'plan', 'search', 'flagged']),
             'stats'   => $stats,
+            'aiInsights' => $aiInsights,
+            'planDistribution' => $planDistribution,
+            'registrationGrowth' => $registrationGrowth,
         ]);
     }
 
@@ -518,5 +571,50 @@ class RestaurantController extends Controller
         DashboardController::forgetCache();
 
         return back()->with('success', "Đã cập nhật hạn ngạch lưu trữ cho nhà hàng \"{$restaurant->name}\".");
+    }
+
+    protected function getTenantGrowthSeries(): array
+    {
+        $now = now();
+        $subscriptions = \App\Models\RestaurantSubscription::with(['plan'])
+            ->whereNotNull('started_at')
+            ->get();
+
+        return collect(range(5, 0))
+            ->map(function (int $offset) use ($now, $subscriptions) {
+                $month = $now->copy()->subMonths($offset)->startOfMonth();
+                $start = $month->copy()->startOfMonth();
+                $end = $month->copy()->endOfMonth();
+
+                $newTenants = Restaurant::whereBetween('created_at', [$start, $end])->count();
+                $freeToPro = $subscriptions
+                    ->groupBy('restaurant_id')
+                    ->filter(function ($restaurantSubscriptions) use ($start, $end) {
+                        $hasFreeBefore = $restaurantSubscriptions->contains(function ($subscription) {
+                            return strtolower((string) ($subscription->plan?->code ?? '')) === 'free';
+                        });
+
+                        if (! $hasFreeBefore) {
+                            return false;
+                        }
+
+                        return $restaurantSubscriptions->contains(function ($subscription) use ($start, $end) {
+                            return strtolower((string) ($subscription->plan?->code ?? '')) === 'pro'
+                                && $subscription->started_at
+                                && $subscription->started_at->between($start, $end);
+                        });
+                    })
+                    ->count();
+
+                return [
+                    'label' => $month->format('m/Y'),
+                    'month' => $month->format('Y-m'),
+                    'new_tenants' => $newTenants,
+                    'free_to_pro' => $freeToPro,
+                    'conversion_rate' => $newTenants > 0 ? round(($freeToPro / $newTenants) * 100, 2) : 0,
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

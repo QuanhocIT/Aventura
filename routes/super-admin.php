@@ -49,6 +49,7 @@ Route::prefix('super-admin')
 
             Route::get('orders', [GlobalOrdersController::class, 'index'])->name('orders.index');
             Route::get('revenue', [GlobalRevenueController::class, 'index'])->name('revenue.index');
+            Route::get('revenue/export', [GlobalRevenueController::class, 'exportCsv'])->name('revenue.export');
             Route::get('customers', [GlobalCustomersController::class, 'index'])->name('customers.index');
             Route::get('feedback', [GlobalFeedbackController::class, 'index'])->name('feedback.index');
 

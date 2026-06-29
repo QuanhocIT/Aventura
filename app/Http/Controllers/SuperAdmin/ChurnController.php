@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
+use App\Models\User;
+
 class ChurnController extends Controller
 {
     public function __construct(protected CustomerSuccessService $customerSuccess) {}
@@ -31,8 +33,14 @@ class ChurnController extends Controller
 
         $emailsSentCount = Restaurant::whereNotNull('churn_risk_flagged_at')->count();
 
+        // New system KPIs
+        $systemRiskRatio = $totalChecked > 0 ? round((($highRiskCount + $mediumRiskCount) / $totalChecked) * 100, 1) : 0;
+        $urgentActionRequired = Restaurant::where('churn_risk_level', 'high')
+            ->where('status', 'active')
+            ->count();
+
         // Query restaurants
-        $query = Restaurant::with(['plan', 'owner'])
+        $query = Restaurant::with(['plan', 'owner', 'internalNotes.user', 'followups.assignedUser', 'tags'])
             ->whereIn('status', ['active', 'suspended']);
 
         // Filter by risk level
@@ -80,6 +88,24 @@ class ChurnController extends Controller
                     'owner_name' => $restaurant->owner?->name ?? '-',
                     'owner_email' => $restaurant->owner?->email ?? $restaurant->email ?? '-',
                     'owner_phone' => $restaurant->owner?->phone ?? $restaurant->phone ?? '-',
+                    'tags' => $restaurant->tags->map(fn($t) => [
+                        'id' => $t->id,
+                        'name' => $t->name,
+                        'color' => $t->color,
+                    ]),
+                    'notes' => $restaurant->internalNotes->map(fn($note) => [
+                        'id' => $note->id,
+                        'note' => $note->note,
+                        'created_at' => $note->created_at->format('d/m/Y H:i'),
+                        'user_name' => $note->user?->name ?? 'Hệ thống',
+                    ]),
+                    'followups' => $restaurant->followups->map(fn($f) => [
+                        'id' => $f->id,
+                        'note' => $f->note,
+                        'remind_at' => $f->remind_at->format('d/m/Y H:i'),
+                        'status' => $f->status,
+                        'assigned_user_name' => $f->assignedUser?->name ?? 'Không phân công',
+                    ]),
                     'breakdown' => [
                         'days_since_login' => $breakdown['days_since_login'],
                         'current_week_orders' => $breakdown['current_week_orders'],
@@ -91,6 +117,10 @@ class ChurnController extends Controller
             });
 
         $plans = SubscriptionPlan::orderBy('name')->get(['id', 'name']);
+        
+        $admins = User::whereNull('restaurant_id')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         return Inertia::render('super-admin/support/ChurnDashboard', [
             'stats' => [
@@ -100,9 +130,12 @@ class ChurnController extends Controller
                 'medium_risk' => $mediumRiskCount,
                 'low_risk' => $lowRiskCount,
                 'emails_sent' => $emailsSentCount,
+                'system_risk_ratio' => $systemRiskRatio,
+                'urgent_action_required' => $urgentActionRequired,
             ],
             'restaurants' => $restaurants,
             'plans' => $plans,
+            'admins' => $admins,
             'filters' => $request->only(['risk_level', 'plan_id', 'search']),
         ]);
     }
