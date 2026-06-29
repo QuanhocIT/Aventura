@@ -103,7 +103,7 @@ const groupedSections = computed(() => {
     });
 
     if (unmatchedSection.items.length > 0) {
-        sections.push(unmatchedSection);
+        sections.unshift(unmatchedSection);
     }
 
     return sections.filter(sec => sec.items.length > 0);
