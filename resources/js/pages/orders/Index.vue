@@ -81,6 +81,16 @@ const props = defineProps<{
         transfer_revenue: number;
     } | null;
     tables: { id: number; name: string }[];
+    cancelledLogs?: {
+        id: number;
+        order_number: string;
+        cancelled_by: string;
+        total_amount: number;
+        table_name: string;
+        area_name: string;
+        items: { product_name: string; quantity: number; price: number }[];
+        cancelled_at: string;
+    }[];
 }>();
 
 const dateInput = ref(props.filters.date);
@@ -158,6 +168,27 @@ const isCashier = computed(() => {
     const roles = (page.props.auth?.user as any)?.roles || [];
 
     return roles.includes('cashier');
+});
+
+const isOwnerOrManager = computed(() => {
+    const roles = (page.props.auth?.user as any)?.roles || [];
+
+    return roles.includes('owner') || roles.includes('manager');
+});
+
+const statusChips = computed(() => {
+    const chips: Record<string, string> = {
+        all: 'Tất cả',
+        pending: 'Chờ xác nhận',
+        confirmed: 'Đã xác nhận',
+        preparing: 'Đang chế biến',
+        completed: 'Hoàn thành',
+        cancelled: 'Đã hủy',
+    };
+    if (isOwnerOrManager.value) {
+        chips.cancelled_spam = 'Nhật ký hủy đơn ảo';
+    }
+    return chips;
 });
 
 const voucherCodes = ref<Record<number, string>>({});
@@ -752,14 +783,7 @@ const nextStatus: Record<string, string | null> = {
         <!-- Status filter chips -->
         <div class="flex flex-wrap gap-2">
             <button
-                v-for="(label, key) in {
-                    all: 'Tất cả',
-                    pending: 'Chờ xác nhận',
-                    confirmed: 'Đã xác nhận',
-                    preparing: 'Đang chế biến',
-                    completed: 'Hoàn thành',
-                    cancelled: 'Đã hủy',
-                } as Record<string, string>"
+                v-for="(label, key) in statusChips"
                 :key="key"
                 @click="setStatus(key)"
                 class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
@@ -777,15 +801,69 @@ const nextStatus: Record<string, string | null> = {
         <Card class="shadow-sm">
             <CardHeader class="border-b pb-3">
                 <CardTitle class="text-base">
-                    Danh sách đơn hàng
-                    <span class="ml-1 text-sm font-normal text-muted-foreground"
-                        >({{ orders.length }} đơn)</span
-                    >
+                    {{ activeStatus === 'cancelled_spam' ? 'Nhật ký hủy đơn ảo hôm nay' : 'Danh sách đơn hàng' }}
+                    <span class="ml-1 text-sm font-normal text-muted-foreground">
+                        ({{ activeStatus === 'cancelled_spam' ? (cancelledLogs?.length || 0) : orders.length }} đơn)
+                    </span>
                 </CardTitle>
             </CardHeader>
             <CardContent class="p-0">
+                <div v-if="activeStatus === 'cancelled_spam'" class="p-0">
+                    <div v-if="cancelledLogs && cancelledLogs.length" class="divide-y divide-slate-100 dark:divide-slate-800">
+                        <div v-for="log in cancelledLogs" :key="log.id" class="px-5 py-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="rounded-md bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700 border border-rose-150 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/40">
+                                            {{ log.table_name }}
+                                        </span>
+                                        <span class="text-xs text-slate-400 font-medium">
+                                            {{ log.area_name }}
+                                        </span>
+                                        <span class="font-mono text-xs font-semibold text-slate-500">
+                                            #{{ log.order_number }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                                        <span>Thời gian hủy: <strong class="text-slate-700 dark:text-slate-300">{{ log.cancelled_at }}</strong></span>
+                                        <span>•</span>
+                                        <span>Người hủy: <strong class="text-slate-700 dark:text-slate-300">{{ log.cancelled_by }}</strong></span>
+                                    </div>
+                                </div>
+
+                                <div class="text-left sm:text-right shrink-0">
+                                    <p class="font-mono text-sm font-black text-rose-600 dark:text-rose-400">
+                                        {{ formatCurrency(log.total_amount) }}
+                                    </p>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mt-0.5">
+                                        HỦY BỞI NHÂN VIÊN
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 rounded-xl border bg-slate-50/50 p-3 dark:bg-slate-900/50 dark:border-slate-850">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Món ăn bị hủy</span>
+                                <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 text-xs">
+                                    <div v-for="(item, idx) in log.items" :key="idx" class="flex justify-between border-b border-dashed pb-1 last:border-0 last:pb-0 dark:border-slate-800">
+                                        <span class="font-semibold text-slate-750 dark:text-slate-300">
+                                            {{ item.product_name }}
+                                        </span>
+                                        <span class="font-mono font-bold text-slate-500 pr-1">
+                                            x{{ item.quantity }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="flex flex-col items-center justify-center py-12 px-5 text-center text-muted-foreground">
+                        <p class="text-sm font-semibold">Chưa có nhật ký hủy đơn nào trong ngày hôm nay.</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Tất cả đơn hàng QR bị nhân viên từ chối sẽ hiển thị tại đây để đối chiếu kiểm toán.</p>
+                    </div>
+                </div>
+
                 <div
-                    v-if="orders.length"
+                    v-else-if="orders.length"
                     class="divide-y divide-slate-100 dark:divide-slate-800"
                 >
                     <div

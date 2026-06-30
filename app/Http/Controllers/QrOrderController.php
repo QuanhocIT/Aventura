@@ -282,6 +282,9 @@ class QrOrderController extends Controller
         // Kích hoạt phát thông tin real-time cho máy POS/Tablet của nhân viên
         event(new QrOrderPlaced($order->load('table')));
 
+        // Khởi tạo tác vụ theo dõi lùi bước (Delay Job) sau 2 phút để can thiệp khẩn cấp quá hạn
+        \App\Jobs\CheckQrOrderTimeout::dispatch($order)->delay(now()->addMinutes(2));
+
         return response()->json([
             'success' => true,
             'message' => 'Đặt món thành công! Vui lòng chờ nhân viên di chuyển tới bàn xác nhận.',

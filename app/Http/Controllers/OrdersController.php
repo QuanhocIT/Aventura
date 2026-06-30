@@ -226,33 +226,37 @@ class OrdersController extends Controller
             $query->whereDate('created_at', $dateFilter);
         }
 
-        if ($statusFilter !== 'all') {
+        if ($statusFilter !== 'all' && $statusFilter !== 'cancelled_spam') {
             $query->where('status', $statusFilter);
         }
 
-        $orders = $query->get()->map(fn ($o) => [
-            'id' => $o->id,
-            'order_number' => $o->order_number,
-            'status' => $o->status,
-            'payment_status' => $o->payment_status,
-            'channel' => $o->channel,
-            'third_party_source' => $o->third_party_source,
-            'table_name' => $o->table?->name,
-            'area_name' => $o->table?->area?->name,
-            'subtotal' => (float) $o->subtotal,
-            'discount_amount' => (float) $o->discount_amount,
-            'total_amount' => (float) $o->total_amount,
-            'items_count' => $o->items->count(),
-            'created_at' => $o->created_at->format('H:i'),
-            'completed_at' => $o->completed_at?->format('H:i'),
-            'items' => $o->items->map(fn ($item) => [
-                'id' => $item->id,
-                'product_name' => $item->product?->name,
-                'quantity' => (float) $item->quantity,
-                'status' => $item->status,
-                'notes' => $item->notes,
-            ])->toArray(),
-        ]);
+        if ($statusFilter === 'cancelled_spam') {
+            $orders = collect();
+        } else {
+            $orders = $query->get()->map(fn ($o) => [
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'status' => $o->status,
+                'payment_status' => $o->payment_status,
+                'channel' => $o->channel,
+                'third_party_source' => $o->third_party_source,
+                'table_name' => $o->table?->name,
+                'area_name' => $o->table?->area?->name,
+                'subtotal' => (float) $o->subtotal,
+                'discount_amount' => (float) $o->discount_amount,
+                'total_amount' => (float) $o->total_amount,
+                'items_count' => $o->items->count(),
+                'created_at' => $o->created_at->format('H:i'),
+                'completed_at' => $o->completed_at?->format('H:i'),
+                'items' => $o->items->map(fn ($item) => [
+                    'id' => $item->id,
+                    'product_name' => $item->product?->name,
+                    'quantity' => (float) $item->quantity,
+                    'status' => $item->status,
+                    'notes' => $item->notes,
+                ])->toArray(),
+            ]);
+        }
 
         $summary = [
             'total' => Order::where('restaurant_id', $restaurantId)->whereDate('created_at', $dateFilter)->count(),
@@ -320,6 +324,25 @@ class OrdersController extends Controller
                 'name' => $t->name,
             ]);
 
+        $cancelledLogs = [];
+        if ($user->hasRole('manager') || $user->hasRole('owner')) {
+            $cancelledLogs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
+                ->where('action', 'spam_order_cancelled')
+                ->whereDate('created_at', today())
+                ->latest()
+                ->get()
+                ->map(fn ($log) => [
+                    'id' => $log->id,
+                    'order_number' => $log->old_values['order_number'] ?? $log->new_values['order_number'] ?? '—',
+                    'cancelled_by' => $log->old_values['cancelled_by'] ?? $log->new_values['cancelled_by'] ?? 'Nhân sự',
+                    'total_amount' => (float) ($log->old_values['total_amount'] ?? $log->new_values['total_amount'] ?? 0),
+                    'table_name' => $log->old_values['table_name'] ?? $log->new_values['table_name'] ?? '—',
+                    'area_name' => $log->old_values['area_name'] ?? $log->new_values['area_name'] ?? '—',
+                    'items' => $log->old_values['items'] ?? $log->new_values['items'] ?? [],
+                    'cancelled_at' => $log->created_at->format('H:i:s'),
+                ])->toArray();
+        }
+
         return Inertia::render('orders/Index', [
             'orders' => $orders,
             'summary' => $summary,
@@ -331,6 +354,7 @@ class OrdersController extends Controller
             ],
             'activeShiftStats' => $activeShiftStats,
             'tables' => $tables,
+            'cancelledLogs' => $cancelledLogs,
         ]);
     }
 
@@ -1017,6 +1041,8 @@ class OrdersController extends Controller
                 'cancelled_by' => $user->name,
                 'total_amount' => $reportData['total_amount'],
                 'table_name' => $reportData['table_name'],
+                'area_name' => $reportData['area_name'],
+                'items' => $reportData['items'],
             ]);
         });
 

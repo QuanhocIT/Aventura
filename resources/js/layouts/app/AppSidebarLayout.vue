@@ -84,6 +84,10 @@ const activeAlertOrder = ref<any>(null);
 const confirmingOrder = ref(false);
 const cancellingOrder = ref(false);
 
+const isEscalationAlertOpen = ref(false);
+const activeEscalationOrder = ref<any>(null);
+const confirmingEscalation = ref(false);
+
 let alarmInterval: any = null;
 
 function playAlarmSound() {
@@ -126,6 +130,51 @@ function stopAlarmSound() {
     if (alarmInterval) {
         clearInterval(alarmInterval);
         alarmInterval = null;
+    }
+}
+
+let escalationInterval: any = null;
+
+function playEscalationAlarmSound() {
+    if (escalationInterval) {
+        return;
+    }
+    
+    const runSound = () => {
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.setValueAtTime(600, now + 0.15);
+            osc.frequency.setValueAtTime(1200, now + 0.3);
+            osc.frequency.setValueAtTime(600, now + 0.45);
+            
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 0.6);
+        } catch (e) {
+            console.error('Failed to play escalation alarm sound', e);
+        }
+    };
+    
+    runSound();
+    escalationInterval = setInterval(runSound, 700);
+}
+
+function stopEscalationAlarmSound() {
+    if (escalationInterval) {
+        clearInterval(escalationInterval);
+        escalationInterval = null;
     }
 }
 
@@ -183,6 +232,31 @@ const handleCancelSpamOrder = async () => {
     }
 };
 
+const handleConfirmEscalationOrder = async () => {
+    if (!activeEscalationOrder.value || confirmingEscalation.value) {
+        return;
+    }
+    
+    confirmingEscalation.value = true;
+    try {
+        const response = await axios.post(`/orders/${activeEscalationOrder.value.id}/confirm-qr`);
+        if (response.data.success) {
+            toast.success('Quản lý đã trực tiếp xác nhận và chuyển đơn xuống bếp thành công!');
+            stopEscalationAlarmSound();
+            isEscalationAlertOpen.value = false;
+            activeEscalationOrder.value = null;
+            router.reload({ only: ['orders', 'summary'] });
+        } else {
+            toast.error(response.data.message || 'Xác nhận đơn thất bại.');
+        }
+    } catch (e: any) {
+        console.error(e);
+        toast.error(e.response?.data?.message || 'Lỗi khi xác nhận đơn.');
+    } finally {
+        confirmingEscalation.value = false;
+    }
+};
+
 onMounted(() => {
     if (echo && user.value && user.value.restaurant_id) {
         echo.private(`restaurant.${user.value.restaurant_id}`)
@@ -223,6 +297,13 @@ onMounted(() => {
 
                 if (window.location.pathname === '/orders') {
                     router.reload({ only: ['orders', 'summary'] });
+                }
+            })
+            .listen('.qr-order.timeout-escalated', (e: any) => {
+                if (isOwnerOrManager.value) {
+                    activeEscalationOrder.value = e.order;
+                    isEscalationAlertOpen.value = true;
+                    playEscalationAlarmSound();
                 }
             })
             .listen('.order.split', (e: any) => {
@@ -410,6 +491,89 @@ onUnmounted(() => {
                     >
                         <Check class="size-4 mr-1.5" />
                         Xác nhận & Chuyển bếp
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <!-- OVERDUE QR ORDER ESCALATION DIALOG -->
+        <Dialog :open="isEscalationAlertOpen" @update:open="(val) => { if (!val) { stopEscalationAlarmSound(); isEscalationAlertOpen = false; activeEscalationOrder = null; } }">
+            <DialogContent class="max-w-md border-rose-500 bg-rose-50/95 p-6 backdrop-blur-md dark:bg-rose-950/95 shadow-2xl rounded-3xl">
+                <DialogHeader class="flex flex-col items-center text-center">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-rose-500 text-white animate-bounce shadow-lg">
+                        <AlertTriangle class="size-8" />
+                    </div>
+                    <DialogTitle class="mt-4 text-xl font-extrabold text-rose-800 dark:text-rose-200 uppercase tracking-wide">
+                        CẢNH BÁO: KHÁCH ĐỢI QUÁ HẠN!
+                    </DialogTitle>
+                    <DialogDescription class="text-xs font-semibold text-rose-700 dark:text-rose-300 mt-1 text-center">
+                        Yêu cầu tự gọi món QR tại bàn này đã quá 2 phút chưa có nhân viên nào tiếp nhận và xác nhận!
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div v-if="activeEscalationOrder" class="mt-5 space-y-4 rounded-2xl bg-white/80 p-5 shadow-inner border border-rose-200/50 dark:bg-slate-900/80">
+                    <!-- Order Details -->
+                    <div class="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Bàn phục vụ</span>
+                            <span class="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+                                {{ activeEscalationOrder.table_name || '—' }} ({{ activeEscalationOrder.area_name || 'Khu vực chính' }})
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Mã đơn hàng</span>
+                            <span class="font-mono text-sm font-extrabold text-slate-800 dark:text-slate-200">
+                                {{ activeEscalationOrder.order_number }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Thời gian gửi</span>
+                            <span class="text-xs font-extrabold text-slate-700 dark:text-slate-350">
+                                {{ activeEscalationOrder.created_at }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Tổng tiền</span>
+                            <span class="text-sm font-black text-rose-600 dark:text-rose-400">
+                                {{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(activeEscalationOrder.total_amount) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Items List -->
+                    <div class="space-y-2 border-t pt-3">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Món ăn của khách ({{ activeEscalationOrder.items_count }} món)</span>
+                        <div class="max-h-32 overflow-y-auto divide-y border rounded-2xl p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
+                            <div v-for="item in activeEscalationOrder.items" :key="item.id" class="flex items-start justify-between py-1.5 text-xs">
+                                <div class="flex-grow pr-2">
+                                    <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.product_name }}</span>
+                                    <span v-if="item.notes" class="block text-[10px] text-slate-400 italic">"{{ item.notes }}"</span>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="font-semibold text-slate-600 dark:text-slate-400">x{{ item.quantity }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <DialogFooter class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between sm:gap-0">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        class="h-10 rounded-xl border-rose-250 text-rose-700 hover:bg-rose-100 font-bold dark:border-rose-800 dark:text-rose-400" 
+                        @click="stopEscalationAlarmSound(); isEscalationAlertOpen = false; activeEscalationOrder = null;"
+                    >
+                        Bỏ qua cảnh báo
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        class="h-10 rounded-xl bg-rose-600 font-bold text-white shadow-md hover:bg-rose-700" 
+                        @click="handleConfirmEscalationOrder"
+                        :disabled="confirmingEscalation"
+                    >
+                        <Check class="size-4 mr-1.5" />
+                        {{ confirmingEscalation ? 'Đang duyệt...' : 'Duyệt & Chuyển Bếp ngay' }}
                     </Button>
                 </DialogFooter>
             </DialogContent>
