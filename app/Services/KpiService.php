@@ -219,22 +219,26 @@ class KpiService
                     return $target;
                 }
 
-                $totalMinutes = 0;
-                $count = 0;
+                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->where('status', '!=', 'cancelled')
+                    ->whereNotNull('sent_to_kitchen_at')
+                    ->whereNotNull('prepared_at');
 
-                foreach ($shifts as $shift) {
-                    $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->where('status', '!=', 'cancelled')
-                        ->whereNotNull('sent_to_kitchen_at')
-                        ->whereNotNull('prepared_at')
-                        ->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->get();
-
-                    foreach ($items as $item) {
-                        $totalMinutes += abs(Carbon::parse($item->prepared_at)->diffInMinutes(Carbon::parse($item->sent_to_kitchen_at)));
-                        $count++;
+                $itemsQuery->where(function ($q) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        $q->orWhere(function ($sub) use ($shift) {
+                            $sub->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
+                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
+                        });
                     }
+                });
+
+                $items = $itemsQuery->get();
+                $totalMinutes = 0;
+                $count = $items->count();
+
+                foreach ($items as $item) {
+                    $totalMinutes += abs(Carbon::parse($item->prepared_at)->diffInMinutes(Carbon::parse($item->sent_to_kitchen_at)));
                 }
 
                 return $count > 0 ? round($totalMinutes / $count, 2) : $target;
@@ -251,18 +255,20 @@ class KpiService
                     return 0.0;
                 }
 
-                $totalCount = 0;
-                $cancelledCount = 0;
+                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id);
 
-                foreach ($shifts as $shift) {
-                    $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->whereBetween('created_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->get();
+                $itemsQuery->where(function ($q) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        $q->orWhere(function ($sub) use ($shift) {
+                            $sub->whereBetween('created_at', [$shift->check_in_at, $shift->check_out_at])
+                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
+                        });
+                    }
+                });
 
-                    $totalCount += $items->count();
-                    $cancelledCount += $items->where('status', 'cancelled')->count();
-                }
+                $items = $itemsQuery->get();
+                $totalCount = $items->count();
+                $cancelledCount = $items->where('status', 'cancelled')->count();
 
                 return $totalCount > 0 ? round(($cancelledCount / $totalCount) * 100, 2) : 0.0;
 
@@ -278,16 +284,20 @@ class KpiService
                     return 5.0;
                 }
 
-                $orderIds = collect();
-                foreach ($shifts as $shift) {
-                    $ids = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->pluck('order_id');
-                    $orderIds = $orderIds->merge($ids);
-                }
+                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->whereNotNull('prepared_at');
 
-                $orderIds = $orderIds->unique();
+                $itemsQuery->where(function ($q) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        $q->orWhere(function ($sub) use ($shift) {
+                            $sub->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
+                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
+                        });
+                    }
+                });
+
+                $orderIds = $itemsQuery->pluck('order_id')->unique();
+
                 if ($orderIds->isEmpty()) {
                     return 5.0;
                 }

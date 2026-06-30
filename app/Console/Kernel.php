@@ -23,6 +23,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('kitchen:alert-overdue-orders')->everyFiveMinutes();
         $schedule->command('trial:onboarding-emails')->dailyAt('09:00');
         $schedule->command('onboarding:sync')->everyThirtyMinutes();
+        $schedule->command('kpis:recalculate')->dailyAt('02:00');
     }
 
     protected function commands(): void
