@@ -153,8 +153,7 @@ class DashboardController extends Controller
             ]);
 
             // Compute health score dynamically
-            $healthScore = $this->calculateBranchHealthScore($rid, $branchId);
-            Cache::put("health_score:{$rid}{$cacheSuffix}", $healthScore, 60);
+            $healthScore = $this->getHealthScore($rid, $branchId);
 
             // ── Dự báo doanh thu ngày mai ────────────────────────────────────
             $forecastData = $hasAiForecasting ? $this->forecast->forecastTomorrow($rid, $branchId) : null;
@@ -468,7 +467,7 @@ class DashboardController extends Controller
                         $bMargin = round(($bGrossProfit / $bRevToday) * 100, 1);
                     }
 
-                    $bHealth = $this->calculateBranchHealthScore($rid, $b['id']);
+                    $bHealth = $this->getHealthScore($rid, $b['id']);
 
                     $bViolations = ViolationReport::where('restaurant_id', $rid)
                         ->whereHas('employee', function ($q) use ($b) {
@@ -577,7 +576,7 @@ class DashboardController extends Controller
                     $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
                 })
                 ->whereNotNull('check_in_at')
-                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.work_shift_id))'))
+                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'))
                 ->count()
             : null;
         $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
@@ -718,7 +717,7 @@ class DashboardController extends Controller
             ->where('status', 'completed')
             ->where('created_at', '>=', $thirtyDaysAgo)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->selectRaw("HOUR(created_at) as hour, COUNT(*) as count")
+            ->selectRaw(\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite' ? "CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count" : "HOUR(created_at) as hour, COUNT(*) as count")
             ->groupBy('hour')
             ->orderBy('hour')
             ->get()
