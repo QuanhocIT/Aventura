@@ -35,31 +35,46 @@ class QuotaService
         return $this->getLimit($restaurant, $resource) === null;
     }
 
+    public function getResourceUsage(Restaurant $restaurant, string $resource): float
+    {
+        return match ($resource) {
+            'branches'   => (float) $restaurant->branches()->count(),
+            'tables'     => (float) $restaurant->tables()->count(),
+            'employees'  => (float) $restaurant->employees()->where('status', 'active')->count(),
+            'areas'      => (float) $restaurant->areas()->count(),
+            'storage_mb' => (float) round(\App\Models\MediaAsset::where('restaurant_id', $restaurant->id)->sum('size_bytes') / (1024 * 1024), 2),
+            'dishes'     => (float) \App\Models\Product::where('restaurant_id', $restaurant->id)->count(),
+            default      => 0.0,
+        };
+    }
+
     public function getUsage(Restaurant $restaurant): array
     {
-        $storageBytes = \App\Models\MediaAsset::where('restaurant_id', $restaurant->id)->sum('size_bytes');
-        $storageMb = round($storageBytes / (1024 * 1024), 2);
-
         return [
-            'branches'  => $restaurant->branches()->count(),
-            'tables'    => $restaurant->tables()->count(),
-            'employees' => $restaurant->employees()->where('status', 'active')->count(),
-            'areas'     => $restaurant->areas()->count(),
-            'storage_mb' => $storageMb,
-            'dishes'    => \App\Models\Product::where('restaurant_id', $restaurant->id)->count(),
+            'branches'   => (int) $this->getResourceUsage($restaurant, 'branches'),
+            'tables'     => (int) $this->getResourceUsage($restaurant, 'tables'),
+            'employees'  => (int) $this->getResourceUsage($restaurant, 'employees'),
+            'areas'      => (int) $this->getResourceUsage($restaurant, 'areas'),
+            'storage_mb' => $this->getResourceUsage($restaurant, 'storage_mb'),
+            'dishes'     => (int) $this->getResourceUsage($restaurant, 'dishes'),
         ];
     }
 
-    public function canAdd(Restaurant $restaurant, string $resource): bool
+    public function canAdd(Restaurant $restaurant, string $resource, ?array $usage = null): bool
     {
         if ($this->isUnlimited($restaurant, $resource)) {
             return true;
         }
 
         $limit = $this->getLimit($restaurant, $resource);
-        $usage = $this->getUsage($restaurant);
+        
+        if ($usage !== null) {
+            $used = $usage[$resource] ?? 0;
+        } else {
+            $used = $this->getResourceUsage($restaurant, $resource);
+        }
 
-        return ($usage[$resource] ?? 0) < ($limit ?? 0);
+        return $used < ($limit ?? 0);
     }
 
     public function hasFeature(Restaurant $restaurant, string $feature): bool
@@ -98,7 +113,7 @@ class QuotaService
                 'limit'      => $limit,
                 'unlimited'  => $unlimited,
                 'percentage' => $unlimited ? 0 : $this->percentage($used, $limit ?? 0),
-                'can_add'    => $this->canAdd($restaurant, $res),
+                'can_add'    => $this->canAdd($restaurant, $res, $usage),
             ];
         };
 
