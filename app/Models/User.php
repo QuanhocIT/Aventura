@@ -168,5 +168,15 @@ class User extends Authenticatable implements MustVerifyEmail
 
         app(\App\Services\EmailVerificationService::class)->send($this);
     }
+
+    public function getBranchIdAttribute($value)
+    {
+        if (session()->has('active_branch_id')) {
+            if ($this->isSuperAdmin() || $this->hasAnyRole(['owner', 'manager'])) {
+                return (int) session('active_branch_id');
+            }
+        }
+        return $value ? (int) $value : null;
+    }
 }
 
