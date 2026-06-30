@@ -148,6 +148,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription'])->group(function (
     Route::patch('orders/{order}/override-split-penalty', [OrdersController::class, 'overrideSplitPenalty'])->name('orders.override-split-penalty');
     Route::patch('orders/{order}', [OrdersController::class, 'update'])->name('orders.update');
     Route::patch('orders/items/{item}/status', [OrdersController::class, 'updateItemStatus'])->name('orders.items.update-status');
+    Route::post('orders/{order}/confirm-qr', [OrdersController::class, 'confirmQrOrder'])->name('orders.confirm-qr');
+    Route::post('orders/{order}/cancel-spam', [OrdersController::class, 'cancelSpamQrOrder'])->name('orders.cancel-spam');
     Route::post('api/orders/third-party/simulate', [OrdersController::class, 'simulateThirdPartyOrder'])->name('orders.third-party.simulate');
 
     // Audit Logs (Owner & Manager — chỉ xem log của nhà hàng mình)

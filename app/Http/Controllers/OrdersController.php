@@ -355,61 +355,72 @@ class OrdersController extends Controller
             if ($newStatus === 'completed' && $oldStatus !== 'completed') {
                 $order->load(['items.product.recipes.ingredient.unit']);
 
-                foreach ($order->items as $item) {
-                    $product = $item->product;
-                    if ($product && $product->track_inventory) {
-                        foreach ($product->recipes as $recipe) {
-                            $recipeQuantity = (float) $recipe->quantity;
-                            $itemQuantity = (float) $item->quantity;
-                            $wasteRate = (float) $recipe->waste_rate;
+                $hasDeducted = InventoryTransaction::where('order_id', $order->id)
+                    ->where('type', 'usage')
+                    ->exists();
 
-                            // Lượng dùng = (định lượng * số lượng bán) * (1 + tỉ lệ hao hụt / 100)
-                            $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
+                if (! $hasDeducted) {
+                    foreach ($order->items as $item) {
+                        $product = $item->product;
+                        if ($product && $product->track_inventory) {
+                            foreach ($product->recipes as $recipe) {
+                                $recipeQuantity = (float) $recipe->quantity;
+                                $itemQuantity = (float) $item->quantity;
+                                $wasteRate = (float) $recipe->waste_rate;
 
-                            // Tìm hoặc tạo bản ghi kho cho chi nhánh và nguyên liệu
-                            $inventory = Inventory::firstOrCreate([
-                                'restaurant_id' => $order->restaurant_id,
-                                'branch_id' => $order->branch_id,
-                                'ingredient_id' => $recipe->ingredient_id,
-                            ], [
-                                'quantity_on_hand' => 0,
-                                'theoretical_quantity' => 0,
-                                'last_cost' => $recipe->ingredient->average_cost ?? 0,
-                            ]);
+                                // Lượng dùng = (định lượng * số lượng bán) * (1 + tỉ lệ hao hụt / 100)
+                                $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
 
-                            $oldQty = (float) $inventory->quantity_on_hand;
-                            $oldTheoretical = (float) $inventory->theoretical_quantity;
+                                // Tìm hoặc tạo bản ghi kho cho chi nhánh và nguyên liệu
+                                $inventory = Inventory::firstOrCreate([
+                                    'restaurant_id' => $order->restaurant_id,
+                                    'branch_id' => $order->branch_id,
+                                    'ingredient_id' => $recipe->ingredient_id,
+                                ], [
+                                    'quantity_on_hand' => 0,
+                                    'theoretical_quantity' => 0,
+                                    'last_cost' => $recipe->ingredient->average_cost ?? 0,
+                                ]);
 
-                            // Trừ kho vật lý và tồn lý thuyết (clamping max(0, ...))
-                            $inventory->update([
-                                'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
-                                'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
-                            ]);
+                                $oldQty = (float) $inventory->quantity_on_hand;
+                                $oldTheoretical = (float) $inventory->theoretical_quantity;
 
-                            // Tạo giao dịch nhập/xuất kho (loại usage, hướng out)
-                            InventoryTransaction::create([
-                                'restaurant_id' => $order->restaurant_id,
-                                'branch_id' => $order->branch_id,
-                                'ingredient_id' => $recipe->ingredient_id,
-                                'inventory_id' => $inventory->id,
-                                'order_id' => $order->id,
-                                'performed_by' => $user->id,
-                                'type' => 'usage',
-                                'direction' => 'out',
-                                'quantity' => $totalUsed,
-                                'unit_cost' => $recipe->ingredient->average_cost ?? 0,
-                                'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
-                                'notes' => "Khấu hao nguyên vật liệu cho đơn hàng {$order->order_number} (Món: {$product->name})",
-                                'occurred_at' => now(),
-                            ]);
+                                // Trừ kho vật lý và tồn lý thuyết (clamping max(0, ...))
+                                $inventory->update([
+                                    'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
+                                    'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
+                                ]);
 
-                            // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
-                            InventoryReservation::where('order_id', $order->id)
-                                ->where('ingredient_id', $recipe->ingredient_id)
-                                ->where('status', 'holding')
-                                ->update(['status' => 'committed']);
+                                // Tạo giao dịch nhập/xuất kho (loại usage, hướng out)
+                                InventoryTransaction::create([
+                                    'restaurant_id' => $order->restaurant_id,
+                                    'branch_id' => $order->branch_id,
+                                    'ingredient_id' => $recipe->ingredient_id,
+                                    'inventory_id' => $inventory->id,
+                                    'order_id' => $order->id,
+                                    'performed_by' => $user->id,
+                                    'type' => 'usage',
+                                    'direction' => 'out',
+                                    'quantity' => $totalUsed,
+                                    'unit_cost' => $recipe->ingredient->average_cost ?? 0,
+                                    'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
+                                    'notes' => "Khấu hao nguyên vật liệu cho đơn hàng {$order->order_number} (Món: {$product->name})",
+                                    'occurred_at' => now(),
+                                ]);
+
+                                // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
+                                InventoryReservation::where('order_id', $order->id)
+                                    ->where('ingredient_id', $recipe->ingredient_id)
+                                    ->where('status', 'holding')
+                                    ->update(['status' => 'committed']);
+                            }
                         }
                     }
+                } else {
+                    // Nếu đã trừ kho rồi, chỉ cần đánh dấu tất cả reservations liên quan thành committed
+                    InventoryReservation::where('order_id', $order->id)
+                        ->where('status', 'holding')
+                        ->update(['status' => 'committed']);
                 }
 
                 // Cập nhật payment_status thành paid khi hoàn thành đơn
@@ -818,6 +829,200 @@ class OrdersController extends Controller
                 'order_number' => $order->order_number,
                 'third_party_source' => $source,
             ],
+        ]);
+    }
+
+    /**
+     * Xác nhận đơn hàng từ QR (Verification & Conversion).
+     */
+    public function confirmQrOrder(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless(
+            $user->hasRole('cashier') || $user->hasRole('order_staff') || $user->hasRole('manager') || $user->hasRole('owner'),
+            403,
+            'Không có quyền xác nhận đơn hàng.'
+        );
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Đơn hàng này đã được xác nhận hoặc xử lý trước đó.'
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order, $user) {
+            // 1. Cập nhật trạng thái đơn thành 'confirmed'
+            $order->update([
+                'status' => 'confirmed',
+                'confirmed_at' => now(),
+            ]);
+
+            // 2. Trừ kho: Chuyển các reservations từ holding -> committed và trừ inventories
+            $order->load(['items.product.recipes.ingredient.unit']);
+
+            foreach ($order->items as $item) {
+                $product = $item->product;
+                if ($product && $product->track_inventory) {
+                    foreach ($product->recipes as $recipe) {
+                        $recipeQuantity = (float) $recipe->quantity;
+                        $itemQuantity = (float) $item->quantity;
+                        $wasteRate = (float) $recipe->waste_rate;
+
+                        // Lượng dùng = (định lượng * số lượng bán) * (1 + tỉ lệ hao hụt / 100)
+                        $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
+
+                        $inventory = Inventory::firstOrCreate([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                        ], [
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => $recipe->ingredient->average_cost ?? 0,
+                        ]);
+
+                        $oldQty = (float) $inventory->quantity_on_hand;
+                        $oldTheoretical = (float) $inventory->theoretical_quantity;
+
+                        $inventory->update([
+                            'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
+                            'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
+                        ]);
+
+                        // Tạo giao dịch nhập/xuất kho (loại usage, hướng out)
+                        InventoryTransaction::create([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                            'inventory_id' => $inventory->id,
+                            'order_id' => $order->id,
+                            'performed_by' => $user->id,
+                            'type' => 'usage',
+                            'direction' => 'out',
+                            'quantity' => $totalUsed,
+                            'unit_cost' => $recipe->ingredient->average_cost ?? 0,
+                            'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
+                            'notes' => "Khấu hao nguyên vật liệu khi xác nhận đơn hàng {$order->order_number} (Món: {$product->name})",
+                            'occurred_at' => now(),
+                        ]);
+
+                        // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
+                        InventoryReservation::where('order_id', $order->id)
+                            ->where('ingredient_id', $recipe->ingredient_id)
+                            ->where('status', 'holding')
+                            ->update(['status' => 'committed']);
+                    }
+                }
+            }
+
+            // 3. Đánh dấu bàn là occupied
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)
+                    ->update(['status' => 'occupied']);
+            }
+
+            // 4. Phát tín hiệu Real-time cho khách hàng và đầu bếp
+            event(new \App\Events\OrderStatusUpdated($order));
+
+            // 5. Ghi log kiểm toán
+            AuditLog::log('order_confirmed', 'updated', $order, ['status' => 'pending'], ['status' => 'confirmed']);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xác nhận đơn hàng thành công và chuyển thông tin xuống bếp!'
+        ]);
+    }
+
+    /**
+     * Hủy đơn hàng ảo / spam (Anti-Spam Rejection).
+     */
+    public function cancelSpamQrOrder(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless(
+            $user->hasRole('cashier') || $user->hasRole('order_staff') || $user->hasRole('manager') || $user->hasRole('owner'),
+            403,
+            'Không có quyền hủy đơn hàng này.'
+        );
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể hủy đơn hàng ảo khi ở trạng thái Chờ duyệt (pending).'
+            ], 422);
+        }
+
+        // Đóng gói thông tin đơn hàng để gửi báo cáo lên Quản lý
+        $order->load(['items.product', 'table.area']);
+        $itemsData = $order->items->map(fn ($item) => [
+            'product_name' => $item->product?->name ?? 'Món ăn',
+            'quantity' => (float) $item->quantity,
+            'price' => (float) ($item->unit_price ?? $item->product?->price ?? 0),
+        ])->toArray();
+
+        $reportData = [
+            'restaurant_id' => $order->restaurant_id,
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'table_id' => $order->table_id,
+            'table_name' => $order->table?->name ?? '—',
+            'area_name' => $order->table?->area?->name ?? '—',
+            'total_amount' => (float) $order->total_amount,
+            'items_count' => count($itemsData),
+            'items' => $itemsData,
+            'created_at' => $order->created_at->format('H:i:s d/m/Y'),
+        ];
+
+        DB::transaction(function () use ($order, $user, $reportData) {
+            // 1. Xóa sạch các reservations liên quan
+            InventoryReservation::where('order_id', $order->id)->delete();
+
+            // 2. Xóa sạch các items và bản thân đơn hàng trong database lõi (force delete)
+            $order->items()->delete();
+            $order->forceDelete();
+
+            // 3. Giải phóng bàn ăn nếu bàn trống
+            if (!empty($reportData['table_id'])) {
+                // Kiểm tra xem bàn còn đơn hàng active nào khác không
+                $activeOrdersCount = Order::where('table_id', $reportData['table_id'])
+                    ->whereIn('status', ['pending', 'confirmed', 'preparing'])
+                    ->count();
+                if ($activeOrdersCount === 0) {
+                    RestaurantTable::where('id', $reportData['table_id'])
+                        ->update(['status' => 'available']);
+                }
+            }
+
+            // 4. Xóa sạch key trong Redis
+            try {
+                \Illuminate\Support\Facades\Redis::del("restaurant:{$reportData['restaurant_id']}:pending_order:{$reportData['order_id']}");
+            } catch (\Exception $e) {
+                // Redis is optional in development/SQLite env
+            }
+
+            // 5. Phát tín hiệu báo cáo cho Quản lý
+            event(new \App\Events\SpamOrderCancelled(
+                $reportData,
+                $user->name ?? 'Nhân sự',
+                'Xác nhận đơn hàng ảo (Spam Rejection)'
+            ));
+
+            // 6. Ghi log kiểm toán
+            AuditLog::log('spam_order_cancelled', 'deleted', null, null, [
+                'order_number' => $reportData['order_number'],
+                'cancelled_by' => $user->name,
+                'total_amount' => $reportData['total_amount'],
+                'table_name' => $reportData['table_name'],
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã hủy đơn hàng ảo thành công và gửi báo cáo về tài khoản Quản lý!'
         ]);
     }
 }

@@ -357,9 +357,7 @@ const confirmQrOrder = async (order: Order) => {
     isFetchingAi.value = true;
 
     try {
-        await axios.patch(`/orders/${order.id}/status`, {
-            status: 'confirmed',
-        });
+        await axios.post(`/orders/${order.id}/confirm-qr`);
 
         const itemNames = order.items
             ? order.items.map((i) => i.product_name).filter(Boolean)
@@ -381,6 +379,30 @@ const confirmQrOrder = async (order: Order) => {
     } finally {
         isFetchingAi.value = false;
         router.reload({ only: ['orders', 'summary'] });
+    }
+};
+
+const isCancellingSpam = ref<number | null>(null);
+
+const handleCancelSpamOrder = async (order: Order) => {
+    if (!confirm('Bạn có chắc chắn muốn hủy và báo cáo đơn hàng ảo này không? Đơn này sẽ bị xóa khỏi hệ thống.')) {
+        return;
+    }
+
+    isCancellingSpam.value = order.id;
+    try {
+        const response = await axios.post(`/orders/${order.id}/cancel-spam`);
+        if (response.data.success) {
+            toast.warning('Đã hủy đơn hàng ảo và báo cáo lên Quản lý thành công.');
+            router.reload({ only: ['orders', 'summary'] });
+        } else {
+            toast.error(response.data.message || 'Không thể hủy đơn.');
+        }
+    } catch (e: any) {
+        console.error(e);
+        toast.error('Có lỗi xảy ra khi hủy đơn hàng ảo.');
+    } finally {
+        isCancellingSpam.value = null;
     }
 };
 
@@ -863,6 +885,14 @@ const nextStatus: Record<string, string | null> = {
                                     Tách đơn
                                 </button>
                                 <button
+                                    v-if="o.status === 'pending'"
+                                    @click="handleCancelSpamOrder(o)"
+                                    :disabled="isCancellingSpam === o.id || isFetchingAi"
+                                    class="mr-1.5 h-7 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-[10px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 dark:border-rose-950 dark:bg-rose-950/20 dark:text-rose-400"
+                                >
+                                    {{ isCancellingSpam === o.id ? 'Đang hủy...' : 'Hủy đơn ảo' }}
+                                </button>
+                                <button
                                     v-if="
                                         nextStatus[o.status] &&
                                         (nextStatus[o.status] !== 'completed' ||
@@ -874,7 +904,8 @@ const nextStatus: Record<string, string | null> = {
                                             nextStatus[o.status]!,
                                         )
                                     "
-                                    class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700"
+                                    :disabled="isFetchingAi || isCancellingSpam === o.id"
+                                    class="h-7 rounded-lg bg-violet-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
                                 >
                                     {{
                                         nextStatus[o.status] === 'confirmed'
