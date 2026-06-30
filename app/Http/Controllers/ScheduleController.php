@@ -115,12 +115,15 @@ class ScheduleController extends Controller
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
+            $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
+            $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
+
             $peakHours = \Illuminate\Support\Facades\DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays(30))
-                ->selectRaw('HOUR(completed_at) as hour, COUNT(*) as order_count, SUM(total_amount) as revenue')
-                ->groupBy(\Illuminate\Support\Facades\DB::raw('HOUR(completed_at)'))
+                ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
+                ->groupBy(\Illuminate\Support\Facades\DB::raw($hourExpr))
                 ->orderByDesc('revenue')
                 ->get();
 
@@ -564,6 +567,9 @@ class ScheduleController extends Controller
             'check_in_photo_path' => $photoPath,
         ]);
 
+        // Flush cached shift-access so middleware reflects the new status immediately
+        $employee->flushShiftAccessCache();
+
         return back()->with('success', 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!');
     }
 
@@ -589,6 +595,9 @@ class ScheduleController extends Controller
             'check_out_at' => now(),
             'status' => 'completed',
         ]);
+
+        // Flush cached shift-access so middleware reflects the checkout immediately
+        $employee->flushShiftAccessCache();
 
         return back()->with('success', 'Bạn đã CHECK-OUT thành công. Cảm ơn bạn vì sự đóng góp tuyệt vời ngày hôm nay!');
     }
@@ -616,6 +625,9 @@ class ScheduleController extends Controller
             'approved_by' => $request->user()->id,
             'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
         ]);
+
+        // Flush cached shift-access for the affected employee
+        $sa->employee?->flushShiftAccessCache();
 
         if ($request->boolean('apply_violation')) {
             $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca');
@@ -648,6 +660,9 @@ class ScheduleController extends Controller
             'notes' => $data['notes'] ?? 'Check-out hộ bởi Quản lý/Chủ nhà hàng',
         ]);
 
+        // Flush cached shift-access for the affected employee
+        $sa->employee?->flushShiftAccessCache();
+
         if ($request->boolean('apply_violation')) {
             $this->createAutoViolation($request, $sa, 'Về sớm / Vấn đề ra ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-out hộ kèm vi phạm ra ca');
         }
@@ -677,6 +692,9 @@ class ScheduleController extends Controller
             'approved_by' => $request->user()->id,
             'notes' => $data['notes'] ?? 'Vắng mặt không lý do',
         ]);
+
+        // Flush cached shift-access for the affected employee
+        $sa->employee?->flushShiftAccessCache();
 
         if ($request->boolean('apply_violation')) {
             $this->createAutoViolation($request, $sa, 'Vắng mặt', $data['violation_notes'] ?? $data['notes'] ?? 'Báo vắng trực không lý do');

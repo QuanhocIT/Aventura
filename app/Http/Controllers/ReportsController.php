@@ -161,12 +161,15 @@ class ReportsController extends Controller
         ];
 
         // ── Peak hours (aggregate từ orders trong kỳ) ─────────────────────────
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
+
         $peakRows = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
-            ->selectRaw('HOUR(completed_at) as hour, SUM(total_amount) as revenue, COUNT(*) as order_count')
-            ->groupBy(DB::raw('HOUR(completed_at)'))
+            ->selectRaw("{$hourExpr} as hour, SUM(total_amount) as revenue, COUNT(*) as order_count")
+            ->groupBy(DB::raw($hourExpr))
             ->orderBy('hour')
             ->get();
 
