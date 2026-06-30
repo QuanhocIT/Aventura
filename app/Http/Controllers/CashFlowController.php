@@ -160,15 +160,15 @@ class CashFlowController extends Controller
             'notes'           => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Check if there is already an open register for this branch and shift today
+        // Check if cashier already has an open register
         $closingDate = today();
         $exists = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->where('cashier_user_id', $user->id)
             ->where('status', 'open')
             ->exists();
 
         if ($exists) {
-            return back()->withErrors(['shift_id' => 'Hiện tại đã có két tiền mặt đang mở cho chi nhánh này. Vui lòng đóng két cũ trước.']);
+            return back()->withErrors(['shift_id' => 'Bạn đã có một két tiền mặt đang mở. Vui lòng đóng két cũ trước khi mở két mới.']);
         }
 
         CashRegister::create([
@@ -177,6 +177,7 @@ class CashFlowController extends Controller
             'shift_id'        => $data['shift_id'],
             'closing_date'    => $closingDate,
             'opened_by'       => $user->id,
+            'cashier_user_id' => $user->id,
             'opening_balance' => $data['opening_balance'],
             'expense_budget'  => $data['expense_budget'] ?? 0,
             'status'          => 'open',
