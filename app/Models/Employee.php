@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -86,17 +87,20 @@ class Employee extends Model
         return $this->hasMany(LeaveRequest::class);
     }
 
-    public function isWithinScheduledShift(): bool
+    public function getShiftAllowedUntil(): ?int
     {
-        $now = now();
-        $today = $now->toDateString();
+        $now      = now();
         $yesterday = $now->copy()->subDay()->toDateString();
-        $tomorrow = $now->copy()->addDay()->toDateString();
+        $tomorrow  = $now->copy()->addDay()->toDateString();
 
-        $assignments = $this->schedules()
+        $assignments = \App\Models\ScheduleAssignment::withoutGlobalScopes()
+            ->where('employee_id', $this->id)
             ->whereIn('status', ['scheduled', 'checked_in'])
-            ->with('shift')
+            ->whereBetween('scheduled_date', [$yesterday, $tomorrow])
+            ->with(['shift' => fn($q) => $q->withoutGlobalScopes()])
             ->get();
+
+        $maxAllowedEnd = null;
 
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
@@ -108,12 +112,8 @@ class Employee extends Model
                 ? $assignment->scheduled_date->toDateString()
                 : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
 
-            if (!in_array($dateStr, [$yesterday, $today, $tomorrow])) {
-                continue;
-            }
-
             $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
+
             if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
                 $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
             } else {
@@ -121,14 +121,43 @@ class Employee extends Model
             }
 
             $allowedStart = $start->copy()->subMinutes(30);
-            $allowedEnd = $end->copy()->addMinutes(30);
+            $allowedEnd   = $end->copy()->addMinutes(30);
 
             if ($now->between($allowedStart, $allowedEnd)) {
-                return true;
+                $ts = $allowedEnd->timestamp;
+                if (is_null($maxAllowedEnd) || $ts > $maxAllowedEnd) {
+                    $maxAllowedEnd = $ts;
+                }
             }
         }
 
-        return false;
+        return $maxAllowedEnd;
+    }
+
+    public function isWithinScheduledShift(): bool
+    {
+        $compute = fn() => !is_null($this->getShiftAllowedUntil());
+
+        // Skip caching in unit tests so a fresh in-memory DB is always queried directly.
+        if (app()->runningUnitTests()) {
+            return $compute();
+        }
+
+        return Cache::remember("employee_shift_access:{$this->id}", now()->addMinutes(5), $compute);
+    }
+
+    /**
+     * Flush the cached shift-access result for this employee.
+     * Call this whenever a schedule assignment is checked-in or checked-out.
+     */
+    public function flushShiftAccessCache(): void
+    {
+        Cache::forget("employee_shift_access:{$this->id}");
+
+        // Update current session if the current user is this employee
+        if (auth()->check() && auth()->id() === $this->user_id) {
+            session(['shift_allowed_until' => $this->getShiftAllowedUntil()]);
+        }
     }
 
     public function salaries(): HasMany
@@ -182,6 +211,11 @@ class Employee extends Model
     {
         return $this->morphOne(\App\Models\MediaAsset::class, 'attachable')
             ->where('collection', 'citizen_id_back');
+    }
+
+    public function overtimeRequests(): HasMany
+    {
+        return $this->hasMany(OvertimeRequest::class);
     }
 
     protected static function newFactory(): Factory

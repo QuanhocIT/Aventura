@@ -52,6 +52,10 @@ class SalaryService
                 ->whereNotNull('check_out_at')
                 ->get();
 
+
+
+
+
             $restaurant = \App\Models\Restaurant::find($employee->restaurant_id);
             $graceMinutes = $restaurant?->grace_period_minutes ?? 10;
             $otMultiplier = (float) ($restaurant?->ot_multiplier ?? 1.50);
@@ -128,8 +132,20 @@ class SalaryService
                     }
                 }
 
-                $regularHours = $regularDurationSeconds / 3600.0;
-                $otHours = $otDurationSeconds / 3600.0;
+                $otRequest = \App\Models\OvertimeRequest::withoutGlobalScopes()
+                    ->where('employee_id', $employee->id)
+                    ->whereDate('scheduled_date', $dateStr)
+                    ->where('status', 'approved')
+                    ->first();
+
+                $approvedOtHours = $otRequest ? (float) $otRequest->hours_approved : 0.0;
+                $approvedOtSeconds = $approvedOtHours * 3600.0;
+
+                $paidOtSeconds = min($otDurationSeconds, $approvedOtSeconds);
+                $unapprovedOtSeconds = max(0.0, $otDurationSeconds - $paidOtSeconds);
+
+                $regularHours = ($regularDurationSeconds + $unapprovedOtSeconds) / 3600.0;
+                $otHours = $paidOtSeconds / 3600.0;
 
                 $totalWages += ($regularHours * $payRate) + ($otHours * $payRate * $otMultiplier);
             }
@@ -331,12 +347,41 @@ class SalaryService
                 continue;
             }
 
-            $myAssignment = $activeAssignments->first(fn($a) => $a->employee_id === $employee->id);
+            $ingredient = \App\Models\Ingredient::withoutGlobalScopes()->find($transaction->ingredient_id);
+            if (!$ingredient) {
+                continue;
+            }
+
+            $cat = mb_strtolower($ingredient->category_name ?? '');
+            $isBeverage = false;
+            if (str_contains($cat, 'uống') || str_contains($cat, 'nước') || str_contains($cat, 'bar') || str_contains($cat, 'bia') || str_contains($cat, 'rượu') || str_contains($cat, 'drink') || str_contains($cat, 'beverage') || str_contains($cat, 'pha chế')) {
+                $isBeverage = true;
+            }
+
+            $filteredAssignments = $activeAssignments->filter(function ($a) use ($isBeverage) {
+                $emp = $a->employee;
+                if (!$emp) return false;
+
+                $jobTitle = mb_strtolower($emp->job_title ?? '');
+                $roleName = mb_strtolower($emp->role?->name ?? '');
+
+                if ($isBeverage) {
+                    return str_contains($jobTitle, 'bar') || str_contains($jobTitle, 'pha chế') || str_contains($jobTitle, 'bartender') || str_contains($roleName, 'bartender');
+                } else {
+                    return str_contains($jobTitle, 'bếp') || str_contains($jobTitle, 'chef') || str_contains($jobTitle, 'cook') || str_contains($jobTitle, 'kitchen') || str_contains($roleName, 'kitchen');
+                }
+            });
+
+            if ($filteredAssignments->isEmpty()) {
+                continue;
+            }
+
+            $myAssignment = $filteredAssignments->first(fn($a) => $a->employee_id === $employee->id);
             if (!$myAssignment) {
                 continue;
             }
 
-            $leaders = $activeAssignments->filter(fn($a) => $a->is_shift_leader);
+            $leaders = $filteredAssignments->filter(fn($a) => $a->is_shift_leader);
             $shareCount = 1;
             $isResponsible = false;
 
@@ -347,7 +392,7 @@ class SalaryService
                 }
             } else {
                 $isResponsible = true;
-                $shareCount = $activeAssignments->count();
+                $shareCount = $filteredAssignments->count();
             }
 
             if ($isResponsible) {
