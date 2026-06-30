@@ -403,9 +403,9 @@ class OrderService
     /**
      * Thanh toán đơn hàng.
      */
-    public function payOrder(Order $order, array $data, \App\Models\User $user): void
+    public function payOrder(Order $order, array $data, \App\Models\User $user, bool $queuePostPayment = false): void
     {
-        DB::transaction(function () use ($order, $data, $user) {
+        DB::transaction(function () use ($order, $data, $user, $queuePostPayment) {
             $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
 
             // Apply tier-based membership discount
@@ -466,9 +466,6 @@ class OrderService
                 'paid_at' => now(),
             ]);
 
-            // 2. Trừ kho nguyên liệu
-            $this->inventoryService->deductInventoryForOrder($order, $user);
-
             // 3. Cập nhật Order status thành completed & payment_status paid
             $order->update([
                 'status' => 'completed',
@@ -482,15 +479,23 @@ class OrderService
                 RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
             }
 
-            // 5. Tích điểm loyalty + cập nhật RFM
-            if ($customer) {
-                $customer->update(['last_order_at' => now()]);
+            if ($queuePostPayment) {
+                // Dispatch job for heavy post-payment logic (BOM inventory deduction, member points, CDP update)
+                \App\Jobs\ProcessPostPaymentActions::dispatch($order->id, $user->id);
+            } else {
+                // 2. Trừ kho nguyên liệu
+                $this->inventoryService->deductInventoryForOrder($order, $user);
 
-                $loyaltyService = app(\App\Services\LoyaltyService::class);
-                $loyaltyService->earnPoints($customer, $order, (float) $order->total_amount);
-                $loyaltyService->recalculateTier($customer);
+                // 5. Tích điểm loyalty + cập nhật RFM
+                if ($customer) {
+                    $customer->update(['last_order_at' => now()]);
 
-                \App\Services\CdpService::calculateRfmForCustomer($customer);
+                    $loyaltyService = app(\App\Services\LoyaltyService::class);
+                    $loyaltyService->earnPoints($customer, $order, (float) $order->total_amount);
+                    $loyaltyService->recalculateTier($customer);
+
+                    \App\Services\CdpService::calculateRfmForCustomer($customer);
+                }
             }
 
             AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);

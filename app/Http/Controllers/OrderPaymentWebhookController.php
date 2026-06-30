@@ -81,8 +81,8 @@ class OrderPaymentWebhookController extends Controller
                 'change_amount' => 0,
             ];
 
-            // Gọi OrderService::payOrder()
-            $this->orderService->payOrder($order, $paymentData, $user);
+            // Gọi OrderService::payOrder() với flag queuePostPayment = true
+            $this->orderService->payOrder($order, $paymentData, $user, true);
 
             // Phát sự kiện Realtime báo cho nhân viên và bàn ăn của khách
             if ($order->table_id) {
