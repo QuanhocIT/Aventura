@@ -34,6 +34,26 @@ class Inventory extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $inventory): void {
+            $recipes = \App\Models\ProductRecipe::where('ingredient_id', $inventory->ingredient_id)->get();
+
+            foreach ($recipes as $recipe) {
+                $product = $recipe->product;
+                if ($product) {
+                    $isAvailable = $product->checkStockAtBranch($inventory->branch_id);
+                    event(new \App\Events\ProductStockUpdated(
+                        $inventory->restaurant_id,
+                        $inventory->branch_id,
+                        $product->id,
+                        $isAvailable
+                    ));
+                }
+            }
+        });
+    }
+
     protected static function newFactory(): Factory
     {
         return InventoryFactory::new();

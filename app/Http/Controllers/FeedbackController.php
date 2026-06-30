@@ -30,7 +30,7 @@ class FeedbackController extends Controller
 
         // 1. Lấy danh sách phản hồi kèm bối cảnh truy vết ca trực & món lỗi
         $feedbackModels = CustomerFeedback::where('restaurant_id', $restaurantId)
-            ->with(['order.table', 'order.items.product'])
+            ->with(['order.table', 'order.items.product', 'employee.user'])
             ->latest()
             ->get();
 
@@ -98,6 +98,9 @@ class FeedbackController extends Controller
                 'responsible_staff' => $responsibleStaff,
                 'compensation_voucher' => $fb->compensation_voucher,
                 'resolution_notes' => $fb->resolution_notes,
+                'employee_name' => $fb->employee?->user?->name,
+                'employee_rating' => $fb->employee_rating,
+                'items_feedback' => $fb->items_feedback,
             ];
         });
 
@@ -194,6 +197,9 @@ class FeedbackController extends Controller
             'order_id' => ['nullable', 'exists:orders,id'],
             'table_id' => ['nullable', 'exists:restaurant_tables,id'],
             'restaurant_id' => ['nullable', 'integer'],
+            'employee_id' => ['nullable', 'exists:employees,id'],
+            'employee_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'items_feedback' => ['nullable', 'array'],
         ]);
 
         $restaurantId = null;
@@ -239,7 +245,13 @@ class FeedbackController extends Controller
             'content' => $data['content'] ?? null,
             'is_anonymous' => $data['is_anonymous'],
             'status' => 'new',
+            'employee_id' => $data['employee_id'] ?? null,
+            'employee_rating' => $data['employee_rating'] ?? null,
+            'items_feedback' => $data['items_feedback'] ?? null,
         ]);
+
+        // Phát tín hiệu Real-time cho máy POS/Tablet của nhân viên/Quản lý/Owner
+        event(new \App\Events\NewFeedbackReceived($feedback));
 
         return response()->json([
             'success' => true,

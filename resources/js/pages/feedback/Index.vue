@@ -53,6 +53,9 @@ interface Feedback {
     responsible_staff: string[];
     compensation_voucher: string | null;
     resolution_notes: string | null;
+    employee_name: string | null;
+    employee_rating: number | null;
+    items_feedback: { product_id: number; product_name: string; rating: number; comment: string }[] | null;
 }
 
 interface Voucher {
@@ -597,6 +600,53 @@ const ratingStarsConfig: Record<
                                     'Khách không để lại ý kiến đóng góp chi tiết.'
                                 }}"
                             </p>
+
+                            <!-- Attributed Employee Rating if any -->
+                            <div
+                                v-if="fb.employee_name"
+                                class="mt-2.5 flex items-center gap-2 rounded-xl bg-slate-50/50 p-2.5 text-xs dark:bg-slate-900/50"
+                            >
+                                <span class="font-bold text-slate-400">Nhân viên phục vụ:</span>
+                                <span class="font-semibold text-slate-700 dark:text-slate-300">{{ fb.employee_name }}</span>
+                                <div class="flex items-center gap-0.5 shrink-0 ml-1 select-none">
+                                    <Star
+                                        v-for="s in 5"
+                                        :key="s"
+                                        class="size-3"
+                                        :class="s <= (fb.employee_rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-slate-800'"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Attributed Dish-level Feedback if any -->
+                            <div
+                                v-if="fb.items_feedback && fb.items_feedback.length > 0"
+                                class="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 dark:border-slate-800"
+                            >
+                                <span class="text-[9px] font-bold text-slate-400 tracking-wider uppercase block">Đánh giá chi tiết món ăn</span>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div
+                                        v-for="item in fb.items_feedback"
+                                        :key="item.product_id"
+                                        class="border border-slate-100 p-2 rounded-xl bg-slate-50/30 dark:border-slate-800/80 dark:bg-slate-900/10"
+                                    >
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-xs font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{{ item.product_name }}</span>
+                                            <div class="flex items-center gap-0.5 shrink-0 select-none">
+                                                <Star
+                                                    v-for="s in 5"
+                                                    :key="s"
+                                                    class="size-2.5"
+                                                    :class="s <= item.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-slate-800'"
+                                                />
+                                            </div>
+                                        </div>
+                                        <p v-if="item.comment" class="text-[10px] text-slate-500 italic mt-0.5 leading-relaxed dark:text-slate-400">
+                                            "{{ item.comment }}"
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
 
                             <!-- Resolution Context if Resolved -->
                             <div

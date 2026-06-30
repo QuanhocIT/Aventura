@@ -42,6 +42,34 @@ class Product extends Model
             ->where('collection', 'product_image');
     }
 
+    public function checkStockAtBranch(int $branchId): bool
+    {
+        if (! $this->track_inventory) {
+            return true;
+        }
+
+        $recipes = $this->recipes()->get();
+        if ($recipes->isEmpty()) {
+            return true;
+        }
+
+        foreach ($recipes as $recipe) {
+            $required = (float) $recipe->quantity * (1 + (float) $recipe->waste_rate / 100);
+
+            $inventory = \App\Models\Inventory::where('branch_id', $branchId)
+                ->where('ingredient_id', $recipe->ingredient_id)
+                ->first();
+
+            $qtyOnHand = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+
+            if ($qtyOnHand < $required) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected static function newFactory(): Factory
     {
         return ProductFactory::new();

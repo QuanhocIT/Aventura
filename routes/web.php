@@ -203,6 +203,8 @@ Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.st
 // Trải nghiệm gọi món qua QR dành cho Khách hàng tại bàn
 Route::get('order/{restaurant}/{table_token}', [QrOrderController::class, 'showMenu'])->name('qr.order.show');
 Route::post('order/{restaurant}/{table_token}', [QrOrderController::class, 'submitOrder'])->name('qr.order.submit');
+Route::post('order/{restaurant}/{table_token}/call-staff', [QrOrderController::class, 'callStaff'])->name('qr.order.call-staff');
+Route::post('order/{restaurant}/{table_token}/request-payment', [QrOrderController::class, 'requestPayment'])->name('qr.order.request-payment');
 
 // Xác thực lời mời nhận việc của nhân viên mới
 Route::get('employees/verify/{user}', [SupportController::class, 'verifyEmployee'])

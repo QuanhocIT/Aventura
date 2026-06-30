@@ -19,6 +19,7 @@ class CustomerFeedback extends Model
     protected $casts = [
         'is_anonymous' => 'boolean',
         'rating' => 'integer',
+        'items_feedback' => 'array',
     ];
 
     public function order(): BelongsTo
@@ -34,5 +35,10 @@ class CustomerFeedback extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 }
