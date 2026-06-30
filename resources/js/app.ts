@@ -91,4 +91,32 @@ createInertiaApp({
 initializeTheme();
 initializeFlashToast();
 
+import axios from 'axios';
+
+axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 403 && error.response.data && error.response.data.error === 'SHIFT_EXPIRED') {
+            window.dispatchEvent(new CustomEvent('shift-expired', { detail: error.response.data }));
+        }
+        return Promise.reject(error);
+    }
+);
+
+router.on('invalid', (event: any) => {
+    const response = event.detail.response;
+    if (response && response.status === 403) {
+        let data = response.data;
+        if (typeof data === 'string') {
+            try {
+                data = JSON.parse(data);
+            } catch (e) {}
+        }
+        if (data && data.error === 'SHIFT_EXPIRED') {
+            event.preventDefault();
+            window.dispatchEvent(new CustomEvent('shift-expired', { detail: data }));
+        }
+    }
+});
+
 

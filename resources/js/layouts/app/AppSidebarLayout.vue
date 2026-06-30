@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, usePage, router } from '@inertiajs/vue3';
 import { AlertTriangle } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
@@ -60,6 +60,66 @@ return [];
 function openUpgradeModal() {
     window.dispatchEvent(new CustomEvent('open-upgrade-modal'));
 }
+
+const shiftAllowedUntil = computed(() => page.props.auth?.shift_allowed_until as number | null);
+const currentTimeSec = ref(Math.floor(Date.now() / 1000));
+const showShiftExpiredModal = ref(false);
+
+const shiftWarningMinutes = computed(() => {
+    if (!shiftAllowedUntil.value) return null;
+    const diff = shiftAllowedUntil.value - currentTimeSec.value;
+    if (diff > 0 && diff <= 600) { // 10 minutes or less
+        return Math.max(1, Math.ceil(diff / 60));
+    }
+    return null;
+});
+
+let checkShiftTimer: any = null;
+let autoLogoutTimer: any = null;
+
+const confirmLogout = () => {
+    router.flushAll();
+    router.post('/logout', {}, {
+        onSuccess: () => { window.location.href = '/login'; },
+        onError: () => { window.location.href = '/login'; }
+    });
+};
+
+const triggerShiftExpired = () => {
+    if (showShiftExpiredModal.value) return;
+    showShiftExpiredModal.value = true;
+    
+    // Dispatch save event to active pages (like cashier dashboard)
+    window.dispatchEvent(new CustomEvent('shift-expired-save'));
+    
+    // Auto logout after 8 seconds
+    autoLogoutTimer = setTimeout(() => {
+        confirmLogout();
+    }, 8000);
+};
+
+onMounted(() => {
+    window.addEventListener('shift-expired', triggerShiftExpired);
+    
+    checkShiftTimer = setInterval(() => {
+        currentTimeSec.value = Math.floor(Date.now() / 1000);
+        
+        if (shiftAllowedUntil.value && currentTimeSec.value > shiftAllowedUntil.value) {
+            triggerShiftExpired();
+        }
+    }, 10000); // Check every 10s
+    
+    // Initial check
+    if (shiftAllowedUntil.value && currentTimeSec.value > shiftAllowedUntil.value) {
+        triggerShiftExpired();
+    }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('shift-expired', triggerShiftExpired);
+    if (checkShiftTimer) clearInterval(checkShiftTimer);
+    if (autoLogoutTimer) clearTimeout(autoLogoutTimer);
+});
 </script>
 
 <template>
@@ -109,6 +169,16 @@ function openUpgradeModal() {
                     Nâng cấp gói ngay
                 </button>
             </div>
+
+            <!-- Shift Ending Warning Banner -->
+            <div v-if="shiftWarningMinutes !== null" class="bg-gradient-to-r from-amber-500 to-yellow-600 text-white px-4 py-2.5 flex items-center justify-between text-xs sm:text-sm font-medium border-b border-amber-600/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-bounce text-white" />
+                    <span>
+                        <strong>Ca làm việc sắp kết thúc:</strong> Ca làm việc của bạn sẽ kết thúc sau {{ shiftWarningMinutes }} phút. Vui lòng hoàn thành các hóa đơn dở dang.
+                    </span>
+                </div>
+            </div>
             
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
             <slot />
@@ -120,5 +190,29 @@ function openUpgradeModal() {
         <OnboardingTour />
         <ChatbotWidget v-if="showChatbot" source="support" />
         <CommandPalette v-if="isSuperAdmin" />
+
+        <!-- Shift Expired Modal Overlay -->
+        <div v-if="showShiftExpiredModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div class="flex items-center gap-3 text-red-600">
+                    <AlertTriangle class="size-6 shrink-0 animate-pulse" />
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Ca làm việc đã kết thúc</h3>
+                </div>
+                <p class="text-sm text-slate-600 dark:text-slate-400">
+                    Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ tự động đăng xuất để bảo mật thông tin.
+                </p>
+                <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-2.5 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                    <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu form đang thực hiện đã được tự động lưu tạm trên trình duyệt của bạn và sẽ khôi phục khi bạn vào ca trở lại.
+                </p>
+                <div class="flex justify-end pt-2">
+                    <button 
+                        @click="confirmLogout" 
+                        class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors cursor-pointer"
+                    >
+                        Đăng xuất ngay
+                    </button>
+                </div>
+            </div>
+        </div>
     </AppShell>
 </template>

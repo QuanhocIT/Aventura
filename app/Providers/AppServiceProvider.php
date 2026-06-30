@@ -8,6 +8,9 @@ use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -63,6 +66,20 @@ class AppServiceProvider extends ServiceProvider
         // listener này khi project không có EventServiceProvider riêng).
         Event::listen(Registered::class, SendEmailVerificationNotification::class);
 
+        // Lưu trữ ID nhân viên và thời gian kết thúc ca trực vào Session khi login thành công
+        Event::listen(\Illuminate\Auth\Events\Login::class, function (\Illuminate\Auth\Events\Login $event) {
+            $user = $event->user;
+            $employee = $user->employee;
+            if ($employee) {
+                session([
+                    'employee_id' => $employee->id,
+                    'shift_allowed_until' => $employee->getShiftAllowedUntil()
+                ]);
+            } else {
+                session()->forget(['employee_id', 'shift_allowed_until']);
+            }
+        });
+
         // Bảo mật trang Pulse: Chỉ cho phép Chủ nhà hàng (owner) hoặc Quản lý (manager) xem
         \Illuminate\Support\Facades\Gate::define('viewPulse', function ($user = null) {
             return optional($user)->hasAnyRole(['owner', 'manager']);
@@ -70,6 +87,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureDefaults();
         $this->loadDynamicSettings();
+        $this->configureRateLimiters();
     }
 
     /**
@@ -117,6 +135,23 @@ class AppServiceProvider extends ServiceProvider
         } catch (\Throwable $e) {
             // DB connection or table not ready during migrations/setup, ignore
         }
+    }
+
+    /**
+     * Register custom rate limiters for specific route groups.
+     */
+    protected function configureRateLimiters(): void
+    {
+        // Employee portal: 60 requests/minute keyed per user to isolate staff traffic
+        // from manager/owner tenant-wide limits.
+        RateLimiter::for('employee_portal', function (Request $request) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?? $request->ip())
+                ->response(fn() => response()->json([
+                    'message'     => 'Quá nhiều yêu cầu trong thời gian ngắn. Vui lòng chờ một lúc rồi thử lại.',
+                    'retry_after' => 60,
+                ], 429));
+        });
     }
 
     /**

@@ -433,7 +433,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     });
 
     // Employee Self-Service Portal
-    Route::prefix('employee-portal')->name('employee-portal.')->group(function () {
+    Route::prefix('employee-portal')
+        ->middleware(['throttle:employee_portal'])
+        ->name('employee-portal.')
+        ->group(function () {
         Route::get('/', [\App\Http\Controllers\EmployeePortalController::class, 'index'])->name('index');
         Route::get('/data', [\App\Http\Controllers\EmployeePortalController::class, 'getDashboardData'])->name('data');
         Route::get('/salaries', [\App\Http\Controllers\EmployeePortalController::class, 'getSalaries'])->name('salaries');
@@ -444,5 +447,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/swaps/{swap}/respond', [\App\Http\Controllers\EmployeePortalController::class, 'respondSwap'])->name('swaps.respond');
         Route::post('/notifications/read-all', [\App\Http\Controllers\EmployeePortalController::class, 'readAllNotifications'])->name('notifications.read-all');
     });
+
+    // Chi nhánh làm việc
+    Route::post('branch/switch', [\App\Http\Controllers\BranchSwitchController::class, 'switchBranch'])->name('branch.switch');
 });
 

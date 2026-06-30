@@ -68,6 +68,10 @@ class HandleInertiaRequests extends Middleware
                         120, // 2 phút
                         fn () => app(\App\Services\QuotaService::class)->getSummary($restaurant)
                     ),
+                    'branches'             => $user->hasAnyRole(['owner', 'manager']) 
+                        ? $restaurant->branches()->select('id', 'name')->get()->toArray()
+                        : [],
+                    'active_branch_id'     => $user->branch_id,
                 ];
             }
         }
@@ -104,6 +108,7 @@ class HandleInertiaRequests extends Middleware
                     ),
                     'roles' => $roles->toArray(),
                 ]) : null,
+                'shift_allowed_until' => session('shift_allowed_until'),
             ],
             'roles'           => $roles,
             'tenant'          => $tenant,
