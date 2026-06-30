@@ -193,6 +193,10 @@ class ShiftClosingController extends Controller
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->where('shift_id', $shift->id)
             ->where('status', 'open')
+            ->where(function ($q) use ($request) {
+                $q->where('cashier_user_id', $request->user()->id)
+                  ->orWhere('opened_by', $request->user()->id);
+            })
             ->first();
 
         $openingBalance = 0.0;
@@ -472,12 +476,15 @@ class ShiftClosingController extends Controller
             ->sum('total_amount');
 
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
-        $expectedCash = max(0.0, $expectedCash - $splitPenaltyTotal);
 
         $register = \App\Models\CashRegister::where('restaurant_id', $restaurantId)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->where('shift_id', $shiftId)
             ->where('status', 'open')
+            ->where(function ($q) {
+                $q->where('cashier_user_id', auth()->id())
+                  ->orWhere('opened_by', auth()->id());
+            })
             ->first();
 
         $openingBalance = 0.0;
