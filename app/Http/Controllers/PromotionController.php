@@ -416,7 +416,9 @@ class PromotionController extends Controller
 
             if ($response->successful()) {
                 $result = $response->json();
-                $result['source'] = 'Python Service (FastAPI + Pandas)';
+                if (empty($result['source'])) {
+                    $result['source'] = 'Python Service (FastAPI + Scikit-learn)';
+                }
 
                 return response()->json($result);
             }

@@ -451,4 +451,29 @@ class PromotionAndComboTest extends TestCase
         $this->assertEquals('Nước Cốt Sấu Hạt Chia', $data['recommended_item']);
         $this->assertStringContainsString('Lẩu gà Hỏa Đứng', $data['suggestion']);
     }
+
+    public function test_upsell_suggestion_returns_specific_lau_recommendation(): void
+    {
+        Http::fake([
+            'http://localhost:8003/api/analytics/upsell-suggestion' => Http::response([
+                'suggestion' => 'AI đề xuất: Khách gọi Lẩu, mời dùng thêm Coca-Cola hoặc Mì thả lẩu để nhận chiết khấu 10%',
+                'recommended_item' => 'Coca-Cola hoặc Mì thả lẩu',
+                'confidence' => 0.95,
+                'lift' => 3.0,
+                'source' => 'FastAPI + Scikit-learn (DecisionTreeClassifier)'
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($this->cashier)
+            ->postJson('/api/promotions/upsell-suggestion', [
+                'items' => ['Lẩu hải sản'],
+            ])
+            ->assertStatus(200);
+
+        $data = $response->json();
+        $this->assertEquals('FastAPI + Scikit-learn (DecisionTreeClassifier)', $data['source']);
+        $this->assertEquals('Coca-Cola hoặc Mì thả lẩu', $data['recommended_item']);
+        $this->assertStringContainsString('Khách gọi Lẩu', $data['suggestion']);
+        $this->assertStringContainsString('nhận chiết khấu 10%', $data['suggestion']);
+    }
 }
