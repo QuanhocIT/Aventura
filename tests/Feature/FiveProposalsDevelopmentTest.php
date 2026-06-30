@@ -198,6 +198,17 @@ class FiveProposalsDevelopmentTest extends TestCase
         // Case B: check-out late by 1 hour (overtime) -> paid 4 hours regular + 1 hour OT at 2.0x = 6 hours total (300,000 VND)
         Salary::truncate();
         ScheduleAssignment::truncate();
+        \App\Models\OvertimeRequest::truncate();
+
+        \App\Models\OvertimeRequest::create([
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id' => $employee->id,
+            'scheduled_date' => '2026-05-10',
+            'hours_requested' => 1.0,
+            'hours_approved' => 1.0,
+            'status' => 'approved',
+            'approved_by' => $this->owner->id,
+        ]);
 
         ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
