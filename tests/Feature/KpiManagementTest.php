@@ -309,6 +309,124 @@ class KpiManagementTest extends TestCase
     }
 
     /**
+     * Test Chef/Kitchen KPI calculation.
+     */
+    public function test_kpi_calculation_for_chef()
+    {
+        $period = now()->format('Y-m');
+
+        // Create shift
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Chieu Bep',
+            'code' => 'CA-CHIEU-BEP',
+            'start_time' => '13:00:00',
+            'end_time' => '17:00:00',
+            'status' => 'active',
+        ]);
+
+        $dateStr = now()->toDateString();
+
+        // Chef shift assignment completed
+        ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->chefEmployee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $dateStr,
+            'check_in_at' => $dateStr . ' 13:00:00',
+            'check_out_at' => $dateStr . ' 17:00:00',
+            'status' => 'completed',
+        ]);
+
+        // Create an order
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-CHEF-1',
+            'status' => 'completed',
+            'total_amount' => 300000,
+        ]);
+
+        $product = \App\Models\Product::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Steak',
+            'code' => 'STEAK',
+            'price' => 150000,
+            'slug' => 'steak',
+        ]);
+
+        // Order item prepared within shift: sent at 13:10, prepared at 13:20 (prep_time = 10 minutes, target is 15)
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'sent_to_kitchen_at' => $dateStr . ' 13:10:00',
+            'prepared_at' => $dateStr . ' 13:20:00',
+            'created_at' => $dateStr . ' 13:10:00',
+            'status' => 'served',
+        ]);
+
+        // Order item cancelled within shift (for rejection rate check)
+        $order2 = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-CHEF-2',
+            'status' => 'completed',
+            'total_amount' => 150000,
+        ]);
+
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order2->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'created_at' => $dateStr . ' 14:00:00',
+            'status' => 'cancelled',
+        ]);
+
+        // Rating feedback for order
+        CustomerFeedback::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_id' => $order->id,
+            'rating' => 5.0,
+        ]);
+
+        // Trigger calculation
+        $response = $this->actingAs($this->owner)->post(route('kpis.recalculate'), [
+            'period' => $period,
+        ]);
+
+        $response->assertRedirect();
+
+        $kpi = EmployeeKpi::where('employee_id', $this->chefEmployee->id)
+            ->where('period', $period)
+            ->first();
+
+        $this->assertNotNull($kpi);
+
+        $prepTimeMetric = $kpi->metrics()->where('metric_code', 'chef_prep_time')->first();
+        $this->assertNotNull($prepTimeMetric);
+        $this->assertEquals(10.0, (float)$prepTimeMetric->actual_value); // 10 minutes
+        $this->assertTrue((bool)$prepTimeMetric->is_achieved); // Target 15 achieved (10 <= 15)
+
+        $rejectionMetric = $kpi->metrics()->where('metric_code', 'chef_rejection_rate')->first();
+        $this->assertNotNull($rejectionMetric);
+        // Total items in shifts = 2 (Steak prepared + Steak cancelled)
+        // Rejection rate = 1/2 * 100 = 50%
+        $this->assertEquals(50.0, (float)$rejectionMetric->actual_value);
+        $this->assertFalse((bool)$rejectionMetric->is_achieved); // Target 2% not achieved (50 > 2)
+
+        $foodRatingMetric = $kpi->metrics()->where('metric_code', 'chef_food_rating')->first();
+        $this->assertNotNull($foodRatingMetric);
+        $this->assertEquals(5.0, (float)$foodRatingMetric->actual_value);
+        $this->assertTrue((bool)$foodRatingMetric->is_achieved); // Target 4.5 achieved
+    }
+
+    /**
      * Test KPI finalization and sync integration into draft salaries.
      */
     public function test_kpi_finalization_integrates_with_salary()

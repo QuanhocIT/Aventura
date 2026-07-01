@@ -440,44 +440,68 @@ class DashboardController extends Controller
 
             // ── Multi-branch Consolidated comparison ──────────────────────────
             if (!$branchId && count($branches) > 1 && $hasAdvancedAnalytics) {
-                foreach ($branches as $b) {
-                    $bRevToday = (float) Order::where('restaurant_id', $rid)
-                        ->where('branch_id', $b['id'])
-                        ->where('status', 'completed')
-                        ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
-                        ->sum('total_amount');
+                $branchIds = array_column($branches, 'id');
 
-                    $bTodaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
-                        ->where('branch_id', $b['id'])
-                        ->where('summary_date', today())
-                        ->first();
+                // 1. Pre-query completed revenue for all branches today
+                $revenuesByBranch = Order::where('restaurant_id', $rid)
+                    ->whereIn('branch_id', $branchIds)
+                    ->where('status', 'completed')
+                    ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
+                    ->groupBy('branch_id')
+                    ->selectRaw('branch_id, SUM(total_amount) as total_revenue')
+                    ->pluck('total_revenue', 'branch_id');
+
+                // 2. Pre-query revenue summary for all branches today
+                $summariesByBranch = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                    ->whereIn('branch_id', $branchIds)
+                    ->where('summary_date', today())
+                    ->where('summary_type', 'daily')
+                    ->get()
+                    ->keyBy('branch_id');
+
+                // 3. Pre-query COGS for branches that might not have a summary today
+                $cogsByBranch = \App\Models\OrderItem::whereHas('order', function ($q) use ($rid, $branchIds) {
+                        $q->where('restaurant_id', $rid)
+                            ->whereIn('branch_id', $branchIds)
+                            ->where('status', 'completed')
+                            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
+                    })
+                    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    ->join('products', 'order_items.product_id', '=', 'products.id')
+                    ->groupBy('orders.branch_id')
+                    ->selectRaw('orders.branch_id, SUM(order_items.quantity * products.cost_price) as total_cogs')
+                    ->pluck('total_cogs', 'branch_id');
+
+                // 4. Pre-query Violations for all branches over the last 30 days
+                $violationsByBranch = ViolationReport::where('violation_reports.restaurant_id', $rid)
+                    ->whereHas('employee', function ($q) use ($branchIds) {
+                        $q->whereIn('branch_id', $branchIds);
+                    })
+                    ->where('violation_reports.occurred_at', '>=', now()->subDays(30))
+                    ->join('employees', 'violation_reports.employee_id', '=', 'employees.id')
+                    ->groupBy('employees.branch_id')
+                    ->selectRaw('employees.branch_id, COUNT(*) as count')
+                    ->pluck('count', 'branch_id');
+
+                foreach ($branches as $b) {
+                    $bId = $b['id'];
+                    $bRevToday = (float) ($revenuesByBranch[$bId] ?? 0.0);
+                    $bTodaySummary = $summariesByBranch->get($bId);
 
                     $bGrossProfit = $bTodaySummary ? (float) $bTodaySummary->gross_profit : 0.0;
                     $bMargin = $bRevToday > 0 ? round(($bGrossProfit / $bRevToday) * 100, 1) : 0.0;
 
                     if (!$bTodaySummary && $bRevToday > 0) {
-                        $totalCogs = (float) \App\Models\OrderItem::whereHas('order', function ($q) use ($b) {
-                            $q->where('branch_id', $b['id'])
-                                ->where('status', 'completed')
-                                ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
-                        })->join('products', 'order_items.product_id', '=', 'products.id')
-                        ->sum(\Illuminate\Support\Facades\DB::raw('order_items.quantity * products.cost_price'));
-
+                        $totalCogs = (float) ($cogsByBranch[$bId] ?? 0.0);
                         $bGrossProfit = $bRevToday - $totalCogs;
                         $bMargin = round(($bGrossProfit / $bRevToday) * 100, 1);
                     }
 
-                    $bHealth = $this->getHealthScore($rid, $b['id']);
-
-                    $bViolations = ViolationReport::where('restaurant_id', $rid)
-                        ->whereHas('employee', function ($q) use ($b) {
-                            $q->where('branch_id', $b['id']);
-                        })
-                        ->where('occurred_at', '>=', now()->subDays(30))
-                        ->count();
+                    $bHealth = $this->getHealthScore($rid, $bId);
+                    $bViolations = (int) ($violationsByBranch[$bId] ?? 0);
 
                     $branchComparisons[] = [
-                        'id'               => $b['id'],
+                        'id'               => $bId,
                         'name'             => $b['name'],
                         'revenue'          => $bRevToday,
                         'profit_margin'    => $bMargin,
@@ -749,7 +773,7 @@ class DashboardController extends Controller
         }
 
         $score = $this->calculateBranchHealthScore($rid, $branchId);
-        Cache::put("health_score:{$rid}" . ($branchId ? ":{$branchId}" : ""), $score, 60);
+        Cache::put("health_score:{$rid}" . ($branchId ? ":{$branchId}" : ""), $score, 300);
 
         return $score;
     }

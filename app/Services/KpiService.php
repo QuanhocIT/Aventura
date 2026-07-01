@@ -219,25 +219,37 @@ class KpiService
                     return $target;
                 }
 
-                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
+
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return $target;
+                }
+
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
                     ->where('status', '!=', 'cancelled')
                     ->whereNotNull('sent_to_kitchen_at')
-                    ->whereNotNull('prepared_at');
+                    ->whereNotNull('prepared_at')
+                    ->whereBetween('prepared_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
 
-                $itemsQuery->where(function ($q) use ($shifts) {
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
                     foreach ($shifts as $shift) {
-                        $q->orWhere(function ($sub) use ($shift) {
-                            $sub->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
-                        });
+                        if ($item->prepared_at >= $shift->check_in_at && 
+                            $item->prepared_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
                     }
+                    return false;
                 });
 
-                $items = $itemsQuery->get();
                 $totalMinutes = 0;
-                $count = $items->count();
+                $count = $filteredItems->count();
 
-                foreach ($items as $item) {
+                foreach ($filteredItems as $item) {
                     $totalMinutes += abs(Carbon::parse($item->prepared_at)->diffInMinutes(Carbon::parse($item->sent_to_kitchen_at)));
                 }
 
@@ -255,20 +267,32 @@ class KpiService
                     return 0.0;
                 }
 
-                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id);
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
 
-                $itemsQuery->where(function ($q) use ($shifts) {
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return 0.0;
+                }
+
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->whereBetween('created_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
+
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
                     foreach ($shifts as $shift) {
-                        $q->orWhere(function ($sub) use ($shift) {
-                            $sub->whereBetween('created_at', [$shift->check_in_at, $shift->check_out_at])
-                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
-                        });
+                        if ($item->created_at >= $shift->check_in_at && 
+                            $item->created_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
                     }
+                    return false;
                 });
 
-                $items = $itemsQuery->get();
-                $totalCount = $items->count();
-                $cancelledCount = $items->where('status', 'cancelled')->count();
+                $totalCount = $filteredItems->count();
+                $cancelledCount = $filteredItems->where('status', 'cancelled')->count();
 
                 return $totalCount > 0 ? round(($cancelledCount / $totalCount) * 100, 2) : 0.0;
 
@@ -284,19 +308,32 @@ class KpiService
                     return 5.0;
                 }
 
-                $itemsQuery = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                    ->whereNotNull('prepared_at');
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
 
-                $itemsQuery->where(function ($q) use ($shifts) {
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return 5.0;
+                }
+
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->whereNotNull('prepared_at')
+                    ->whereBetween('prepared_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
+
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
                     foreach ($shifts as $shift) {
-                        $q->orWhere(function ($sub) use ($shift) {
-                            $sub->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                                ->whereHas('order', fn($orderQuery) => $orderQuery->where('branch_id', $shift->branch_id));
-                        });
+                        if ($item->prepared_at >= $shift->check_in_at && 
+                            $item->prepared_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
                     }
+                    return false;
                 });
 
-                $orderIds = $itemsQuery->pluck('order_id')->unique();
+                $orderIds = $filteredItems->pluck('order_id')->unique();
 
                 if ($orderIds->isEmpty()) {
                     return 5.0;

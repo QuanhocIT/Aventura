@@ -37,26 +37,64 @@ class SalaryService
     /**
      * Tính toán lương gốc động dựa trên hình thức trả lương (compensation_type).
      */
-    public function calculateDynamicBaseSalary(Employee $employee, string $start, string $end): float
+    /**
+     * Tính toán lương gốc động dựa trên hình thức trả lương (compensation_type).
+     */
+    public function calculateDynamicBaseSalary(Employee $employee, string $start, string $end, ?array $context = null): float
     {
         $compType = $employee->compensation_type ?? 'fixed';
         $payRate = (float) ($employee->pay_rate ?? 0);
 
         if ($compType === 'hourly') {
             // Lấy toàn bộ các ca chấm công completed của nhân viên trong chu kỳ
-            $assignments = \App\Models\ScheduleAssignment::withoutGlobalScopes()
-                ->where('employee_id', $employee->id)
-                ->whereBetween('scheduled_date', [$start, $end])
-                ->where('status', 'completed')
-                ->whereNotNull('check_in_at')
-                ->whereNotNull('check_out_at')
-                ->get();
+            if (isset($context['assignments'])) {
+                $assignments = $context['assignments']
+                    ->where('employee_id', $employee->id)
+                    ->where('status', 'completed')
+                    ->filter(function ($a) use ($start, $end) {
+                        $dateStr = $a->scheduled_date instanceof Carbon 
+                            ? $a->scheduled_date->toDateString() 
+                            : Carbon::parse($a->scheduled_date)->toDateString();
+                        return $dateStr >= $start && $dateStr <= $end && $a->check_in_at && $a->check_out_at;
+                    });
+            } else {
+                $assignments = \App\Models\ScheduleAssignment::withoutGlobalScopes()
+                    ->where('employee_id', $employee->id)
+                    ->whereBetween('scheduled_date', [$start, $end])
+                    ->where('status', 'completed')
+                    ->whereNotNull('check_in_at')
+                    ->whereNotNull('check_out_at')
+                    ->with('shift') // Eager load shift to prevent N+1 query inside loop
+                    ->get();
+            }
 
+            // Pre-fetch all approved overtime requests for this employee in the period to avoid N+1 queries
+            if (isset($context['ot_requests'])) {
+                $otRequests = $context['ot_requests']
+                    ->where('employee_id', $employee->id)
+                    ->filter(function ($r) use ($start, $end) {
+                        $dateStr = $r->scheduled_date instanceof Carbon 
+                            ? $r->scheduled_date->toDateString() 
+                            : Carbon::parse($r->scheduled_date)->toDateString();
+                        return $dateStr >= $start && $dateStr <= $end && $r->status === 'approved';
+                    })
+                    ->keyBy(function ($req) {
+                        return $req->scheduled_date instanceof Carbon 
+                            ? $req->scheduled_date->toDateString() 
+                            : Carbon::parse($req->scheduled_date)->toDateString();
+                    });
+            } else {
+                $otRequests = \App\Models\OvertimeRequest::withoutGlobalScopes()
+                    ->where('employee_id', $employee->id)
+                    ->whereBetween('scheduled_date', [$start, $end])
+                    ->where('status', 'approved')
+                    ->get()
+                    ->keyBy(function ($req) {
+                        return \Carbon\Carbon::parse($req->scheduled_date)->toDateString();
+                    });
+            }
 
-
-
-
-            $restaurant = \App\Models\Restaurant::find($employee->restaurant_id);
+            $restaurant = $context['restaurant'] ?? \App\Models\Restaurant::find($employee->restaurant_id);
             $graceMinutes = $restaurant?->grace_period_minutes ?? 10;
             $otMultiplier = (float) ($restaurant?->ot_multiplier ?? 1.50);
 
@@ -132,11 +170,7 @@ class SalaryService
                     }
                 }
 
-                $otRequest = \App\Models\OvertimeRequest::withoutGlobalScopes()
-                    ->where('employee_id', $employee->id)
-                    ->whereDate('scheduled_date', $dateStr)
-                    ->where('status', 'approved')
-                    ->first();
+                $otRequest = $otRequests->get($dateStr);
 
                 $approvedOtHours = $otRequest ? (float) $otRequest->hours_approved : 0.0;
                 $approvedOtSeconds = $approvedOtHours * 3600.0;
@@ -155,11 +189,24 @@ class SalaryService
 
         if ($compType === 'shift') {
             // Tính số ca làm hoàn thành trong chu kỳ
-            $completedShiftsCount = \App\Models\ScheduleAssignment::withoutGlobalScopes()
-                ->where('employee_id', $employee->id)
-                ->whereBetween('scheduled_date', [$start, $end])
-                ->where('status', 'completed')
-                ->count();
+            if (isset($context['assignments'])) {
+                $completedShiftsCount = $context['assignments']
+                    ->where('employee_id', $employee->id)
+                    ->where('status', 'completed')
+                    ->filter(function ($a) use ($start, $end) {
+                        $dateStr = $a->scheduled_date instanceof Carbon 
+                            ? $a->scheduled_date->toDateString() 
+                            : Carbon::parse($a->scheduled_date)->toDateString();
+                        return $dateStr >= $start && $dateStr <= $end;
+                    })
+                    ->count();
+            } else {
+                $completedShiftsCount = \App\Models\ScheduleAssignment::withoutGlobalScopes()
+                    ->where('employee_id', $employee->id)
+                    ->whereBetween('scheduled_date', [$start, $end])
+                    ->where('status', 'completed')
+                    ->count();
+            }
 
             return (float) ($completedShiftsCount * $payRate);
         }
@@ -171,7 +218,7 @@ class SalaryService
     /**
      * Tính tiền lương tích lũy từ đầu tháng đến ngày hiện tại (hoặc ngày chỉ định).
      */
-    public function calculateEarnedWagesForMonth(Employee $employee, string $date): float
+    public function calculateEarnedWagesForMonth(Employee $employee, string $date, ?array $context = null): float
     {
         $carbonDate = Carbon::parse($date);
         $start = $carbonDate->copy()->startOfMonth()->toDateString();
@@ -184,7 +231,7 @@ class SalaryService
             $baseSalary = (float) ($employee->base_salary ?? 0);
             return round(($baseSalary / $daysInMonth) * $elapsedDays, 2);
         } else {
-            return $this->calculateDynamicBaseSalary($employee, $start, $end);
+            return $this->calculateDynamicBaseSalary($employee, $start, $end, $context);
         }
     }
 
@@ -244,11 +291,88 @@ class SalaryService
             ->where('status', 'active')
             ->get();
 
+        $employeeIds = $employees->pluck('id')->toArray();
+        $userIds = $employees->pluck('user_id')->filter()->toArray();
+
+        // Build Bulk Context
+        $context = [];
+
+        // 1. Restaurant
+        $context['restaurant'] = \App\Models\Restaurant::find($restaurantId);
+
+        // 2. Ingredients
+        $context['ingredients'] = \App\Models\Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->get()
+            ->keyBy('id');
+
+        // 3. Assignments (eager load employee and shift)
+        $context['assignments'] = \App\Models\ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$periodStart, $periodEnd])
+            ->with(['employee', 'shift'])
+            ->get();
+
+        // 4. All assignments for the month (used for shift matching)
+        $context['all_assignments'] = $context['assignments'];
+
+        // 5. Overtime requests
+        $context['ot_requests'] = \App\Models\OvertimeRequest::withoutGlobalScopes()
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('scheduled_date', [$periodStart, $periodEnd])
+            ->where('status', 'approved')
+            ->get();
+
+        // 6. Shift shortages
+        $context['shortages'] = empty($userIds) ? collect() : \App\Models\ShiftClosing::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('cashier_user_id', $userIds)
+            ->whereBetween('closing_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->where('cash_difference', '<', 0)
+            ->get();
+
+        // 7. Waste transactions
+        $context['waste_transactions'] = \App\Models\InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('type', 'waste')
+            ->whereBetween('occurred_at', [$periodStart->toDateTimeString(), $periodEnd->endOfMonth()->toDateTimeString()])
+            ->where('total_cost', '>', 0)
+            ->get();
+
+        // 8. Violations
+        $context['violations'] = \App\Models\ViolationReport::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('occurred_at', [$periodStart->toDateTimeString(), $periodEnd->endOfMonth()->toDateTimeString()])
+            ->where('penalty_amount', '>', 0)
+            ->where('status', '!=', 'dismissed')
+            ->get();
+
+        // 9. KPIs
+        $context['kpis'] = \App\Models\EmployeeKpi::withoutGlobalScopes()
+            ->whereIn('employee_id', $employeeIds)
+            ->where('period', $periodStart->format('Y-m'))
+            ->where('status', 'finalized')
+            ->get();
+
+        // 10. Existing adjustments grouped by a composite key
+        $adjustments = \App\Models\SalaryAdjustment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('employee_id', $employeeIds)
+            ->get();
+
+        $adjustmentsMap = [];
+        foreach ($adjustments as $adj) {
+            $key = $adj->reference_type . '_' . $adj->reference_id . '_' . $adj->employee_id;
+            $adjustmentsMap[$key][] = $adj;
+        }
+        $context['adjustments_map'] = $adjustmentsMap;
+
         $created = 0;
         $skipped = 0;
 
         foreach ($employees as $employee) {
-            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString());
+            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString(), $context);
 
             $salary = Salary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
@@ -259,7 +383,7 @@ class SalaryService
 
             if ($salary) {
                 $salary->update(['base_salary' => $baseSalary]);
-                $this->sweepAdjustments($salary, $employee);
+                $this->sweepAdjustments($salary, $employee, $context);
                 $skipped++;
                 continue;
             }
@@ -276,7 +400,7 @@ class SalaryService
                 'status'           => 'draft',
             ]);
 
-            $this->sweepAdjustments($salary, $employee);
+            $this->sweepAdjustments($salary, $employee, $context);
             $created++;
         }
 
@@ -286,7 +410,7 @@ class SalaryService
     /**
      * Tự động quét và cấn trừ các khoản phạt (Hụt két, Hao hụt kho, Vi phạm kỷ luật).
      */
-    public function sweepAdjustments(Salary $salary, Employee $employee): void
+    public function sweepAdjustments(Salary $salary, Employee $employee, ?array $context = null): void
     {
         $restaurantId = $salary->restaurant_id;
         $start = $salary->pay_period_start->toDateString();
@@ -294,19 +418,36 @@ class SalaryService
 
         // 1. Trừ lương Thu ngân (Cash shortage): Hụt két ca trực
         if ($employee->user_id) {
-            $shortages = \App\Models\ShiftClosing::withoutGlobalScopes()
-                ->where('restaurant_id', $restaurantId)
-                ->where('cashier_user_id', $employee->user_id)
-                ->whereBetween('closing_date', [$start, $end])
-                ->where('cash_difference', '<', 0)
-                ->get();
+            if (isset($context['shortages'])) {
+                $shortages = $context['shortages']
+                    ->where('cashier_user_id', $employee->user_id)
+                    ->filter(function ($s) use ($start, $end) {
+                        $dateStr = $s->closing_date instanceof Carbon 
+                            ? $s->closing_date->toDateString() 
+                            : Carbon::parse($s->closing_date)->toDateString();
+                        return $dateStr >= $start && $dateStr <= $end;
+                    });
+            } else {
+                $shortages = \App\Models\ShiftClosing::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('cashier_user_id', $employee->user_id)
+                    ->whereBetween('closing_date', [$start, $end])
+                    ->where('cash_difference', '<', 0)
+                    ->get();
+            }
 
             foreach ($shortages as $closing) {
-                $exists = SalaryAdjustment::withoutGlobalScopes()
-                    ->where('employee_id', $employee->id)
-                    ->where('reference_id', $closing->id)
-                    ->where('reference_type', \App\Models\ShiftClosing::class)
-                    ->exists();
+                $exists = false;
+                if (isset($context['adjustments_map'])) {
+                    $key = \App\Models\ShiftClosing::class . '_' . $closing->id . '_' . $employee->id;
+                    $exists = isset($context['adjustments_map'][$key]);
+                } else {
+                    $exists = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('employee_id', $employee->id)
+                        ->where('reference_id', $closing->id)
+                        ->where('reference_type', \App\Models\ShiftClosing::class)
+                        ->exists();
+                }
 
                 if (request()->hasHeader('PHPUNIT_DEBUG')) {
                     dump([
@@ -334,20 +475,35 @@ class SalaryService
         }
 
         // 2. Trừ lương Bếp/Pha chế (Inventory loss): Thất thoát kho cấn trừ theo mốc thời gian ca trực có ngưỡng hao hụt
-        $wasteTransactions = \App\Models\InventoryTransaction::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('type', 'waste')
-            ->whereBetween('occurred_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
-            ->where('total_cost', '>', 0)
-            ->get();
+        if (isset($context['waste_transactions'])) {
+            $wasteTransactions = $context['waste_transactions'];
+        } else {
+            $wasteTransactions = \App\Models\InventoryTransaction::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('type', 'waste')
+                ->whereBetween('occurred_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                ->where('total_cost', '>', 0)
+                ->get();
+        }
 
         foreach ($wasteTransactions as $transaction) {
-            $activeAssignments = \App\Models\ScheduleAssignment::findEmployeesOnShiftAt($transaction->occurred_at, $restaurantId);
+            if (isset($context['all_assignments'])) {
+                $activeAssignments = \App\Models\ScheduleAssignment::findEmployeesOnShiftAtFromCollection($context['all_assignments'], $transaction->occurred_at);
+            } else {
+                $activeAssignments = \App\Models\ScheduleAssignment::findEmployeesOnShiftAt($transaction->occurred_at, $restaurantId);
+            }
+
             if ($activeAssignments->isEmpty()) {
                 continue;
             }
 
-            $ingredient = \App\Models\Ingredient::withoutGlobalScopes()->find($transaction->ingredient_id);
+            $ingredient = null;
+            if (isset($context['ingredients'])) {
+                $ingredient = $context['ingredients']->get($transaction->ingredient_id);
+            } else {
+                $ingredient = \App\Models\Ingredient::withoutGlobalScopes()->find($transaction->ingredient_id);
+            }
+
             if (!$ingredient) {
                 continue;
             }
@@ -396,15 +552,20 @@ class SalaryService
             }
 
             if ($isResponsible) {
-                $exists = SalaryAdjustment::withoutGlobalScopes()
-                    ->where('employee_id', $employee->id)
-                    ->where('reference_id', $transaction->id)
-                    ->where('reference_type', \App\Models\InventoryTransaction::class)
-                    ->exists();
+                $exists = false;
+                if (isset($context['adjustments_map'])) {
+                    $key = \App\Models\InventoryTransaction::class . '_' . $transaction->id . '_' . $employee->id;
+                    $exists = isset($context['adjustments_map'][$key]);
+                } else {
+                    $exists = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('employee_id', $employee->id)
+                        ->where('reference_id', $transaction->id)
+                        ->where('reference_type', \App\Models\InventoryTransaction::class)
+                        ->exists();
+                }
 
                 if (!$exists) {
-                    $ingredient = \App\Models\Ingredient::withoutGlobalScopes()->find($transaction->ingredient_id);
-                    $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
+                    $allowedRatio = (float) ($ingredient->allowed_waste_ratio ?? 0);
                     
                     $totalPenalty = (float) $transaction->total_cost * (1 - $allowedRatio / 100);
                     $totalPenalty = max(0.0, $totalPenalty);
@@ -429,20 +590,37 @@ class SalaryService
         }
 
         // 3. Trừ lương Vi phạm kỷ luật (Violations): Biên bản xử phạt vi phạm đi trễ, kỷ luật đã duyệt
-        $violations = \App\Models\ViolationReport::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('employee_id', $employee->id)
-            ->whereBetween('occurred_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
-            ->where('penalty_amount', '>', 0)
-            ->where('status', '!=', 'dismissed')
-            ->get();
+        if (isset($context['violations'])) {
+            $violations = $context['violations']
+                ->where('employee_id', $employee->id)
+                ->filter(function ($v) use ($start, $end) {
+                    $dateStr = $v->occurred_at instanceof Carbon 
+                        ? $v->occurred_at->toDateString() 
+                        : Carbon::parse($v->occurred_at)->toDateString();
+                    return $dateStr >= $start && $dateStr <= $end;
+                });
+        } else {
+            $violations = \App\Models\ViolationReport::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('employee_id', $employee->id)
+                ->whereBetween('occurred_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                ->where('penalty_amount', '>', 0)
+                ->where('status', '!=', 'dismissed')
+                ->get();
+        }
 
         foreach ($violations as $violation) {
-            $exists = SalaryAdjustment::withoutGlobalScopes()
-                ->where('employee_id', $employee->id)
-                ->where('reference_id', $violation->id)
-                ->where('reference_type', \App\Models\ViolationReport::class)
-                ->exists();
+            $exists = false;
+            if (isset($context['adjustments_map'])) {
+                $key = \App\Models\ViolationReport::class . '_' . $violation->id . '_' . $employee->id;
+                $exists = isset($context['adjustments_map'][$key]);
+            } else {
+                $exists = SalaryAdjustment::withoutGlobalScopes()
+                    ->where('employee_id', $employee->id)
+                    ->where('reference_id', $violation->id)
+                    ->where('reference_type', \App\Models\ViolationReport::class)
+                    ->exists();
+            }
 
             if (!$exists) {
                 SalaryAdjustment::create([
@@ -461,23 +639,42 @@ class SalaryService
 
         // 4. Cộng thưởng & Hoa hồng KPI từ đánh giá hiệu suất đã duyệt (finalized)
         $period = Carbon::parse($salary->pay_period_start)->format('Y-m');
-        $kpi = \App\Models\EmployeeKpi::withoutGlobalScopes()
-            ->where('employee_id', $employee->id)
-            ->where('period', $period)
-            ->where('status', 'finalized')
-            ->first();
+        if (isset($context['kpis'])) {
+            $kpi = $context['kpis']
+                ->where('employee_id', $employee->id)
+                ->where('period', $period)
+                ->first();
+        } else {
+            $kpi = \App\Models\EmployeeKpi::withoutGlobalScopes()
+                ->where('employee_id', $employee->id)
+                ->where('period', $period)
+                ->where('status', 'finalized')
+                ->first();
+        }
 
         if ($kpi) {
             // Hoa hồng doanh số KPI
             if ((float)$kpi->total_commission > 0) {
-                $commissionExists = SalaryAdjustment::withoutGlobalScopes()
-                    ->where('salary_id', $salary->id)
-                    ->where('employee_id', $employee->id)
-                    ->where('type', 'bonus')
-                    ->where('reference_id', $kpi->id)
-                    ->where('reference_type', \App\Models\EmployeeKpi::class)
-                    ->where('reason', 'like', 'Thưởng hoa hồng%')
-                    ->exists();
+                $commissionExists = false;
+                if (isset($context['adjustments_map'])) {
+                    $key = \App\Models\EmployeeKpi::class . '_' . $kpi->id . '_' . $employee->id;
+                    $matches = $context['adjustments_map'][$key] ?? [];
+                    foreach ($matches as $adj) {
+                        if ($adj->type === 'bonus' && str_contains($adj->reason, 'Thưởng hoa hồng')) {
+                            $commissionExists = true;
+                            break;
+                        }
+                    }
+                } else {
+                    $commissionExists = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('salary_id', $salary->id)
+                        ->where('employee_id', $employee->id)
+                        ->where('type', 'bonus')
+                        ->where('reference_id', $kpi->id)
+                        ->where('reference_type', \App\Models\EmployeeKpi::class)
+                        ->where('reason', 'like', 'Thưởng hoa hồng%')
+                        ->exists();
+                }
 
                 if (!$commissionExists) {
                     SalaryAdjustment::create([
@@ -496,14 +693,26 @@ class SalaryService
 
             // Thưởng vượt chỉ tiêu KPI
             if ((float)$kpi->total_bonus > 0) {
-                $bonusExists = SalaryAdjustment::withoutGlobalScopes()
-                    ->where('salary_id', $salary->id)
-                    ->where('employee_id', $employee->id)
-                    ->where('type', 'bonus')
-                    ->where('reference_id', $kpi->id)
-                    ->where('reference_type', \App\Models\EmployeeKpi::class)
-                    ->where('reason', 'like', 'Thưởng vượt chỉ tiêu%')
-                    ->exists();
+                $bonusExists = false;
+                if (isset($context['adjustments_map'])) {
+                    $key = \App\Models\EmployeeKpi::class . '_' . $kpi->id . '_' . $employee->id;
+                    $matches = $context['adjustments_map'][$key] ?? [];
+                    foreach ($matches as $adj) {
+                        if ($adj->type === 'bonus' && str_contains($adj->reason, 'Thưởng vượt chỉ tiêu')) {
+                            $bonusExists = true;
+                            break;
+                        }
+                    }
+                } else {
+                    $bonusExists = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('salary_id', $salary->id)
+                        ->where('employee_id', $employee->id)
+                        ->where('type', 'bonus')
+                        ->where('reference_id', $kpi->id)
+                        ->where('reference_type', \App\Models\EmployeeKpi::class)
+                        ->where('reason', 'like', 'Thưởng vượt chỉ tiêu%')
+                        ->exists();
+                }
 
                 if (!$bonusExists) {
                     SalaryAdjustment::create([

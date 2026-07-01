@@ -10,6 +10,9 @@ class FraudDetectionService
 
     public function getSummary(int $restaurantId, string $periodStart, string $periodEnd): array
     {
+        $startDateTime = $periodStart . ' 00:00:00';
+        $endDateTime   = $periodEnd . ' 23:59:59';
+
         $cashCount = DB::selectOne(
             'SELECT COUNT(DISTINCT cashier_user_id) AS cnt
              FROM shift_closings
@@ -21,12 +24,12 @@ class FraudDetectionService
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT DATE(created_at)
                 FROM orders
-                WHERE restaurant_id = ? AND status = ? AND DATE(created_at) BETWEEN ? AND ?
+                WHERE restaurant_id = ? AND status = ? AND created_at BETWEEN ? AND ?
                 GROUP BY DATE(created_at)
                 HAVING SUM(discount_amount)/NULLIF(SUM(subtotal),0)*100 > 20
                     OR SUM(discount_amount) > 2000000
              ) AS t',
-            [$restaurantId, 'completed', $periodStart, $periodEnd]
+            [$restaurantId, 'completed', $startDateTime, $endDateTime]
         );
 
         // The returns first row only — use subquery for correct count
@@ -34,20 +37,20 @@ class FraudDetectionService
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT cancelled_by
                 FROM orders
-                WHERE restaurant_id = ? AND status = ? AND DATE(cancelled_at) BETWEEN ? AND ?
+                WHERE restaurant_id = ? AND status = ? AND cancelled_at BETWEEN ? AND ?
                 GROUP BY cancelled_by
                 HAVING COUNT(*) > 3 OR SUM(total_amount) > 1000000
              ) AS t',
-            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
+            [$restaurantId, 'cancelled', $startDateTime, $endDateTime]
         );
 
         $wasteCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT id FROM inventory_transactions
                 WHERE restaurant_id = ? AND type = ? AND total_cost > 500000
-                  AND DATE(occurred_at) BETWEEN ? AND ?
+                  AND occurred_at BETWEEN ? AND ?
              ) AS t',
-            [$restaurantId, 'waste', $periodStart, $periodEnd]
+            [$restaurantId, 'waste', $startDateTime, $endDateTime]
         );
 
         $revenueCount = DB::selectOne(
@@ -70,14 +73,14 @@ class FraudDetectionService
         $aiCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
              WHERE restaurant_id = ? AND action IN (\'order_split\', \'discount_applied\', \'price_modified\')
-               AND DATE(created_at) BETWEEN ? AND ?',
-            [$restaurantId, $periodStart, $periodEnd]
+               AND created_at BETWEEN ? AND ?',
+            [$restaurantId, $startDateTime, $endDateTime]
         );
 
         $auditCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
-             WHERE restaurant_id = ? AND DATE(created_at) BETWEEN ? AND ?',
-            [$restaurantId, $periodStart, $periodEnd]
+             WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?',
+            [$restaurantId, $startDateTime, $endDateTime]
         );
 
         return [
@@ -160,10 +163,14 @@ class FraudDetectionService
             ]
         ];
 
+        $userIds = $logs->pluck('user_id')->filter()->unique();
+        $employeesByUserId = \App\Models\Employee::withoutGlobalScopes()
+            ->whereIn('user_id', $userIds)
+            ->get()
+            ->keyBy('user_id');
+
         foreach ($logs->take(15) as $log) {
-            $emp = \App\Models\Employee::withoutGlobalScopes()
-                ->where('user_id', $log->user_id)
-                ->first();
+            $emp = $employeesByUserId->get($log->user_id);
 
             $empId   = $emp ? $emp->id : $emp1Id;
             $empName = $log->user?->name ?? 'Nhân viên';
@@ -278,27 +285,41 @@ class FraudDetectionService
      */
     public function getAuditLogs(int $restaurantId): array
     {
-        $rows = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
+        $logs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
             ->with(['user'])
             ->latest('created_at')
             ->take(100)
-            ->get()
-            ->map(fn ($log) => [
-                'id'           => $log->id,
-                'user_name'    => $log->user?->name ?? 'Hệ thống',
-                'user_role'    => $log->user_role ?? 'staff',
-                'event'        => $log->event,
-                'action'       => $log->action,
-                'action_label' => $this->getActionLabel($log->action),
-                'subject_type' => $log->subject_type ? class_basename($log->subject_type) : '—',
-                'subject_id'   => $log->subject_id,
-                'old_values'   => $log->old_values,
-                'new_values'   => $log->new_values,
-                'ip_address'   => $log->ip_address ?? '127.0.0.1',
-                'user_agent'   => $log->user_agent ? substr($log->user_agent, 0, 80) . '...' : '—',
-                'created_at'   => $log->created_at->format('H:i:s d/m/Y'),
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($log->created_at, $restaurantId)?->full_name ?? 'Không xếp ca',
-            ]);
+            ->get();
+
+        $assignments = collect();
+        if ($logs->isNotEmpty()) {
+            $timestamps = $logs->pluck('created_at');
+            $minDate = $timestamps->min()->copy()->subDay()->toDateString();
+            $maxDate = $timestamps->max()->copy()->addDay()->toDateString();
+
+            $assignments = \App\Models\ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+                ->whereBetween('scheduled_date', [$minDate, $maxDate])
+                ->with(['employee', 'shift'])
+                ->get();
+        }
+
+        $rows = $logs->map(fn ($log) => [
+            'id'           => $log->id,
+            'user_name'    => $log->user?->name ?? 'Hệ thống',
+            'user_role'    => $log->user_role ?? 'staff',
+            'event'        => $log->event,
+            'action'       => $log->action,
+            'action_label' => $this->getActionLabel($log->action),
+            'subject_type' => $log->subject_type ? class_basename($log->subject_type) : '—',
+            'subject_id'   => $log->subject_id,
+            'old_values'   => $log->old_values,
+            'new_values'   => $log->new_values,
+            'ip_address'   => $log->ip_address ?? '127.0.0.1',
+            'user_agent'   => $log->user_agent ? substr($log->user_agent, 0, 80) . '...' : '—',
+            'created_at'   => $log->created_at->format('H:i:s d/m/Y'),
+            'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAtFromCollection($assignments, $log->created_at)?->full_name ?? 'Không xếp ca',
+        ]);
 
         return [
             'logs' => $rows,
@@ -389,6 +410,9 @@ class FraudDetectionService
 
     public function detectDiscountAnomalies(int $restaurantId, string $periodStart, string $periodEnd): array
     {
+        $startDateTime = $periodStart . ' 00:00:00';
+        $endDateTime   = $periodEnd . ' 23:59:59';
+
         $flaggedDays = DB::select(
             'SELECT DATE(o.created_at) AS order_date,
                     COUNT(*) AS order_count,
@@ -397,12 +421,12 @@ class FraudDetectionService
                     SUM(o.discount_amount)/NULLIF(SUM(o.subtotal),0)*100 AS discount_rate_pct
              FROM orders o
              WHERE o.restaurant_id = ? AND o.status = ?
-               AND DATE(o.created_at) BETWEEN ? AND ?
+               AND o.created_at BETWEEN ? AND ?
              GROUP BY DATE(o.created_at)
              HAVING (SUM(o.discount_amount)/NULLIF(SUM(o.subtotal),0)*100) > 20
                  OR SUM(o.discount_amount) > 2000000
              ORDER BY discount_rate_pct DESC',
-            [$restaurantId, 'completed', $periodStart, $periodEnd]
+            [$restaurantId, 'completed', $startDateTime, $endDateTime]
         );
 
         if (empty($flaggedDays)) {
@@ -419,10 +443,10 @@ class FraudDetectionService
              WHERE o.restaurant_id = ? AND o.status = ?
                AND o.discount_amount > 0 AND o.subtotal > 0
                AND (o.discount_amount/o.subtotal) > 0.15
-               AND DATE(o.created_at) BETWEEN ? AND ?
+               AND o.created_at BETWEEN ? AND ?
              ORDER BY (o.discount_amount/o.subtotal) DESC
              LIMIT 200',
-            [$restaurantId, 'completed', $periodStart, $periodEnd]
+            [$restaurantId, 'completed', $startDateTime, $endDateTime]
         );
 
         // Group suspicious orders by date
@@ -474,6 +498,9 @@ class FraudDetectionService
 
     public function detectSuspiciousCancellations(int $restaurantId, string $periodStart, string $periodEnd): array
     {
+        $startDateTime = $periodStart . ' 00:00:00';
+        $endDateTime   = $periodEnd . ' 23:59:59';
+
         $cashierRows = DB::select(
             'SELECT o.cancelled_by, u.name AS cashier_name,
                     COUNT(*) AS cancelled_count,
@@ -481,11 +508,11 @@ class FraudDetectionService
              FROM orders o
              LEFT JOIN users u ON u.id = o.cancelled_by
              WHERE o.restaurant_id = ? AND o.status = ?
-               AND DATE(o.cancelled_at) BETWEEN ? AND ?
+               AND o.cancelled_at BETWEEN ? AND ?
              GROUP BY o.cancelled_by, u.name
              HAVING COUNT(*) > 3 OR SUM(o.total_amount) > 1000000
              ORDER BY total_value_cancelled DESC',
-            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
+            [$restaurantId, 'cancelled', $startDateTime, $endDateTime]
         );
 
         $highValueRows = DB::select(
@@ -496,10 +523,10 @@ class FraudDetectionService
              LEFT JOIN users u ON u.id = o.cancelled_by
              WHERE o.restaurant_id = ? AND o.status = ?
                AND o.total_amount > 500000
-               AND DATE(o.cancelled_at) BETWEEN ? AND ?
+               AND o.cancelled_at BETWEEN ? AND ?
              ORDER BY o.total_amount DESC
              LIMIT 100',
-            [$restaurantId, 'cancelled', $periodStart, $periodEnd]
+            [$restaurantId, 'cancelled', $startDateTime, $endDateTime]
         );
 
         $flaggedCashierIds = array_column($cashierRows, 'cancelled_by');
@@ -552,6 +579,9 @@ class FraudDetectionService
 
     public function detectInventoryWasteSpikes(int $restaurantId, string $periodStart, string $periodEnd): array
     {
+        $startDateTime = $periodStart . ' 00:00:00';
+        $endDateTime   = $periodEnd . ' 23:59:59';
+
         $topEmployees = DB::select(
             'SELECT it.performed_by, u.name AS employee_name,
                     COUNT(*) AS waste_entry_count,
@@ -559,10 +589,10 @@ class FraudDetectionService
              FROM inventory_transactions it
              LEFT JOIN users u ON u.id = it.performed_by
              WHERE it.restaurant_id = ? AND it.type = ?
-               AND DATE(it.occurred_at) BETWEEN ? AND ?
+               AND it.occurred_at BETWEEN ? AND ?
              GROUP BY it.performed_by, u.name
              ORDER BY total_waste_cost DESC',
-            [$restaurantId, 'waste', $periodStart, $periodEnd]
+            [$restaurantId, 'waste', $startDateTime, $endDateTime]
         );
 
         $largeEntries = DB::select(
@@ -575,24 +605,37 @@ class FraudDetectionService
              LEFT JOIN users u ON u.id = it.performed_by
              WHERE it.restaurant_id = ? AND it.type = ?
                AND it.total_cost > 500000
-               AND DATE(it.occurred_at) BETWEEN ? AND ?
+               AND it.occurred_at BETWEEN ? AND ?
              ORDER BY it.total_cost DESC
              LIMIT 200',
-            [$restaurantId, 'waste', $periodStart, $periodEnd]
+            [$restaurantId, 'waste', $startDateTime, $endDateTime]
         );
 
         $flaggedDays = DB::select(
             'SELECT DATE(occurred_at) AS waste_date,
-                    SUM(total_cost) AS daily_waste_cost,
-                    COUNT(*) AS entry_count
+                     SUM(total_cost) AS daily_waste_cost,
+                     COUNT(*) AS entry_count
              FROM inventory_transactions
              WHERE restaurant_id = ? AND type = ?
-               AND DATE(occurred_at) BETWEEN ? AND ?
+               AND occurred_at BETWEEN ? AND ?
              GROUP BY DATE(occurred_at)
              HAVING SUM(total_cost) > 1000000
              ORDER BY daily_waste_cost DESC',
-            [$restaurantId, 'waste', $periodStart, $periodEnd]
+            [$restaurantId, 'waste', $startDateTime, $endDateTime]
         );
+
+        $assignments = collect();
+        if (!empty($largeEntries)) {
+            $occurredTimes = collect($largeEntries)->pluck('occurred_at');
+            $minDate = \Carbon\Carbon::parse($occurredTimes->min())->copy()->subDay()->toDateString();
+            $maxDate = \Carbon\Carbon::parse($occurredTimes->max())->copy()->addDay()->toDateString();
+
+            $assignments = \App\Models\ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+                ->whereBetween('scheduled_date', [$minDate, $maxDate])
+                ->with(['employee', 'shift'])
+                ->get();
+        }
 
         return [
             'total_waste_cost'      => (float) array_sum(array_column($topEmployees, 'total_waste_cost')),
@@ -607,7 +650,7 @@ class FraudDetectionService
             'large_entries'  => array_map(fn ($r) => [
                 'id'              => $r->id,
                 'employee_name'   => $r->employee_name ?? '—',
-                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAt($r->occurred_at, $restaurantId)?->full_name ?? 'Không xếp ca',
+                'scheduled_employee' => \App\Models\ScheduleAssignment::findEmployeeOnShiftAtFromCollection($assignments, $r->occurred_at)?->full_name ?? 'Không xếp ca',
                 'ingredient_name' => $r->ingredient_name,
                 'quantity'        => (float) $r->quantity,
                 'unit_cost'       => (float) $r->unit_cost,
