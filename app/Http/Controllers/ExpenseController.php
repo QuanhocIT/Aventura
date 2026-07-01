@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Expenses\StoreExpenseRequest;
+use App\Http\Requests\Expenses\UpdateExpenseRequest;
 use App\Models\ExpenseCategory;
 use App\Models\OperatingExpense;
 use App\Models\RecurringExpense;
@@ -147,17 +149,9 @@ class ExpenseController extends Controller
     /**
      * Store a manual operating expense.
      */
-    public function store(Request $request)
+    public function store(StoreExpenseRequest $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-
-        $data = $request->validate([
-            'category_id' => ['nullable', 'exists:expense_categories,id'],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'expense_date' => ['required', 'date'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'invoice' => ['nullable', 'file', 'mimes:jpeg,png,jpg,pdf', 'max:5120'], // Max 5MB
-        ]);
+        $data = $request->validated();
 
         $invoicePath = null;
         if ($request->hasFile('invoice')) {
@@ -181,18 +175,9 @@ class ExpenseController extends Controller
     /**
      * Update an operating expense.
      */
-    public function update(Request $request, OperatingExpense $expense)
+    public function update(UpdateExpenseRequest $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-        abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
-
-        $data = $request->validate([
-            'category_id' => ['nullable', 'exists:expense_categories,id'],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'expense_date' => ['required', 'date'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'invoice' => ['nullable', 'file', 'mimes:jpeg,png,jpg,pdf', 'max:5120'],
-        ]);
+        $data = $request->validated();
 
         if ($request->hasFile('invoice')) {
             // Delete old invoice file if exists

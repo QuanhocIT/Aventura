@@ -218,7 +218,6 @@ const paymentQrUrl = ref('');
 const paymentQrOrder = ref<any>(null);
 const paymentSuccess = ref(false);
 const paymentTimer = ref<any>(null);
-const isSimulatingPayment = ref(false);
 
 const openQrPaymentModal = async (order: any) => {
     paymentQrOrder.value = order;
@@ -274,31 +273,6 @@ clearInterval(paymentTimer.value);
         }
     }, 3000);
 };
-
-const simulatePaymentSuccess = async () => {
-    if (!paymentQrOrder.value) {
-return;
-}
-
-    isSimulatingPayment.value = true;
-
-    try {
-        const res = await axios.post('/api/webhooks/payments/vietqr', {
-            description: `AVTORD${paymentQrOrder.value.order_id}`
-        });
-
-        if (res.data.success) {
-            toast.success('Gửi webhook giả lập thành công!');
-        } else {
-            toast.error(res.data.message || 'Lỗi giả lập thanh toán.');
-        }
-    } catch (e) {
-        toast.error('Lỗi khi gọi API webhook giả lập.');
-    } finally {
-        isSimulatingPayment.value = false;
-    }
-};
-
 
 // Feedback rating state
 const showFeedbackSection = ref(false);
@@ -1417,17 +1391,8 @@ clearInterval(paymentTimer.value);
                     </div>
                 </div>
                 
-                <!-- Bottom controls: Simulator button -->
+                <!-- Bottom controls -->
                 <footer class="p-5 border-t border-slate-100 bg-slate-50 flex flex-col gap-2.5">
-                    <button 
-                        v-if="!paymentSuccess"
-                        @click="simulatePaymentSuccess"
-                        :disabled="isSimulatingPayment"
-                        class="w-full h-10 bg-slate-100 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 text-slate-800 rounded-xl text-xxs font-black flex items-center justify-center gap-2 cursor-pointer transition-all"
-                    >
-                        <Loader2 v-if="isSimulatingPayment" class="size-3.5 animate-spin" />
-                        <span>⚡ Giả lập thanh toán thành công (Test)</span>
-                    </button>
                     <button @click="closeQrPaymentModal" class="w-full h-10 bg-slate-900 text-white text-xxs font-black hover:bg-slate-850 rounded-xl cursor-pointer transition-all">
                         {{ paymentSuccess ? 'Đóng' : 'Quay lại' }}
                     </button>

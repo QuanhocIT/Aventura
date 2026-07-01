@@ -45,6 +45,11 @@ class Order extends Model
         ];
     }
 
+    public function syncWithSearchUsingQueue(): string
+    {
+        return 'search';
+    }
+
     protected function casts(): array
     {
         return [

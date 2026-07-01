@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,115 +56,121 @@ class EmployeePortalController extends Controller
             return response()->json(['success' => false, 'error' => 'Bạn không phải là nhân viên hợp lệ.'], 403);
         }
 
-        $period = now()->format('Y-m');
-        $startOfMonth = now()->startOfMonth();
-        $endOfMonth = now()->endOfMonth();
+        $cacheKey = "employee_dashboard:{$employee->id}:" . now()->format('Y-m');
 
-        // 1. Calculate shifts & hours worked this month
-        $completedAssignments = ScheduleAssignment::where('employee_id', $employee->id)
-            ->whereBetween('scheduled_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
-            ->where('status', 'completed')
-            ->with('shift')
-            ->get();
+        $payload = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($employee, $request) {
+            $period = now()->format('Y-m');
+            $startOfMonth = now()->startOfMonth();
+            $endOfMonth   = now()->endOfMonth();
 
-        $completedShiftsCount = $completedAssignments->count();
-        $hoursWorked = 0.0;
-        foreach ($completedAssignments as $a) {
-            if ($a->check_in_at && $a->check_out_at) {
-                $in = Carbon::parse($a->check_in_at);
-                $out = Carbon::parse($a->check_out_at);
-                $hoursWorked += $in->diffInSeconds($out) / 3600.0;
+            // 1. Calculate shifts & hours worked this month
+            $completedAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+                ->whereBetween('scheduled_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+                ->where('status', 'completed')
+                ->with('shift')
+                ->get();
+
+            $completedShiftsCount = $completedAssignments->count();
+            $hoursWorked = 0.0;
+            foreach ($completedAssignments as $a) {
+                if ($a->check_in_at && $a->check_out_at) {
+                    $in  = Carbon::parse($a->check_in_at);
+                    $out = Carbon::parse($a->check_out_at);
+                    $hoursWorked += $in->diffInSeconds($out) / 3600.0;
+                }
             }
-        }
-        $hoursWorked = round($hoursWorked, 1);
+            $hoursWorked = round($hoursWorked, 1);
 
-        // 2. Load KPI metrics for the current month
-        $kpiService = app(KpiService::class);
-        $kpi = EmployeeKpi::withoutGlobalScopes()
-            ->where('employee_id', $employee->id)
-            ->where('period', $period)
-            ->with('metrics')
-            ->first();
+            // 2. Load KPI metrics for the current month
+            $kpiService = app(KpiService::class);
+            $kpi = \App\Models\EmployeeKpi::withoutGlobalScopes()
+                ->where('employee_id', $employee->id)
+                ->where('period', $period)
+                ->with('metrics')
+                ->first();
 
-        if (!$kpi) {
-            $kpi = $kpiService->calculateKpi($employee, $period);
-        }
+            if (!$kpi) {
+                \App\Jobs\CalculateEmployeeKpiJob::dispatch($employee, $period);
+            }
 
-        $kpiData = null;
-        if ($kpi) {
-            $kpiData = [
-                'total_score' => (float)$kpi->total_score,
-                'total_bonus' => (float)$kpi->total_bonus,
-                'total_commission' => (float)$kpi->total_commission,
-                'status' => $kpi->status,
-                'metrics' => $kpi->metrics->map(fn($m) => [
-                    'metric_name' => $m->metric_name,
-                    'actual_value' => (float)$m->actual_value,
-                    'target_value' => (float)$m->target_value,
-                    'score' => (float)$m->score,
-                    'is_achieved' => (bool)$m->is_achieved,
-                    'bonus_earned' => (float)$m->bonus_earned,
-                    'commission_earned' => (float)$m->commission_earned,
-                ])
+            $kpiData = null;
+            if ($kpi) {
+                $kpiData = [
+                    'total_score'      => (float)$kpi->total_score,
+                    'total_bonus'      => (float)$kpi->total_bonus,
+                    'total_commission' => (float)$kpi->total_commission,
+                    'status'           => $kpi->status,
+                    'metrics'          => $kpi->metrics->map(fn($m) => [
+                        'metric_name'       => $m->metric_name,
+                        'actual_value'      => (float)$m->actual_value,
+                        'target_value'      => (float)$m->target_value,
+                        'score'             => (float)$m->score,
+                        'is_achieved'       => (bool)$m->is_achieved,
+                        'bonus_earned'      => (float)$m->bonus_earned,
+                        'commission_earned' => (float)$m->commission_earned,
+                    ])
+                ];
+            }
+
+            // 3. Estimate monthly earnings
+            $baseSalary = $kpiService->getKpiRole($employee) !== null
+                ? app(SalaryService::class)->calculateDynamicBaseSalary($employee, $startOfMonth->toDateString(), $endOfMonth->toDateString())
+                : (float)($employee->base_salary ?? 0);
+
+            $kpiBonus      = $kpi ? (float)$kpi->total_bonus : 0.0;
+            $kpiCommission = $kpi ? (float)$kpi->total_commission : 0.0;
+            $estimatedEarnings = $baseSalary + $kpiBonus + $kpiCommission;
+
+            // 4. Retrieve schedules: last week, this week, and next week
+            $startRange = now()->subWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $endRange   = now()->addWeeks(2)->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+            $schedules = ScheduleAssignment::where('employee_id', $employee->id)
+                ->whereBetween('scheduled_date', [$startRange, $endRange])
+                ->with('shift')
+                ->get()
+                ->map(fn($a) => [
+                    'id'           => $a->id,
+                    'date'         => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
+                    'formatted_date' => Carbon::parse($a->scheduled_date)->format('d/m/Y'),
+                    'day_name'     => $this->getDayVn(Carbon::parse($a->scheduled_date)->format('l')),
+                    'shift_name'   => $a->shift?->name ?? 'Ca Trực',
+                    'start_time'   => $a->shift?->start_time ? substr($a->shift->start_time, 0, 5) : '',
+                    'end_time'     => $a->shift?->end_time   ? substr($a->shift->end_time,   0, 5) : '',
+                    'status'       => $a->status,
+                    'check_in_at'  => $a->check_in_at  ? Carbon::parse($a->check_in_at)->format('H:i')  : null,
+                    'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
+                ]);
+
+            // 5. Database Notifications
+            $notifications = $request->user()->notifications()
+                ->take(15)
+                ->get()
+                ->map(fn($n) => [
+                    'id'         => $n->id,
+                    'type'       => $n->data['type'] ?? 'info',
+                    'message'    => $n->data['message'] ?? '',
+                    'read_at'    => $n->read_at,
+                    'created_at' => $n->created_at->diffForHumans(),
+                ]);
+
+            return [
+                'success'  => true,
+                'summary'  => [
+                    'shifts_completed'  => $completedShiftsCount,
+                    'hours_worked'      => $hoursWorked,
+                    'estimated_earnings' => $estimatedEarnings,
+                    'base_salary'       => $baseSalary,
+                    'kpi_bonus'         => $kpiBonus,
+                    'kpi_commission'    => $kpiCommission,
+                ],
+                'kpis'          => $kpiData,
+                'schedules'     => $schedules,
+                'notifications' => $notifications,
             ];
-        }
+        });
 
-        // 3. Estimate monthly earnings
-        $baseSalary = $kpiService->getKpiRole($employee) !== null
-            ? app(SalaryService::class)->calculateDynamicBaseSalary($employee, $startOfMonth->toDateString(), $endOfMonth->toDateString())
-            : (float)($employee->base_salary ?? 0);
-
-        $kpiBonus = $kpi ? (float)$kpi->total_bonus : 0.0;
-        $kpiCommission = $kpi ? (float)$kpi->total_commission : 0.0;
-        $estimatedEarnings = $baseSalary + $kpiBonus + $kpiCommission;
-
-        // 4. Retrieve schedules: last week, this week, and next week
-        $startRange = now()->subWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
-        $endRange = now()->addWeeks(2)->endOfWeek(Carbon::SUNDAY)->toDateString();
-
-        $schedules = ScheduleAssignment::where('employee_id', $employee->id)
-            ->whereBetween('scheduled_date', [$startRange, $endRange])
-            ->with('shift')
-            ->get()
-            ->map(fn($a) => [
-                'id' => $a->id,
-                'date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
-                'formatted_date' => Carbon::parse($a->scheduled_date)->format('d/m/Y'),
-                'day_name' => $this->getDayVn(Carbon::parse($a->scheduled_date)->format('l')),
-                'shift_name' => $a->shift?->name ?? 'Ca Trực',
-                'start_time' => $a->shift?->start_time ? substr($a->shift->start_time, 0, 5) : '',
-                'end_time' => $a->shift?->end_time ? substr($a->shift->end_time, 0, 5) : '',
-                'status' => $a->status,
-                'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
-                'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
-            ]);
-
-        // 5. Database Notifications
-        $notifications = $request->user()->notifications()
-            ->take(15)
-            ->get()
-            ->map(fn($n) => [
-                'id' => $n->id,
-                'type' => $n->data['type'] ?? 'info',
-                'message' => $n->data['message'] ?? '',
-                'read_at' => $n->read_at,
-                'created_at' => $n->created_at->diffForHumans(),
-            ]);
-
-        return response()->json([
-            'success' => true,
-            'summary' => [
-                'shifts_completed' => $completedShiftsCount,
-                'hours_worked' => $hoursWorked,
-                'estimated_earnings' => $estimatedEarnings,
-                'base_salary' => $baseSalary,
-                'kpi_bonus' => $kpiBonus,
-                'kpi_commission' => $kpiCommission,
-            ],
-            'kpis' => $kpiData,
-            'schedules' => $schedules,
-            'notifications' => $notifications,
-        ]);
+        return response()->json($payload);
     }
 
     /**
@@ -390,11 +397,14 @@ class EmployeePortalController extends Controller
                 'shift_time' => $a->shift?->start_time ? (substr($a->shift->start_time, 0, 5) . ' - ' . substr($a->shift->end_time, 0, 5)) : '',
             ]);
 
-        // 3. Smart AI Swap Suggestions: colleagues scheduled this week
+        // 3. Smart AI Swap Suggestions: colleagues scheduled this week with matching role_id
         $colleagueAssignments = ScheduleAssignment::where('restaurant_id', $employee->restaurant_id)
             ->where('employee_id', '!=', $employee->id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->where('status', 'scheduled')
+            ->whereHas('employee', function ($q) use ($employee) {
+                $q->where('role_id', $employee->role_id);
+            })
             ->with(['employee:id,full_name,role_id,job_title', 'shift'])
             ->get()
             ->map(fn($a) => [

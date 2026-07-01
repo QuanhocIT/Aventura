@@ -34,6 +34,9 @@ class DatabaseMaintenanceService
                     case 'archive_audit_logs':
                         $results['archive_audit_logs'] = $this->archiveAuditLogs();
                         break;
+                    case 'prune_shipper_location_logs':
+                        $results['prune_shipper_location_logs'] = $this->pruneShipperLocationLogs();
+                        break;
                     default:
                         Log::warning("Unknown optimization action requested: {$action}");
                 }
@@ -255,6 +258,43 @@ class DatabaseMaintenanceService
             'disk' => $disk,
             'archive_file' => $destination,
             'message' => "Đã sao lưu thành công {$deletedCount} bản ghi audit log cũ hơn 6 tháng lên bộ nhớ lưu trữ {$disk} ({$destination}) và giải phóng khỏi cơ sở dữ liệu chính."
+        ];
+    }
+
+    /**
+     * Xóa các bản ghi ping vị trí shipper (shipper_location_logs) cũ hơn ngưỡng lưu trữ.
+     * Đây là dữ liệu GPS thô tần suất cao (có thể hàng chục triệu dòng/năm) — không lưu
+     * trữ ra file như audit_logs vì giá trị nghiệp vụ của các điểm GPS cũ gần như bằng 0
+     * so với chi phí lưu trữ; xóa thẳng theo chunk để tránh khóa bảng lâu.
+     */
+    private function pruneShipperLocationLogs(): array
+    {
+        $retentionDays = (int) config('delivery.location_log_retention_days', 90);
+        $cutoffDate = now()->subDays($retentionDays);
+
+        if (!Schema::hasTable('shipper_location_logs')) {
+            return [
+                'status' => 'success',
+                'deleted_count' => 0,
+                'message' => 'Không tìm thấy bảng shipper_location_logs.',
+            ];
+        }
+
+        $deletedCount = 0;
+
+        DB::table('shipper_location_logs')
+            ->where('logged_at', '<', $cutoffDate)
+            ->orderBy('id')
+            ->chunkById(1000, function ($rows) use (&$deletedCount) {
+                $ids = $rows->pluck('id');
+                $deletedCount += DB::table('shipper_location_logs')->whereIn('id', $ids)->delete();
+            });
+
+        return [
+            'status' => 'success',
+            'deleted_count' => $deletedCount,
+            'retention_days' => $retentionDays,
+            'message' => "Đã xóa {$deletedCount} bản ghi vị trí shipper cũ hơn {$retentionDays} ngày.",
         ];
     }
 

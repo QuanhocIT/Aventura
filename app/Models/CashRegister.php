@@ -47,6 +47,11 @@ class CashRegister extends Model
         return $this->belongsTo(User::class, 'closed_by');
     }
 
+    public function cashier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cashier_user_id');
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');

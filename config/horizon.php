@@ -210,6 +210,70 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+
+        // Scout/Meilisearch indexing: many small, fast jobs. Kept isolated so a burst of
+        // product/order saves can't starve billing/report workers of capacity, and vice versa.
+        'supervisor-search' => [
+            'connection' => 'redis',
+            'queue' => ['search'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'size',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 30,
+            'nice' => 0,
+        ],
+
+        // Shipper GPS ping side-effects (ETA recalculation, buffered-log flush): very high
+        // volume, short jobs. Dedicated queue so location traffic never delays billing/webhooks.
+        'supervisor-location' => [
+            'connection' => 'redis',
+            'queue' => ['location-pings'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'size',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 30,
+            'nice' => 0,
+        ],
+
+        // Payment/subscription webhook follow-up work (invoice + email generation).
+        // Includes the existing 'billing' queue name (see config/billing.php: BILLING_QUEUE)
+        // alongside 'webhooks' for any new webhook-triggered jobs.
+        'supervisor-webhooks' => [
+            'connection' => 'redis',
+            'queue' => ['billing', 'webhooks'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'size',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
+
+        // Report generation: fewer, longer-running jobs — doesn't need many processes.
+        'supervisor-reports' => [
+            'connection' => 'redis',
+            'queue' => ['reports'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 2,
+            'timeout' => 300,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -219,11 +283,35 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-search' => [
+                'maxProcesses' => 4,
+            ],
+            'supervisor-location' => [
+                'maxProcesses' => 6,
+            ],
+            'supervisor-webhooks' => [
+                'maxProcesses' => 3,
+            ],
+            'supervisor-reports' => [
+                'maxProcesses' => 2,
+            ],
         ],
 
         'local' => [
             'supervisor-1' => [
                 'maxProcesses' => 3,
+            ],
+            'supervisor-search' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-location' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-webhooks' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-reports' => [
+                'maxProcesses' => 1,
             ],
         ],
     ],

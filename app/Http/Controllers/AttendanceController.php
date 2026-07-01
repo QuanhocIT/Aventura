@@ -165,6 +165,11 @@ class AttendanceController extends Controller
             'check_in_photo_path' => $photoPath,
         ]);
 
+        // Flush cached shift-access so middleware reflects the new status immediately
+        $employee->flushShiftAccessCache();
+        // Flush cached dashboard so the updated schedule status shows immediately
+        \Illuminate\Support\Facades\Cache::forget("employee_dashboard:{$employee->id}:" . now()->format('Y-m'));
+
         $successMsg = 'Bạn đã CHECK-IN thành công ca trực "' . $sa->shift->name . '". Chúc bạn một ca làm việc vui vẻ!';
         if ($isLateAndViolating) {
             $successMsg .= " Tuy nhiên, hệ thống ghi nhận bạn đi trễ {$lateMinutes} phút và đã tự động lập biên bản lỗi.";
@@ -272,6 +277,11 @@ class AttendanceController extends Controller
             'check_out_at' => $now,
             'status' => 'completed',
         ]);
+
+        // Flush cached shift-access so middleware reflects the checkout immediately
+        $employee->flushShiftAccessCache();
+        // Flush cached dashboard so hours_worked count updates immediately
+        \Illuminate\Support\Facades\Cache::forget("employee_dashboard:{$employee->id}:" . now()->format('Y-m'));
 
         $successMsg = 'Bạn đã CHECK-OUT thành công. Cảm ơn bạn vì sự đóng góp tuyệt vời ngày hôm nay!';
         if ($isEarlyAndViolating) {

@@ -11,6 +11,8 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        \Illuminate\Support\Facades\Cache::flush();
+
         $this->seed(\Database\Seeders\PermissionsSeeder::class);
     }
 

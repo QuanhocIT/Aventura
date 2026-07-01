@@ -13,10 +13,10 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                 <div class="space-y-4">
                     <div class="flex items-center gap-2">
                         <Star class="size-5 fill-amber-400 text-amber-400 shrink-0" />
-                        <span class="font-serif text-2xl font-bold text-white tracking-wide">DuLichPro</span>
+                        <span class="font-serif text-2xl font-bold text-white tracking-wide">Aventura</span>
                     </div>
                     <p class="text-sm leading-relaxed text-zinc-400 max-w-sm">
-                        Hành trình đẳng cấp – trải nghiệm đích thực. Chúng tôi đồng hành cùng bạn trên mọi nẻo đường.
+                        SaaS quản lý nhà hàng toàn diện – từ order, bếp, đến phân tích doanh thu. Vận hành thông minh hơn mỗi ngày.
                     </p>
                 </div>
 
@@ -41,7 +41,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                         <li>
                             <a href="#features" class="group flex items-center hover:text-white transition-colors">
                                 <span class="text-zinc-500 mr-2 group-hover:text-amber-400 transition-colors">&gt;</span>
-                                <span>Tour nổi bật</span>
+                                <span>Tính năng</span>
                             </a>
                         </li>
                         <li>
@@ -87,7 +87,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
             <!-- Bottom divider and Copyright -->
             <div class="border-t border-white/5 pt-8 mt-4 text-center">
                 <p class="text-xs text-zinc-500 font-medium tracking-wide">
-                    © 2026 DuLichPro – Bản quyền thuộc về DuLichPro. Thiết kế với <span class="text-[#dfb26c] mx-0.5">💛</span> tại Việt Nam.
+                    © 2026 Aventura – Bản quyền thuộc về Aventura. Thiết kế với <span class="text-[#dfb26c] mx-0.5">💛</span> tại Việt Nam.
                 </p>
             </div>
         </div>

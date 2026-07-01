@@ -113,19 +113,23 @@ function formatLimit(v: number | null): string {
         </div>
 
         <!-- ── Welcome header ───────────────────────────────────── -->
-        <section class="relative z-10 border-b border-slate-100 dark:border-slate-800 bg-white/30 dark:bg-slate-950/20 backdrop-blur-lg px-4 py-8 lg:px-8">
+        <section class="relative z-10 border-b border-slate-100 dark:border-slate-800 bg-white/30 dark:bg-slate-950/20 backdrop-blur-lg px-4 py-5 lg:px-6">
             <div class="mx-auto max-w-7xl">
-                <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">Xin chào trở lại,</p>
-                        <h1 class="mt-1 text-3xl font-extrabold tracking-tight text-gradient-vibrant">{{ user?.name }}</h1>
+                        <h1 class="mt-0.5 text-2xl font-extrabold tracking-tight text-gradient-vibrant">{{ user?.name }}</h1>
                         
                         <div class="mt-3 flex flex-wrap items-center gap-2.5">
                             <span v-if="tenant?.name" class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-3 py-1 rounded-lg">
                                 <Building2 class="size-3.5 text-teal-500" />
                                 {{ tenant.name }}
                             </span>
-                            <Badge v-if="plan" :class="planBadgeClass" class="gap-1 px-3 py-1 rounded-lg text-xs font-bold tracking-wide">
+                            <Badge v-if="roles.includes('super_admin')" class="gap-1 px-3 py-1 rounded-lg text-xs font-bold tracking-wide bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25 border-0">
+                                <Crown class="size-3.5" />
+                                Super Admin
+                            </Badge>
+                            <Badge v-else-if="plan" :class="planBadgeClass" class="gap-1 px-3 py-1 rounded-lg text-xs font-bold tracking-wide">
                                 <component v-if="planIcon" :is="planIcon" class="size-3.5" />
                                 Gói {{ plan.name }}
                             </Badge>
@@ -133,7 +137,7 @@ function formatLimit(v: number | null): string {
                         </div>
                     </div>
 
-                    <Button v-if="nextPlan" as-child size="default" class="shrink-0 rounded-xl bg-gradient-to-r from-primary via-amber-500 to-rose-500 hover:from-primary/90 hover:via-amber-400 hover:to-rose-400 text-white font-bold transition-all duration-300 hover:shadow-[0_8px_32px_rgba(245,158,11,0.35)] hover:-translate-y-0.5 shadow-[0_4px_20px_rgba(245,158,11,0.2)]">
+                    <Button v-if="nextPlan && !roles.includes('super_admin')" as-child size="default" class="shrink-0 rounded-xl bg-gradient-to-r from-primary via-amber-500 to-rose-500 hover:from-primary/90 hover:via-amber-400 hover:to-rose-400 text-white font-bold transition-all duration-300 hover:shadow-[0_8px_32px_rgba(245,158,11,0.35)] hover:-translate-y-0.5 shadow-[0_4px_20px_rgba(245,158,11,0.2)]">
                         <Link :href="`/billing/checkout?plan=${nextPlan.code}`" class="flex items-center gap-1.5">
                             <Zap class="size-4 animate-pulse text-amber-300" />
                             Nâng lên gói {{ nextPlan.name }}
@@ -142,7 +146,7 @@ function formatLimit(v: number | null): string {
                 </div>
 
                 <!-- Quota stats row -->
-                <div v-if="quota && plan" class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div v-if="quota && plan" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div
                         v-for="stat in quotaStats"
                         :key="stat.key"

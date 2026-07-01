@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Any
 
@@ -7,6 +7,7 @@ from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, Ve
 from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email, send_campaign_email
 from services.ai_service import analyze
 from config import BREVO_API_KEY
+from security import verify_internal_key
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ app = FastAPI(
     title="Aventura Microservice",
     description="Email & AI Python microservice cho Aventura SaaS",
     version="1.1.0",
+    dependencies=[Depends(verify_internal_key)],
 )
 
 

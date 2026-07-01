@@ -404,7 +404,18 @@ def _get_suggestions(current_id: int, row: dict) -> list[str]:
 
 
 def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
-    """Xử lý câu hỏi của Chủ quán bằng cách truy vấn số liệu thời gian thực từ DB."""
+    """Xử lý câu hỏi của Chủ quán, truy vấn số liệu thời gian thực từ DB và trả lời
+    bằng các quy tắc nghiệp vụ cố định (rule-based), không gọi mô hình LLM/AI tổng quát."""
+    result = _match_advisor_query_impl(user_input, restaurant_id)
+    result.setdefault("engine", "rule_based")
+    result.setdefault(
+        "disclaimer",
+        "Trợ lý dựa trên quy tắc nghiệp vụ và truy vấn dữ liệu thật, không phải AI tổng quát."
+    )
+    return result
+
+
+def _match_advisor_query_impl(user_input: str, restaurant_id: int) -> dict:
     q_norm = _normalize(user_input)
 
     # 1. Doanh thu & tài chính
@@ -634,17 +645,24 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
 
                 confidence = "Cao" if len(rows) >= 10 else "Trung bình"
                 ans = (
-                    f"### 🔮 AI DỰ BÁO DOANH THU NGÀY MAI\n\n"
+                    f"### 🔮 DỰ BÁO DOANH THU NGÀY MAI\n\n"
                     f"- Dự báo doanh thu ngày mai: **{pred:,.0f}đ**\n"
-                    f"- Độ tin cậy dự báo: **{confidence}** (Hồi quy LinearRegression)\n\n"
-                    f"*Phân tích:* Mô hình AI phân tích xu hướng tiêu dùng từ lịch sử doanh thu {len(rows)} ngày gần nhất để tự động đưa ra ước tính."
+                    f"- Độ tin cậy dự báo: **{confidence}** (Hồi quy tuyến tính trên {len(rows)} ngày gần nhất)\n\n"
+                    f"*Lưu ý:* Đây là ước tính thống kê dựa trên xu hướng doanh thu lịch sử, không phải dự đoán từ mô hình AI học sâu."
+                )
+            elif len(rows) > 0:
+                avg_revenue = sum(r['net_revenue'] for r in rows) / len(rows)
+                ans = (
+                    f"### 🔮 DỰ BÁO DOANH THU NGÀY MAI\n\n"
+                    f"- Ước tính sơ bộ dựa trên trung bình {len(rows)} ngày gần nhất: **{avg_revenue:,.0f}đ**\n"
+                    f"- Độ tin cậy dự báo: **Thấp** (chỉ có {len(rows)}/14 ngày dữ liệu, cần tối thiểu 3 ngày để chạy hồi quy xu hướng).\n\n"
+                    f"*Gợi ý:* Hãy tiếp tục vận hành hệ thống thêm vài ngày nữa để có đủ dữ liệu cho một dự báo xu hướng đáng tin cậy hơn."
                 )
             else:
                 ans = (
-                    f"### 🔮 AI DỰ BÁO DOANH THU NGÀY MAI\n\n"
-                    f"- Dự báo doanh thu ngày mai: **1,500,000đ** (Ước tính)\n"
-                    f"- Độ tin cậy dự báo: **Thấp** (Chưa đủ 14 ngày dữ liệu báo cáo để chạy Machine Learning).\n\n"
-                    f"*Gợi ý:* Hãy tiếp tục vận hành hệ thống thêm vài ngày nữa để AI thu thập đủ mẫu dữ liệu tài chính."
+                    f"### 🔮 DỰ BÁO DOANH THU NGÀY MAI\n\n"
+                    f"- Chưa có đủ dữ liệu doanh thu để đưa ra ước tính.\n\n"
+                    f"*Gợi ý:* Hệ thống cần ít nhất vài ngày vận hành có ghi nhận doanh thu trước khi có thể dự báo."
                 )
 
             return {

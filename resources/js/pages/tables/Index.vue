@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import {
-    LayoutGrid, Plus, Pencil, Trash2, X, QrCode,
+    LayoutGrid, Plus, Trash2, X, QrCode,
     Users, MapPin, CheckCircle2, Clock, AlertCircle,
     Move, Eye, Settings2, Sparkles, RefreshCw
 } from 'lucide-vue-next';
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
+import FormModal from '@/components/shared/FormModal.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -398,120 +399,93 @@ const vnd = (value: number) => {
         </div>
 
         <!-- Add Area Modal -->
-        <div v-if="showAddArea" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <Card class="max-w-sm w-full animate-in fade-in zoom-in-95 duration-150 rounded-2xl">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base">Tạo khu vực mới</CardTitle>
-                        <button @click="showAddArea = false" class="text-muted-foreground hover:text-foreground"><X class="size-4" /></button>
-                    </div>
-                    <CardDescription>Ví dụ: Tầng trệt, Phòng VIP 1, Ban công...</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitArea" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label>Tên khu vực <span class="text-rose-500">*</span></Label>
-                            <Input v-model="areaForm.name" placeholder="VD: Phòng VIP" required autofocus />
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button type="button" variant="outline" @click="showAddArea = false">Hủy</Button>
-                            <Button type="submit" class="bg-teal-650 text-white" :disabled="areaForm.processing">
-                                {{ areaForm.processing ? 'Đang tạo...' : 'Tạo khu vực' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="showAddArea"
+            @update:open="showAddArea = $event"
+            title="Tạo khu vực mới"
+            description="Ví dụ: Tầng trệt, Phòng VIP 1, Ban công..."
+            max-width-class="max-w-sm"
+            :processing="areaForm.processing"
+            submit-label="Tạo khu vực"
+            processing-label="Đang tạo..."
+            @submit="submitArea"
+        >
+            <div class="grid gap-1.5">
+                <Label>Tên khu vực <span class="text-rose-500">*</span></Label>
+                <Input v-model="areaForm.name" placeholder="VD: Phòng VIP" required autofocus />
+            </div>
+        </FormModal>
 
         <!-- Add Table Modal -->
-        <div v-if="showAddTable" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <Card class="max-w-sm w-full animate-in fade-in zoom-in-95 duration-150 rounded-2xl">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base">Thêm bàn mới</CardTitle>
-                        <button @click="showAddTable = false" class="text-muted-foreground hover:text-foreground"><X class="size-4" /></button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitTable" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label>Tên bàn <span class="text-rose-500">*</span></Label>
-                            <Input v-model="tableForm.name" placeholder="VD: Bàn 01, B2..." required />
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Khu vực <span class="text-rose-500">*</span></Label>
-                                <select v-model="tableForm.area_id" required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
-                                    <option value="" disabled>Chọn khu vực</option>
-                                    <option v-for="a in areas" :key="a.id" :value="a.id">{{ a.name }}</option>
-                                </select>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Sức chứa (người)</Label>
-                                <Input type="number" v-model="tableForm.capacity" min="1" max="100" />
-                            </div>
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button type="button" variant="outline" @click="showAddTable = false">Hủy</Button>
-                            <Button type="submit" class="bg-teal-650 text-white" :disabled="tableForm.processing">
-                                {{ tableForm.processing ? 'Đang thêm...' : 'Thêm bàn' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="showAddTable"
+            @update:open="showAddTable = $event"
+            title="Thêm bàn mới"
+            max-width-class="max-w-sm"
+            :processing="tableForm.processing"
+            submit-label="Thêm bàn"
+            processing-label="Đang thêm..."
+            @submit="submitTable"
+        >
+            <div class="grid gap-1.5">
+                <Label>Tên bàn <span class="text-rose-500">*</span></Label>
+                <Input v-model="tableForm.name" placeholder="VD: Bàn 01, B2..." required />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label>Khu vực <span class="text-rose-500">*</span></Label>
+                    <select v-model="tableForm.area_id" required
+                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+                        <option value="" disabled>Chọn khu vực</option>
+                        <option v-for="a in areas" :key="a.id" :value="a.id">{{ a.name }}</option>
+                    </select>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Sức chứa (người)</Label>
+                    <Input type="number" v-model="tableForm.capacity" min="1" max="100" />
+                </div>
+            </div>
+        </FormModal>
 
         <!-- Edit Table Modal -->
-        <div v-if="editingTable" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <Card class="max-w-sm w-full animate-in fade-in zoom-in-95 duration-150 rounded-2xl">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base flex items-center gap-2"><Pencil class="size-4 text-teal-600" />Sửa bàn</CardTitle>
-                        <button @click="editingTable = null" class="text-muted-foreground hover:text-foreground"><X class="size-4" /></button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label>Tên bàn</Label>
-                            <Input v-model="editForm.name" required />
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Sức chứa</Label>
-                                <Input type="number" v-model="editForm.capacity" min="1" />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Trạng thái</Label>
-                                <select v-model="editForm.status"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
-                                    <option value="available">Trống</option>
-                                    <option value="occupied">Có khách</option>
-                                    <option value="reserved">Đặt trước</option>
-                                    <option value="cleaning">Chờ dọn bàn</option>
-                                    <option value="inactive">Ngưng dùng</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid gap-1.5 pt-2 border-t mt-4">
-                            <Label>QR Code gọi món</Label>
-                            <Button type="button" variant="outline" @click="showQrModal(editingTable!)" class="w-full flex items-center gap-1.5 text-xs h-9">
-                                <QrCode class="size-4 text-teal-600" /> Xem mã QR & Link đặt món
-                            </Button>
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button type="button" variant="outline" @click="editingTable = null">Hủy</Button>
-                            <Button type="submit" class="bg-teal-650 text-white" :disabled="editForm.processing">
-                                {{ editForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="!!editingTable"
+            @update:open="(v: boolean) => { if (!v) editingTable = null }"
+            title="Sửa bàn"
+            max-width-class="max-w-sm"
+            :processing="editForm.processing"
+            submit-label="Lưu thay đổi"
+            processing-label="Đang lưu..."
+            @submit="submitEdit"
+        >
+            <div class="grid gap-1.5">
+                <Label>Tên bàn</Label>
+                <Input v-model="editForm.name" required />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label>Sức chứa</Label>
+                    <Input type="number" v-model="editForm.capacity" min="1" />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Trạng thái</Label>
+                    <select v-model="editForm.status"
+                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+                        <option value="available">Trống</option>
+                        <option value="occupied">Có khách</option>
+                        <option value="reserved">Đặt trước</option>
+                        <option value="cleaning">Chờ dọn bàn</option>
+                        <option value="inactive">Ngưng dùng</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid gap-1.5 pt-2 border-t mt-4">
+                <Label>QR Code gọi món</Label>
+                <Button type="button" variant="outline" @click="showQrModal(editingTable!)" class="w-full flex items-center gap-1.5 text-xs h-9">
+                    <QrCode class="size-4 text-teal-600" /> Xem mã QR & Link đặt món
+                </Button>
+            </div>
+        </FormModal>
 
         <!-- Delete Confirm -->
         <div v-if="deletingTable" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">

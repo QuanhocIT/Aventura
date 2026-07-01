@@ -47,7 +47,8 @@ class OnlinePaymentWebhookController extends Controller
                     app(\App\Services\OrderService::class)->payOrder(
                         $order,
                         ['payment_method' => $gateway, 'cash_received' => $order->total_amount, 'change_amount' => 0],
-                        $systemUser
+                        $systemUser,
+                        true
                     );
 
                     Log::info("OnlinePaymentWebhook: {$gateway} payment confirmed", [

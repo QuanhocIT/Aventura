@@ -17,6 +17,7 @@ class DeliveryDispatchService
 {
     public function __construct(
         private RouteOptimizationService $router,
+        private OsrmClient $osrm,
     ) {}
 
     /**
@@ -177,15 +178,28 @@ class DeliveryDispatchService
         $prevLat     = $currentLat;
         $prevLng     = $currentLng;
 
+        $cumulativeMinutes = 0.0;
+
         foreach ($pendingItems as $item) {
             $detail = $item->order?->deliveryDetail;
             if (!$detail?->hasCoordinates()) continue;
 
-            $km           = $this->router->haversine($prevLat, $prevLng, (float) $detail->latitude, (float) $detail->longitude);
-            $cumulativeKm += $km;
-            $speed        = $shipper->getSpeedKmh();
-            $minutes      = $speed > 0 ? ($cumulativeKm / $speed) * 60 : 0;
-            $eta          = $now->copy()->addMinutes((int) $minutes);
+            // Prefer real road-network duration from a self-hosted OSRM instance; falls
+            // back to haversine + fixed vehicle-type speed when OSRM isn't configured or
+            // unreachable (OsrmClient returns null in either case — see docs/setup/osrm-setup.md).
+            $osrmSegment = $this->osrm->segmentRoute($prevLat, $prevLng, (float) $detail->latitude, (float) $detail->longitude);
+
+            if ($osrmSegment !== null) {
+                $cumulativeMinutes += $osrmSegment['duration_minutes'];
+                $cumulativeKm      += $osrmSegment['distance_km'];
+            } else {
+                $km            = $this->router->haversine($prevLat, $prevLng, (float) $detail->latitude, (float) $detail->longitude);
+                $speed         = $shipper->getSpeedKmh();
+                $cumulativeKm += $km;
+                $cumulativeMinutes += $speed > 0 ? ($km / $speed) * 60 : 0;
+            }
+
+            $eta = $now->copy()->addMinutes((int) $cumulativeMinutes);
 
             $item->update(['eta' => $eta]);
 

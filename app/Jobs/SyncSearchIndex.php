@@ -14,6 +14,10 @@ class SyncSearchIndex implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    // A full scout:import can take much longer than the per-record indexing jobs sharing
+    // this queue, so it needs its own worker timeout rather than the queue's default (30s).
+    public $timeout = 600;
+
     /**
      * Create a new job instance.
      */
@@ -21,7 +25,9 @@ class SyncSearchIndex implements ShouldQueue
         protected string $action,
         protected string $modelClass,
         protected string $indexName
-    ) {}
+    ) {
+        $this->onQueue('search');
+    }
 
     /**
      * Execute the job.

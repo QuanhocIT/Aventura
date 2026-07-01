@@ -75,6 +75,25 @@ const segmentCounts = computed(() => ({
     new:     props.customers.filter(c => c.loyalty_points === 0).length,
 }));
 
+const tierCounts = computed(() => {
+    const total = props.customers.length || 1;
+    const gold = props.customers.filter(c => c.loyalty_points >= 200).length;
+    const silver = props.customers.filter(c => c.loyalty_points >= 100 && c.loyalty_points < 200).length;
+    const bronze = props.customers.filter(c => c.loyalty_points > 0 && c.loyalty_points < 100).length;
+    const normal = props.customers.filter(c => c.loyalty_points === 0).length;
+    
+    return {
+        gold,
+        silver,
+        bronze,
+        normal,
+        goldPct: Math.round((gold / total) * 100),
+        silverPct: Math.round((silver / total) * 100),
+        bronzePct: Math.round((bronze / total) * 100),
+        normalPct: Math.round((normal / total) * 100),
+    };
+});
+
 const displayedCustomers = computed(() => {
     let list = [...props.customers];
 
@@ -324,11 +343,11 @@ const genderColors = {
         </div>
 
         <!-- Retention Metrics Row -->
-        <div v-if="stats.retention_rate !== undefined" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div v-if="stats.retention_rate !== undefined" class="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <!-- Donut chart: New vs Returning -->
             <div class="sm:col-span-1 flex flex-col items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 gap-2">
                 <svg width="80" height="80" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="28" fill="none" stroke="#e2e8f0" stroke-width="12" />
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#e2e8f0" stroke-width="12" class="dark:stroke-slate-800" />
                     <circle cx="40" cy="40" r="28" fill="none" stroke="#6366f1" stroke-width="12"
                         stroke-dasharray="175.9"
                         :stroke-dashoffset="175.9 * (1 - (stats.retention_rate ?? 0) / 100)"
@@ -339,19 +358,60 @@ const genderColors = {
                 </svg>
                 <p class="text-[10px] text-center font-bold text-slate-500 uppercase tracking-wider">Tỉ lệ giữ chân</p>
             </div>
+
+            <!-- Donut chart: Tiers -->
+            <div class="sm:col-span-1 flex flex-col items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 gap-2 relative group cursor-pointer">
+                <svg width="80" height="80" viewBox="0 0 80 80" class="overflow-visible">
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#e2e8f0" stroke-width="12" class="dark:stroke-slate-800" />
+                    
+                    <!-- Gold segment -->
+                    <circle v-if="tierCounts.gold > 0" cx="40" cy="40" r="28" fill="none" stroke="#d97706" stroke-width="12"
+                        stroke-dasharray="175.9"
+                        :stroke-dashoffset="175.9 * (1 - tierCounts.gold / (customers.length || 1))"
+                        transform="rotate(-90 40 40)" />
+                        
+                    <!-- Silver segment -->
+                    <circle v-if="tierCounts.silver > 0" cx="40" cy="40" r="28" fill="none" stroke="#94a3b8" stroke-width="12"
+                        stroke-dasharray="175.9"
+                        :stroke-dashoffset="175.9 * (1 - tierCounts.silver / (customers.length || 1))"
+                        :transform="`rotate(${-90 + (tierCounts.gold / (customers.length || 1)) * 360} 40 40)`" />
+                        
+                    <!-- Bronze segment -->
+                    <circle v-if="tierCounts.bronze > 0" cx="40" cy="40" r="28" fill="none" stroke="#ea580c" stroke-width="12"
+                        stroke-dasharray="175.9"
+                        :stroke-dashoffset="175.9 * (1 - tierCounts.bronze / (customers.length || 1))"
+                        :transform="`rotate(${-90 + ((tierCounts.gold + tierCounts.silver) / (customers.length || 1)) * 360} 40 40)`" />
+                        
+                    <!-- Normal segment -->
+                    <circle v-if="tierCounts.normal > 0" cx="40" cy="40" r="28" fill="none" stroke="#cbd5e1" stroke-width="12"
+                        stroke-dasharray="175.9"
+                        :stroke-dashoffset="175.9 * (1 - tierCounts.normal / (customers.length || 1))"
+                        :transform="`rotate(${-90 + ((tierCounts.gold + tierCounts.silver + tierCounts.bronze) / (customers.length || 1)) * 360} 40 40)`" class="dark:stroke-slate-700" />
+                </svg>
+                <p class="text-[10px] text-center font-bold text-slate-500 uppercase tracking-wider">Phân hạng hội viên</p>
+                
+                <!-- Floating tooltip on hover showing percentages -->
+                <div class="absolute invisible group-hover:visible bottom-full mb-2 bg-slate-950/95 backdrop-blur-xs text-white p-2 rounded-lg text-[9px] shadow-lg flex flex-col gap-1 z-10 w-28 border border-slate-800 pointer-events-none transition-all duration-150">
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-600"></span> Gold: {{ tierCounts.goldPct }}%</div>
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-slate-400"></span> Silver: {{ tierCounts.silverPct }}%</div>
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-orange-600"></span> Bronze: {{ tierCounts.bronzePct }}%</div>
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-slate-350"></span> Member: {{ tierCounts.normalPct }}%</div>
+                </div>
+            </div>
+
             <!-- Stats breakdown -->
             <div class="sm:col-span-3 grid grid-cols-3 gap-3">
-                <div class="rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20 dark:border-indigo-800/40 p-3 text-center">
+                <div class="rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20 dark:border-indigo-800/40 p-3 text-center flex flex-col justify-center">
                     <p class="text-2xl font-black text-indigo-700 dark:text-indigo-300">{{ stats.returning_30d }}</p>
                     <p class="text-[10px] font-bold text-indigo-500 mt-0.5 uppercase tracking-wider">Khách quay lại</p>
                     <p class="text-[9px] text-muted-foreground">30 ngày qua</p>
                 </div>
-                <div class="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800/40 p-3 text-center">
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800/40 p-3 text-center flex flex-col justify-center">
                     <p class="text-2xl font-black text-emerald-700 dark:text-emerald-300">{{ stats.new_customers_30d }}</p>
                     <p class="text-[10px] font-bold text-emerald-500 mt-0.5 uppercase tracking-wider">Khách mới</p>
                     <p class="text-[9px] text-muted-foreground">30 ngày qua</p>
                 </div>
-                <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-center">
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-center flex flex-col justify-center">
                     <p class="text-2xl font-black text-slate-700 dark:text-slate-300">{{ stats.total_ordering_30d }}</p>
                     <p class="text-[10px] font-bold text-slate-500 mt-0.5 uppercase tracking-wider">Tổng đặt hàng</p>
                     <p class="text-[9px] text-muted-foreground">30 ngày qua</p>

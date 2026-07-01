@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Employees\StoreEmployeeRequest;
+use App\Http\Requests\Employees\UpdateEmployeeRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\ScheduleAssignment;
@@ -60,8 +62,10 @@ class EmployeeManagementController extends Controller
             ]);
 
         // Query or seed shifts dynamically
-        $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)->get();
-        if ($shiftsQuery->isEmpty()) {
+        $shiftsQuery = $user->restaurant_id
+            ? WorkShift::where('restaurant_id', $user->restaurant_id)->get()
+            : collect();
+        if ($shiftsQuery->isEmpty() && $user->restaurant_id) {
             $defaultShifts = [
                 ['name' => 'Ca Sáng (06:00 - 14:00)', 'code' => 'CA_SANG', 'start_time' => '06:00', 'end_time' => '14:00'],
                 ['name' => 'Ca Chiều (14:00 - 22:00)', 'code' => 'CA_CHIEU', 'start_time' => '14:00', 'end_time' => '22:00'],
@@ -299,24 +303,10 @@ class EmployeeManagementController extends Controller
     /**
      * Thêm nhân viên mới & phân quyền.
      */
-    public function storeEmployee(Request $request): RedirectResponse
+    public function storeEmployee(StoreEmployeeRequest $request): RedirectResponse
     {
         $user = $request->user();
-
-        $data = $request->validate([
-            'name'              => ['required', 'string', 'max:255'],
-            'email'             => ['required', 'email', \Illuminate\Validation\Rule::unique('users')->where('restaurant_id', $user->restaurant_id)],
-            'phone'             => ['required', 'string', 'max:20'],
-            'citizen_id_number' => ['required', 'string', 'max:20'],
-            'address'           => ['required', 'string', 'max:500'],
-            'date_of_birth'     => ['required', 'date', 'before:today'],
-            'citizen_id_front'  => ['required', 'image', 'max:2048'],
-            'citizen_id_back'   => ['required', 'image', 'max:2048'],
-            'hire_date'         => ['required', 'date'],
-            'base_salary'       => ['required', 'numeric', 'min:0'],
-            'role'              => ['required', 'string', 'in:cashier,kitchen,manager,waiter'],
-            'job_title'         => ['required', 'string', 'max:100'],
-        ]);
+        $data = $request->validated();
 
         $frontUrl = null;
         if ($request->hasFile('citizen_id_front')) {
@@ -794,23 +784,11 @@ class EmployeeManagementController extends Controller
     /**
      * Cập nhật trạng thái nhân viên (active/inactive).
      */
-    public function updateEmployee(Request $request, Employee $employee): RedirectResponse
+    public function updateEmployee(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
         $user = $request->user();
-        abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
 
-        $data = $request->validate([
-            'status'            => ['sometimes', 'in:active,inactive'],
-            'full_name'         => ['sometimes', 'string', 'max:255'],
-            'phone'             => ['sometimes', 'nullable', 'string', 'max:20'],
-            'job_title'         => ['sometimes', 'string', 'max:100'],
-            'role'              => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter'],
-            'date_of_birth'     => ['sometimes', 'nullable', 'date', 'before:today'],
-            'address'           => ['sometimes', 'nullable', 'string', 'max:500'],
-            'citizen_id_number' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'citizen_id_front'  => ['sometimes', 'nullable', 'image', 'max:2048'],
-            'citizen_id_back'   => ['sometimes', 'nullable', 'image', 'max:2048'],
-        ]);
+        $data = $request->validated();
 
         if ($request->hasFile('citizen_id_front')) {
             $path = $request->file('citizen_id_front')->store('citizen_ids', 'public');

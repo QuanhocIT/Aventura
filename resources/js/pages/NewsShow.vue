@@ -45,8 +45,19 @@ function onScroll() {
 onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }));
 onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
-function renderMarkdown(text: string): string {
+function escapeHtml(text: string): string {
     return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Input is HTML-escaped first — post.content is author-entered rich text
+// rendered via v-html, and news posts are publicly viewable.
+function renderMarkdown(text: string): string {
+    return escapeHtml(text)
         .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold mt-6 mb-2">$1</h3>')
         .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mt-8 mb-3">$1</h2>')
         .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>')

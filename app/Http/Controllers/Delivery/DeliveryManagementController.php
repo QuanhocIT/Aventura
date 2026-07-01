@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Delivery\DeliveryBatch;
 use App\Models\Delivery\DeliveryDetail;
 use App\Models\Delivery\Shipper;
+use App\Models\Delivery\ShipperLocationLog;
 use App\Models\Order;
 use App\Services\Delivery\DeliveryDispatchService;
 use App\Services\Delivery\GeoClusteringService;
@@ -92,12 +93,25 @@ class DeliveryManagementController extends Controller
         $shippers = Shipper::with([
                 'employee',
                 'activeBatch.items.order.deliveryDetail',
-                'locationLogs' => fn ($q) => $q->orderByDesc('logged_at')->limit(20),
             ])
             ->where('restaurant_id', $restaurantId)
             ->active()
+            ->get();
+
+        // A naive eager-loaded hasMany with ->limit(20) would cap the TOTAL rows across
+        // ALL shippers combined (not 20 per shipper), silently leaving most shippers with
+        // an empty trail. Fetch once for the whole batch and group/limit in PHP instead —
+        // one query, correct per-shipper results.
+        $recentLogsByShipper = ShipperLocationLog::whereIn('shipper_id', $shippers->pluck('id'))
+            ->where('logged_at', '>=', now()->subHours(6))
+            ->orderByDesc('logged_at')
             ->get()
-            ->map(fn (Shipper $s) => [
+            ->groupBy('shipper_id');
+
+        $shippers = $shippers->map(function (Shipper $s) use ($recentLogsByShipper) {
+            $trail = ($recentLogsByShipper->get($s->id) ?? collect())->take(20);
+
+            return [
                 'id'                   => $s->id,
                 'name'                 => $s->employee?->full_name ?? "Shipper #{$s->id}",
                 'vehicle_type'         => $s->vehicle_type,
@@ -110,7 +124,7 @@ class DeliveryManagementController extends Controller
                 'has_gps'              => $s->hasGps(),
                 'current_load'         => $s->getCurrentLoad(),
                 // GPS trail: newest first → reverse for chronological order
-                'trail' => $s->locationLogs
+                'trail' => $trail
                     ->sortBy('logged_at')
                     ->map(fn ($l) => ['lat' => (float) $l->latitude, 'lng' => (float) $l->longitude])
                     ->values(),
@@ -141,7 +155,8 @@ class DeliveryManagementController extends Controller
                         'order_confirmed_at' => $item->order?->confirmed_at?->toISOString(),
                     ])->values(),
                 ] : null,
-            ]);
+            ];
+        });
 
         return response()->json($shippers);
     }

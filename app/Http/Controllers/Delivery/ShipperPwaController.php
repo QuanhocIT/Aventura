@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Delivery;
 
 use App\Events\Delivery\ShipperLocationUpdated;
 use App\Http\Controllers\Controller;
+use App\Jobs\FlushShipperLocationPings;
 use App\Models\Delivery\DeliveryBatchItem;
 use App\Models\Delivery\Shipper;
 use App\Models\Delivery\ShipperLocationLog;
 use App\Services\Delivery\DeliveryDispatchService;
+use App\Services\Delivery\ShipperPingBuffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,15 @@ use Inertia\Response;
 
 class ShipperPwaController extends Controller
 {
-    public function __construct(private DeliveryDispatchService $dispatcher) {}
+    // Debounce window: how long to accumulate pings in Redis before a flush job drains
+    // them into MySQL. Keeps the live map feeling real-time without writing/broadcasting
+    // on every single ping.
+    private const FLUSH_DEBOUNCE_SECONDS = 3;
+
+    public function __construct(
+        private DeliveryDispatchService $dispatcher,
+        private ShipperPingBuffer $pingBuffer,
+    ) {}
 
     /** GET /delivery/shipper — shipper's PWA page */
     public function app(Request $request): Response
@@ -71,42 +81,24 @@ class ShipperPwaController extends Controller
             ->whereHas('employee', fn ($q) => $q->where('user_id', $request->user()->id))
             ->firstOrFail();
 
-        DB::transaction(function () use ($shipper, $validated) {
-            ShipperLocationLog::create([
-                'shipper_id'    => $shipper->id,
-                'restaurant_id' => $shipper->restaurant_id,
-                'latitude'      => $validated['latitude'],
-                'longitude'     => $validated['longitude'],
-                'speed_kmh'     => $validated['speed_kmh'] ?? null,
-                'accuracy_m'    => $validated['accuracy_m'] ?? null,
-                'logged_at'     => now(),
-            ]);
+        // Push to Redis and return immediately — no DB write, broadcast, or ETA
+        // recalculation happens inline. A debounced queued job (FlushShipperLocationPings)
+        // drains the buffer shortly after, batching all of that work per shipper instead
+        // of doing it on every single ping.
+        $this->pingBuffer->push($shipper->id, [
+            'latitude'   => $validated['latitude'],
+            'longitude'  => $validated['longitude'],
+            'speed_kmh'  => $validated['speed_kmh'] ?? null,
+            'accuracy_m' => $validated['accuracy_m'] ?? null,
+            'logged_at'  => now()->toDateTimeString(),
+        ]);
 
-            $shipper->update([
-                'current_lat'  => $validated['latitude'],
-                'current_lng'  => $validated['longitude'],
-                'last_seen_at' => now(),
-            ]);
-        });
-
-        broadcast(new ShipperLocationUpdated(
-            $shipper,
-            $validated['latitude'],
-            $validated['longitude'],
-            $validated['speed_kmh'] ?? null,
-        ));
-
-        // Recalculate ETAs if shipper has active batch
-        $activeBatch = $shipper->activeBatch()->first();
-        if ($activeBatch) {
-            $this->dispatcher->recalculateEtas(
-                $activeBatch,
-                $validated['latitude'],
-                $validated['longitude'],
-            );
+        if ($this->pingBuffer->claimFlush($shipper->id, self::FLUSH_DEBOUNCE_SECONDS)) {
+            FlushShipperLocationPings::dispatch($shipper->id, $shipper->restaurant_id)
+                ->delay(now()->addSeconds(self::FLUSH_DEBOUNCE_SECONDS));
         }
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true, 'buffered' => true]);
     }
 
     /** POST /delivery/api/shipper/location/batch — flush offline GPS queue */
@@ -152,12 +144,27 @@ class ShipperPwaController extends Controller
         });
 
         $last = end($validated['pings']);
-        broadcast(new ShipperLocationUpdated(
-            $shipper->refresh(),
-            $last['latitude'],
-            $last['longitude'],
-            $last['speed_kmh'] ?? null,
-        ));
+
+        if ($this->pingBuffer->shouldRunDebounced('broadcast', $shipper->id, 2)) {
+            ShipperLocationUpdated::broadcastOnQueue(
+                $shipper->refresh(),
+                (float) $last['latitude'],
+                (float) $last['longitude'],
+                isset($last['speed_kmh']) ? (float) $last['speed_kmh'] : null,
+            );
+        }
+
+        if ($this->pingBuffer->shouldRunDebounced('eta_recalc', $shipper->id, 5)) {
+            $activeBatch = $shipper->activeBatch()->first();
+
+            if ($activeBatch) {
+                \App\Jobs\RecalculateShipperEtasJob::dispatch(
+                    $activeBatch->id,
+                    (float) $last['latitude'],
+                    (float) $last['longitude'],
+                );
+            }
+        }
 
         return response()->json(['ok' => true, 'count' => count($validated['pings'])]);
     }

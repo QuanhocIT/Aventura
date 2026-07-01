@@ -38,6 +38,27 @@ class AuditLogController extends Controller
 
         $logs = $query->paginate(10)->withQueryString();
 
+        $isSqlite = \DB::connection()->getDriverName() === 'sqlite';
+        $afterHoursCount = $isSqlite
+            ? AuditLog::whereRaw("cast(strftime('%H', created_at) as integer) >= 23 OR cast(strftime('%H', created_at) as integer) < 5")->count()
+            : AuditLog::whereRaw("HOUR(created_at) >= 23 OR HOUR(created_at) < 5")->count();
+
+        $totalToday = AuditLog::whereDate('created_at', now()->toDateString())->count();
+        $deletedCount = AuditLog::where('event', 'deleted')->count();
+        $createdCount = AuditLog::where('event', 'created')->count();
+        $updatedCount = AuditLog::where('event', 'updated')->count();
+        $uniqueIpsCount = AuditLog::distinct()->count('ip_address');
+
+        $topActions = AuditLog::select('action', \DB::raw('count(*) as total'))
+            ->groupBy('action')
+            ->orderBy('total', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(fn($a) => [
+                'action' => $a->action,
+                'count' => $a->total,
+            ]);
+
         return Inertia::render('super-admin/audit-log/Index', [
             'logs'        => $logs->through(fn ($l) => [
                 'id'           => $l->id,
@@ -57,6 +78,15 @@ class AuditLogController extends Controller
             'restaurants' => Restaurant::orderBy('name')->get(['id', 'name']),
             'filters'     => $request->only(['restaurant_id', 'event', 'action', 'from', 'to']),
             'total'       => $logs->total(),
+            'stats'       => [
+                'total_today' => $totalToday,
+                'deleted_count' => $deletedCount,
+                'created_count' => $createdCount,
+                'updated_count' => $updatedCount,
+                'unique_ips_count' => $uniqueIpsCount,
+                'after_hours_count' => $afterHoursCount,
+                'top_actions' => $topActions,
+            ],
         ]);
     }
 }

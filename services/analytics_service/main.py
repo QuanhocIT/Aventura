@@ -1,25 +1,27 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import Depends, FastAPI, HTTPException, File, UploadFile, Form
 import pandas as pd
 import numpy as np
 from typing import List
 import json
 from sklearn.linear_model import LinearRegression
 from models import (
-    BasketAnalysisRequest, 
-    UpsellSuggestionRequest, 
-    FraudDetectionRequest, 
-    InventoryForecastRequest, 
+    BasketAnalysisRequest,
+    UpsellSuggestionRequest,
+    FraudDetectionRequest,
+    InventoryForecastRequest,
     RevenueForecastRequest,
     PriceAnalyticsRequest,
     TransferRecommendationsRequest,
     WeatherMenuForecastRequest
 )
+from security import verify_internal_key
 
 
 app = FastAPI(
     title="Aventura Smart Marketing Analytics Microservice",
     description="Microservice phân tích giỏ hàng và đề xuất Combo thông minh sử dụng FastAPI & Pandas",
-    version="1.0.0"
+    version="1.0.0",
+    dependencies=[Depends(verify_internal_key)],
 )
 
 @app.get("/")

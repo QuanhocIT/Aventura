@@ -26,6 +26,7 @@ import {
     FileUp,
     Check
 } from 'lucide-vue-next';
+import FormModal from '@/components/shared/FormModal.vue';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -891,105 +892,91 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── MODAL: CREATE/EDIT OPERATING EXPENSE ── -->
-        <div v-if="showExpenseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 border-border bg-card">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <Receipt class="size-5 text-amber-600" />
-                        {{ editingExpense ? 'Sửa Chi Phí Vận Hành' : 'Ghi Nhận Khoản Chi Phí Vận Hành' }}
-                    </CardTitle>
-                    <CardDescription class="text-xs">Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu COGS và lương nhân viên).</CardDescription>
-                </CardHeader>
-                <form @submit.prevent="saveExpense">
-                    <CardContent class="p-5 space-y-4 text-xs">
-                        <!-- Category field -->
-                        <div class="space-y-1.5">
-                            <Label for="expense-cat" class="text-xs font-bold text-slate-500">Danh mục chi phí:</Label>
-                            <select 
-                                id="expense-cat"
-                                v-model="expenseForm.category_id"
-                                class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2.5 outline-hidden focus:ring-2 focus:ring-amber-500/25"
-                            >
-                                <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-                            </select>
-                        </div>
+        <FormModal
+            :open="showExpenseModal"
+            @update:open="showExpenseModal = $event"
+            :title="editingExpense ? 'Sửa Chi Phí Vận Hành' : 'Ghi Nhận Khoản Chi Phí Vận Hành'"
+            description="Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu COGS và lương nhân viên)."
+            max-width-class="max-w-lg"
+            :processing="expenseForm.processing"
+            :submit-label="editingExpense ? 'Lưu cập nhật' : 'Ghi nhận chi phí'"
+            processing-label="Đang lưu..."
+            @submit="saveExpense"
+        >
+            <!-- Category field -->
+            <div class="space-y-1.5">
+                <Label for="expense-cat" class="text-xs font-bold text-slate-500">Danh mục chi phí:</Label>
+                <select
+                    id="expense-cat"
+                    v-model="expenseForm.category_id"
+                    class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2.5 outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                >
+                    <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
+            </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <!-- Amount -->
-                            <div class="space-y-1.5">
-                                <Label for="expense-amount" class="text-xs font-bold text-slate-500">Số tiền chi tiêu (VND):</Label>
-                                <Input 
-                                    id="expense-amount"
-                                    v-model.number="expenseForm.amount"
-                                    type="number"
-                                    placeholder="Nhập số tiền..."
-                                    class="w-full text-xs"
-                                />
-                            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Amount -->
+                <div class="space-y-1.5">
+                    <Label for="expense-amount" class="text-xs font-bold text-slate-500">Số tiền chi tiêu (VND):</Label>
+                    <Input
+                        id="expense-amount"
+                        v-model.number="expenseForm.amount"
+                        type="number"
+                        placeholder="Nhập số tiền..."
+                        class="w-full text-xs"
+                    />
+                </div>
 
-                            <!-- Date -->
-                            <div class="space-y-1.5">
-                                <Label for="expense-date" class="text-xs font-bold text-slate-500">Ngày ghi nhận:</Label>
-                                <Input 
-                                    id="expense-date"
-                                    v-model="expenseForm.expense_date"
-                                    type="date"
-                                    class="w-full text-xs"
-                                />
-                            </div>
-                        </div>
+                <!-- Date -->
+                <div class="space-y-1.5">
+                    <Label for="expense-date" class="text-xs font-bold text-slate-500">Ngày ghi nhận:</Label>
+                    <Input
+                        id="expense-date"
+                        v-model="expenseForm.expense_date"
+                        type="date"
+                        class="w-full text-xs"
+                    />
+                </div>
+            </div>
 
-                        <!-- Description -->
-                        <div class="space-y-1.5">
-                            <Label for="expense-desc" class="text-xs font-bold text-slate-500">Ghi chú chi tiết:</Label>
-                            <textarea 
-                                id="expense-desc"
-                                v-model="expenseForm.description"
-                                rows="3"
-                                placeholder="Mô tả lý do chi, thông tin nhà cung cấp dịch vụ..."
-                                class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2 outline-hidden focus:ring-2 focus:ring-amber-500/25"
-                            ></textarea>
-                        </div>
+            <!-- Description -->
+            <div class="space-y-1.5">
+                <Label for="expense-desc" class="text-xs font-bold text-slate-500">Ghi chú chi tiết:</Label>
+                <textarea
+                    id="expense-desc"
+                    v-model="expenseForm.description"
+                    rows="3"
+                    placeholder="Mô tả lý do chi, thông tin nhà cung cấp dịch vụ..."
+                    class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2 outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                ></textarea>
+            </div>
 
-                        <!-- Invoice Proof Upload -->
-                        <div class="space-y-2">
-                            <Label class="text-xs font-bold text-slate-500 block">Tải lên bill / hóa đơn chứng minh (Ảnh hoặc PDF):</Label>
-                            <div class="flex items-center gap-3">
-                                <label 
-                                    class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 dark:border-amber-900/50 hover:bg-amber-50/20 px-4 py-3 text-xs font-bold text-amber-600 transition-all select-none w-full text-center"
-                                >
-                                    <FileUp class="size-4" />
-                                    {{ expenseForm.invoice ? 'Đã chọn: ' + expenseForm.invoice.name : 'Chọn File/Chụp Ảnh Hóa Đơn...' }}
-                                    <input 
-                                        type="file" 
-                                        accept="image/*,application/pdf"
-                                        class="hidden" 
-                                        @change="handleExpenseFileChange"
-                                    />
-                                </label>
-                            </div>
-                            <p class="text-[10px] text-slate-400 mt-1">Dung lượng tối đa 5MB. Định dạng: JPG, PNG, WEBP hoặc PDF.</p>
-                            <div v-if="editingExpense && editingExpense.invoice_path && !expenseForm.invoice" class="text-[10px] text-slate-500 flex items-center gap-1 bg-muted p-2 rounded-lg">
-                                <FileText class="size-3.5 text-amber-600" />
-                                Hóa đơn hiện có: 
-                                <a :href="editingExpense.invoice_path" target="_blank" class="text-amber-600 font-bold hover:underline">Xem hóa đơn hiện tại</a>
-                            </div>
-                        </div>
-                    </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/30 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showExpenseModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
-                            class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 flex items-center gap-1.5"
-                            :disabled="expenseForm.processing"
-                        >
-                            <span v-if="expenseForm.processing" class="size-3 border-2 border-t-transparent border-white rounded-full animate-spin mr-1"></span>
-                            {{ editingExpense ? 'Lưu cập nhật' : 'Ghi nhận chi phí' }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+            <!-- Invoice Proof Upload -->
+            <div class="space-y-2">
+                <Label class="text-xs font-bold text-slate-500 block">Tải lên bill / hóa đơn chứng minh (Ảnh hoặc PDF):</Label>
+                <div class="flex items-center gap-3">
+                    <label
+                        class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 dark:border-amber-900/50 hover:bg-amber-50/20 px-4 py-3 text-xs font-bold text-amber-600 transition-all select-none w-full text-center"
+                    >
+                        <FileUp class="size-4" />
+                        {{ expenseForm.invoice ? 'Đã chọn: ' + expenseForm.invoice.name : 'Chọn File/Chụp Ảnh Hóa Đơn...' }}
+                        <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            class="hidden"
+                            @change="handleExpenseFileChange"
+                        />
+                    </label>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Dung lượng tối đa 5MB. Định dạng: JPG, PNG, WEBP hoặc PDF.</p>
+                <div v-if="editingExpense && editingExpense.invoice_path && !expenseForm.invoice" class="text-[10px] text-slate-500 flex items-center gap-1 bg-muted p-2 rounded-lg">
+                    <FileText class="size-3.5 text-amber-600" />
+                    Hóa đơn hiện có:
+                    <a :href="editingExpense.invoice_path" target="_blank" class="text-amber-600 font-bold hover:underline">Xem hóa đơn hiện tại</a>
+                </div>
+            </div>
+        </FormModal>
 
         <!-- ── MODAL: CREATE/EDIT RECURRING EXPENSE ── -->
         <div v-if="showRecurringModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">

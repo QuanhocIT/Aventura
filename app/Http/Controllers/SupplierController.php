@@ -738,11 +738,13 @@ class SupplierController extends Controller
     /**
      * Lấy chỉ số SLA đối soát và giao nhận của Nhà cung cấp.
      */
-    private function calculateSlaForSupplier(Supplier $supplier): array
+    private function calculateSlaForSupplier(Supplier $supplier, ?array $context = null): array
     {
-        $pos = PurchaseOrder::where('supplier_id', $supplier->id)
-            ->whereIn('status', ['delivered', 'frozen'])
-            ->get();
+        $pos = isset($context['pos'])
+            ? ($context['pos']->get($supplier->id) ?? collect())
+            : PurchaseOrder::where('supplier_id', $supplier->id)
+                ->whereIn('status', ['delivered', 'frozen'])
+                ->get();
 
         $totalPos = $pos->count();
         $onTimeCount = 0;
@@ -773,13 +775,18 @@ class SupplierController extends Controller
 
         // Price Volatility per ingredient
         $priceVolatility = [];
-        $ingredients = Ingredient::where('supplier_id', $supplier->id)->get();
+        $ingredients = isset($context['ingredients'])
+            ? ($context['ingredients']->get($supplier->id) ?? collect())
+            : Ingredient::where('supplier_id', $supplier->id)->get();
+
         $ingredientIds = $ingredients->pluck('id')->toArray();
-        $histories = SupplierPriceHistory::where('supplier_id', $supplier->id)
-            ->whereIn('ingredient_id', $ingredientIds)
-            ->orderBy('effective_date')
-            ->get()
-            ->groupBy('ingredient_id');
+        $histories = isset($context['histories'])
+            ? ($context['histories']->get($supplier->id) ?? collect())->groupBy('ingredient_id')
+            : SupplierPriceHistory::where('supplier_id', $supplier->id)
+                ->whereIn('ingredient_id', $ingredientIds)
+                ->orderBy('effective_date')
+                ->get()
+                ->groupBy('ingredient_id');
 
         $totalVolatility = 0;
         $volatilityCount = 0;
@@ -865,9 +872,30 @@ class SupplierController extends Controller
             ->where('status', 'active')
             ->get();
 
+        $supplierIds = $suppliers->pluck('id')->toArray();
+
+        // Preload context values to optimize queries
+        $context = [];
+
+        $context['pos'] = PurchaseOrder::whereIn('supplier_id', $supplierIds)
+            ->whereIn('status', ['delivered', 'frozen'])
+            ->get()
+            ->groupBy('supplier_id');
+
+        $context['ingredients'] = Ingredient::whereIn('supplier_id', $supplierIds)
+            ->get()
+            ->groupBy('supplier_id');
+
+        $allIngredientIds = Ingredient::whereIn('supplier_id', $supplierIds)->pluck('id')->toArray();
+        $context['histories'] = SupplierPriceHistory::whereIn('supplier_id', $supplierIds)
+            ->whereIn('ingredient_id', $allIngredientIds)
+            ->orderBy('effective_date')
+            ->get()
+            ->groupBy('supplier_id');
+
         $dashboard = [];
         foreach ($suppliers as $supplier) {
-            $dashboard[] = $this->calculateSlaForSupplier($supplier);
+            $dashboard[] = $this->calculateSlaForSupplier($supplier, $context);
         }
 
         return response()->json([
@@ -900,60 +928,71 @@ class SupplierController extends Controller
         $suppliers = Supplier::where('restaurant_id', $restaurantId)->get()->keyBy('id');
         $supplierIds = $suppliers->keys()->toArray();
 
+        $understockedIngredients = $ingredients->filter(function ($ing) use ($inventories) {
+            $inv = $inventories->get($ing->id);
+            $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
+            $minStock = (float) ($ing->min_stock_level ?? 0.0);
+            return $currentStock < $minStock;
+        });
+
+        $understockedIngredientIds = $understockedIngredients->pluck('id')->toArray();
+
+        // Preload all price histories for understocked ingredients in a single query
+        $allPriceHistories = SupplierPriceHistory::whereIn('ingredient_id', $understockedIngredientIds)
+            ->whereIn('supplier_id', $supplierIds)
+            ->orderBy('effective_date', 'desc')
+            ->get()
+            ->groupBy('ingredient_id');
+
         $cockpitData = [];
 
-        foreach ($ingredients as $ing) {
+        foreach ($understockedIngredients as $ing) {
             $inv = $inventories->get($ing->id);
             $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
             $minStock = (float) ($ing->min_stock_level ?? 0.0);
 
-            // Understock check
-            if ($currentStock < $minStock) {
-                $deficit = $minStock - $currentStock;
-                $safetyMarginFactor = 1.2;
-                $suggestedQty = round($deficit * $safetyMarginFactor, 3);
+            $deficit = $minStock - $currentStock;
+            $safetyMarginFactor = 1.2;
+            $suggestedQty = round($deficit * $safetyMarginFactor, 3);
 
-                // Find optimal supplier based on lowest price in history
-                $priceHistories = SupplierPriceHistory::where('ingredient_id', $ing->id)
-                    ->whereIn('supplier_id', $supplierIds)
-                    ->orderBy('effective_date', 'desc')
-                    ->get()
-                    ->unique('supplier_id');
+            // Find optimal supplier based on lowest price in history from preloaded collection
+            $priceHistories = isset($allPriceHistories[$ing->id])
+                ? $allPriceHistories[$ing->id]->unique('supplier_id')
+                : collect();
 
-                $cheapestRecord = $priceHistories->sortBy('price')->first();
+            $cheapestRecord = $priceHistories->sortBy('price')->first();
 
-                $optimalSupplier = null;
-                $optimalPrice = (float) $ing->average_cost;
-                $isCheapestFromHistory = false;
+            $optimalSupplier = null;
+            $optimalPrice = (float) $ing->average_cost;
+            $isCheapestFromHistory = false;
 
-                if ($cheapestRecord) {
-                    $optimalSupplier = $suppliers->get($cheapestRecord->supplier_id);
-                    $optimalPrice = (float) $cheapestRecord->price;
-                    $isCheapestFromHistory = true;
-                } elseif ($ing->supplier_id) {
-                    $optimalSupplier = $suppliers->get($ing->supplier_id);
-                }
-
-                $cockpitData[] = [
-                    'ingredient_id' => $ing->id,
-                    'ingredient_name' => $ing->name,
-                    'sku' => $ing->sku,
-                    'unit_symbol' => $ing->unit?->symbol ?? '—',
-                    'current_stock' => $currentStock,
-                    'min_stock_level' => $minStock,
-                    'suggested_quantity' => $suggestedQty,
-                    'optimal_supplier' => $optimalSupplier ? [
-                        'id' => $optimalSupplier->id,
-                        'name' => $optimalSupplier->name,
-                    ] : null,
-                    'optimal_price' => $optimalPrice,
-                    'is_cheapest_from_history' => $isCheapestFromHistory,
-                    'default_supplier' => $ing->supplier ? [
-                        'id' => $ing->supplier->id,
-                        'name' => $ing->supplier->name,
-                    ] : null,
-                ];
+            if ($cheapestRecord) {
+                $optimalSupplier = $suppliers->get($cheapestRecord->supplier_id);
+                $optimalPrice = (float) $cheapestRecord->price;
+                $isCheapestFromHistory = true;
+            } elseif ($ing->supplier_id) {
+                $optimalSupplier = $suppliers->get($ing->supplier_id);
             }
+
+            $cockpitData[] = [
+                'ingredient_id' => $ing->id,
+                'ingredient_name' => $ing->name,
+                'sku' => $ing->sku,
+                'unit_symbol' => $ing->unit?->symbol ?? '—',
+                'current_stock' => $currentStock,
+                'min_stock_level' => $minStock,
+                'suggested_quantity' => $suggestedQty,
+                'optimal_supplier' => $optimalSupplier ? [
+                    'id' => $optimalSupplier->id,
+                    'name' => $optimalSupplier->name,
+                ] : null,
+                'optimal_price' => $optimalPrice,
+                'is_cheapest_from_history' => $isCheapestFromHistory,
+                'default_supplier' => $ing->supplier ? [
+                    'id' => $ing->supplier->id,
+                    'name' => $ing->supplier->name,
+                ] : null,
+            ];
         }
 
         return response()->json([

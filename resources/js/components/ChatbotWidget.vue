@@ -173,9 +173,19 @@ function scrollToBottom() {
     });
 }
 
-// ── Markdown-lite renderer (bold + newlines only) ─────────────────────────────
-function renderMarkdown(text: string): string {
+function escapeHtml(text: string): string {
     return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ── Markdown-lite renderer (bold + newlines only) ─────────────────────────────
+// Escapes HTML first — msg.content is user-typed chat input rendered via v-html.
+function renderMarkdown(text: string): string {
+    return escapeHtml(text)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\n/g, '<br>');
 }
@@ -270,7 +280,7 @@ function renderMarkdown(text: string): string {
                                 :class="msg.role === 'user'
                                     ? 'rounded-tr-sm bg-primary text-primary-foreground'
                                     : 'rounded-tl-sm bg-muted text-foreground'"
-                                v-html="msg.role === 'bot' ? renderMarkdown(msg.content) : msg.content"
+                                v-html="msg.role === 'bot' ? renderMarkdown(msg.content) : escapeHtml(msg.content)"
                             />
 
                             <!-- Feedback buttons (bot only) -->

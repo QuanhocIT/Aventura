@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader, StatusBadge, EmptyState } from '@/components/super-admin';
 
 interface Banner {
     id: number;
@@ -224,14 +225,15 @@ const currentSlotMeta = computed(() => slots.find((s) => s.key === activeSlot.va
 <template>
     <Head title="Quản lý Banner" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+    <div class="flex flex-col gap-5 px-6 py-5">
         <div class="space-y-6">
 
             <!-- Header -->
-            <div class="border-b pb-5 border-border/60">
-                <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">Quản lý Banner & Slideshow</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Upload ảnh để thay đổi giao diện trang khách hàng mà không cần đụng code.</p>
-            </div>
+            <PageHeader
+                title="Quản lý Banner & Slideshow"
+                subtitle="Upload ảnh để thay đổi giao diện trang khách hàng mà không cần đụng code."
+                :icon="ImageIcon"
+            />
 
             <!-- Slot tabs -->
             <div class="flex gap-3">

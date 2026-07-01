@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\BillingInvoice;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
@@ -21,15 +22,7 @@ class GenerateInvoiceDocuments implements ShouldQueue
         $pdfPath = $basePath.'/invoice-'.$invoice->invoice_number.'.pdf';
         $excelPath = $basePath.'/invoice-'.$invoice->invoice_number.'.csv';
 
-        $pdfBody = implode(PHP_EOL, [
-            'Aventura Invoice',
-            'Invoice: '.$invoice->invoice_number,
-            'Restaurant: '.($invoice->restaurant?->name ?? 'N/A'),
-            'Plan: '.($invoice->subscription?->plan?->name ?? 'N/A'),
-            'Type: '.$invoice->type,
-            'Total: '.number_format((float) $invoice->total, 0, ',', '.').' '.$invoice->currency,
-            'Due: '.optional($invoice->due_on)->format('d/m/Y'),
-        ]);
+        $pdfBinary = Pdf::loadView('billing.invoice-pdf', ['invoice' => $invoice])->output();
 
         $csvBody = implode(',', ['invoice_number', 'restaurant', 'type', 'total', 'currency', 'due_on']).PHP_EOL;
         $csvBody .= implode(',', [
@@ -41,7 +34,7 @@ class GenerateInvoiceDocuments implements ShouldQueue
             optional($invoice->due_on)->format('Y-m-d'),
         ]);
 
-        Storage::disk('local')->put($pdfPath, $pdfBody);
+        Storage::disk('local')->put($pdfPath, $pdfBinary);
         Storage::disk('local')->put($excelPath, $csvBody);
 
         $invoice->update([

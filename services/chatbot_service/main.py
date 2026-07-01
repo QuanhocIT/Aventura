@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
@@ -14,6 +14,7 @@ from models import (
 )
 from services import nlp_service
 from services.db_service import increment_view, record_feedback, log_unanswered_query
+from security import verify_internal_key
 import time
 
 logging.basicConfig(
@@ -26,6 +27,7 @@ app = FastAPI(
     title="Aventura Chatbot Service",
     description="Python FAQ chatbot microservice cho Aventura SaaS",
     version="1.0.0",
+    dependencies=[Depends(verify_internal_key)],
 )
 
 app.add_middleware(

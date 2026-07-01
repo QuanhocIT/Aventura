@@ -9,10 +9,15 @@ use App\Http\Controllers\SuperAdmin\BillingOverrideController;
 use App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController;
 use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
 use App\Http\Controllers\SuperAdmin\ChurnController;
+use App\Http\Controllers\SuperAdmin\CampaignTemplateController;
 use App\Http\Controllers\SuperAdmin\CouponController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\GarbageCollectorController;
+use App\Http\Controllers\SuperAdmin\GlobalCustomersController;
+use App\Http\Controllers\SuperAdmin\GlobalFeedbackController;
+use App\Http\Controllers\SuperAdmin\GlobalOrdersController;
+use App\Http\Controllers\SuperAdmin\GlobalRevenueController;
 use App\Http\Controllers\SuperAdmin\GlobalSearchController;
 use App\Http\Controllers\SuperAdmin\ImpersonateController;
 use App\Http\Controllers\SuperAdmin\MaintenanceScheduleController;
@@ -41,6 +46,12 @@ Route::prefix('super-admin')
             Route::get('dashboard/export/csv', [DashboardController::class, 'exportCsv'])->name('dashboard.export.csv');
             Route::get('dashboard/export/report', [DashboardController::class, 'exportReport'])->name('dashboard.export.report');
             Route::post('dashboard/report-subscription', [DashboardController::class, 'updateReportSubscription'])->name('dashboard.report-subscription.update');
+
+            Route::get('orders', [GlobalOrdersController::class, 'index'])->name('orders.index');
+            Route::get('revenue', [GlobalRevenueController::class, 'index'])->name('revenue.index');
+            Route::get('revenue/export', [GlobalRevenueController::class, 'exportCsv'])->name('revenue.export');
+            Route::get('customers', [GlobalCustomersController::class, 'index'])->name('customers.index');
+            Route::get('feedback', [GlobalFeedbackController::class, 'index'])->name('feedback.index');
 
             Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
             Route::post('restaurants', [RestaurantController::class, 'store'])->name('restaurants.store');
@@ -100,6 +111,14 @@ Route::prefix('super-admin')
             Route::patch('coupons/{coupon}', [CouponController::class, 'update'])->name('coupons.update');
             Route::delete('coupons/{coupon}', [CouponController::class, 'destroy'])->name('coupons.destroy');
             Route::patch('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
+            Route::get('coupons/batches', [CouponController::class, 'batchIndex'])->name('coupons.batches.index');
+            Route::post('coupons/batches', [CouponController::class, 'storeBatch'])->name('coupons.batches.store');
+
+            Route::get('campaign-templates', [CampaignTemplateController::class, 'index'])->name('campaign-templates.index');
+            Route::post('campaign-templates', [CampaignTemplateController::class, 'store'])->name('campaign-templates.store');
+            Route::put('campaign-templates/{campaignTemplate}', [CampaignTemplateController::class, 'update'])->name('campaign-templates.update');
+            Route::delete('campaign-templates/{campaignTemplate}', [CampaignTemplateController::class, 'destroy'])->name('campaign-templates.destroy');
+            Route::post('campaign-templates/{campaignTemplate}/generate', [CampaignTemplateController::class, 'generate'])->name('campaign-templates.generate');
 
             Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
             Route::post('plans', [SubscriptionPlanController::class, 'store'])->name('plans.store');

@@ -16,6 +16,30 @@ class QrPaymentTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const TEST_SECRET = 'test-billing-webhook-secret';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['billing.webhook_secret' => self::TEST_SECRET]);
+    }
+
+    /**
+     * Sign and POST a payload to the real, signature-verified billing webhook
+     * (the old unauthenticated /api/webhooks/payments/vietqr duplicate was retired —
+     * see App\Http\Controllers\Billing\PaymentWebhookController).
+     */
+    private function postSignedWebhook(array $payload)
+    {
+        $body = json_encode($payload);
+        $signature = hash_hmac('sha256', $body, self::TEST_SECRET);
+
+        return $this->call('POST', route('billing.webhook'), [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_X-SePay-Signature' => $signature,
+        ], $body);
+    }
+
     public function test_vietqr_webhook_successfully_pays_unpaid_order()
     {
         Event::fake();
@@ -64,18 +88,17 @@ class QrPaymentTest extends TestCase
             'total_amount' => 200000.0,
         ]);
 
-        // 4. Send POST request to simulated webhook
+        // 4. Send a real, signed bank-transfer webhook payload
         $payload = [
-            'description' => "Chuyen khoan don hang AVTORD{$order->id} thanh cong",
+            'content' => "Chuyen khoan don hang AVTORD{$order->id} thanh cong",
             'amount' => 200000,
         ];
 
-        $response = $this->postJson(route('api.webhooks.payments.vietqr'), $payload);
+        $response = $this->postSignedWebhook($payload);
 
         // 5. Assertions
         $response->assertOk();
         $response->assertJsonPath('success', true);
-        $response->assertJsonPath('payment_status', 'paid');
 
         // Check database
         $order->refresh();
@@ -103,16 +126,38 @@ class QrPaymentTest extends TestCase
         });
     }
 
-    public function test_vietqr_webhook_fails_with_invalid_description()
+    public function test_webhook_rejects_invalid_signature()
     {
-        $payload = [
-            'description' => "Chuyen khoan khong co ma don hang",
-            'amount' => 100000,
-        ];
+        $order = Order::factory()->create([
+            'payment_status' => 'unpaid',
+            'total_amount' => 100000,
+        ]);
 
-        $response = $this->postJson(route('api.webhooks.payments.vietqr'), $payload);
+        $body = json_encode(['content' => "AVTORD{$order->id}"]);
+
+        $response = $this->call('POST', route('billing.webhook'), [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_X-SePay-Signature' => 'not-the-real-signature',
+        ], $body);
+
+        $response->assertStatus(401);
+
+        $order->refresh();
+        $this->assertEquals('unpaid', $order->payment_status);
+    }
+
+    public function test_webhook_falls_through_to_billing_handler_for_non_order_content()
+    {
+        // Content without an AVTORD reference isn't an order payment — the webhook
+        // should fall through to BillingService's subscription-webhook handling instead
+        // of erroring, per PaymentWebhookController::tryHandleOrderPayment() returning
+        // null when no AVTORD pattern is found.
+        $response = $this->postSignedWebhook([
+            'content' => 'Chuyen khoan khong co ma don hang',
+            'amount' => 100000,
+        ]);
 
         $response->assertStatus(422);
-        $response->assertJsonPath('success', false);
+        $response->assertJsonPath('message', 'Transaction code not found');
     }
 }

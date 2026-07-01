@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, TrendingUp, Wallet } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader, StatCard, StatusBadge } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -49,67 +50,24 @@ const barWidth = computed(() => {
 <template>
     <Head title="Revenue Recognition" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <!-- Header -->
-        <div class="flex items-center gap-4">
-            <Link href="/super-admin/billing/analytics">
-                <Button variant="outline" size="sm">
-                    <ArrowLeft class="mr-1.5 size-4" /> Analytics
-                </Button>
-            </Link>
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
-                    <Wallet class="size-6 text-violet-600" />
-                    Revenue Recognition
-                </h1>
-                <p class="text-sm text-muted-foreground">Phân biệt doanh thu đã ghi nhận (earned) vs chưa ghi nhận (deferred).</p>
-            </div>
-        </div>
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <PageHeader
+            title="Revenue Recognition"
+            subtitle="Phân biệt doanh thu đã ghi nhận (earned) vs chưa ghi nhận (deferred)."
+            :icon="Wallet"
+        >
+            <template #actions>
+                <Link href="/super-admin/billing/analytics">
+                    <Button variant="outline" size="sm"><ArrowLeft class="mr-1.5 size-4" /> Analytics</Button>
+                </Link>
+            </template>
+        </PageHeader>
 
         <!-- Summary Cards -->
         <div class="grid gap-4 md:grid-cols-4">
-            <Card class="border-sky-200 dark:border-sky-900/40">
-                <CardContent class="p-5">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="text-xs text-muted-foreground">Tổng đã thu (Cash)</p>
-                            <p class="mt-1 text-2xl font-bold text-sky-600">{{ summary.total_cash }}₫</p>
-                            <p class="text-xs text-muted-foreground mt-1">{{ summary.subscription_count }} subscriptions</p>
-                        </div>
-                        <div class="rounded-xl bg-sky-100 dark:bg-sky-900/30 p-2.5">
-                            <TrendingUp class="size-5 text-sky-600" />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-            <Card class="border-emerald-200 dark:border-emerald-900/40">
-                <CardContent class="p-5">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="text-xs text-muted-foreground">Đã ghi nhận (Earned)</p>
-                            <p class="mt-1 text-2xl font-bold text-emerald-600">{{ summary.total_earned }}₫</p>
-                            <p class="text-xs text-muted-foreground mt-1">{{ summary.earn_rate }}% tổng tiền thu</p>
-                        </div>
-                        <div class="rounded-xl bg-emerald-100 dark:bg-emerald-900/30 p-2.5">
-                            <TrendingUp class="size-5 text-emerald-600" />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-            <Card class="border-amber-200 dark:border-amber-900/40">
-                <CardContent class="p-5">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="text-xs text-muted-foreground">Chưa ghi nhận (Deferred)</p>
-                            <p class="mt-1 text-2xl font-bold text-amber-600">{{ summary.total_deferred }}₫</p>
-                            <p class="text-xs text-muted-foreground mt-1">{{ (100 - summary.earn_rate).toFixed(1) }}% tổng tiền thu</p>
-                        </div>
-                        <div class="rounded-xl bg-amber-100 dark:bg-amber-900/30 p-2.5">
-                            <Clock class="size-5 text-amber-600" />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            <StatCard label="Tổng đã thu (Cash)" :value="`${summary.total_cash}₫`" :icon="TrendingUp" color="sky" :change="`${summary.subscription_count} subscriptions`" class="" />
+            <StatCard label="Đã ghi nhận (Earned)" :value="`${summary.total_earned}₫`" :icon="TrendingUp" color="emerald" :change="`${summary.earn_rate}% tổng thu`" class="" />
+            <StatCard label="Chưa ghi nhận (Deferred)" :value="`${summary.total_deferred}₫`" :icon="Clock" color="amber" :change="`${(100 - summary.earn_rate).toFixed(1)}% tổng thu`" class="" />
             <Card>
                 <CardContent class="p-5">
                     <p class="text-xs text-muted-foreground mb-3">Tỷ lệ ghi nhận</p>

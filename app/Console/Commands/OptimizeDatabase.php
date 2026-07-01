@@ -12,14 +12,14 @@ class OptimizeDatabase extends Command
      *
      * @var string
      */
-    protected $signature = 'db:optimize {--action=all : Các hành động cần tối ưu (all, cleanup_queues, clear_sessions, archive_audit_logs)}';
+    protected $signature = 'db:optimize {--action=all : Các hành động cần tối ưu (all, cleanup_queues, clear_sessions, archive_audit_logs, prune_shipper_location_logs)}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Kích hoạt dọn dẹp hàng đợi cũ, xóa session hết hạn, lưu trữ/xóa nhật ký hoạt động (Audit Logs) cũ hơn 6 tháng';
+    protected $description = 'Kích hoạt dọn dẹp hàng đợi cũ, xóa session hết hạn, lưu trữ/xóa nhật ký hoạt động (Audit Logs) cũ hơn 6 tháng, và xóa ping vị trí shipper cũ hơn 90 ngày';
 
     /**
      * Execute the console command.
@@ -27,7 +27,7 @@ class OptimizeDatabase extends Command
     public function handle(DatabaseMaintenanceService $maintenanceService): int
     {
         $actionOpt = $this->option('action');
-        $validActions = ['cleanup_queues', 'clear_sessions', 'archive_audit_logs'];
+        $validActions = ['cleanup_queues', 'clear_sessions', 'archive_audit_logs', 'prune_shipper_location_logs'];
 
         if ($actionOpt === 'all') {
             $actions = $validActions;

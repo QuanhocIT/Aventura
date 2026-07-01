@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Form, Head, Link, usePage, useForm } from '@inertiajs/vue3';
-import { User as UserIcon, Mail, ShieldCheck, Lock, Check, Copy, Gift, History, Landmark, Users } from 'lucide-vue-next';
+import { User as UserIcon, Mail, ShieldCheck, Lock, Check, Copy, Gift, History, Landmark, Users, Coins, CreditCard, Wallet, ChevronRight } from 'lucide-vue-next';
 import { computed, ref, onUnmounted } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
@@ -382,28 +382,29 @@ const formatCurrency = (value: number) => {
         <div v-else-if="activeTab === 'referrals'" class="space-y-8">
             <div class="grid gap-6 md:grid-cols-2">
                 <!-- Referral Code Card -->
-                <Card class="w-full relative overflow-hidden border border-emerald-500/20 dark:border-emerald-500/10 bg-gradient-to-br from-emerald-500/[0.04] via-emerald-500/[0.01] to-transparent p-6 shadow-xs rounded-2xl">
+                <Card class="w-full relative overflow-hidden border border-emerald-500/20 dark:border-emerald-500/10 bg-gradient-to-br from-emerald-500/[0.05] via-emerald-500/[0.02] to-transparent p-6 shadow-lg rounded-2xl group hover:shadow-xl hover:shadow-emerald-500/[0.01] transition-all duration-300">
                     <div class="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-emerald-500/10 blur-xl animate-pulse" />
                     
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 relative z-10">
                         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                             <Gift class="h-5.5 w-5.5 animate-bounce" />
                         </div>
                         <div class="space-y-0.5">
-                            <h3 class="text-sm font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-wider">Mã giới thiệu của bạn</h3>
+                            <h3 class="text-sm font-extrabold text-neutral-900 dark:text-neutral-50 uppercase tracking-wider">Mã giới thiệu của bạn</h3>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400">Chia sẻ mã này với đối tác và bạn bè</p>
                         </div>
                     </div>
 
-                    <div class="mt-6 flex items-center gap-3">
-                        <div class="flex-1 rounded-xl border border-emerald-500/20 bg-white dark:bg-neutral-950 px-4 py-3 font-mono text-xl font-black tracking-wider text-center uppercase shadow-inner text-emerald-600 dark:text-emerald-400">
+                    <div class="mt-6 flex items-center gap-3 relative z-10">
+                        <div class="flex-1 rounded-xl border border-emerald-500/20 bg-background/50 px-4 py-3 font-mono text-xl font-black tracking-wider text-center uppercase shadow-inner text-emerald-500 dark:text-emerald-400 select-all relative overflow-hidden">
+                            <div class="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500/15 via-emerald-500/50 to-emerald-500/15"></div>
                             {{ user?.referral_code ?? 'AVTXXXXX' }}
                         </div>
                         <Button 
                             type="button" 
                             variant="outline" 
                             size="icon" 
-                            class="h-[52px] w-[52px] rounded-xl border-emerald-500/20 hover:bg-emerald-500/10 cursor-pointer"
+                            class="h-[52px] w-[52px] rounded-xl border-emerald-500/20 hover:bg-emerald-500/10 hover:border-emerald-500/35 cursor-pointer transition-all active:scale-95 duration-200 shrink-0"
                             @click="copyCode"
                         >
                             <Check v-if="isCopied" class="h-5 w-5 text-emerald-500" />
@@ -411,99 +412,127 @@ const formatCurrency = (value: number) => {
                         </Button>
                     </div>
 
-                    <div class="mt-6 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 font-semibold leading-relaxed">
-                        <div class="flex items-start gap-2.5">
-                            <span class="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">1</span>
-                            <span>Đối tác nhập mã này khi đăng ký tài khoản Aventura.</span>
+                    <div class="mt-6 space-y-4 text-xs text-neutral-600 dark:text-neutral-400 font-semibold leading-relaxed relative z-10">
+                        <div class="flex items-start gap-3 group/item">
+                            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400 group-hover/item:bg-emerald-500 group-hover/item:text-white transition-colors duration-200">1</span>
+                            <span>Đối tác nhập mã này khi đăng ký tài khoản <span class="text-emerald-600 dark:text-emerald-400 font-bold">Aventura</span>.</span>
                         </div>
-                        <div class="flex items-start gap-2.5">
-                            <span class="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">2</span>
-                            <span>Họ nhận ngay 14 ngày dùng thử miễn phí tất cả tính năng.</span>
+                        <div class="flex items-start gap-3 group/item">
+                            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400 group-hover/item:bg-emerald-500 group-hover/item:text-white transition-colors duration-200">2</span>
+                            <span>Họ nhận ngay <span class="text-emerald-600 dark:text-emerald-400 font-bold">14 ngày dùng thử miễn phí</span> tất cả tính năng cao cấp.</span>
                         </div>
-                        <div class="flex items-start gap-2.5">
-                            <span class="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">3</span>
-                            <span>Nhận hoa hồng tương ứng khi đối tác mua gói dịch vụ chính thức.</span>
+                        <div class="flex items-start gap-3 group/item">
+                            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400 group-hover/item:bg-emerald-500 group-hover/item:text-white transition-colors duration-200">3</span>
+                            <span>Nhận <span class="text-emerald-600 dark:text-emerald-400 font-bold">hoa hồng trọn đời</span> tương ứng khi đối tác thanh toán gói cước.</span>
                         </div>
                     </div>
                 </Card>
 
                 <!-- Earning Status & Withdrawal Form -->
-                <Card class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md p-6">
-                    <div class="flex items-center justify-between">
+                <Card class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-lg rounded-2xl overflow-hidden bg-card/30 backdrop-blur-sm p-6 relative">
+                    <div class="absolute -right-16 -top-16 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
+
+                    <div class="flex items-center justify-between relative z-10">
                         <div class="flex items-center gap-4">
-                            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 shrink-0">
-                                <Landmark class="h-5.5 w-5.5" />
+                            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-foreground shrink-0 border">
+                                <Wallet class="h-5.5 w-5.5 text-emerald-500" />
                             </div>
                             <div class="space-y-0.5">
-                                <h3 class="text-sm font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-wider">Số dư hoa hồng</h3>
+                                <h3 class="text-sm font-extrabold text-neutral-900 dark:text-neutral-50 uppercase tracking-wider">Số dư hoa hồng</h3>
                                 <p class="text-xs text-neutral-500 dark:text-neutral-400">Có thể yêu cầu rút tiền mặt</p>
                             </div>
                         </div>
-                        <div class="text-right">
-                            <p class="text-xl font-black text-emerald-600 dark:text-emerald-400">{{ formatCurrency(user?.commission_balance ?? 0) }}</p>
+                        <div class="text-right p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 shadow-inner">
+                            <p class="text-2xl font-black text-emerald-500 tracking-tight">{{ formatCurrency(user?.commission_balance ?? 0) }}</p>
                         </div>
                     </div>
 
-                    <form @submit.prevent="submitWithdrawal" class="mt-6 space-y-4">
-                        <div class="grid grid-cols-2 gap-3">
+                    <form @submit.prevent="submitWithdrawal" class="mt-6 space-y-4 relative z-10">
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Amount -->
                             <div class="grid gap-1.5 col-span-2">
-                                <Label for="amount" class="text-[10px] font-black uppercase tracking-wider text-neutral-500">Số tiền muốn rút (đ)</Label>
-                                <Input
-                                    id="amount"
-                                    type="number"
-                                    v-model="withdrawalForm.amount"
-                                    required
-                                    placeholder="Tối thiểu 50,000đ"
-                                    class="rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
-                                />
+                                <Label for="amount" class="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Số tiền muốn rút (đ)</Label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                        <Coins class="w-4 h-4" />
+                                    </span>
+                                    <Input
+                                        id="amount"
+                                        type="number"
+                                        v-model="withdrawalForm.amount"
+                                        required
+                                        placeholder="Tối thiểu 50,000đ"
+                                        class="pl-9 rounded-xl border-border bg-background/50 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500"
+                                    />
+                                </div>
                                 <InputError :message="withdrawalForm.errors.amount" />
                             </div>
 
+                            <!-- Bank Name -->
                             <div class="grid gap-1.5 col-span-2">
-                                <Label for="bank_name" class="text-[10px] font-black uppercase tracking-wider text-neutral-500">Tên ngân hàng</Label>
-                                <Input
-                                    id="bank_name"
-                                    type="text"
-                                    v-model="withdrawalForm.bank_name"
-                                    required
-                                    placeholder="Ví dụ: Vietcombank, Techcombank..."
-                                    class="rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
-                                />
+                                <Label for="bank_name" class="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Tên ngân hàng</Label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                        <Landmark class="w-4 h-4" />
+                                    </span>
+                                    <Input
+                                        id="bank_name"
+                                        type="text"
+                                        v-model="withdrawalForm.bank_name"
+                                        required
+                                        placeholder="Ví dụ: Vietcombank, Techcombank..."
+                                        class="pl-9 rounded-xl border-border bg-background/50 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500"
+                                    />
+                                </div>
                                 <InputError :message="withdrawalForm.errors.bank_name" />
                             </div>
 
-                            <div class="grid gap-1.5">
-                                <Label for="bank_account_number" class="text-[10px] font-black uppercase tracking-wider text-neutral-500">Số tài khoản</Label>
-                                <Input
-                                    id="bank_account_number"
-                                    type="text"
-                                    v-model="withdrawalForm.bank_account_number"
-                                    required
-                                    placeholder="Số tài khoản ngân hàng"
-                                    class="rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
-                                />
+                            <!-- Account Number -->
+                            <div class="grid gap-1.5 col-span-1">
+                                <Label for="bank_account_number" class="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Số tài khoản</Label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                        <CreditCard class="w-4 h-4" />
+                                    </span>
+                                    <Input
+                                        id="bank_account_number"
+                                        type="text"
+                                        v-model="withdrawalForm.bank_account_number"
+                                        required
+                                        placeholder="Số tài khoản"
+                                        class="pl-9 rounded-xl border-border bg-background/50 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500"
+                                    />
+                                </div>
                                 <InputError :message="withdrawalForm.errors.bank_account_number" />
                             </div>
 
-                            <div class="grid gap-1.5">
-                                <Label for="bank_account_name" class="text-[10px] font-black uppercase tracking-wider text-neutral-500">Tên chủ tài khoản</Label>
-                                <Input
-                                    id="bank_account_name"
-                                    type="text"
-                                    v-model="withdrawalForm.bank_account_name"
-                                    required
-                                    placeholder="HOANG VAN A"
-                                    class="rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800 uppercase"
-                                />
+                            <!-- Account Owner Name -->
+                            <div class="grid gap-1.5 col-span-1">
+                                <Label for="bank_account_name" class="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Chủ tài khoản</Label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                                        <UserIcon class="w-4 h-4" />
+                                    </span>
+                                    <Input
+                                        id="bank_account_name"
+                                        type="text"
+                                        v-model="withdrawalForm.bank_account_name"
+                                        required
+                                        placeholder="HOANG VAN A"
+                                        class="pl-9 rounded-xl border-border bg-background/50 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 uppercase font-semibold"
+                                    />
+                                </div>
                                 <InputError :message="withdrawalForm.errors.bank_account_name" />
                             </div>
                         </div>
 
                         <Button
                             type="submit"
-                            class="w-full bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-950 dark:hover:bg-neutral-200 rounded-xl py-3 font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 mt-2"
+                            class="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-emerald-500/10 rounded-xl py-3.5 active:scale-95 cursor-pointer disabled:opacity-50 mt-2 flex items-center justify-center gap-1.5"
                             :disabled="withdrawalForm.processing || (user?.commission_balance ?? 0) < 50000"
                         >
+                            <Sparkles class="w-3.5 h-3.5" v-if="!withdrawalForm.processing" />
+                            <RefreshCw class="w-3.5 h-3.5 animate-spin" v-else />
                             {{ withdrawalForm.processing ? 'Đang gửi yêu cầu...' : 'Yêu cầu rút tiền' }}
                         </Button>
                     </form>
@@ -512,45 +541,39 @@ const formatCurrency = (value: number) => {
 
             <!-- History and Details Sections -->
             <div class="space-y-4">
-                <div class="flex overflow-x-auto gap-2 pb-1 scrollbar-none border-b border-neutral-100 dark:border-neutral-800">
+                <div class="flex overflow-x-auto gap-2 pb-1 scrollbar-none border-b border-border">
                     <button
                         type="button"
-                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0"
-                        :class="referralsActiveSubTab === 'withdrawals' ? 'border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100' : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'"
+                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0 flex items-center gap-2"
+                        :class="referralsActiveSubTab === 'withdrawals' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-muted-foreground hover:text-foreground'"
                         @click="referralsActiveSubTab = 'withdrawals'"
                     >
-                        <span class="flex items-center gap-2">
-                            <History class="h-4 w-4" /> Lịch sử rút tiền
-                        </span>
+                        <History class="h-4 w-4" /> Lịch sử rút tiền
                     </button>
                     <button
                         type="button"
-                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0"
-                        :class="referralsActiveSubTab === 'referrals' ? 'border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100' : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'"
+                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0 flex items-center gap-2"
+                        :class="referralsActiveSubTab === 'referrals' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-muted-foreground hover:text-foreground'"
                         @click="referralsActiveSubTab = 'referrals'"
                     >
-                        <span class="flex items-center gap-2">
-                            <Users class="h-4 w-4" /> Đã giới thiệu ({{ referrals.length }})
-                        </span>
+                        <Users class="h-4 w-4" /> Đã giới thiệu ({{ referrals.length }})
                     </button>
                     <button
                         type="button"
-                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0"
-                        :class="referralsActiveSubTab === 'commissions' ? 'border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100' : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'"
+                        class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all shrink-0 flex items-center gap-2"
+                        :class="referralsActiveSubTab === 'commissions' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-muted-foreground hover:text-foreground'"
                         @click="referralsActiveSubTab = 'commissions'"
                     >
-                        <span class="flex items-center gap-2">
-                            <Gift class="h-4 w-4" /> Lịch sử hoa hồng
-                        </span>
+                        <Coins class="h-4 w-4" /> Lịch sử hoa hồng
                     </button>
                 </div>
 
                 <!-- TAB: Withdrawal Requests -->
-                <Card v-if="referralsActiveSubTab === 'withdrawals'" class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md p-2">
+                <Card v-if="referralsActiveSubTab === 'withdrawals'" class="w-full border border-border shadow-md rounded-2xl overflow-hidden bg-card/30 backdrop-blur-sm p-2">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs border-collapse">
                             <thead>
-                                <tr class="border-b border-neutral-100 dark:border-neutral-800 text-neutral-400 uppercase font-black tracking-wider">
+                                <tr class="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
                                     <th class="p-4">Thời gian</th>
                                     <th class="p-4">Số tiền</th>
                                     <th class="p-4">Thông tin ngân hàng</th>
@@ -558,29 +581,29 @@ const formatCurrency = (value: number) => {
                                     <th class="p-4">Phản hồi admin</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
-                                <tr v-for="req in withdrawalRequests" :key="req.id" class="hover:bg-neutral-100/30 dark:hover:bg-neutral-900/30 transition-colors">
-                                    <td class="p-4 font-semibold">{{ req.created_at }}</td>
-                                    <td class="p-4 font-black text-neutral-900 dark:text-neutral-50">{{ formatCurrency(req.amount) }}</td>
+                            <tbody class="divide-y divide-border">
+                                <tr v-for="req in withdrawalRequests" :key="req.id" class="hover:bg-muted/30 transition-colors">
+                                    <td class="p-4 font-semibold text-muted-foreground">{{ req.created_at }}</td>
+                                    <td class="p-4 font-extrabold text-foreground text-sm">{{ formatCurrency(req.amount) }}</td>
                                     <td class="p-4">
-                                         <div class="font-bold text-neutral-800 dark:text-neutral-200">{{ req.bank_name }}</div>
-                                         <div class="text-[10px] text-neutral-500 mt-0.5">{{ req.bank_account_number }} · {{ req.bank_account_name }}</div>
+                                         <div class="font-bold text-foreground">{{ req.bank_name }}</div>
+                                         <div class="text-[10px] text-muted-foreground mt-0.5 font-semibold">{{ req.bank_account_number }} · {{ req.bank_account_name }}</div>
                                     </td>
                                     <td class="p-4">
-                                         <span v-if="req.status === 'pending'" class="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-600 dark:text-amber-400">
+                                         <span v-if="req.status === 'pending'" class="inline-flex items-center rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-500">
                                              Chờ duyệt
                                          </span>
-                                         <span v-else-if="req.status === 'approved'" class="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                                         <span v-else-if="req.status === 'approved'" class="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-500 dark:text-emerald-400">
                                              Đã duyệt
                                          </span>
-                                         <span v-else-if="req.status === 'rejected'" class="inline-flex items-center rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 px-2 py-0.5 text-[9px] font-black uppercase text-rose-600 dark:text-rose-400">
+                                         <span v-else-if="req.status === 'rejected'" class="inline-flex items-center rounded-full bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-500">
                                              Từ chối
                                          </span>
                                     </td>
-                                    <td class="p-4 text-neutral-500 italic text-[11px] font-medium">{{ req.notes || '—' }}</td>
+                                    <td class="p-4 text-muted-foreground italic text-[11px] font-medium">{{ req.notes || '—' }}</td>
                                 </tr>
                                 <tr v-if="withdrawalRequests.length === 0">
-                                    <td colspan="5" class="p-8 text-center text-neutral-400 font-medium italic">
+                                    <td colspan="5" class="p-8 text-center text-muted-foreground/80 font-medium italic">
                                          Chưa có yêu cầu rút tiền nào được tạo.
                                     </td>
                                 </tr>
@@ -589,33 +612,35 @@ const formatCurrency = (value: number) => {
                     </div>
                 </Card>
 
-                <!-- TAB: Referrals -->
-                <Card v-if="referralsActiveSubTab === 'referrals'" class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md p-2">
+                <!-- TAB: Referrals List -->
+                <Card v-if="referralsActiveSubTab === 'referrals'" class="w-full border border-border shadow-md rounded-2xl overflow-hidden bg-card/30 backdrop-blur-sm p-2">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs border-collapse">
                             <thead>
-                                <tr class="border-b border-neutral-100 dark:border-neutral-800 text-neutral-400 uppercase font-black tracking-wider">
+                                <tr class="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
                                     <th class="p-4">Họ và tên</th>
                                     <th class="p-4">Ngày đăng ký</th>
                                     <th class="p-4">Trạng thái tài khoản</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
-                                <tr v-for="ref in referrals" :key="ref.name" class="hover:bg-neutral-100/30 dark:hover:bg-neutral-900/30 transition-colors">
-                                    <td class="p-4 font-bold text-neutral-800 dark:text-neutral-200">{{ ref.name }}</td>
-                                    <td class="p-4 text-neutral-500 font-semibold">{{ ref.created_at }}</td>
+                            <tbody class="divide-y divide-border">
+                                <tr v-for="ref in referrals" :key="ref.name" class="hover:bg-muted/30 transition-colors">
+                                    <td class="p-4 font-bold text-foreground">{{ ref.name }}</td>
+                                    <td class="p-4 text-muted-foreground font-semibold">{{ ref.created_at }}</td>
                                     <td class="p-4">
-                                         <span v-if="ref.status === 'active'" class="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                                         <span v-if="ref.status === 'active'" class="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-500 dark:text-emerald-400">
                                              Hoạt động
                                          </span>
-                                         <span v-else class="inline-flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 border px-2 py-0.5 text-[9px] font-black uppercase text-neutral-500">
+                                         <span v-else class="inline-flex items-center rounded-full bg-muted border px-2 py-0.5 text-[9px] font-bold uppercase text-muted-foreground">
                                              Không hoạt động
                                          </span>
                                     </td>
                                 </tr>
                                 <tr v-if="referrals.length === 0">
-                                    <td colspan="3" class="p-8 text-center text-neutral-400 font-medium italic">
-                                         Bạn chưa giới thiệu thành viên nào. Hãy chia sẻ mã giới thiệu của bạn nhé!
+                                    <td colspan="3" class="p-10 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                         <Users class="w-8 h-8 text-muted-foreground/60" />
+                                         <p class="font-bold text-sm text-foreground">Bạn chưa giới thiệu thành viên nào</p>
+                                         <p class="text-xs text-muted-foreground max-w-sm">Hãy chia sẻ mã giới thiệu phía trên với đối tác và bạn bè để cùng nhận nhiều ưu đãi.</p>
                                     </td>
                                 </tr>
                             </tbody>
@@ -624,11 +649,11 @@ const formatCurrency = (value: number) => {
                 </Card>
 
                 <!-- TAB: Commissions -->
-                <Card v-if="referralsActiveSubTab === 'commissions'" class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md p-2">
+                <Card v-if="referralsActiveSubTab === 'commissions'" class="w-full border border-border shadow-md rounded-2xl overflow-hidden bg-card/30 backdrop-blur-sm p-2">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs border-collapse">
                             <thead>
-                                <tr class="border-b border-neutral-100 dark:border-neutral-800 text-neutral-400 uppercase font-black tracking-wider">
+                                <tr class="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
                                     <th class="p-4">Người mua</th>
                                     <th class="p-4">Chi tiết thanh toán</th>
                                     <th class="p-4">Tỷ lệ %</th>
@@ -636,20 +661,22 @@ const formatCurrency = (value: number) => {
                                     <th class="p-4">Ngày nhận</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
-                                <tr v-for="log in commissionLogs" :key="log.id" class="hover:bg-neutral-100/30 dark:hover:bg-neutral-900/30 transition-colors">
-                                    <td class="p-4 font-bold text-neutral-800 dark:text-neutral-200">
+                            <tbody class="divide-y divide-border">
+                                <tr v-for="log in commissionLogs" :key="log.id" class="hover:bg-muted/30 transition-colors">
+                                    <td class="p-4 font-bold text-foreground">
                                          <div>{{ log.buyer_name }}</div>
-                                         <div class="text-[10px] text-neutral-500 font-medium mt-0.5">{{ log.restaurant_name }}</div>
+                                         <div class="text-[10px] text-muted-foreground font-semibold mt-0.5">{{ log.restaurant_name }}</div>
                                     </td>
-                                    <td class="p-4 font-bold text-neutral-600 dark:text-neutral-400">Giá trị đơn: {{ formatCurrency(log.amount) }}</td>
-                                    <td class="p-4 font-bold text-teal-600 dark:text-teal-400">{{ log.commission_percentage }}%</td>
-                                    <td class="p-4 font-black text-emerald-600 dark:text-emerald-400">+{{ formatCurrency(log.commission_amount) }}</td>
-                                    <td class="p-4 text-neutral-500 font-semibold">{{ log.created_at }}</td>
+                                    <td class="p-4 font-semibold text-muted-foreground">Giá trị đơn: <span class="font-extrabold text-foreground">{{ formatCurrency(log.amount) }}</span></td>
+                                    <td class="p-4 font-extrabold text-teal-500">{{ log.commission_percentage }}%</td>
+                                    <td class="p-4 font-extrabold text-emerald-500">+{{ formatCurrency(log.commission_amount) }}</td>
+                                    <td class="p-4 text-muted-foreground font-semibold">{{ log.created_at }}</td>
                                 </tr>
                                 <tr v-if="commissionLogs.length === 0">
-                                    <td colspan="5" class="p-8 text-center text-neutral-400 font-medium italic">
-                                         Chưa phát sinh hoa hồng nào. Hoa hồng sẽ được cộng khi đối tác nâng cấp hoặc gia hạn gói dịch vụ.
+                                    <td colspan="5" class="p-10 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                         <Coins class="w-8 h-8 text-muted-foreground/60" />
+                                         <p class="font-bold text-sm text-foreground">Chưa phát sinh hoa hồng nào</p>
+                                         <p class="text-xs text-muted-foreground max-w-sm">Hoa hồng tích lũy sẽ tự động cộng dồn vào tài khoản của bạn khi người dùng được giới thiệu thanh toán hoặc nâng cấp gói cước thành công.</p>
                                     </td>
                                 </tr>
                             </tbody>

@@ -284,16 +284,19 @@ class DailyReportService
         $start = Carbon::parse($date)->startOfDay();
         $end   = Carbon::parse($date)->endOfDay();
 
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
+
         $row = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$start, $end])
             ->select(
-                DB::raw('HOUR(completed_at) as hour'),
+                DB::raw("{$hourExpr} as hour"),
                 DB::raw('SUM(total_amount) as revenue'),
                 DB::raw('COUNT(*) as order_count')
             )
-            ->groupBy(DB::raw('HOUR(completed_at)'))
+            ->groupBy(DB::raw($hourExpr))
             ->orderByDesc('revenue')
             ->first();
 

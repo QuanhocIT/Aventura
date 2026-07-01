@@ -3,6 +3,18 @@
 use App\Services\BillingService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Artisan;
+use Laravel\Pulse\Contracts\Ingest;
+
+// Pulse already self-trims via a 1-in-1000 lottery on every request (see
+// config/pulse.php storage/ingest "trim.keep", 7 days by default). That's fine under
+// steady traffic, but with many tenants and continuous background jobs we don't want
+// retention to depend on chance, so force a guaranteed nightly trim as well.
+Artisan::command('pulse:trim', function (Ingest $ingest) {
+    $ingest->trim();
+    $this->info('Pulse entries trimmed.');
+})->purpose('Force-trim Pulse entries beyond the configured retention window');
+
+app(Schedule::class)->command('pulse:trim')->dailyAt('03:30');
 
 Artisan::command('billing:sync-statuses', function (BillingService $billing) {
     $billing->markExpiredAndSuspended();

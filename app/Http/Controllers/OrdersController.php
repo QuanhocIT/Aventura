@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Orders\StoreOrderRequest;
 use App\Models\Delivery\DeliveryDetail;
 use App\Models\Order;
 use Illuminate\Http\RedirectResponse;
@@ -68,32 +69,10 @@ class OrdersController extends Controller
      /**
       * Lưu đơn hàng mới từ giao diện POS bán hàng SPA.
       */
-     public function store(Request $request): RedirectResponse
+     public function store(StoreOrderRequest $request): RedirectResponse
      {
          $user = $request->user();
-         abort_unless($user->can('create_orders'), 403);
-
-         $rid = $user->restaurant_id;
-         $data = $request->validate([
-             'channel'            => ['nullable', 'in:dine_in,takeaway,delivery'],
-             'table_id'           => ['nullable', "exists:restaurant_tables,id,restaurant_id,{$rid}"],
-             'customer_id'        => ['nullable', "exists:customers,id,restaurant_id,{$rid}"],
-             'note'               => ['nullable', 'string', 'max:500'],
-             'items'              => ['required', 'array', 'min:1'],
-             'items.*.product_id' => ['required', "exists:products,id,restaurant_id,{$rid}"],
-             'items.*.quantity'   => ['required', 'numeric', 'min:0.01'],
-             'items.*.notes'      => ['nullable', 'string', 'max:255'],
-             'guests_count'       => ['nullable', 'integer', 'min:1'],
-             // Delivery-specific fields
-             'delivery_customer_name' => ['required_if:channel,delivery', 'nullable', 'string', 'max:255'],
-             'delivery_phone'         => ['required_if:channel,delivery', 'nullable', 'string', 'max:20'],
-             'delivery_address'       => ['required_if:channel,delivery', 'nullable', 'string', 'max:500'],
-             'delivery_lat'           => ['nullable', 'numeric', 'between:-90,90'],
-             'delivery_lng'           => ['nullable', 'numeric', 'between:-180,180'],
-             'delivery_fee'           => ['nullable', 'numeric', 'min:0'],
-             'cod_amount'             => ['nullable', 'numeric', 'min:0'],
-             'delivery_notes'         => ['nullable', 'string', 'max:500'],
-         ]);
+         $data = $request->validated();
 
          if (isset($data['table_id']) && isset($data['guests_count'])) {
              $table = \App\Models\RestaurantTable::find($data['table_id']);

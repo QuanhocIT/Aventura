@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader, DataTable, StatusBadge, Pagination, EmptyState } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type WithdrawalRequest = {
@@ -90,16 +91,13 @@ const formatCurrency = (value: number) => {
 <template>
     <Head title="Cấu hình hoa hồng &amp; Rút tiền" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+    <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
-        <div class="border-b pb-5 border-border/60">
-            <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                Quản lý Hoa hồng &amp; Rút tiền
-            </h1>
-            <p class="text-sm text-muted-foreground mt-0.5">
-                Thiết lập tỷ lệ chia sẻ hoa hồng và phê duyệt các yêu cầu rút tiền mặt từ hệ thống.
-            </p>
-        </div>
+        <PageHeader
+            title="Quản lý Hoa hồng & Rút tiền"
+            subtitle="Thiết lập tỷ lệ chia sẻ hoa hồng và phê duyệt các yêu cầu rút tiền mặt từ hệ thống."
+            :icon="Crown"
+        />
 
         <div class="grid gap-6 md:grid-cols-3">
             <!-- Global Setting Card -->

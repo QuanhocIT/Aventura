@@ -36,7 +36,10 @@ class DatabaseBackupService
             $dbFile = $dbConfig['database'];
             
             if ($dbFile === ':memory:') {
-                file_put_contents($tempFile, "-- SQLite in-memory database backup simulation\n");
+                // An in-memory SQLite database has no on-disk state to copy — there is
+                // nothing to genuinely back up. Fail loudly instead of writing a
+                // placeholder file that would look like a successful backup.
+                throw new \Exception('Không thể sao lưu cơ sở dữ liệu SQLite in-memory (:memory:) vì không có dữ liệu tồn tại trên đĩa. Đây là giới hạn thiết kế, không phải lỗi tạm thời.');
             } else {
                 if (file_exists($dbFile)) {
                     copy($dbFile, $tempFile);
@@ -90,11 +93,16 @@ class DatabaseBackupService
                 Log::warning("exec mysqldump threw exception: " . $e->getMessage());
             }
 
-            // FALLBACK: Nếu mysqldump thất bại hoặc không khả dụng, sử dụng PHP Fallback SQL Dumper
-            if (!$isMysqldumpSuccess) {
-                Log::info("Starting PHP fallback database dump...");
+            // FALLBACK: Nếu mysqldump thất bại hoặc không khả dụng, sử dụng PHP Fallback SQL Dumper.
+            // This fallback is slower and less battle-tested than mysqldump, so treat it as
+            // an operational incident worth paging someone, not a routine log line.
+            $usedFallback = !$isMysqldumpSuccess;
+            if ($usedFallback) {
+                Log::critical('Database backup: mysqldump unavailable/failed, falling back to slower PHP dumper. Investigate why mysqldump is not working on this host.');
                 $this->phpFallbackBackup($tempFile);
             }
+        } else {
+            $usedFallback = false;
         }
 
 
@@ -154,6 +162,7 @@ class DatabaseBackupService
             'size' => $size,
             'size_mb' => round($size / (1024 * 1024), 2),
             'path' => $destination,
+            'used_fallback' => $usedFallback,
             'created_at' => now()->toDateTimeString(),
         ];
     }

@@ -28,5 +28,10 @@ yarn-error.log
 /.vscode
 /.zed
 services/*/venv/
+services/*/__pycache__/
+**/__pycache__/
+*.pyc
 
 meilisearch.exe
+
+/scratch/

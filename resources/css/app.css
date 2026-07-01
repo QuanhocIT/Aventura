@@ -245,10 +245,10 @@
 
 /* Entrance — fade up with depth */
 @keyframes enter {
-    from { opacity: 0; transform: translateY(16px); }
+    from { opacity: 0.01; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.animate-enter { animation: enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-enter { animation: enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .stagger-1 { animation-delay: 60ms; }
 .stagger-2 { animation-delay: 120ms; }
 .stagger-3 { animation-delay: 180ms; }

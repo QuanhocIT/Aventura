@@ -49,4 +49,32 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseHas('products', ['restaurant_id' => $restaurant->id, 'code' => 'PHO-BO']);
         $this->assertDatabaseHas('product_recipes', ['restaurant_id' => $restaurant->id]);
     }
+
+    public function test_registration_is_rate_limited(): void
+    {
+        // Fortify registers this route with no throttle of its own (see
+        // AppServiceProvider::boot(), which attaches throttle:5,1 after the fact) —
+        // without it, anyone could script mass account/tenant creation. The payload is
+        // deliberately invalid (password confirmation mismatch) so every attempt fails
+        // validation with 422 instead of succeeding and logging the test client in —
+        // which would otherwise trip the route's `guest` middleware before throttle is
+        // even reached on subsequent attempts.
+        $payload = [
+            'restaurant_name' => 'Spam Restaurant',
+            'name' => 'Spammer',
+            'email' => 'spam@example.com',
+            'phone' => '0900000002',
+            'plan_code' => 'free',
+            'password' => 'password',
+            'password_confirmation' => 'does-not-match',
+        ];
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('register.store'), $payload)->assertSessionHasErrors('password');
+        }
+
+        $response = $this->post(route('register.store'), $payload);
+
+        $response->assertTooManyRequests();
+    }
 }

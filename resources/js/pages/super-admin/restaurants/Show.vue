@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { StatusBadge, ProgressBar, LedIndicator, AlertBanner, SectionCard } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -375,50 +376,66 @@ const tagBgColors: Record<string, string> = {
 <template>
     <Head :title="`${restaurant.name} - Billing Center`" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <div class="flex items-center gap-4">
-            <Link href="/super-admin/restaurants">
-                <Button variant="ghost" size="icon-sm"><ArrowLeft class="size-4" /></Button>
-            </Link>
-            <div class="flex-1">
-                <h1 class="text-2xl font-bold tracking-tight">{{ restaurant.name }}</h1>
-                <p class="text-sm text-muted-foreground font-mono">{{ restaurant.code }} · Billing Center</p>
-                <div class="mt-2 flex flex-wrap gap-2 items-center">
-                    <span v-for="tag in crm_tags" :key="tag.id" :class="['inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm transition-all', tagBgColors[tag.color] || tagBgColors.slate]">
-                        <Tag class="size-3" />
-                        {{ tag.name }}
-                        <button type="button" @click="removeTag(tag.id)" class="hover:text-rose-500 font-bold focus:outline-none ml-1 leading-none">&times;</button>
-                    </span>
-                    <span class="text-[10px] text-muted-foreground uppercase font-black tracking-wider self-center">Gắn nhãn:</span>
-                    <button v-for="preset in tagPresets" :key="preset.name" @click="addTag(preset.name, preset.color)" class="inline-flex items-center gap-1 rounded-full border border-border/75 px-2 py-0.5 text-[10px] font-semibold hover:bg-muted transition-colors">
-                        <Plus class="size-2.5" /> {{ preset.name }}
-                    </button>
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <!-- Header -->
+        <div class="space-y-4">
+            <div class="group flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Link href="/super-admin/restaurants" class="hover:text-foreground transition-colors">Nhà hàng</Link>
+                        <span>/</span>
+                        <span class="text-foreground font-medium">{{ restaurant.name }}</span>
+                    </div>
+                    <h1 class="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
+                        <div class="flex size-8 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                            <Building2 class="size-5 shrink-0 text-primary/80" />
+                        </div>
+                        <span class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-slate-300">
+                            {{ restaurant.name }}
+                        </span>
+                        <StatusBadge :status="restaurant.status">
+                            {{ statusLabel[restaurant.status] ?? restaurant.status }}
+                        </StatusBadge>
+                    </h1>
+                    <p class="font-mono text-sm text-muted-foreground">{{ restaurant.code }} · Billing Center</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span v-for="tag in crm_tags" :key="tag.id" :class="['inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm transition-all', tagBgColors[tag.color] || tagBgColors.slate]">
+                            <Tag class="size-3" />
+                            {{ tag.name }}
+                            <button type="button" class="ml-1 font-bold leading-none hover:text-rose-500 focus:outline-none" @click="removeTag(tag.id)">&times;</button>
+                        </span>
+                        <span class="self-center text-[10px] font-black uppercase tracking-wider text-muted-foreground">Gắn nhãn:</span>
+                        <button v-for="preset in tagPresets" :key="preset.name" class="inline-flex items-center gap-1 rounded-full border border-border/75 px-2 py-0.5 text-[10px] font-semibold transition-colors hover:bg-muted" @click="addTag(preset.name, preset.color)">
+                            <Plus class="size-2.5" /> {{ preset.name }}
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <Link href="/super-admin/restaurants">
+                        <Button variant="outline" size="sm" class="gap-1.5"><ArrowLeft class="size-4" /> Quay lại</Button>
+                    </Link>
+                    <Button
+                        v-if="restaurant.owner && restaurant.owner.id"
+                        variant="outline" size="sm"
+                        class="gap-2 border-blue-500/30 text-blue-600 hover:bg-blue-500/10 dark:text-blue-400"
+                        @click="impersonateUser"
+                    >
+                        <UserCheck class="size-4" /> Sắm vai chủ nhà
+                    </Button>
                 </div>
             </div>
-            <Button
-                v-if="restaurant.owner && restaurant.owner.id"
-                variant="outline"
-                size="sm"
-                class="gap-2 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                @click="impersonateUser"
-            >
-                <UserCheck class="size-4" /> Sắm vai chủ nhà
-            </Button>
-            <span :class="['inline-flex rounded-full px-3 py-1 text-sm font-medium', statusColor[restaurant.status] || 'bg-slate-100 text-slate-800']">
-                {{ statusLabel[restaurant.status] ?? restaurant.status }}
-            </span>
+            <div class="h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
         </div>
 
-        <!-- Anomaly Alerts Banner -->
-        <div v-if="anomalies && anomalies.length > 0" class="flex flex-col gap-3">
-            <div v-for="anomaly in anomalies" :key="anomaly.type" :class="['flex items-start gap-3 rounded-xl border p-4 text-sm shadow-sm transition-all', anomaly.severity === 'danger' ? 'bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-300' : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-300']">
-                <AlertTriangle class="size-5 shrink-0 animate-bounce mt-0.5" />
-                <div>
-                    <h4 class="font-bold text-base leading-none mb-1">{{ anomaly.title }}</h4>
-                    <p class="text-sm opacity-90 font-medium">{{ anomaly.message }}</p>
-                </div>
-            </div>
-        </div>
+        <!-- Anomaly Alerts -->
+        <AlertBanner
+            v-for="anomaly in anomalies"
+            :key="anomaly.type"
+            :severity="anomaly.severity === 'danger' ? 'critical' : 'warning'"
+            :title="anomaly.title"
+            :message="anomaly.message"
+            class=""
+        />
 
         <div class="grid gap-6 lg:grid-cols-[1.5fr,0.9fr]">
             <div class="flex flex-col gap-6">

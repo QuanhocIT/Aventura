@@ -6,6 +6,8 @@ import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
 
 // Import subcomponents
+import KhachCaseStudy from './khach/components/KhachCaseStudy.vue';
+import KhachComparison from './khach/components/KhachComparison.vue';
 import KhachFaq from './khach/components/KhachFaq.vue';
 import KhachFeatures from './khach/components/KhachFeatures.vue';
 import KhachHero from './khach/components/KhachHero.vue';
@@ -16,6 +18,8 @@ import KhachPromoBanner from './khach/components/KhachPromoBanner.vue';
 import KhachStats from './khach/components/KhachStats.vue';
 import KhachStickyCta from './khach/components/KhachStickyCta.vue';
 import KhachTestimonials from './khach/components/KhachTestimonials.vue';
+import KhachTrustIntegrations from './khach/components/KhachTrustIntegrations.vue';
+import KhachVideoDemo from './khach/components/KhachVideoDemo.vue';
 
 interface Banner {
     id: number;
@@ -118,28 +122,40 @@ onUnmounted(() => {
         <!-- 2. Hero Section -->
         <KhachHero :banners="banners" />
 
-        <!-- 3. How It Works -->
+        <!-- 3. Video Demo -->
+        <KhachVideoDemo />
+
+        <!-- 4. How It Works -->
         <KhachHowItWorks />
 
-        <!-- 4. Features Map & Console -->
+        <!-- 5. Features Map & Console -->
         <KhachFeatures />
 
-        <!-- 5. Latest News -->
+        <!-- 6. Comparison Table -->
+        <KhachComparison />
+
+        <!-- 7. Trust Badges + Integrations -->
+        <KhachTrustIntegrations />
+
+        <!-- 8. Latest News -->
         <KhachNews :latestNews="latestNews" />
 
-        <!-- 6. Pricing -->
+        <!-- 9. Pricing -->
         <KhachPricing :plans="plans" :canRegister="canRegister" :user="user" />
 
-        <!-- 7. Testimonials -->
+        <!-- 10. Testimonials -->
         <KhachTestimonials />
 
-        <!-- 8. FAQ Accordion -->
+        <!-- 11. Case Study -->
+        <KhachCaseStudy />
+
+        <!-- 12. FAQ Accordion -->
         <KhachFaq :canRegister="canRegister" />
 
-        <!-- 9. Stats count-up -->
+        <!-- 13. Stats count-up -->
         <KhachStats />
 
-        <!-- 10. Call to Action / footer section -->
+        <!-- 14. Call to Action / footer section -->
         <section class="px-4 py-16 lg:py-20 lg:px-8 bg-gradient-to-b from-primary/5 via-transparent to-transparent">
             <div
                 class="reveal-on-scroll mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
@@ -154,9 +170,12 @@ onUnmounted(() => {
                         <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
                     <Button as-child variant="outline" size="lg">
-                        <a href="#features">Xem lại tính năng</a>
+                        <a href="tel:0346858035" class="flex items-center gap-2">
+                            <span>📅</span> Đặt lịch demo với chuyên gia
+                        </a>
                     </Button>
                 </div>
+                <p class="text-xs text-muted-foreground">Demo 30 phút · Không cam kết · Chuyên gia tư vấn 1:1</p>
             </div>
         </section>
     </AppTopbarLayout>

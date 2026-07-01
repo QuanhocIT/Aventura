@@ -168,6 +168,12 @@ class PromotionController extends Controller
             'max_discount_amount' => ['nullable', 'numeric', 'min:0'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'budget_cap' => ['nullable', 'numeric', 'min:0'],
+            'auto_deactivate_on_budget' => ['nullable', 'boolean'],
+            'is_stackable' => ['nullable', 'boolean'],
+            'stacking_priority' => ['nullable', 'integer', 'min:0'],
+            'stacking_group' => ['nullable', 'string', 'max:50'],
+            'conditions' => ['nullable', 'array'],
         ]);
 
         if ($data['type'] === 'percent') {
@@ -207,8 +213,14 @@ class PromotionController extends Controller
             'max_discount_amount' => $data['max_discount_amount'] ?? 0,
             'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
+            'budget_cap' => $data['budget_cap'] ?? null,
+            'auto_deactivate_on_budget' => $data['auto_deactivate_on_budget'] ?? false,
+            'is_stackable' => $data['is_stackable'] ?? false,
+            'stacking_priority' => $data['stacking_priority'] ?? 0,
+            'stacking_group' => $data['stacking_group'] ?? null,
+            'conditions' => $data['conditions'] ?? null,
             'is_active' => true,
-            'is_approved' => $isOwner, // Tự động duyệt nếu là Owner
+            'is_approved' => $isOwner,
             'created_by' => $user->id,
             'approved_by' => $isOwner ? $user->id : null,
         ]);
@@ -235,6 +247,12 @@ class PromotionController extends Controller
             'max_discount_amount' => ['nullable', 'numeric', 'min:0'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'budget_cap' => ['nullable', 'numeric', 'min:0'],
+            'auto_deactivate_on_budget' => ['nullable', 'boolean'],
+            'is_stackable' => ['nullable', 'boolean'],
+            'stacking_priority' => ['nullable', 'integer', 'min:0'],
+            'stacking_group' => ['nullable', 'string', 'max:50'],
+            'conditions' => ['nullable', 'array'],
         ]);
 
         if ($data['type'] === 'percent') {
@@ -433,12 +451,29 @@ class PromotionController extends Controller
         // Đảm bảo số tiền giảm giá không lớn hơn subtotal
         $discountAmount = min($discountAmount, $subtotal);
 
-        // 5. Cập nhật Order. Sự kiện Order update sẽ kích hoạt OrderObserver đẩy ngầm log qua Redis Queue.
+        // Budget cap check
+        if ($promotion->budget_cap !== null) {
+            if ($promotion->isBudgetExhausted()) {
+                return response()->json(['message' => 'Chương trình khuyến mãi đã hết ngân sách.'], 422);
+            }
+            $remaining = $promotion->remainingBudget();
+            $discountAmount = min($discountAmount, $remaining);
+        }
+
+        // 5. Cập nhật Order
         $order->update([
             'discount_amount' => $discountAmount,
             'total_amount' => max(0.0, $subtotal - $discountAmount),
             'note' => $order->note . " [Đã áp mã voucher: " . $promotion->code . "]"
         ]);
+
+        // Track budget spent
+        if ($promotion->budget_cap !== null) {
+            $promotion->increment('budget_spent', $discountAmount);
+            if ($promotion->auto_deactivate_on_budget && $promotion->fresh()->isBudgetExhausted()) {
+                $promotion->update(['is_active' => false]);
+            }
+        }
 
         return response()->json([
             'message' => 'Áp dụng mã giảm giá thành công!',
@@ -448,9 +483,96 @@ class PromotionController extends Controller
         ]);
     }
 
+    public function validatePromotion(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'code' => ['required', 'string'],
+            'order_id' => ['nullable', 'exists:orders,id'],
+        ]);
+
+        $promotion = Promotion::where('restaurant_id', $user->restaurant_id)
+            ->where('code', strtoupper($data['code']))
+            ->where('is_active', true)
+            ->where('is_approved', true)
+            ->first();
+
+        if (!$promotion) {
+            return response()->json(['valid' => false, 'message' => 'Mã không tồn tại hoặc đã vô hiệu hóa.']);
+        }
+
+        $now = now();
+        if ($promotion->start_date && $promotion->start_date->greaterThan($now)) {
+            return response()->json(['valid' => false, 'message' => 'Chưa đến thời gian áp dụng.']);
+        }
+        if ($promotion->end_date && $promotion->end_date->lessThan($now)) {
+            return response()->json(['valid' => false, 'message' => 'Mã đã hết hạn.']);
+        }
+        if ($promotion->isBudgetExhausted()) {
+            return response()->json(['valid' => false, 'message' => 'Đã hết ngân sách khuyến mãi.']);
+        }
+
+        return response()->json([
+            'valid' => true,
+            'promotion' => [
+                'name' => $promotion->name,
+                'type' => $promotion->type,
+                'value' => $promotion->value,
+                'remaining_budget' => $promotion->remainingBudget(),
+            ],
+        ]);
+    }
+
     /**
      * API phân tích giỏ hàng (Market Basket Analysis) - Gọi FastAPI hoặc Fallback.
      */
+    public function generateQr(Request $request, Promotion $promotion): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($promotion->restaurant_id === $user->restaurant_id, 403);
+
+        $qrService = app(\App\Services\QrCodeService::class);
+        $claimUrl = url("/customer/coupon/claim/{$promotion->restaurant_id}/{$promotion->code}");
+        $svg = $qrService->renderSvg($claimUrl, 300);
+
+        $filename = "promo_{$promotion->restaurant_id}_{$promotion->code}";
+        $path = $qrService->generateAndStore($claimUrl, $filename);
+
+        return response()->json([
+            'svg' => $svg,
+            'download_url' => asset("storage/{$path}"),
+            'claim_url' => $claimUrl,
+        ]);
+    }
+
+    public function printQrSheet(Request $request): \Illuminate\Http\Response
+    {
+        $user = $request->user();
+        $ids = $request->validate(['ids' => ['required', 'array']])['ids'];
+
+        $promotions = Promotion::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('id', $ids)
+            ->whereNotNull('code')
+            ->get();
+
+        $qrService = app(\App\Services\QrCodeService::class);
+        $qrCodes = [];
+
+        foreach ($promotions as $promo) {
+            $claimUrl = url("/customer/coupon/claim/{$promo->restaurant_id}/{$promo->code}");
+            $qrCodes[] = [
+                'name' => $promo->name,
+                'code' => $promo->code,
+                'discount' => $promo->type === 'percent' ? "{$promo->value}%" : number_format($promo->value) . '₫',
+                'svg' => $qrService->renderSvg($claimUrl, 200),
+            ];
+        }
+
+        $html = view('prints.promotion-qr-sheet', ['qrCodes' => $qrCodes, 'restaurant' => $user->restaurant?->name ?? ''])->render();
+
+        return response($html)->header('Content-Type', 'text/html');
+    }
+
     public function getBasketAnalysis(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -538,7 +660,7 @@ class PromotionController extends Controller
 
         // Đếm tần suất món đơn và cặp món
         foreach ($ordersData as $order) {
-            $uniqueProducts = array_unique($order['items']);
+            $uniqueProducts = array_values(array_unique($order['items']));
             foreach ($uniqueProducts as $item) {
                 $itemCounts[$item] = ($itemCounts[$item] ?? 0) + 1;
             }

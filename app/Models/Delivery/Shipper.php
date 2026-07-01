@@ -35,6 +35,23 @@ class Shipper extends Model
         'car'       => 38,
     ];
 
+    /**
+     * Generous max-plausible speed (km/h) per vehicle type for GPS anti-spoofing checks
+     * — deliberately much higher than SPEED_PROFILES' cruising average so normal traffic
+     * bursts/downhill stretches never get flagged; only genuinely impossible jumps
+     * (e.g. spoofed coordinates teleporting across the city) should trigger this.
+     */
+    public const MAX_PLAUSIBLE_SPEED_KMH = [
+        'bike'      => 40,
+        'motorbike' => 120,
+        'car'       => 140,
+    ];
+
+    public function getMaxPlausibleSpeedKmh(): int
+    {
+        return self::MAX_PLAUSIBLE_SPEED_KMH[$this->vehicle_type] ?? 120;
+    }
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

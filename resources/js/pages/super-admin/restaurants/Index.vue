@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown, UserCheck, Building2, CheckCircle, CreditCard, Ban } from 'lucide-vue-next';
+import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown, UserCheck, Building2, CheckCircle, CreditCard, Ban, TrendingUp, AlertTriangle, Activity, Sparkles, ThumbsUp, ChevronRight, BarChart3, ShieldAlert, Store, User, Mail, Phone, MapPin, Hash, Tag, X, Check, Globe } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageHeader, StatCard, FilterBar, DataTable, StatusBadge, Pagination, ProgressBar } from '@/components/super-admin';
+import type { Column } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
+import AreaChart from '@/components/charts/AreaChart.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -30,6 +34,43 @@ const props = defineProps<{
     plans: Array<{ id: number; code: string; name: string }>;
     filters: { status?: string; plan?: string; search?: string; flagged?: string };
     stats: { total: number; active: number; paid: number; suspended: number; flagged?: number };
+    aiInsights?: {
+        churn_risks: Array<{
+            restaurant_id: number;
+            name: string;
+            risk_score: number;
+            risk_level: 'high' | 'medium' | 'low';
+            reasons: string[];
+            actions: string[];
+        }>;
+        health_scores: Array<{
+            restaurant_id: number;
+            name: string;
+            score: number;
+            level: 'good' | 'fair' | 'poor';
+            order_count_30d: number;
+        }>;
+        segments: {
+            active_pro: number;
+            trial_active: number;
+            free_inactive: number;
+            at_risk: number;
+            churned: number;
+            new: number;
+        };
+        mrr_forecast: Array<{
+            month: string;
+            predicted_mrr: number;
+            trend: 'up' | 'down' | 'neutral';
+        }>;
+        overall_health: {
+            score: number;
+            label: string;
+            color: string;
+        };
+    };
+    planDistribution: Array<{ name: string; code: string; count: number }>;
+    registrationGrowth: Array<{ label: string; value: number }>;
 }>();
 
 const search   = ref(props.filters.search ?? '');
@@ -52,58 +93,74 @@ function applyFilter() {
     }, { preserveState: true, replace: true });
 }
 
-// Sắm vai (Đăng nhập hộ)
 function impersonateUser(ownerId: number | undefined) {
     if (!ownerId) {
         alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
-
         return;
     }
-
     if (confirm('Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu này không?')) {
         router.post(`/super-admin/impersonate/${ownerId}`);
     }
 }
 
-// Định dạng & tô màu giới hạn tài nguyên
-function getQuotaColor(used: number, limit: number | null) {
-    if (limit === null) {
-return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30';
-}
-
-    const percentage = (used / limit) * 100;
-
-    if (percentage >= 100) {
-return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30 font-semibold';
-}
-
-    if (percentage >= 80) {
-return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30';
-}
-
-    return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/20 border-slate-100 dark:border-slate-800';
-}
-
 function formatQuota(used: number, limit: number | null) {
-    if (limit === null) {
-return `${used}/∞`;
+    return limit === null ? `${used}/∞` : `${used}/${limit}`;
 }
 
-    return `${used}/${limit}`;
+function quotaPercent(used: number, limit: number | null) {
+    if (limit === null || limit === 0) return 0;
+    return Math.round((used / limit) * 100);
 }
+
+function getChurnRisk(restaurantId: number) {
+    return props.aiInsights?.churn_risks?.find(r => r.restaurant_id === restaurantId);
+}
+
+const columns: Column[] = [
+    { key: 'name', label: 'Nhà hàng' },
+    { key: 'plan', label: 'Gói' },
+    { key: 'quota', label: 'Tài nguyên' },
+    { key: 'status', label: 'Trạng thái' },
+    { key: 'created_at', label: 'Ngày tạo' },
+    { key: 'actions', label: 'Thao tác', align: 'right' },
+];
+
+const statusLabel: Record<string, string> = {
+    active: 'Hoạt động', suspended: 'Tạm ngưng', expired: 'Hết hạn',
+};
 
 // Dialog tạo nhà hàng
 const showCreate = ref(false);
+const activeCreateTab = ref<'info' | 'owner'>('info');
 const createForm = useForm({
     name: '', tax_code: '', phone: '', email: '', address: '',
     plan_id: '', owner_name: '', owner_email: '',
     timezone: 'Asia/Ho_Chi_Minh', currency: 'VND',
 });
+
+watch(showCreate, (newVal) => {
+    if (!newVal) {
+        createForm.reset();
+        activeCreateTab.value = 'info';
+    }
+});
+
 function submitCreate() {
     createForm.post('/super-admin/restaurants', {
         onSuccess: () => {
- showCreate.value = false; createForm.reset(); 
-},
+            showCreate.value = false;
+            createForm.reset();
+            activeCreateTab.value = 'info';
+            toast.success('Đã tạo nhà hàng thành công!');
+        },
+        onError: (errors: any) => {
+            toast.error('Vui lòng điền đầy đủ và đúng định dạng các trường bắt buộc!');
+            if (errors.owner_name || errors.owner_email) {
+                activeCreateTab.value = 'owner';
+            } else {
+                activeCreateTab.value = 'info';
+            }
+        }
     });
 }
 
@@ -117,298 +174,578 @@ function openStatus(r: any) {
     showStatus.value = true;
 }
 function submitStatus() {
-    if (!selectedRestaurant.value) {
- return;
-}
-
+    if (!selectedRestaurant.value) return;
     statusForm.patch(`/super-admin/restaurants/${selectedRestaurant.value.id}/status`, {
-        onSuccess: () => {
- showStatus.value = false; 
-},
+        onSuccess: () => { showStatus.value = false; },
     });
 }
-
-const statusColor: Record<string, string> = {
-    active:    'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-    suspended: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-    expired:   'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-};
-const statusLabel: Record<string, string> = {
-    active: 'Hoạt động', suspended: 'Tạm ngưng', expired: 'Hết hạn',
-};
 </script>
 
 <template>
     <Head title="Quản lý nhà hàng" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold">Quản lý nhà hàng</h1>
-                <p class="text-sm text-muted-foreground">
-                    Tổng cộng {{ restaurants.total ?? 0 }} nhà hàng
-                </p>
-            </div>
-            <Button @click="showCreate = true" class="gap-2">
-                <Plus class="size-4" /> Thêm nhà hàng
-            </Button>
-        </div>
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <!-- Header -->
+        <PageHeader
+            title="Quản lý nhà hàng"
+            :subtitle="`Tổng cộng ${restaurants.total ?? 0} nhà hàng`"
+            :icon="Building2"
+        >
+            <template #actions>
+                <Button @click="showCreate = true" class="gap-2">
+                    <Plus class="size-4" /> Thêm nhà hàng
+                </Button>
+            </template>
+        </PageHeader>
 
         <!-- Thống kê tổng quan -->
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Card class="overflow-hidden border-border bg-card shadow-sm">
-                <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-lg bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
-                        <Building2 class="size-5" />
+            <StatCard
+                label="Tổng nhà hàng"
+                :value="stats?.total ?? 0"
+                :icon="Building2"
+                color="blue"
+                class=""
+            />
+            <StatCard
+                label="Đang hoạt động"
+                :value="stats?.active ?? 0"
+                :icon="CheckCircle"
+                color="emerald"
+                class=""
+            />
+            <StatCard
+                label="Gói trả phí"
+                :value="stats?.paid ?? 0"
+                :icon="CreditCard"
+                color="purple"
+                class=""
+            />
+            <StatCard
+                label="Tạm ngưng / Khóa"
+                :value="stats?.suspended ?? 0"
+                :icon="Ban"
+                color="amber"
+                class=""
+            />
+            <StatCard
+                label="Gắn cờ (Hậu mãi)"
+                :value="stats?.flagged ?? 0"
+                :icon="Ban"
+                color="rose"
+                clickable
+                class=""
+                @click="() => { flaggedFilter = flaggedFilter === '1' ? '' : '1'; applyFilter(); }"
+            />
+        </div>
+
+        <!-- Biểu đồ & Phân tích Trực quan (SaaS Analytics) -->
+        <div class="grid gap-6 lg:grid-cols-2">
+            <!-- Biểu đồ xu hướng đăng ký mới -->
+            <div class="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div class="space-y-1">
+                            <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-sm text-foreground">
+                                <TrendingUp class="size-4 text-primary" /> Xu hướng đăng ký mới
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Thống kê số lượng tenant mới đăng ký trong 6 tháng qua</p>
+                        </div>
+                        <div class="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary flex items-center gap-1">
+                            <Sparkles class="size-3.5" /> Dữ liệu thật
+                        </div>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tổng nhà hàng</span>
-                        <span class="text-xl font-bold tracking-tight">{{ stats?.total ?? 0 }}</span>
+                    <div class="h-44 flex items-end">
+                        <AreaChart
+                            v-if="registrationGrowth && registrationGrowth.length > 0"
+                            :series="registrationGrowth"
+                            gradient-id="regGrowthGrad"
+                            color="#3b82f6"
+                        >
+                            <template #tooltip="{ point }">
+                                <div class="flex flex-col gap-0.5 text-[10px] font-bold text-foreground">
+                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
+                                    <span>+{{ point.value }} nhà hàng mới</span>
+                                </div>
+                            </template>
+                        </AreaChart>
+                        <div v-else class="w-full text-center py-10 text-xs text-muted-foreground">
+                            Không có dữ liệu đăng ký mới
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
-            <Card class="overflow-hidden border-border bg-card shadow-sm">
-                <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-lg bg-emerald-50 p-2.5 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
-                        <CheckCircle class="size-5" />
+                </div>
+            </div>
+
+            <!-- Phân bổ gói dịch vụ hoạt động -->
+            <div class="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div class="space-y-1">
+                            <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-sm text-foreground">
+                                <BarChart3 class="size-4 text-emerald-500" /> Phân bổ gói dịch vụ hoạt động
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Tỷ lệ sử dụng các gói cước của các tenant đang hoạt động</p>
+                        </div>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Đang hoạt động</span>
-                        <span class="text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats?.active ?? 0 }}</span>
+                    
+                    <div class="space-y-3.5 mt-5">
+                        <div v-for="plan in planDistribution" :key="plan.code" class="space-y-1.5">
+                            <div class="flex items-center justify-between text-xs font-medium">
+                                <span class="flex items-center gap-1.5 text-foreground">
+                                    <Crown v-if="plan.code === 'pro' || plan.code === 'enterprise'" class="size-3.5 text-amber-500" />
+                                    {{ plan.name }}
+                                    <span class="text-[10px] text-muted-foreground uppercase font-mono">({{ plan.code }})</span>
+                                </span>
+                                <span class="text-muted-foreground tabular-nums">{{ plan.count }} nhà hàng</span>
+                            </div>
+                            <div class="h-2 w-full rounded-full bg-secondary overflow-hidden">
+                                <div
+                                    class="h-full rounded-full transition-all duration-500"
+                                    :class="{
+                                        'bg-slate-400': plan.code === 'free',
+                                        'bg-sky-500': plan.code === 'starter',
+                                        'bg-purple-500': plan.code === 'pro',
+                                        'bg-emerald-500': plan.code === 'enterprise'
+                                    }"
+                                    :style="{ width: `${(plan.count / (stats?.active || 1)) * 100}%` }"
+                                ></div>
+                            </div>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
-            <Card class="overflow-hidden border-border bg-card shadow-sm">
-                <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-lg bg-purple-50 p-2.5 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400">
-                        <CreditCard class="size-5" />
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Đánh giá & Đề xuất Hậu mãi (AI Insights) -->
+        <div v-if="aiInsights" class="grid gap-6 lg:grid-cols-12">
+            <!-- Cột trái: Đánh giá Sức khỏe Hệ thống -->
+            <div class="lg:col-span-5 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div class="space-y-1">
+                            <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-sm text-foreground">
+                                <Activity class="size-4 text-rose-500 animate-pulse" /> Đánh giá Sức khỏe SaaS
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Phân tích hành vi hoạt động và dự báo doanh thu định kỳ</p>
+                        </div>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Gói trả phí</span>
-                        <span class="text-xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{{ stats?.paid ?? 0 }}</span>
+
+                    <!-- Health Score Gauge -->
+                    <div class="flex items-center gap-5 mt-5">
+                        <div class="relative flex items-center justify-center size-20 rounded-full border-4 border-muted shrink-0"
+                             :style="{ borderColor: aiInsights.overall_health.color === 'green' ? '#10b981' : (aiInsights.overall_health.color === 'yellow' ? '#f59e0b' : '#ef4444') }">
+                            <span class="text-xl font-black tabular-nums text-foreground">{{ aiInsights.overall_health.score }}%</span>
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <p class="text-xs font-bold text-muted-foreground uppercase tracking-wide">Điểm sức khỏe</p>
+                            <p class="text-sm font-extrabold text-foreground">{{ aiInsights.overall_health.label }}</p>
+                            <p class="text-[11px] text-muted-foreground/90">
+                                Tính toán dựa trên tần suất đơn hàng 30 ngày, tỷ lệ gia hạn gói cước và tần suất sử dụng hệ thống.
+                            </p>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
-            <Card class="overflow-hidden border-border bg-card shadow-sm">
-                <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-lg bg-amber-50 p-2.5 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
-                        <Ban class="size-5" />
+
+                    <!-- Segment Cards -->
+                    <div class="grid grid-cols-2 gap-3 mt-5">
+                        <div class="rounded-lg bg-secondary/35 p-3 flex flex-col justify-between border border-border/40">
+                            <span class="text-[10px] font-bold text-muted-foreground uppercase">Trial đang chạy</span>
+                            <span class="text-lg font-black text-foreground mt-1 tabular-nums">{{ aiInsights.segments.trial_active }}</span>
+                        </div>
+                        <div class="rounded-lg bg-secondary/35 p-3 flex flex-col justify-between border border-border/40">
+                            <span class="text-[10px] font-bold text-muted-foreground uppercase">Free không hoạt động</span>
+                            <span class="text-lg font-black text-rose-500 dark:text-rose-400 mt-1 tabular-nums">{{ aiInsights.segments.free_inactive }}</span>
+                        </div>
+                        <div class="rounded-lg bg-secondary/35 p-3 flex flex-col justify-between border border-border/40">
+                            <span class="text-[10px] font-bold text-muted-foreground uppercase">Rủi ro rời bỏ (At Risk)</span>
+                            <span class="text-lg font-black text-amber-500 mt-1 tabular-nums">{{ aiInsights.segments.at_risk }}</span>
+                        </div>
+                        <div class="rounded-lg bg-secondary/35 p-3 flex flex-col justify-between border border-border/40">
+                            <span class="text-[10px] font-bold text-muted-foreground uppercase">Mới tạo (30 ngày)</span>
+                            <span class="text-lg font-black text-sky-500 mt-1 tabular-nums">{{ aiInsights.segments.new }}</span>
+                        </div>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tạm ngưng / Khóa</span>
-                        <span class="text-xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{{ stats?.suspended ?? 0 }}</span>
+
+                    <!-- MRR Forecast -->
+                    <div class="mt-5 p-3.5 bg-secondary/20 rounded-lg border border-border/40">
+                        <h4 class="text-xs font-bold text-foreground flex items-center gap-1.5 mb-2">
+                            <TrendingUp class="size-3.5 text-primary" /> Dự báo MRR (3 tháng tới)
+                        </h4>
+                        <div class="flex items-center justify-between text-xs border-t border-border/30 pt-2" v-for="forecast in aiInsights.mrr_forecast" :key="forecast.month">
+                            <span class="text-muted-foreground">{{ forecast.month }}</span>
+                            <span class="font-extrabold text-foreground tabular-nums">{{ Number(forecast.predicted_mrr).toLocaleString() }} VND</span>
+                            <span class="text-emerald-500 dark:text-emerald-400 font-bold flex items-center text-[10px] gap-0.5">
+                                ▲ +{{ forecast.trend === 'up' ? 'Tăng' : 'Ổn định' }}
+                            </span>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
-            <Card class="overflow-hidden border-border bg-card shadow-sm cursor-pointer hover:bg-muted/40 transition-colors" @click="() => { flaggedFilter = flaggedFilter === '1' ? '' : '1'; applyFilter(); }">
-                <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-lg bg-rose-50 p-2.5 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
-                        <Ban class="size-5" />
+                </div>
+            </div>
+
+            <!-- Cột phải: Cảnh báo rời bỏ & Đề xuất CSKH -->
+            <div class="lg:col-span-7 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-border/50 mb-4">
+                        <div class="space-y-1">
+                            <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-sm text-foreground">
+                                <ShieldAlert class="size-4 text-amber-500" /> Cảnh báo Rủi ro Churn & Gợi ý CSKH
+                            </h3>
+                            <p class="text-xs text-muted-foreground">Phát hiện tự động các tenant có nguy cơ ngưng sử dụng hoặc hết hạn cước</p>
+                        </div>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Gắn cờ (Hậu mãi)</span>
-                        <span class="text-xl font-bold tracking-tight text-rose-600 dark:text-rose-400 font-mono">{{ stats?.flagged ?? 0 }}</span>
+
+                    <div class="space-y-4 overflow-y-auto max-h-[360px] pr-1.5">
+                        <div v-for="risk in aiInsights.churn_risks" :key="risk.restaurant_id" 
+                             class="p-4 rounded-xl border transition-all duration-300"
+                             :class="{
+                                 'border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10': risk.risk_level === 'high',
+                                 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10': risk.risk_level === 'medium',
+                                 'border-slate-500/20 bg-slate-500/5 hover:bg-slate-500/10': risk.risk_level === 'low'
+                             }">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="space-y-1 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <Link :href="`/super-admin/restaurants/${risk.restaurant_id}`" class="font-bold hover:underline text-sm text-foreground">
+                                            {{ risk.name }}
+                                        </Link>
+                                        <span class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                                              :class="{
+                                                  'bg-rose-500/15 text-rose-600 dark:text-rose-400': risk.risk_level === 'high',
+                                                  'bg-amber-500/15 text-amber-600 dark:text-amber-400': risk.risk_level === 'medium',
+                                                  'bg-slate-500/15 text-slate-600 dark:text-slate-400': risk.risk_level === 'low'
+                                              }">
+                                            Rủi ro: {{ risk.risk_score }}%
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Reasons -->
+                                    <div class="space-y-0.5 mt-2">
+                                        <div v-for="(reason, idx) in risk.reasons" :key="idx" class="text-xs text-muted-foreground flex items-start gap-1">
+                                            <span class="text-destructive font-bold">•</span>
+                                            <span>{{ reason }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Recommendations -->
+                                    <div class="mt-3 pt-3 border-t border-border/30">
+                                        <p class="text-[11px] font-bold text-foreground flex items-center gap-1 mb-1.5">
+                                            <Sparkles class="size-3.5 text-primary" /> Đề xuất hành động CSKH:
+                                        </p>
+                                        <div class="space-y-1.5">
+                                            <div v-for="(action, idx) in risk.actions" :key="idx" class="text-xs text-primary flex items-start gap-1 font-medium bg-primary/5 rounded px-2.5 py-1">
+                                                <ThumbsUp class="size-3 mt-0.5 text-primary shrink-0" />
+                                                <span>{{ action }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
 
         <!-- Bộ lọc -->
-        <Card>
-            <CardContent class="flex flex-wrap gap-3 p-4">
-                <div class="relative flex-1 min-w-48">
-                    <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input v-model="search" placeholder="Tìm tên, mã, mã thuế..." class="pl-9" />
-                </div>
-                <select
-                    v-model="status"
-                    @change="applyFilter"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                >
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="active">Hoạt động</option>
-                    <option value="suspended">Tạm ngưng</option>
-                    <option value="expired">Hết hạn</option>
-                </select>
-                <select
-                    v-model="planFilter"
-                    @change="applyFilter"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                >
-                    <option value="">Tất cả gói</option>
-                    <option v-for="p in plans" :key="p.code" :value="p.code">{{ p.name }}</option>
-                </select>
-                <select
-                    v-model="flaggedFilter"
-                    @change="applyFilter"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                >
-                    <option value="">Tất cả hoạt động</option>
-                    <option value="1">🚩 Chỉ bị gắn cờ (Cần hậu mãi)</option>
-                </select>
-            </CardContent>
-        </Card>
+        <FilterBar>
+            <div class="relative min-w-48 flex-1">
+                <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                <Input v-model="search" placeholder="Tìm tên, mã, mã thuế..." class="pl-9" />
+            </div>
+            <Select v-model="status" @update:model-value="applyFilter">
+                <SelectTrigger class="w-[170px]">
+                    <SelectValue placeholder="Tất cả trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="active">Hoạt động</SelectItem>
+                    <SelectItem value="suspended">Tạm ngưng</SelectItem>
+                    <SelectItem value="expired">Hết hạn</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select v-model="planFilter" @update:model-value="applyFilter">
+                <SelectTrigger class="w-[160px]">
+                    <SelectValue placeholder="Tất cả gói" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">Tất cả gói</SelectItem>
+                    <SelectItem v-for="p in plans" :key="p.code" :value="p.code">{{ p.name }}</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select v-model="flaggedFilter" @update:model-value="applyFilter">
+                <SelectTrigger class="w-[210px]">
+                    <SelectValue placeholder="Tất cả hoạt động" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">Tất cả hoạt động</SelectItem>
+                    <SelectItem value="1">🚩 Chỉ bị gắn cờ</SelectItem>
+                </SelectContent>
+            </Select>
+        </FilterBar>
 
         <!-- Bảng danh sách -->
-        <Card>
-            <CardContent class="p-0">
-                <table class="w-full text-sm">
-                    <thead class="border-b bg-muted/50">
-                        <tr class="text-left text-xs text-muted-foreground">
-                            <th class="px-6 py-3 font-medium">Nhà hàng</th>
-                            <th class="px-4 py-3 font-medium">Gói</th>
-                            <th class="px-4 py-3 font-medium">Tài nguyên</th>
-                            <th class="px-4 py-3 font-medium">Trạng thái</th>
-                            <th class="px-4 py-3 font-medium">Ngày tạo</th>
-                            <th class="px-4 py-3 font-medium text-right">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="r in restaurants.data"
-                            :key="r.id"
-                            class="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                        >
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-1.5 flex-wrap">
-                                    <p class="font-medium">{{ r.name }}</p>
-                                    <span v-if="r.is_inactive_flagged" class="inline-flex items-center gap-1 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
-                                        🚩 Cần hậu mãi
-                                    </span>
-                                </div>
-                                <p class="text-xs text-muted-foreground">{{ r.owner_email }}</p>
-                                <p class="text-xs text-muted-foreground font-mono">{{ r.code }}</p>
-                                <p class="text-[10px] text-slate-500 mt-0.5">Hoạt động cuối: {{ r.last_active_at }}</p>
-                            </td>
-                            <td class="px-4 py-4">
-                                <span :class="['flex items-center gap-1 font-medium text-xs', r.plan_code === 'PRO' ? 'text-purple-600' : 'text-muted-foreground']">
-                                    <Crown v-if="r.plan_code === 'PRO'" class="size-3" />
-                                    {{ r.plan }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-4">
-                                <div class="flex flex-wrap gap-1">
-                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.branches_count, r.max_branches)]" title="Chi nhánh">
-                                        CN: {{ formatQuota(r.branches_count, r.max_branches) }}
-                                    </span>
-                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.employees_count, r.max_users)]" title="Nhân viên">
-                                        NV: {{ formatQuota(r.employees_count, r.max_users) }}
-                                    </span>
-                                    <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono border', getQuotaColor(r.tables_count, r.max_tables)]" title="Bàn ăn">
-                                        Bàn: {{ formatQuota(r.tables_count, r.max_tables) }}
-                                    </span>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4">
-                                <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', statusColor[r.status]]">
-                                    {{ statusLabel[r.status] ?? r.status }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-4 text-muted-foreground">{{ r.created_at }}</td>
-                            <td class="px-4 py-4">
-                                <div class="flex items-center justify-end gap-1">
-                                    <Link :href="`/super-admin/restaurants/${r.id}`">
-                                        <Button variant="ghost" size="icon-sm" title="Xem chi tiết">
-                                            <Eye class="size-4" />
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        v-if="r.owner_id"
-                                        variant="ghost" size="icon-sm"
-                                        title="Sắm vai (Đăng nhập hộ)"
-                                        class="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                                        @click="impersonateUser(r.owner_id)"
-                                    >
-                                        <UserCheck class="size-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost" size="icon-sm"
-                                        :title="r.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'"
-                                        @click="openStatus(r)"
-                                    >
-                                        <ShieldOff v-if="r.status === 'active'" class="size-4 text-yellow-600" />
-                                        <ShieldCheck v-else class="size-4 text-green-600" />
-                                    </Button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="!restaurants.data.length">
-                            <td colspan="6" class="px-6 py-12 text-center text-muted-foreground">
-                                Không tìm thấy nhà hàng nào
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <!-- Pagination -->
-                <div v-if="restaurants.last_page > 1" class="flex justify-center gap-1 border-t p-4">
-                    <Link
-                        v-for="link in restaurants.links"
-                        :key="link.label"
-                        :href="link.url ?? '#'"
-                        :class="['px-3 py-1 rounded text-sm border', link.active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted', !link.url ? 'opacity-40 pointer-events-none' : '']"
+        <DataTable
+            :columns="columns"
+            :rows="restaurants.data"
+            :empty-icon="Building2"
+            empty-title="Không tìm thấy nhà hàng nào"
+            empty-description="Thử thay đổi bộ lọc hoặc thêm nhà hàng mới"
+            class=""
+        >
+            <template #cell-name="{ row }">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <p class="font-medium">{{ row.name }}</p>
+                    <span
+                        v-if="row.is_inactive_flagged"
+                        class="inline-flex items-center gap-1 rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 dark:text-rose-300 border border-rose-500/20"
                     >
-                        <span v-html="link.label" />
-                    </Link>
+                        🚩 Cần hậu mãi
+                    </span>
+                    <span
+                        v-if="getChurnRisk(row.id)?.risk_level === 'high'"
+                        class="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300 border border-amber-500/20"
+                        title="AI cảnh báo rủi ro rời bỏ cao"
+                    >
+                        ⚠️ Rủi ro Churn
+                    </span>
                 </div>
-            </CardContent>
-        </Card>
+                <p class="text-xs text-muted-foreground">{{ row.owner_email }}</p>
+                <p class="font-mono text-xs text-muted-foreground">{{ row.code }}</p>
+                <p class="mt-0.5 text-[10px] text-muted-foreground/70">Hoạt động cuối: {{ row.last_active_at }}</p>
+            </template>
+
+            <template #cell-plan="{ row }">
+                <span :class="['flex items-center gap-1 text-xs font-medium', row.plan_code === 'PRO' ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground']">
+                    <Crown v-if="row.plan_code === 'PRO'" class="size-3" />
+                    {{ row.plan }}
+                </span>
+            </template>
+
+            <template #cell-quota="{ row }">
+                <div class="space-y-1.5 min-w-[140px]">
+                    <div class="flex items-center gap-2">
+                        <span class="w-7 text-[10px] font-mono text-muted-foreground">CN</span>
+                        <ProgressBar
+                            :value="row.branches_count"
+                            :max="row.max_branches ?? 999"
+                            class="flex-1"
+                        />
+                        <span class="text-[10px] font-mono text-muted-foreground tabular-nums">{{ formatQuota(row.branches_count, row.max_branches) }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-7 text-[10px] font-mono text-muted-foreground">NV</span>
+                        <ProgressBar
+                            :value="row.employees_count"
+                            :max="row.max_users ?? 999"
+                            class="flex-1"
+                        />
+                        <span class="text-[10px] font-mono text-muted-foreground tabular-nums">{{ formatQuota(row.employees_count, row.max_users) }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-7 text-[10px] font-mono text-muted-foreground">Bàn</span>
+                        <ProgressBar
+                            :value="row.tables_count"
+                            :max="row.max_tables ?? 999"
+                            class="flex-1"
+                        />
+                        <span class="text-[10px] font-mono text-muted-foreground tabular-nums">{{ formatQuota(row.tables_count, row.max_tables) }}</span>
+                    </div>
+                </div>
+            </template>
+
+            <template #cell-status="{ row }">
+                <StatusBadge :status="row.status">
+                    {{ statusLabel[row.status] ?? row.status }}
+                </StatusBadge>
+            </template>
+
+            <template #cell-created_at="{ row }">
+                <span class="text-muted-foreground">{{ row.created_at }}</span>
+            </template>
+
+            <template #cell-actions="{ row }">
+                <div class="flex items-center justify-end gap-1">
+                    <Link :href="`/super-admin/restaurants/${row.id}`">
+                        <Button variant="ghost" size="icon-sm" title="Xem chi tiết">
+                            <Eye class="size-4" />
+                        </Button>
+                    </Link>
+                    <Button
+                        v-if="row.owner_id"
+                        variant="ghost" size="icon-sm"
+                        title="Sắm vai (Đăng nhập hộ)"
+                        class="text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20"
+                        @click="impersonateUser(row.owner_id)"
+                    >
+                        <UserCheck class="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon-sm"
+                        :title="row.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'"
+                        @click="openStatus(row)"
+                    >
+                        <ShieldOff v-if="row.status === 'active'" class="size-4 text-amber-600" />
+                        <ShieldCheck v-else class="size-4 text-emerald-600" />
+                    </Button>
+                </div>
+            </template>
+
+            <template #pagination>
+                <Pagination v-if="restaurants.last_page > 1" :links="restaurants.links" />
+            </template>
+        </DataTable>
     </div>
 
     <!-- Dialog Tạo nhà hàng -->
     <Dialog v-model:open="showCreate">
-        <DialogContent class="max-w-lg">
-            <DialogHeader>
-                <DialogTitle>Thêm nhà hàng mới</DialogTitle>
+        <DialogContent class="max-w-lg rounded-2xl border border-border/80 bg-background/95 backdrop-blur-md shadow-2xl p-0 overflow-hidden">
+            <!-- Modal Header -->
+            <DialogHeader class="p-6 border-b border-border/40 bg-muted/10">
+                <DialogTitle class="text-base font-bold flex items-center gap-2">
+                    <div class="size-8 bg-orange-500/10 text-orange-500 border border-orange-500/20 rounded-lg flex items-center justify-center shrink-0">
+                        <Store class="size-4.5" />
+                    </div>
+                    <span>Thêm nhà hàng mới</span>
+                </DialogTitle>
             </DialogHeader>
-            <form @submit.prevent="submitCreate" class="grid gap-4 py-2">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Tên nhà hàng *</Label>
-                        <Input v-model="createForm.name" placeholder="Nhà hàng ABC" required />
-                        <p v-if="createForm.errors.name" class="text-xs text-destructive">{{ createForm.errors.name }}</p>
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Mã số thuế</Label>
-                        <Input v-model="createForm.tax_code" placeholder="0123456789" />
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Số điện thoại</Label>
-                        <Input v-model="createForm.phone" placeholder="0901234567" />
-                    </div>
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Email nhà hàng</Label>
-                        <Input v-model="createForm.email" type="email" placeholder="contact@restaurant.com" />
-                    </div>
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Địa chỉ</Label>
-                        <Input v-model="createForm.address" placeholder="123 Đường ABC, Quận 1..." />
-                    </div>
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Gói dịch vụ *</Label>
-                        <select v-model="createForm.plan_id" required class="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                            <option value="">Chọn gói...</option>
-                            <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }}</option>
-                        </select>
-                        <p v-if="createForm.errors.plan_id" class="text-xs text-destructive">{{ createForm.errors.plan_id }}</p>
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Tên chủ sở hữu *</Label>
-                        <Input v-model="createForm.owner_name" placeholder="Nguyễn Văn A" required />
-                        <p v-if="createForm.errors.owner_name" class="text-xs text-destructive">{{ createForm.errors.owner_name }}</p>
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Email chủ sở hữu *</Label>
-                        <Input v-model="createForm.owner_email" type="email" placeholder="owner@email.com" required />
-                        <p v-if="createForm.errors.owner_email" class="text-xs text-destructive">{{ createForm.errors.owner_email }}</p>
+
+            <!-- Tab Selector -->
+            <div class="flex border-b border-border/40 mx-6 mt-4 bg-muted/40 p-1 rounded-xl">
+                <button
+                    type="button"
+                    @click="activeCreateTab = 'info'"
+                    class="flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    :class="activeCreateTab === 'info' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                >
+                    <Building2 class="size-3.5 text-orange-500" />
+                    Thông tin nhà hàng
+                </button>
+                <button
+                    type="button"
+                    @click="activeCreateTab = 'owner'"
+                    class="flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    :class="activeCreateTab === 'owner' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                >
+                    <User class="size-3.5 text-orange-500" />
+                    Chủ sở hữu
+                </button>
+            </div>
+
+            <form @submit.prevent="submitCreate" class="p-6 pt-4 flex flex-col gap-4">
+                <!-- Tab 1: Restaurant Info -->
+                <div v-show="activeCreateTab === 'info'" class="space-y-4 animate-in fade-in duration-200">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                Tên nhà hàng <span class="text-rose-500">*</span>
+                            </Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <Store class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.name" placeholder="VD: Nhà hàng Aventura Hải Phòng" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" required />
+                            </div>
+                            <p v-if="createForm.errors.name" class="text-xs text-destructive font-semibold">{{ createForm.errors.name }}</p>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">Mã số thuế</Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <Hash class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.tax_code" placeholder="0123456789" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            </div>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">Số điện thoại</Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <Phone class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.phone" placeholder="0901234567" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            </div>
+                        </div>
+
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">Email nhà hàng</Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <Mail class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.email" type="email" placeholder="contact@restaurant.com" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            </div>
+                        </div>
+
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">Địa chỉ</Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <MapPin class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.address" placeholder="123 Đường ABC, Quận 1..." class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            </div>
+                        </div>
+
+                        <div class="col-span-2 grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                Gói dịch vụ <span class="text-rose-500">*</span>
+                            </Label>
+                            <Select v-model="createForm.plan_id">
+                                <SelectTrigger class="rounded-xl border-border focus:ring-orange-500/20 focus:border-orange-500">
+                                    <SelectValue placeholder="Chọn gói..." />
+                                </SelectTrigger>
+                                <SelectContent class="rounded-xl">
+                                    <SelectItem v-for="p in plans" :key="p.id" :value="String(p.id)">{{ p.name }}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p v-if="createForm.errors.plan_id" class="text-xs text-destructive font-semibold">{{ createForm.errors.plan_id }}</p>
+                        </div>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" @click="showCreate = false">Hủy</Button>
-                    <Button type="submit" :disabled="createForm.processing">
+
+                <!-- Tab 2: Owner Info -->
+                <div v-show="activeCreateTab === 'owner'" class="space-y-4 animate-in fade-in duration-200">
+                    <div class="grid gap-4">
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                Tên chủ sở hữu <span class="text-rose-500">*</span>
+                            </Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <User class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.owner_name" placeholder="Nguyễn Văn A" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" required />
+                            </div>
+                            <p v-if="createForm.errors.owner_name" class="text-xs text-destructive font-semibold">{{ createForm.errors.owner_name }}</p>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                Email chủ sở hữu <span class="text-rose-500">*</span>
+                            </Label>
+                            <div class="relative flex items-center">
+                                <div class="absolute left-3 text-muted-foreground pointer-events-none">
+                                    <Mail class="size-4 text-orange-500" />
+                                </div>
+                                <Input v-model="createForm.owner_email" type="email" placeholder="owner@email.com" class="pl-9.5 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" required />
+                            </div>
+                            <p v-if="createForm.errors.owner_email" class="text-xs text-destructive font-semibold">{{ createForm.errors.owner_email }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex gap-3 mt-4 pt-4 border-t border-border/40">
+                    <Button type="button" variant="outline" class="flex-1 rounded-xl cursor-pointer" @click="showCreate = false">Hủy</Button>
+                    <Button v-if="activeCreateTab === 'info'" type="button" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-md transition-all cursor-pointer font-bold" @click="activeCreateTab = 'owner'">
+                        Tiếp tục
+                    </Button>
+                    <Button v-else type="submit" :disabled="createForm.processing" class="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl shadow-md transition-all cursor-pointer font-bold">
+                        <Check class="mr-1.5 size-4" />
                         {{ createForm.processing ? 'Đang tạo...' : 'Tạo nhà hàng' }}
                     </Button>
-                </DialogFooter>
+                </div>
             </form>
         </DialogContent>
     </Dialog>
@@ -422,11 +759,16 @@ const statusLabel: Record<string, string> = {
             <form @submit.prevent="submitStatus" class="grid gap-4 py-2">
                 <div class="grid gap-1.5">
                     <Label>Trạng thái mới</Label>
-                    <select v-model="statusForm.status" class="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                        <option value="active">✅ Kích hoạt</option>
-                        <option value="suspended">⏸ Tạm ngưng</option>
-                        <option value="expired">❌ Hết hạn</option>
-                    </select>
+                    <Select v-model="statusForm.status">
+                        <SelectTrigger>
+                            <SelectValue placeholder="Chọn trạng thái..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="active">✅ Kích hoạt</SelectItem>
+                            <SelectItem value="suspended">⏸ Tạm ngưng</SelectItem>
+                            <SelectItem value="expired">❌ Hết hạn</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Lý do (tuỳ chọn)</Label>
@@ -440,5 +782,3 @@ const statusLabel: Record<string, string> = {
         </DialogContent>
     </Dialog>
 </template>
-
-

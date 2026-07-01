@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Products\StoreProductRequest;
+use App\Http\Requests\Products\UpdateProductRequest;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use Illuminate\Http\RedirectResponse;
@@ -80,19 +82,10 @@ class ProductManagementController extends Controller
     /**
      * Thêm món ăn mới (Product).
      */
-    public function storeProduct(Request $request): RedirectResponse
+    public function storeProduct(StoreProductRequest $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
-
-        $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
-        $data = $request->validate([
-            'category_id' => ['required', 'exists:product_categories,id'],
-            'name' => ['required', 'string', 'max:255'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'description' => ['required', 'string', 'min:5'],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
-        ]);
+        $data = $request->validated();
 
         $imageUrl = null;
         if ($request->hasFile('image')) {
@@ -122,20 +115,10 @@ class ProductManagementController extends Controller
     /**
      * Cập nhật thông tin sản phẩm.
      */
-    public function updateProduct(Request $request, Product $product): RedirectResponse
+    public function updateProduct(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $user = $request->user();
-        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
-
-        $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
-        $data = $request->validate([
-            'name'         => ['sometimes', 'string', 'max:255'],
-            'price'        => ['sometimes', 'numeric', 'min:0'],
-            'category_id'  => ['nullable', 'exists:product_categories,id'],
-            'description'  => ['sometimes', 'required', 'string', 'min:5'],
-            'is_available' => ['sometimes', 'boolean'],
-            'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
-        ]);
+        $data = $request->validated();
 
         if ($request->hasFile('image')) {
             if ($product->image_url && str_starts_with($product->image_url, '/storage/')) {

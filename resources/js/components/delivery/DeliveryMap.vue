@@ -356,45 +356,44 @@ return `~${m}p`;
             <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span> Đã giao</div>
             <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span> Thất bại</div>
         </div>
-
-        <!-- Inline CSS for map markers (avoids FOUC) -->
-        <style>
-            .shipper-pin {
-                position: relative;
-                width: 40px; height: 40px;
-                display: flex; align-items: center; justify-content: center;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
-            }
-            .shipper-pin--active .shipper-vehicle {
-                outline: 3px solid var(--c); border-radius: 50%;
-            }
-            .shipper-pulse {
-                position: absolute;
-                width: 40px; height: 40px; border-radius: 50%;
-                background: color-mix(in srgb, var(--c) 30%, transparent);
-                animation: gps-pulse 2s infinite;
-            }
-            @keyframes gps-pulse {
-                0%   { transform: scale(.7); opacity: 1; }
-                100% { transform: scale(1.8); opacity: 0; }
-            }
-            .shipper-vehicle { font-size: 22px; z-index: 1; }
-            .stop-marker {
-                width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
-                transform: rotate(-45deg);
-                display: flex; align-items: center; justify-content: center;
-                color: white; font-size: 10px; font-weight: 700;
-                border: 2px solid white;
-                box-shadow: 0 2px 6px rgba(0,0,0,.25);
-            }
-            .stop-marker > * { transform: rotate(45deg); }
-            .order-dot {
-                width: 28px; height: 28px; border-radius: 50%;
-                display: flex; align-items: center; justify-content: center;
-                font-size: 14px;
-                border: 2px solid white;
-                box-shadow: 0 1px 4px rgba(0,0,0,.2);
-            }
-        </style>
     </div>
 </template>
+
+<style>
+.shipper-pin {
+    position: relative;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
+}
+.shipper-pin--active .shipper-vehicle {
+    outline: 3px solid var(--c); border-radius: 50%;
+}
+.shipper-pulse {
+    position: absolute;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: color-mix(in srgb, var(--c) 30%, transparent);
+    animation: gps-pulse 2s infinite;
+}
+@keyframes gps-pulse {
+    0%   { transform: scale(.7); opacity: 1; }
+    100% { transform: scale(1.8); opacity: 0; }
+}
+.shipper-vehicle { font-size: 22px; z-index: 1; }
+.stop-marker {
+    width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 10px; font-weight: 700;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.stop-marker > * { transform: rotate(45deg); }
+.order-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+</style>

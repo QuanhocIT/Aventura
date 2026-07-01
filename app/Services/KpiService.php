@@ -219,22 +219,38 @@ class KpiService
                     return $target;
                 }
 
-                $totalMinutes = 0;
-                $count = 0;
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
 
-                foreach ($shifts as $shift) {
-                    $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->where('status', '!=', 'cancelled')
-                        ->whereNotNull('sent_to_kitchen_at')
-                        ->whereNotNull('prepared_at')
-                        ->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->get();
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return $target;
+                }
 
-                    foreach ($items as $item) {
-                        $totalMinutes += abs(Carbon::parse($item->prepared_at)->diffInMinutes(Carbon::parse($item->sent_to_kitchen_at)));
-                        $count++;
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->where('status', '!=', 'cancelled')
+                    ->whereNotNull('sent_to_kitchen_at')
+                    ->whereNotNull('prepared_at')
+                    ->whereBetween('prepared_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
+
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        if ($item->prepared_at >= $shift->check_in_at && 
+                            $item->prepared_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
                     }
+                    return false;
+                });
+
+                $totalMinutes = 0;
+                $count = $filteredItems->count();
+
+                foreach ($filteredItems as $item) {
+                    $totalMinutes += abs(Carbon::parse($item->prepared_at)->diffInMinutes(Carbon::parse($item->sent_to_kitchen_at)));
                 }
 
                 return $count > 0 ? round($totalMinutes / $count, 2) : $target;
@@ -251,18 +267,32 @@ class KpiService
                     return 0.0;
                 }
 
-                $totalCount = 0;
-                $cancelledCount = 0;
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
 
-                foreach ($shifts as $shift) {
-                    $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->whereBetween('created_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->get();
-
-                    $totalCount += $items->count();
-                    $cancelledCount += $items->where('status', 'cancelled')->count();
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return 0.0;
                 }
+
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->whereBetween('created_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
+
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        if ($item->created_at >= $shift->check_in_at && 
+                            $item->created_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+
+                $totalCount = $filteredItems->count();
+                $cancelledCount = $filteredItems->where('status', 'cancelled')->count();
 
                 return $totalCount > 0 ? round(($cancelledCount / $totalCount) * 100, 2) : 0.0;
 
@@ -278,16 +308,33 @@ class KpiService
                     return 5.0;
                 }
 
-                $orderIds = collect();
-                foreach ($shifts as $shift) {
-                    $ids = OrderItem::where('restaurant_id', $employee->restaurant_id)
-                        ->whereBetween('prepared_at', [$shift->check_in_at, $shift->check_out_at])
-                        ->whereHas('order', fn($q) => $q->where('branch_id', $shift->branch_id))
-                        ->pluck('order_id');
-                    $orderIds = $orderIds->merge($ids);
+                $minCheckIn = $shifts->min('check_in_at');
+                $maxCheckOut = $shifts->max('check_out_at');
+
+                if (!$minCheckIn || !$maxCheckOut) {
+                    return 5.0;
                 }
 
-                $orderIds = $orderIds->unique();
+                $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->whereNotNull('prepared_at')
+                    ->whereBetween('prepared_at', [$minCheckIn, $maxCheckOut])
+                    ->with('order')
+                    ->get();
+
+                $filteredItems = $items->filter(function ($item) use ($shifts) {
+                    foreach ($shifts as $shift) {
+                        if ($item->prepared_at >= $shift->check_in_at && 
+                            $item->prepared_at <= $shift->check_out_at && 
+                            $item->order && 
+                            $item->order->branch_id === $shift->branch_id) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+
+                $orderIds = $filteredItems->pluck('order_id')->unique();
+
                 if ($orderIds->isEmpty()) {
                     return 5.0;
                 }

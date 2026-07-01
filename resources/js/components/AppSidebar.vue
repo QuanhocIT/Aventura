@@ -17,7 +17,6 @@ import {
     Megaphone,
     ShoppingCart,
     Package,
-    ChefHat,
     Receipt,
     BarChart3,
     Clock,
@@ -56,10 +55,10 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useFeatureGate } from '@/composables/useFeatureGate';
 import { dashboard } from '@/routes';
 import { dashboard as superAdminDashboard } from '@/routes/superadmin';
 import type { NavItem } from '@/types';
-import { useFeatureGate } from '@/composables/useFeatureGate';
 
 const { can: canFeature } = useFeatureGate();
 
@@ -124,6 +123,10 @@ const superAdminNav = computed<NavItem[]>(() => {
         // Shared — superadmin.dashboard.view
         { title: 'Dashboard',        href: superAdminDashboard().url, icon: LayoutGrid, perm: 'superadmin.dashboard.view' },
         { title: 'Nhà hàng',         href: '/super-admin/restaurants', icon: Building2, perm: 'superadmin.dashboard.view' },
+        { title: 'Đơn hàng hệ thống', href: '/super-admin/orders', icon: ShoppingCart, perm: 'superadmin.dashboard.view' },
+        { title: 'Doanh thu hệ thống', href: '/super-admin/revenue', icon: Wallet, perm: 'superadmin.dashboard.view' },
+        { title: 'Khách hàng', href: '/super-admin/customers', icon: Users, perm: 'superadmin.dashboard.view' },
+        { title: 'Feedback', href: '/super-admin/feedback', icon: MessageSquare, perm: 'superadmin.dashboard.view' },
         { title: 'Banner & Slideshow', href: '/super-admin/banners', icon: Image, perm: 'superadmin.dashboard.view' },
         { title: 'Tin tức',           href: '/super-admin/news',      icon: Newspaper, perm: 'superadmin.dashboard.view' },
         { title: 'Dự đoán rời bỏ',   href: '/super-admin/churn-prediction', icon: ShieldAlert, perm: 'superadmin.dashboard.view' },
@@ -131,6 +134,7 @@ const superAdminNav = computed<NavItem[]>(() => {
         { title: 'Billing Center',   href: '/super-admin/billing',     icon: BadgeDollarSign, perm: 'superadmin.billing.manage' },
         { title: 'Gói dịch vụ',     href: '/super-admin/plans',       icon: BadgeDollarSign, perm: 'superadmin.billing.manage' },
         { title: 'Mã giảm giá',      href: '/super-admin/coupons',     icon: Tag, perm: 'superadmin.billing.manage' },
+        { title: 'Chiến dịch theo mùa', href: '/super-admin/campaign-templates', icon: Gift, perm: 'superadmin.billing.manage' },
         { title: 'Hoa hồng & Rút tiền', href: '/super-admin/referrals', icon: Crown, perm: 'superadmin.billing.manage' },
         // Support — superadmin.support.manage
         { title: 'DevOps & Support', href: '/super-admin/support',    icon: Headset, perm: 'superadmin.support.manage' },
@@ -269,6 +273,7 @@ const cashierNav = computed<NavItem[]>(() => {
         { title: 'Lịch làm việc',   href: '/schedules',               icon: CalendarDays, feature: 'hr_timekeeping' },
         { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -281,6 +286,7 @@ const kitchenNav = computed<NavItem[]>(() => {
         { title: 'Lịch sử đơn',     href: '/orders',                  icon: ScrollText },
         { title: 'Tố cáo ẩn danh',   href: '/violations',              icon: ShieldAlert },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -293,6 +299,7 @@ const inventoryNav = computed<NavItem[]>(() => {
         { title: 'Nhà cung cấp',    href: '/suppliers',                icon: Truck, feature: 'inventory_basic' },
         { title: 'Lịch làm việc',   href: '/schedules',                icon: CalendarDays, feature: 'hr_timekeeping' },
     ];
+
     return nav.filter(item => !item.feature || canFeature(item.feature as any));
 });
 
@@ -345,7 +352,8 @@ const mainNavItems = computed<NavItem[]>(() => {
         items = [...customerNav];
     }
 
-    const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value;
+    const showPortalLink = !isSuperAdmin.value && !isSupplier.value && !isCustomer.value && !isOwner.value;
+
     if (showPortalLink && items.length > 0) {
         if (items[0] && (items[0].title === 'Tổng quan' || items[0].title === 'Trang chủ')) {
             const first = items[0];

@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 from main import app
+from security import verify_internal_key
 
+app.dependency_overrides[verify_internal_key] = lambda: None
 client = TestClient(app)
 
 def test_weather_menu_forecast_rainy():

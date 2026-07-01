@@ -6,7 +6,7 @@ use App\Models\BusinessGoal;
 use App\Models\GoalAction;
 use App\Models\GoalMilestone;
 use App\Services\GoalTrackingService;
-use Illuminate\Http\JsonResponse;
+use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,11 +19,11 @@ class BusinessGoalController extends Controller
     public function index(Request $request): Response
     {
         $restaurant = $request->user()->restaurant;
-        if (!$restaurant && !$request->user()->hasRole('super_admin')) {
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
         }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && !app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
             return Inertia::render('FeatureGate', [
                 'feature' => 'advanced_analytics',
                 'feature_label' => 'Mục tiêu & OKR',
@@ -102,8 +102,15 @@ class BusinessGoalController extends Controller
         return back()->with('success', 'Đã thêm hành động.');
     }
 
-    public function toggleAction(GoalAction $action): RedirectResponse
+    public function toggleAction(Request $request, GoalAction $action): RedirectResponse
     {
+        // goal_actions has no restaurant_id column of its own, so it isn't protected by
+        // the BelongsToRestaurant global scope the way BusinessGoal is — check ownership
+        // via the parent goal explicitly to prevent cross-tenant IDOR. For a cross-tenant
+        // action, BusinessGoal's own tenant scope makes ->goal resolve to null (rather than
+        // the real record), so that must be treated as forbidden too, not a null-property crash.
+        abort_if(! $action->goal || $action->goal->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $newStatus = $action->status === 'done' ? 'pending' : 'done';
         $action->update(['status' => $newStatus]);
 

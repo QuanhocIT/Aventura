@@ -82,8 +82,7 @@ Route::get('api/health', function () {
     return response()->json($checks, $healthy ? 200 : 503);
 })->name('health');
 
-Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
-Route::post('api/webhooks/payments/vietqr', \App\Http\Controllers\OrderPaymentWebhookController::class)->name('api.webhooks.payments.vietqr');
+Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook')->middleware('throttle:payment_webhooks');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');
     Route::get('billing/history', [CheckoutController::class, 'history'])->name('billing.history');
@@ -144,9 +143,13 @@ Route::middleware('throttle:60,1')->group(function () {
 });
 
 // Payment gateway webhooks (CSRF exempt via ValidateCsrfTokens)
-Route::post('api/webhooks/payments/vnpay', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleVnpay'])->name('webhooks.vnpay');
-Route::post('api/webhooks/payments/momo', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleMomo'])->name('webhooks.momo');
-Route::post('api/webhooks/payments/zalopay', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleZalopay'])->name('webhooks.zalopay');
+Route::middleware('throttle:payment_webhooks')->group(function () {
+    // VNPay's IPN is a server-to-server GET with query params (mirrors their return-URL
+    // format), not POST — accept both so the real gateway can actually reach this route.
+    Route::match(['get', 'post'], 'api/webhooks/payments/vnpay', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleVnpay'])->name('webhooks.vnpay');
+    Route::post('api/webhooks/payments/momo', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleMomo'])->name('webhooks.momo');
+    Route::post('api/webhooks/payments/zalopay', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleZalopay'])->name('webhooks.zalopay');
+});
 
 // Chức năng QR-Ordering dành cho khách hàng tại bàn
 Route::middleware('throttle:60,1')->group(function () {
@@ -169,6 +172,10 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('customer/portal/dashboard/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'showDashboard'])->name('customer.portal.dashboard');
     Route::post('customer/portal/redeem/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'redeemReward'])->name('customer.portal.redeem');
     Route::post('customer/portal/reserve/{restaurant}', [\App\Http\Controllers\Customer\CustomerPortalController::class, 'createReservation'])->name('customer.portal.reserve');
+
+    // Customer Coupon Wallet
+    Route::get('customer/coupons/{restaurant}/{phone}', [\App\Http\Controllers\Customer\CouponWalletController::class, 'showWallet'])->name('customer.coupons.wallet');
+    Route::post('customer/coupons/{restaurant}/{phone}/claim', [\App\Http\Controllers\Customer\CouponWalletController::class, 'claimCoupon'])->name('customer.coupons.claim');
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới

@@ -310,12 +310,55 @@ onMounted(() => {
                 router.reload({ only: ['tablesData'] });
             });
     }
+
+    window.addEventListener('shift-expired-save', handleShiftExpiredSave);
+
+    // Restore draft cart if present
+    const savedCart = localStorage.getItem('aventura_expired_cart');
+    if (savedCart) {
+        try {
+            const parsed = JSON.parse(savedCart);
+            if (parsed.activeTableId) {
+                const matchTable = props.tablesData.find(t => t.id === parsed.activeTableId);
+                if (matchTable) {
+                    activeTable.value = matchTable;
+                    isCartOpen.value = true;
+                }
+            }
+            if (parsed.cartItems) {
+                cartItems.value = parsed.cartItems;
+            }
+            if (parsed.cartNote) {
+                cartNote.value = parsed.cartNote;
+            }
+            if (parsed.voucherCode) {
+                voucherCode.value = parsed.voucherCode;
+            }
+            setTimeout(() => {
+                toast('Đã khôi phục giỏ hàng nháp từ phiên làm việc trước!');
+            }, 500);
+        } catch(e) {}
+        localStorage.removeItem('aventura_expired_cart');
+    }
 });
 
+const handleShiftExpiredSave = () => {
+    if (cartItems.value.length > 0) {
+        localStorage.setItem('aventura_expired_cart', JSON.stringify({
+            activeTableId: activeTable.value?.id,
+            cartItems: cartItems.value,
+            cartNote: cartNote.value,
+            voucherCode: voucherCode.value
+        }));
+    }
+};
+
 onUnmounted(() => {
+    window.removeEventListener('shift-expired-save', handleShiftExpiredSave);
+
     if (timerId) {
-clearInterval(timerId);
-}
+        clearInterval(timerId);
+    }
 
     if (restaurantId.value) {
         window.Echo.leaveChannel(`restaurant.${restaurantId.value}`);

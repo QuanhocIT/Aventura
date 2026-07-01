@@ -47,6 +47,8 @@ return [
         'url' => env('CHATBOT_SERVICE_URL', ''),
     ],
 
+    'microservice_internal_key' => env('MICROSERVICE_INTERNAL_KEY', ''),
+
     'brevo' => [
         'api_key' => env('BREVO_API_KEY', ''),
     ],
@@ -74,6 +76,17 @@ return [
         'key1' => env('ZALOPAY_KEY1', ''),
         'key2' => env('ZALOPAY_KEY2', ''),
         'endpoint' => env('ZALOPAY_ENDPOINT', 'https://sb-openapi.zalopay.vn/v2/create'),
+    ],
+
+    'openweather' => [
+        'key' => env('OPENWEATHER_API_KEY', ''),
+        'url' => env('OPENWEATHER_URL', 'https://api.openweathermap.org/data/2.5/forecast'),
+    ],
+
+    'osrm' => [
+        // Self-hosted routing server (see docs/osrm-setup.md) — empty by default so
+        // OsrmClient::isConfigured() is false and callers cleanly fall back to haversine.
+        'url' => env('OSRM_URL', ''),
     ],
 
     'push' => [

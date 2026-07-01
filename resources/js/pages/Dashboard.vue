@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 // Subcomponents
 import AIInsightsCard from '@/components/dashboard/charts/AIInsightsCard.vue';
 import ChannelShareChart from '@/components/dashboard/charts/ChannelShareChart.vue';
+import PeakHoursChart from '@/components/dashboard/charts/PeakHoursChart.vue';
 import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastChart.vue';
 import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
 import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
@@ -141,6 +142,7 @@ const props = defineProps<{
     recentOrders?: RecentOrder[];
     alerts?: Alert[];
     revenueChartData?: RevenueDay[];
+    peakHoursChartData?: any[];
     channelChartData?: ChannelShare[];
     topProductsChartData?: TopProductStat[];
     forecastData?: ForecastData | null;
@@ -212,10 +214,10 @@ function getTableStatusInfo(status: string) {
     />
 
     <!-- Main Content Section -->
-    <div class="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-7 relative">
+    <div class="mx-auto max-w-7xl px-4 py-4 lg:px-6 space-y-5 relative">
         
         <!-- Branch selection dropdown (Only if owner has multiple branches) -->
-        <div v-if="props.branches && props.branches.length > 1" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+        <div v-if="props.branches && props.branches.length > 1" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
                 <h2 class="text-xl font-black tracking-tight text-slate-850 dark:text-slate-100 flex items-center gap-2.5">
                     <span class="size-2.5 bg-teal-500 rounded-full animate-pulse shadow-sm shadow-teal-500" />
@@ -378,7 +380,7 @@ function getTableStatusInfo(status: string) {
                 </CardContent>
             </Card>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <!-- Hiệu suất Bán hàng Hôm nay -->
                 <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40">
                     <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
@@ -448,7 +450,7 @@ function getTableStatusInfo(status: string) {
             </div>
 
             <!-- Doanh thu + Sidebar -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <div class="lg:col-span-2">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="null" />
                 </div>
@@ -596,35 +598,36 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="null" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <ChannelShareChart :channel-chart-data="props.channelChartData" />
-                        <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40">
-                            <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
-                                <div class="flex items-center justify-between">
-                                    <CardTitle class="text-sm font-bold flex items-center gap-1.5"><AlertTriangle class="size-4.5 text-rose-500" /> Cảnh báo Tồn kho</CardTitle>
-                                    <span v-if="props.lowStockInventory?.length" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">{{ props.lowStockInventory.length }} Cảnh báo</span>
-                                </div>
-                            </CardHeader>
-                            <CardContent class="p-5 space-y-3 max-h-[300px] overflow-y-auto">
-                                <div v-if="props.lowStockInventory && props.lowStockInventory.length > 0" class="space-y-2.5">
-                                    <div v-for="item in props.lowStockInventory" :key="item.id" class="flex items-center justify-between p-2.5 rounded-xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5">
-                                        <div class="flex items-center gap-2 min-w-0">
-                                            <Package class="size-3.5 text-rose-500 shrink-0" />
-                                            <span class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{{ item.ingredient_name }}</span>
-                                        </div>
-                                        <span class="text-[10px] font-extrabold font-mono text-rose-600 dark:text-rose-400 shrink-0 ml-2">{{ item.quantity_on_hand }}/{{ item.reorder_level }}</span>
-                                    </div>
-                                </div>
-                                <div v-else class="flex flex-col items-center justify-center py-6 text-center">
-                                    <CheckCircle2 class="size-6 text-emerald-500 mb-1.5" />
-                                    <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Kho hàng an toàn!</p>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <PeakHoursChart :peak-hours-chart-data="props.peakHoursChartData" />
                     </div>
+                    <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40">
+                        <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
+                            <div class="flex items-center justify-between">
+                                <CardTitle class="text-sm font-bold flex items-center gap-1.5"><AlertTriangle class="size-4.5 text-rose-500" /> Cảnh báo Tồn kho</CardTitle>
+                                <span v-if="props.lowStockInventory?.length" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">{{ props.lowStockInventory.length }} Cảnh báo</span>
+                            </div>
+                        </CardHeader>
+                        <CardContent class="p-5 space-y-3 max-h-[300px] overflow-y-auto">
+                            <div v-if="props.lowStockInventory && props.lowStockInventory.length > 0" class="space-y-2.5">
+                                <div v-for="item in props.lowStockInventory" :key="item.id" class="flex items-center justify-between p-2.5 rounded-xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <Package class="size-3.5 text-rose-500 shrink-0" />
+                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{{ item.ingredient_name }}</span>
+                                    </div>
+                                    <span class="text-[10px] font-extrabold font-mono text-rose-600 dark:text-rose-400 shrink-0 ml-2">{{ item.quantity_on_hand }}/{{ item.reorder_level }}</span>
+                                </div>
+                            </div>
+                            <div v-else class="flex flex-col items-center justify-center py-6 text-center">
+                                <CheckCircle2 class="size-6 text-emerald-500 mb-1.5" />
+                                <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Kho hàng an toàn!</p>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
                 <div class="space-y-6">
                     <CashFlowWidget :cash-flow-summary="props.cashFlowSummary" />
@@ -682,7 +685,7 @@ function getTableStatusInfo(status: string) {
                 </CardContent>
             </Card>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-14">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
                 <div class="lg:col-span-2">
                     <OperationsCenter :operation-feed="props.operationFeed" :tables-data="props.tablesData" :low-stock-inventory="props.lowStockInventory" :owner-summary="props.ownerSummary" :shift-revenue="props.shiftRevenue" />
                 </div>
@@ -730,13 +733,14 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-14">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="null" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <ChannelShareChart :channel-chart-data="props.channelChartData" />
-                        <TopProductsLeaderboard :top-products-chart-data="props.topProductsChartData" />
+                        <PeakHoursChart :peak-hours-chart-data="props.peakHoursChartData" />
                     </div>
+                    <TopProductsLeaderboard :top-products-chart-data="props.topProductsChartData" />
                     <OperationsCenter :operation-feed="props.operationFeed" :tables-data="props.tablesData" :low-stock-inventory="props.lowStockInventory" :owner-summary="props.ownerSummary" :shift-revenue="props.shiftRevenue" />
                     <!-- Đơn hàng gần đây (Pro) -->
                     <Card v-if="props.recentOrders?.length" class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40 pb-4">
@@ -835,13 +839,14 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-14">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="props.forecastData" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <ChannelShareChart :channel-chart-data="props.channelChartData" />
-                        <TopProductsLeaderboard :top-products-chart-data="props.topProductsChartData" />
+                        <PeakHoursChart :peak-hours-chart-data="props.peakHoursChartData" />
                     </div>
+                    <TopProductsLeaderboard :top-products-chart-data="props.topProductsChartData" />
                     <OperationsCenter :operation-feed="props.operationFeed" :tables-data="props.tablesData" :low-stock-inventory="props.lowStockInventory" :owner-summary="props.ownerSummary" :shift-revenue="props.shiftRevenue" />
                     <!-- Đơn hàng gần đây (Enterprise) -->
                     <Card v-if="props.recentOrders?.length" class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40 pb-4">

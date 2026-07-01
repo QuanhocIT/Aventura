@@ -35,6 +35,11 @@ class EmployeeSecurityAndLockingTest extends TestCase
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $owner->assignRole($ownerRole);
+        // storeEmployee() now requires 'manage_employees' (previously missing entirely —
+        // see StoreEmployeeRequest::authorize()), so grant it here like the real
+        // PermissionsSeeder does for the owner role.
+        \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'manage_employees', 'guard_name' => 'web']);
+        $ownerRole->givePermissionTo('manage_employees');
 
         // Attempting to create employee with missing fields
         $response = $this->actingAs($owner)->post('/employees', []);

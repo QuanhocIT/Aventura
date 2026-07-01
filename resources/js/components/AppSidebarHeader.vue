@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, usePage, router } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
@@ -36,6 +36,17 @@ const navItems = [
     { label: 'Nhân viên', href: '/employees' },
     { label: 'Hỗ trợ', href: '/support' },
 ];
+
+const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
+
+const tenant = computed(() => page.props.tenant as any);
+const branches = computed(() => tenant.value?.branches ?? []);
+const activeBranchId = computed(() => tenant.value?.active_branch_id ?? null);
+
+const handleBranchChange = (e: Event) => {
+    const val = (e.target as HTMLSelectElement).value;
+    router.post('/branch/switch', { branch_id: parseInt(val) });
+};
 </script>
 
 <template>
@@ -47,7 +58,7 @@ const navItems = [
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
-            <nav v-else-if="user" class="hidden items-center gap-0.5 md:flex">
+            <nav v-else-if="user && !isSuperAdminRoute" class="hidden items-center gap-0.5 md:flex">
                 <Link
                     v-for="item in navItems"
                     :key="item.href"
@@ -63,6 +74,20 @@ const navItems = [
         </div>
 
         <div class="flex items-center gap-4">
+            <!-- Branch context switcher -->
+            <div v-if="branches && branches.length > 1" class="flex items-center gap-1.5 mr-2">
+                <span class="text-[11px] text-muted-foreground hidden sm:inline font-medium uppercase tracking-wider">Chi nhánh:</span>
+                <select
+                    :value="activeBranchId"
+                    @change="handleBranchChange"
+                    class="h-8 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-ring hover:bg-accent cursor-pointer text-slate-800 dark:text-slate-200"
+                >
+                    <option v-for="b in branches" :key="b.id" :value="b.id">
+                        {{ b.name }}
+                    </option>
+                </select>
+            </div>
+
             <AppearanceToggleInline />
 
             <!-- Flash notification indicator -->

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Restaurant;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,32 +15,7 @@ class WeatherForecastService
      */
     public function getForecast(int $restaurantId): array
     {
-        // 1. Sinh dự báo thời tiết 7 ngày tới (deterministic dựa trên ngày để tránh giật lag)
-        $conditions = ['sunny', 'rainy', 'cloudy', 'windy'];
-        $forecast = [];
-        
-        for ($i = 1; $i <= 7; $i++) {
-            $date = now()->addDays($i);
-            $hash = crc32($date->toDateString());
-            $cond = $conditions[$hash % count($conditions)];
-            
-            $temp = 25.0;
-            if ($cond === 'sunny') {
-                $temp = 31.0 + ($hash % 5); // 31°C - 35°C
-            } elseif ($cond === 'rainy') {
-                $temp = 20.0 + ($hash % 4); // 20°C - 23°C
-            } elseif ($cond === 'cloudy') {
-                $temp = 26.0 + ($hash % 4); // 26°C - 29°C
-            } else {
-                $temp = 24.0 + ($hash % 5); // 24°C - 28°C
-            }
-
-            $forecast[] = [
-                'date' => $date->format('Y-m-d'),
-                'condition' => $cond,
-                'temperature' => (float)$temp
-            ];
-        }
+        $forecast = $this->fetchWeatherForecast($restaurantId);
 
         // 2. Lấy dữ liệu bán hàng thực tế 30 ngày qua
         $startDate = now()->subDays(30);
@@ -60,6 +37,23 @@ class WeatherForecastService
 
         $salesMap = $sales->keyBy('product_id');
 
+        // 2b. Doanh số trung bình theo danh mục — dùng làm baseline cho sản phẩm mới
+        // chưa có lịch sử bán hàng, thay vì con số giả lập theo hash(id).
+        $categoryAverages = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->where('orders.restaurant_id', $restaurantId)
+            ->where('orders.status', 'completed')
+            ->where('orders.created_at', '>=', $startDate)
+            ->select('products.category_id', DB::raw('SUM(order_items.quantity) / 30.0 as avg_qty'))
+            ->groupBy('products.category_id')
+            ->get()
+            ->keyBy('category_id');
+
+        $restaurantWideAverage = $categoryAverages->isNotEmpty()
+            ? $categoryAverages->avg('avg_qty')
+            : 1.0;
+
         // 3. Lấy tất cả sản phẩm đang kinh doanh để tính toán
         $activeProducts = \App\Models\Product::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
@@ -70,13 +64,14 @@ class WeatherForecastService
         foreach ($activeProducts as $p) {
             $avgSales = 0.0;
             if ($salesMap->has($p->id)) {
-                $avgSales = (float)$salesMap->get($p->id)->total_qty / 30.0;
+                $avgSales = (float) $salesMap->get($p->id)->total_qty / 30.0;
             }
-            
-            // Seed baseline nếu sản phẩm mới tinh chưa có doanh số để hiển thị trực quan
+
+            // Sản phẩm mới chưa có doanh số: dùng trung bình của cùng danh mục (nếu có),
+            // hoặc trung bình toàn nhà hàng — không còn là con số bịa theo hash(id).
             if ($avgSales < 0.1) {
-                $hash = crc32($p->id . $p->name);
-                $avgSales = 2.0 + ($hash % 7); // 2 - 8 đơn mỗi ngày
+                $categoryAvg = $categoryAverages->get($p->category_id);
+                $avgSales = $categoryAvg ? (float) $categoryAvg->avg_qty : (float) $restaurantWideAverage;
             }
 
             $productsData[] = [
@@ -92,13 +87,14 @@ class WeatherForecastService
 
         try {
             $response = Http::timeout(5)->post($url, [
-                'forecast_days' => $forecast,
+                'forecast_days' => $forecast['days'],
                 'products' => $productsData
             ]);
 
             if ($response->successful()) {
                 $data = $response->json();
                 $data['source'] = 'Python Service (FastAPI)';
+                $data['weather_data_source'] = $forecast['source'];
                 return $data;
             }
         } catch (\Exception $e) {
@@ -109,8 +105,174 @@ class WeatherForecastService
         return [
             'success' => true,
             'source' => 'Laravel Fallback (Rules Engine)',
-            'forecast' => $this->runFallbackForecast($forecast, $productsData)
+            'weather_data_source' => $forecast['source'],
+            'is_degraded' => $forecast['source'] !== 'openweathermap',
+            'forecast' => $this->runFallbackForecast($forecast['days'], $productsData)
         ];
+    }
+
+    /**
+     * Get a real 7-day-ish weather forecast from OpenWeather when the restaurant has GPS
+     * coordinates and an API key is configured; otherwise fall back to the rules-based
+     * heuristic and say so explicitly via the returned 'source' key, rather than
+     * presenting a hash-based fake forecast as if it were real.
+     *
+     * @return array{days: array, source: string}
+     */
+    private function fetchWeatherForecast(int $restaurantId): array
+    {
+        $restaurant = Restaurant::find($restaurantId);
+        $apiKey = (string) config('services.openweather.key');
+
+        if (! $restaurant?->latitude || ! $restaurant?->longitude || empty($apiKey)) {
+            return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'no_coordinates_or_api_key'];
+        }
+
+        // Round to ~1.1km precision so nearby tenants share the same cached forecast and
+        // we stay well under OpenWeather's free-tier daily call quota.
+        $latKey = round((float) $restaurant->latitude, 2);
+        $lngKey = round((float) $restaurant->longitude, 2);
+        $cacheKey = "weather_forecast:{$latKey}:{$lngKey}";
+
+        $days = Cache::remember($cacheKey, now()->addHours(3), function () use ($restaurant, $apiKey) {
+            try {
+                $response = Http::timeout(5)->get(config('services.openweather.url'), [
+                    'lat' => $restaurant->latitude,
+                    'lon' => $restaurant->longitude,
+                    'appid' => $apiKey,
+                    'units' => 'metric',
+                    'lang' => 'vi',
+                ]);
+
+                if ($response->successful()) {
+                    return $this->parseOpenWeatherResponse($response->json());
+                }
+
+                Log::warning('OpenWeather API returned an error response', ['status' => $response->status()]);
+            } catch (\Throwable $e) {
+                Log::warning('OpenWeather API unreachable: ' . $e->getMessage());
+            }
+
+            return null;
+        });
+
+        if ($days !== null && count($days) > 0) {
+            return ['days' => $this->padToSevenDays($days), 'source' => 'openweathermap'];
+        }
+
+        // Don't cache the failure itself — a transient OpenWeather outage should be
+        // retried on the next request rather than sticking for the full cache TTL.
+        Cache::forget($cacheKey);
+
+        return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'openweather_unavailable'];
+    }
+
+    /**
+     * OpenWeather's free "5 day / 3 hour forecast" endpoint groups by 3h steps — bucket
+     * those into daily entries (using the reading closest to midday as representative)
+     * and map OpenWeather's condition vocabulary onto the internal sunny/rainy/cloudy/
+     * windy labels the recommendation engine already understands.
+     */
+    private function parseOpenWeatherResponse(array $response): array
+    {
+        $byDate = [];
+
+        foreach ($response['list'] ?? [] as $entry) {
+            $date = substr($entry['dt_txt'] ?? '', 0, 10);
+            if (! $date) {
+                continue;
+            }
+
+            $hour = (int) substr($entry['dt_txt'], 11, 2);
+            $distanceFromMidday = abs(12 - $hour);
+
+            if (! isset($byDate[$date]) || $distanceFromMidday < $byDate[$date]['distance']) {
+                $byDate[$date] = [
+                    'distance' => $distanceFromMidday,
+                    'temperature' => (float) ($entry['main']['temp'] ?? 25),
+                    'condition' => $this->mapOpenWeatherCondition($entry['weather'][0]['main'] ?? '', (float) ($entry['wind']['speed'] ?? 0)),
+                ];
+            }
+        }
+
+        return collect($byDate)
+            ->map(fn ($day, $date) => [
+                'date' => $date,
+                'condition' => $day['condition'],
+                'temperature' => $day['temperature'],
+            ])
+            ->values()
+            ->sortBy('date')
+            ->values()
+            ->all();
+    }
+
+    private function mapOpenWeatherCondition(string $main, float $windSpeedMs): string
+    {
+        if ($windSpeedMs >= 8.0) {
+            return 'windy';
+        }
+
+        return match ($main) {
+            'Rain', 'Drizzle', 'Thunderstorm' => 'rainy',
+            'Clear' => 'sunny',
+            'Clouds', 'Mist', 'Fog', 'Haze' => 'cloudy',
+            default => 'cloudy',
+        };
+    }
+
+    /**
+     * The free OpenWeather tier only covers ~5 days; fill any remaining days up to 7
+     * using the same rules-based generator as the no-API-key fallback, so callers always
+     * get 7 days back, with the tail end simply less precise than the real forecast.
+     */
+    private function padToSevenDays(array $days): array
+    {
+        if (count($days) >= 7) {
+            return array_slice($days, 0, 7);
+        }
+
+        $missing = 7 - count($days);
+        $lastDate = end($days)['date'] ?? now()->toDateString();
+        $filler = $this->generateFallbackWeatherDays($missing, \Illuminate\Support\Carbon::parse($lastDate)->addDay());
+
+        return array_merge($days, $filler);
+    }
+
+    /**
+     * Deterministic-but-labeled-as-fallback weather generator, used only when we have no
+     * restaurant coordinates, no API key, or OpenWeather is unreachable. Callers must
+     * check the 'source' field returned by fetchWeatherForecast() rather than assume this
+     * is real data.
+     */
+    private function generateFallbackWeatherDays(int $count = 7, ?\Illuminate\Support\Carbon $startFrom = null): array
+    {
+        $conditions = ['sunny', 'rainy', 'cloudy', 'windy'];
+        $days = [];
+        // Default series starts tomorrow (day+1); when padding after real API days,
+        // $startFrom is already the correct next date, so start at offset 0.
+        $start = $startFrom ?? now()->addDay();
+
+        for ($i = 0; $i < $count; $i++) {
+            $date = $start->copy()->addDays($i);
+            $hash = crc32($date->toDateString());
+            $cond = $conditions[$hash % count($conditions)];
+
+            $temp = match ($cond) {
+                'sunny' => 31.0 + ($hash % 5),
+                'rainy' => 20.0 + ($hash % 4),
+                'cloudy' => 26.0 + ($hash % 4),
+                default => 24.0 + ($hash % 5),
+            };
+
+            $days[] = [
+                'date' => $date->format('Y-m-d'),
+                'condition' => $cond,
+                'temperature' => (float) $temp,
+            ];
+        }
+
+        return $days;
     }
 
     /**

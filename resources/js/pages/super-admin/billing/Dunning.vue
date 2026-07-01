@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader, StatusBadge, AlertBanner, SectionCard } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -116,24 +117,18 @@ const colHeaderClass: Record<string, string> = {
 <template>
     <Head title="Dunning Dashboard" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <!-- Header -->
-        <div class="flex items-center justify-between gap-4 flex-wrap">
-            <div class="flex items-center gap-4">
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <PageHeader
+            title="Dunning Dashboard"
+            subtitle="Giám sát và điều phối chiến dịch nhắc gia hạn."
+            :icon="Bell"
+        >
+            <template #actions>
                 <Link href="/super-admin/billing">
-                    <Button variant="outline" size="sm">
-                        <ArrowLeft class="mr-1.5 size-4" /> Billing Center
-                    </Button>
+                    <Button variant="outline" size="sm"><ArrowLeft class="mr-1.5 size-4" /> Billing</Button>
                 </Link>
-                <div>
-                    <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Bell class="size-6 text-amber-500" />
-                        Dunning Dashboard
-                    </h1>
-                    <p class="text-sm text-muted-foreground">Giám sát và điều phối chiến dịch nhắc gia hạn.</p>
-                </div>
-            </div>
-        </div>
+            </template>
+        </PageHeader>
 
         <!-- Stats row -->
         <div class="grid gap-4 md:grid-cols-5">

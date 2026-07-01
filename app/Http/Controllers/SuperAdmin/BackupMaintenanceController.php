@@ -81,8 +81,18 @@ class BackupMaintenanceController extends Controller
                 ->count();
         }
 
+        $locationLogRetentionDays = (int) config('delivery.location_log_retention_days', 90);
+        $totalLocationLogs = 0;
+        $oldLocationLogsCount = 0;
+        if (Schema::hasTable('shipper_location_logs')) {
+            $totalLocationLogs = DB::table('shipper_location_logs')->count();
+            $oldLocationLogsCount = DB::table('shipper_location_logs')
+                ->where('logged_at', '<', now()->subDays($locationLogRetentionDays))
+                ->count();
+        }
+
         // Kiểm tra xem S3 Cloud Storage có được cấu hình
-        $isS3Configured = !empty(config('filesystems.disks.s3.key')) && 
+        $isS3Configured = !empty(config('filesystems.disks.s3.key')) &&
                           !empty(config('filesystems.disks.s3.bucket'));
 
         return Inertia::render('super-admin/backup-maintenance/Index', [
@@ -102,6 +112,9 @@ class BackupMaintenanceController extends Controller
                 'expired_sessions_count' => $expiredSessionsCount,
                 'total_audit_logs' => $totalAuditLogs,
                 'old_audit_logs_count' => $oldAuditLogsCount,
+                'total_location_logs' => $totalLocationLogs,
+                'old_location_logs_count' => $oldLocationLogsCount,
+                'location_log_retention_days' => $locationLogRetentionDays,
                 'is_s3_configured' => $isS3Configured,
                 'default_disk' => $isS3Configured ? 'S3/MinIO' : 'Bộ nhớ máy chủ cục bộ',
             ]
@@ -115,7 +128,13 @@ class BackupMaintenanceController extends Controller
     {
         try {
             $result = $this->backupService->backup();
-            return back()->with('success', "Sao lưu cơ sở dữ liệu thành công! Tệp tin {$result['filename']} ({$result['size_mb']} MB) đã được lưu vào {$result['disk']}.");
+            $message = "Sao lưu cơ sở dữ liệu thành công! Tệp tin {$result['filename']} ({$result['size_mb']} MB) đã được lưu vào {$result['disk']}.";
+
+            if ($result['used_fallback'] ?? false) {
+                $message .= ' CẢNH BÁO: mysqldump không khả dụng, đã dùng bộ dump PHP dự phòng — vui lòng kiểm tra cấu hình mysqldump trên máy chủ.';
+            }
+
+            return back()->with('success', $message);
         } catch (\Exception $e) {
             return back()->with('error', "Không thể sao lưu cơ sở dữ liệu: " . $e->getMessage());
         }
@@ -128,7 +147,7 @@ class BackupMaintenanceController extends Controller
     {
         $validated = $request->validate([
             'actions' => 'required|array|min:1',
-            'actions.*' => 'string|in:cleanup_queues,clear_sessions,archive_audit_logs'
+            'actions.*' => 'string|in:cleanup_queues,clear_sessions,archive_audit_logs,prune_shipper_location_logs'
         ]);
 
         try {

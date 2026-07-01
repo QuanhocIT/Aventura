@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GenerateBatchCouponsJob;
 use App\Models\Coupon;
+use App\Models\CouponBatch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -146,5 +148,64 @@ class CouponController extends Controller
 
         $label = $newStatus === 'active' ? 'kích hoạt' : 'vô hiệu hoá';
         return back()->with('success', "Đã {$label} coupon \"{$coupon->code}\".");
+    }
+
+    public function batchIndex(): Response
+    {
+        $batches = CouponBatch::with('template:id,name,season')
+            ->latest()
+            ->paginate(15)
+            ->through(fn (CouponBatch $b) => [
+                'id' => $b->id,
+                'name' => $b->name,
+                'template_name' => $b->template?->name,
+                'template_season' => $b->template?->season,
+                'code_prefix' => $b->code_prefix,
+                'code_count' => $b->code_count,
+                'generated_count' => $b->generated_count,
+                'discount_type' => $b->discount_type,
+                'discount_value' => $b->discount_value,
+                'status' => $b->status,
+                'progress' => $b->progressPercent(),
+                'has_qr_sheet' => !empty($b->qr_sheet_path),
+                'starts_at' => $b->starts_at?->format('d/m/Y'),
+                'expires_at' => $b->expires_at?->format('d/m/Y'),
+                'created_at' => $b->created_at->format('d/m/Y H:i'),
+            ]);
+
+        return Inertia::render('super-admin/coupons/Batches', [
+            'batches' => $batches,
+        ]);
+    }
+
+    public function storeBatch(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code_prefix' => ['required', 'string', 'max:20'],
+            'code_count' => ['required', 'integer', 'min:1', 'max:1000'],
+            'discount_type' => ['required', 'in:percent,fixed'],
+            'discount_value' => ['required', 'numeric', 'min:0'],
+            'max_uses_per_code' => ['nullable', 'integer', 'min:1'],
+            'starts_at' => ['nullable', 'date'],
+            'expires_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+        ]);
+
+        $batch = CouponBatch::create([
+            'name' => $data['name'],
+            'code_prefix' => strtoupper($data['code_prefix']),
+            'code_count' => $data['code_count'],
+            'discount_type' => $data['discount_type'],
+            'discount_value' => $data['discount_value'],
+            'max_uses_per_code' => $data['max_uses_per_code'] ?? 1,
+            'starts_at' => $data['starts_at'] ?? null,
+            'expires_at' => $data['expires_at'] ?? null,
+            'status' => 'pending',
+            'created_by' => $request->user()->id,
+        ]);
+
+        GenerateBatchCouponsJob::dispatch($batch);
+
+        return back()->with('success', "Đang tạo {$data['code_count']} mã coupon...");
     }
 }

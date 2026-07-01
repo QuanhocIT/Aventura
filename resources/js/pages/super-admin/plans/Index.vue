@@ -22,9 +22,10 @@ import {
     Users,
     X,
     Zap,
-    Percent
+    Percent,
+    Search
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { PageHeader, StatusBadge, ProgressBar, DataTable } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -44,6 +46,10 @@ interface Plan {
 }
 
 defineProps<{ plans: Plan[] }>();
+
+const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
+const showComparison = ref(false);
+const restaurantSearch = ref('');
 
 const editingId = ref<number | null>(null);
 const editingPlanCode = ref<string>('');
@@ -176,6 +182,37 @@ async function showRestaurants(plan: Plan) {
     }
 }
 
+const filteredRestaurants = computed(() => {
+    const q = restaurantSearch.value.trim().toLowerCase();
+    if (!q) return restaurants.value;
+    return restaurants.value.filter(r => 
+        r.name?.toLowerCase().includes(q) || 
+        r.code?.toLowerCase().includes(q) ||
+        r.owner_name?.toLowerCase().includes(q) ||
+        r.owner_email?.toLowerCase().includes(q)
+    );
+});
+
+function getInitials(name: string): string {
+    return name ? name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'HT';
+}
+
+const avatarGradients = [
+    'from-sky-400 to-blue-500 shadow-sky-500/10',
+    'from-emerald-400 to-teal-500 shadow-emerald-500/10',
+    'from-amber-400 to-orange-500 shadow-amber-500/10',
+    'from-violet-400 to-indigo-500 shadow-violet-500/10',
+    'from-rose-400 to-pink-500 shadow-rose-500/10',
+];
+function getGradientForName(name: string): string {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % avatarGradients.length;
+    return avatarGradients[index];
+}
+
 const ALL_FEATURES: { key: string; label: string }[] = [
     { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
     { key: 'qr_ordering',        label: 'Đặt món qua QR' },
@@ -259,6 +296,10 @@ function formatVnd(v: number) {
     return v === 0 ? '0đ' : new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 
+const formatLimit = (v: number | null) => (v === null || v === -1) ? 'Vô hạn' : v;
+const formatStorage = (mb: number) => mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`;
+const formatRate = (r: number) => new Intl.NumberFormat('vi-VN').format(r);
+
 const planNotes: Record<string, string> = {
     free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
     starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
@@ -267,113 +308,180 @@ const planNotes: Record<string, string> = {
 };
 
 const planIcon: Record<string, any> = {
-    free: Star, starter: Check, pro: Crown, enterprise: Users,
+    free: Star, starter: Zap, pro: Crown, enterprise: Sparkles,
 };
 </script>
 
 <template>
     <Head title="Quản lý gói dịch vụ" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold">Gói dịch vụ</h1>
-                <p class="text-sm text-muted-foreground">
-                    Thay đổi ở đây sẽ hiển thị ngay trên trang khách hàng
-                </p>
-            </div>
-            <div class="flex items-center gap-2">
-                <Button size="sm" variant="outline" @click="isCreating = true; activeCreateTab = 'info'">
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <PageHeader
+            title="Gói dịch vụ"
+            subtitle="Thay đổi ở đây sẽ hiển thị ngay trên trang khách hàng"
+            :icon="Layers"
+        >
+            <template #actions>
+                <!-- Billing Period Toggle Switcher -->
+                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-3xs text-[11px] font-bold">
+                    <button 
+                        type="button" 
+                        @click="billingPeriod = 'monthly'"
+                        :class="['px-3 py-1.5 rounded-lg transition-all cursor-pointer', billingPeriod === 'monthly' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground']"
+                    >
+                        Hàng tháng
+                    </button>
+                    <button 
+                        type="button" 
+                        @click="billingPeriod = 'yearly'"
+                        :class="['px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5', billingPeriod === 'yearly' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground']"
+                    >
+                        Hàng năm
+                        <Badge class="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 border-none text-[9px] font-black h-4 px-1 rounded-sm leading-none">-20%</Badge>
+                    </button>
+                </div>
+
+                <Button size="sm" variant="outline" class="rounded-xl border-border/80 shadow-3xs text-xs font-bold cursor-pointer" @click="showComparison = true">
+                    <Table class="size-4 mr-1.5 text-indigo-500" />
+                    So sánh gói
+                </Button>
+
+                <Button size="sm" class="rounded-xl bg-primary text-primary-foreground shadow-sm text-xs font-bold cursor-pointer" @click="isCreating = true; activeCreateTab = 'info'">
                     <Plus class="size-4 mr-1.5" />
                     Tạo gói mới
                 </Button>
-                <Badge variant="outline" class="gap-1.5">
-                    <span class="size-2 rounded-full bg-green-500 animate-pulse inline-block" />
-                    Đồng bộ trang khách
-                </Badge>
-            </div>
-        </div>
+                <StatusBadge status="active" variant="dot" size="sm">Đồng bộ trang khách</StatusBadge>
+            </template>
+        </PageHeader>
 
         <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <div v-for="plan in plans" :key="plan.id" class="flex flex-col gap-0">
                 <Card
-                    class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md h-full"
+                    class="group flex flex-col justify-between border border-border/40 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl rounded-2xl h-full overflow-hidden bg-card/45 backdrop-blur-md"
                     :class="{
-                        'border-2 border-primary shadow-sm': plan.code === 'pro',
-                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'enterprise',
+                        'border-primary/50 shadow-md ring-1 ring-primary/20 bg-gradient-to-b from-primary/[0.03] to-transparent': plan.code === 'pro',
+                        'border-violet-500/50 shadow-md ring-1 ring-violet-500/20 bg-gradient-to-b from-violet-500/[0.04] to-transparent': plan.code === 'enterprise',
                     }"
                 >
-                    <CardHeader>
+                    <CardHeader class="pb-4">
                         <div class="mb-2 flex items-center justify-between">
                             <CardTitle
-                                class="flex items-center gap-1.5 text-2xl font-bold"
+                                class="flex items-center gap-1.5 text-xl font-black"
                                 :class="{
                                     'text-primary': plan.code === 'pro',
                                     'text-violet-500': plan.code === 'enterprise',
                                 }"
                             >
-                                <component :is="planIcon[plan.code] ?? Star" class="size-5" />
+                                <component :is="planIcon[plan.code] ?? Star" class="size-4.5 group-hover:animate-pulse" />
                                 {{ plan.name }}
                             </CardTitle>
                             <div class="flex items-center gap-1">
-                                <Badge v-if="plan.code === 'free'" variant="secondary">Mặc định</Badge>
-                                <Badge v-else-if="plan.code === 'pro'">Khuyến nghị</Badge>
-                                <Badge v-else-if="plan.code === 'enterprise'" class="bg-violet-600 text-white">VIP</Badge>
-                                <Button variant="ghost" size="icon" class="size-7 ml-1" @click="startEdit(plan)">
+                                <Badge v-if="plan.code === 'free'" variant="secondary" class="text-[9px] font-extrabold uppercase bg-slate-500/10 text-slate-500 border border-slate-500/25 rounded-full px-2 py-0">Mặc định</Badge>
+                                <Badge v-else-if="plan.code === 'pro'" class="text-[9px] font-extrabold uppercase bg-primary/10 text-primary border border-primary/25 rounded-full px-2 py-0">Khuyến nghị</Badge>
+                                <Badge v-else-if="plan.code === 'enterprise'" class="text-[9px] font-extrabold uppercase bg-violet-600/10 text-violet-600 border border-violet-600/25 rounded-full px-2 py-0">VIP</Badge>
+                                <Button variant="ghost" size="icon" class="size-7 ml-1 hover:bg-muted/70 rounded-full" @click="startEdit(plan)">
                                     <Edit2 class="size-3.5 text-muted-foreground" />
                                 </Button>
                             </div>
                         </div>
 
-                        <div class="flex items-end gap-1">
+                        <div class="flex items-end gap-1 mt-1">
                             <span
-                                class="text-3xl font-extrabold"
+                                class="text-3xl font-black font-mono tracking-tight text-slate-800 dark:text-slate-100"
                                 :class="{
-                                    'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'enterprise',
+                                    'text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-500': plan.code === 'pro',
+                                    'text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-indigo-500': plan.code === 'enterprise',
                                 }"
                             >
-                                {{ formatVnd(plan.price) }}
+                                {{ billingPeriod === 'monthly' ? formatVnd(plan.price) : formatVnd(plan.price === 0 ? 0 : Math.round(plan.price * (1 - (plan.features?.yearly_discount_percent ?? 20) / 100))) }}
                             </span>
-                            <span class="pb-1 text-xs text-muted-foreground">/tháng</span>
+                            <span class="pb-1 text-[9px] font-black text-muted-foreground uppercase tracking-wider">
+                                {{ billingPeriod === 'monthly' ? '/tháng' : '/tháng (trả năm)' }}
+                            </span>
+                        </div>
+                        <!-- Yearly savings badge -->
+                        <div v-if="billingPeriod === 'yearly' && plan.price > 0" class="text-[10px] font-black text-emerald-500 mt-1 uppercase tracking-wider animate-in slide-in-from-top-1 duration-200">
+                            Tiết kiệm {{ formatVnd(plan.price * 12 * ((plan.features?.yearly_discount_percent ?? 20) / 100)) }}/năm
                         </div>
 
-                        <CardDescription class="mt-2 min-h-[36px] text-xs">
+                        <CardDescription class="mt-2 min-h-[36px] text-[11px] font-semibold text-muted-foreground leading-relaxed">
                             {{ plan.features?.description || planNotes[plan.code] || '' }}
                         </CardDescription>
                     </CardHeader>
 
-                    <CardContent class="flex-grow space-y-1.5 text-xs">
-                        <p v-for="feat in planFeatures(plan)" :key="feat" class="flex items-center gap-2">
-                            <Check
-                                class="size-4 flex-shrink-0 text-emerald-500"
-                                :class="{
-                                    'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'enterprise',
-                                }"
-                            />
-                            {{ feat }}
-                        </p>
-                        <p
-                            v-for="unfeat in planUnsupported(plan)"
-                            :key="unfeat"
-                            class="flex items-center gap-2 text-muted-foreground opacity-60"
-                        >
-                            <X class="size-4 flex-shrink-0" />
-                            {{ unfeat }}
-                        </p>
+                    <CardContent class="flex-grow space-y-4 pt-0">
+                        <!-- Limits metrics grid -->
+                        <div class="grid grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded-xl border border-border/30">
+                            <!-- Branches -->
+                            <div class="flex items-center gap-2 p-1.5 rounded-lg bg-background/50 border border-border/20 shadow-3xs">
+                                <Building2 class="size-3.5 text-muted-foreground/80 shrink-0" />
+                                <div class="min-w-0">
+                                    <p class="text-[8px] font-black text-muted-foreground uppercase leading-none">Chi nhánh</p>
+                                    <p class="font-black text-xs font-mono leading-none mt-1 truncate">{{ formatLimit(plan.max_branches) }}</p>
+                                </div>
+                            </div>
+                            <!-- Tables -->
+                            <div class="flex items-center gap-2 p-1.5 rounded-lg bg-background/50 border border-border/20 shadow-3xs">
+                                <Table class="size-3.5 text-muted-foreground/80 shrink-0" />
+                                <div class="min-w-0">
+                                    <p class="text-[8px] font-black text-muted-foreground uppercase leading-none">Số bàn</p>
+                                    <p class="font-black text-xs font-mono leading-none mt-1 truncate">{{ formatLimit(plan.max_tables) }}</p>
+                                </div>
+                            </div>
+                            <!-- Staff -->
+                            <div class="flex items-center gap-2 p-1.5 rounded-lg bg-background/50 border border-border/20 shadow-3xs">
+                                <Users class="size-3.5 text-muted-foreground/80 shrink-0" />
+                                <div class="min-w-0">
+                                    <p class="text-[8px] font-black text-muted-foreground uppercase leading-none">Nhân viên</p>
+                                    <p class="font-black text-xs font-mono leading-none mt-1 truncate">{{ formatLimit(plan.max_users) }}</p>
+                                </div>
+                            </div>
+                            <!-- Storage -->
+                            <div class="flex items-center gap-2 p-1.5 rounded-lg bg-background/50 border border-border/20 shadow-3xs">
+                                <HardDrive class="size-3.5 text-muted-foreground/80 shrink-0" />
+                                <div class="min-w-0">
+                                    <p class="text-[8px] font-black text-muted-foreground uppercase leading-none">Lưu trữ</p>
+                                    <p class="font-black text-xs font-mono leading-none mt-1 truncate text-slate-800 dark:text-slate-200">{{ formatStorage(plan.features?.max_storage_mb ?? 500) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- API rate limit under the limits grid -->
+                        <div class="flex items-center justify-between text-[9px] font-black bg-muted/20 px-3 py-1.5 rounded-lg border border-border/20 font-mono text-muted-foreground uppercase tracking-wider">
+                            <span class="flex items-center gap-1"><Activity class="size-3 text-sky-500" /> API Rate Limit</span>
+                            <span class="text-foreground font-black">{{ formatRate(plan.features?.api_rate_limit ?? 30) }} req/m</span>
+                        </div>
+
+                        <!-- Features list checklist -->
+                        <div class="space-y-2 border-t border-dashed border-border/40 pt-4 flex-grow">
+                            <!-- Enabled boolean features -->
+                            <div v-for="feat in ALL_FEATURES.filter(f => plan.features?.[f.key])" :key="feat.key" class="flex items-start gap-2.5">
+                                <span class="flex size-4 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 mt-0.5 shadow-3xs">
+                                    <Check class="size-2.5 stroke-[3]" />
+                                </span>
+                                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{{ feat.label }}</span>
+                            </div>
+                            <!-- Disabled boolean features -->
+                            <div v-for="unfeat in ALL_FEATURES.filter(f => !plan.features?.[f.key])" :key="unfeat.key" class="flex items-start gap-2.5 opacity-40">
+                                <span class="flex size-4 items-center justify-center rounded-full bg-muted text-muted-foreground border border-border/60 shrink-0 mt-0.5 shadow-3xs">
+                                    <X class="size-2.5 stroke-[3]" />
+                                </span>
+                                <span class="text-[11px] font-semibold text-muted-foreground line-through leading-snug">{{ unfeat.label }}</span>
+                            </div>
+                        </div>
                     </CardContent>
 
                     <!-- Meta footer -->
-                    <div class="px-6 pb-4 pt-2 border-t border-border mt-3">
+                    <div class="px-6 pb-4 pt-2 border-t border-border/40 mt-3 bg-muted/10">
                         <div class="text-xs text-muted-foreground flex items-center justify-between">
                             <button 
                                 @click="showRestaurants(plan)" 
-                                class="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+                                class="text-[11px] font-bold text-muted-foreground bg-muted hover:bg-primary/5 hover:text-primary border border-border/50 rounded-full px-2.5 py-1 transition-all flex items-center gap-1 cursor-pointer shadow-3xs"
                             >
+                                <span class="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 {{ plan.restaurants_count }} nhà hàng đang dùng
                             </button>
-                            <span class="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{{ plan.code }}</span>
+                            <span class="font-mono text-[9px] bg-slate-900 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">{{ plan.code }}</span>
                         </div>
                     </div>
                 </Card>
@@ -801,56 +909,180 @@ const planIcon: Record<string, any> = {
         </Dialog>
 
         <!-- ── RESTAURANT DIRECTORY DIALOG ── -->
-        <Dialog :open="!!selectedPlanForRestaurants" @update:open="val => { if(!val) selectedPlanForRestaurants = null }">
-            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Nhà hàng đang dùng gói: {{ selectedPlanForRestaurants?.name }}</DialogTitle>
-                    <DialogDescription>Danh sách các doanh nghiệp đang đăng ký gói dịch vụ này.</DialogDescription>
+        <Dialog :open="!!selectedPlanForRestaurants" @update:open="val => { if(!val) { selectedPlanForRestaurants = null; restaurantSearch = ''; } }">
+            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl">
+                <DialogHeader class="pb-3 border-b border-border/40">
+                    <DialogTitle class="text-base font-bold flex items-center gap-2">
+                        <Database class="size-5 text-indigo-500" />
+                        <span>Nhà hàng đang dùng gói: {{ selectedPlanForRestaurants?.name }}</span>
+                    </DialogTitle>
+                    <DialogDescription>Danh sách các doanh nghiệp đang đăng ký sử dụng gói dịch vụ này.</DialogDescription>
                 </DialogHeader>
 
-                <div class="py-4">
-                    <div v-if="isLoadingRestaurants" class="flex items-center justify-center py-8">
+                <div class="py-3">
+                    <div v-if="isLoadingRestaurants" class="flex items-center justify-center py-12">
                         <span class="size-6 rounded-full border-2 border-primary border-t-transparent animate-spin inline-block" />
                     </div>
-                    <div v-else-if="restaurants.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                    <div v-else-if="restaurants.length === 0" class="text-center py-12 text-sm text-muted-foreground font-semibold">
                         Không có nhà hàng nào đang sử dụng gói này.
                     </div>
-                    <div v-else class="overflow-x-auto rounded-lg border border-border">
-                        <table class="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr class="bg-muted border-b border-border text-muted-foreground uppercase font-semibold">
-                                    <th class="p-3">Tên Nhà Hàng</th>
-                                    <th class="p-3">Mã Code</th>
-                                    <th class="p-3">Chủ sở hữu</th>
-                                    <th class="p-3">Ngày hết hạn</th>
-                                    <th class="p-3 text-right">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="res in restaurants" :key="res.id" class="border-b border-border last:border-0 hover:bg-muted/30">
-                                    <td class="p-3 font-semibold">
-                                        <a :href="`/super-admin/restaurants/${res.id}`" class="text-primary hover:underline">
-                                            {{ res.name }}
-                                        </a>
-                                    </td>
-                                    <td class="p-3 font-mono text-[10px]">{{ res.code }}</td>
-                                    <td class="p-3">
-                                        <div>{{ res.owner_name }}</div>
-                                        <div class="text-[10px] text-muted-foreground">{{ res.owner_email }}</div>
-                                    </td>
-                                    <td class="p-3">{{ res.subscription_ends_at }}</td>
-                                    <td class="p-3 text-right">
-                                        <Badge 
-                                            :variant="res.status === 'active' ? 'default' : 'secondary'"
-                                            :class="res.status === 'active' ? 'bg-emerald-500 text-white' : ''"
-                                        >
-                                            {{ res.status }}
-                                        </Badge>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div v-else class="space-y-4 animate-in fade-in duration-200">
+                        <!-- Real-time search filter input -->
+                        <div class="relative flex items-center">
+                            <div class="absolute left-3.5 text-muted-foreground/80 pointer-events-none">
+                                <Search class="size-4" />
+                            </div>
+                            <Input 
+                                v-model="restaurantSearch" 
+                                placeholder="Tìm kiếm nhanh tên nhà hàng, mã code, chủ sở hữu..." 
+                                class="pl-10 pr-4 py-2 h-9 text-xs rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" 
+                            />
+                            <button 
+                                v-if="restaurantSearch" 
+                                type="button" 
+                                @click="restaurantSearch = ''" 
+                                class="absolute right-3 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted/50 cursor-pointer"
+                            >
+                                <X class="size-3" />
+                            </button>
+                        </div>
+
+                        <!-- Results table -->
+                        <div v-if="filteredRestaurants.length > 0" class="overflow-hidden rounded-xl border border-border bg-background/50">
+                            <table class="w-full text-left border-collapse text-[11px] font-semibold">
+                                <thead>
+                                    <tr class="bg-muted/50 border-b border-border text-muted-foreground uppercase font-black tracking-wider">
+                                        <th class="p-3">Tên Nhà Hàng</th>
+                                        <th class="p-3">Mã Code</th>
+                                        <th class="p-3">Chủ sở hữu</th>
+                                        <th class="p-3">Ngày hết hạn</th>
+                                        <th class="p-3 text-right">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border/40">
+                                    <tr v-for="res in filteredRestaurants" :key="res.id" class="hover:bg-muted/30 transition-all text-slate-700 dark:text-slate-300">
+                                        <td class="p-3 font-semibold">
+                                            <div class="flex items-center gap-2.5">
+                                                <!-- Initials round avatar with gradient shadow -->
+                                                <div :class="['flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-[9px] font-black text-white shadow-xs', getGradientForName(res.name)]">
+                                                    {{ getInitials(res.name) }}
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <a :href="`/super-admin/restaurants/${res.id}`" class="text-primary font-black hover:underline truncate block">
+                                                        {{ res.name }}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 font-mono text-[9px] text-slate-500">{{ res.code }}</td>
+                                        <td class="p-3 font-medium">
+                                            <div class="font-bold text-slate-800 dark:text-slate-200">{{ res.owner_name }}</div>
+                                            <div class="text-[9px] text-muted-foreground truncate max-w-[150px]">{{ res.owner_email }}</div>
+                                        </td>
+                                        <td class="p-3 font-mono">{{ res.subscription_ends_at }}</td>
+                                        <td class="p-3 text-right">
+                                            <Badge 
+                                                variant="outline"
+                                                :class="[
+                                                    'text-[9px] font-black uppercase rounded-full px-2 py-0',
+                                                    res.status === 'active' 
+                                                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                                                        : 'bg-slate-500/10 text-slate-600 border-slate-500/20'
+                                                ]"
+                                            >
+                                                {{ res.status }}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Empty Search Results -->
+                        <div v-else class="text-center py-10 text-xs text-muted-foreground font-semibold">
+                            Không tìm thấy nhà hàng nào phù hợp với từ khóa tìm kiếm.
+                        </div>
                     </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- ── FEATURE COMPARISON DIALOG ── -->
+        <Dialog :open="showComparison" @update:open="val => showComparison = val">
+            <DialogContent class="sm:max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl">
+                <DialogHeader class="pb-3 border-b border-border/40">
+                    <DialogTitle class="text-base font-bold flex items-center gap-2">
+                        <Table class="size-5 text-indigo-500" />
+                        <span>Bảng so sánh chi tiết các gói dịch vụ</span>
+                    </DialogTitle>
+                    <DialogDescription>Đối chiếu hạn mức và quyền lợi tính năng đầy đủ giữa các gói dịch vụ hiện hành.</DialogDescription>
+                </DialogHeader>
+
+                <div class="py-3 overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-muted/50 border-b border-border/60">
+                                <th class="p-3 font-black uppercase text-muted-foreground tracking-wider w-[240px]">Hạn mức & Tính năng</th>
+                                <th v-for="plan in plans" :key="plan.id" class="p-3 text-center w-[150px]">
+                                    <div class="font-black text-sm text-foreground mb-1 flex items-center justify-center gap-1">
+                                        <component :is="planIcon[plan.code] ?? Star" class="size-3.5 text-indigo-500" />
+                                        {{ plan.name }}
+                                    </div>
+                                    <div class="text-[10px] font-mono text-muted-foreground font-black">{{ formatVnd(plan.price) }}/tháng</div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border/40">
+                            <!-- Section: Limits -->
+                            <tr class="bg-muted/10 font-black text-muted-foreground uppercase text-[10px] tracking-wider">
+                                <td colspan="5" class="p-3">Hạn mức vận hành (Limits)</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Chi nhánh tối đa</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatLimit(plan.max_branches) }}</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Số bàn tối đa</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatLimit(plan.max_tables) }}</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Nhân viên tối đa</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatLimit(plan.max_users) }}</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Khu vực tối đa</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatLimit(plan.features?.max_areas ?? 2) }}</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Dung lượng lưu trữ</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatStorage(plan.features?.max_storage_mb ?? 500) }}</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Rate Limit (API req/phút)</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold">{{ formatRate(plan.features?.api_rate_limit ?? 30) }} req/m</td>
+                            </tr>
+                            <tr class="hover:bg-muted/20 transition-colors font-medium">
+                                <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">Chiết khấu gói năm</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center font-mono font-bold text-emerald-500 font-black">{{ plan.features?.yearly_discount_percent ?? 20 }}%</td>
+                            </tr>
+
+                            <!-- Section: Features Checklist -->
+                            <tr class="bg-muted/10 font-black text-muted-foreground uppercase text-[10px] tracking-wider">
+                                <td colspan="5" class="p-3">Tính năng tích hợp (Features)</td>
+                            </tr>
+                            <tr v-for="feat in ALL_FEATURES" :key="feat.key" class="hover:bg-muted/20 transition-colors font-medium text-slate-700 dark:text-slate-300">
+                                <td class="p-3 font-bold text-slate-800 dark:text-slate-200">{{ feat.label }}</td>
+                                <td v-for="plan in plans" :key="plan.id" class="p-3 text-center">
+                                    <span v-if="plan.features?.[feat.key]" class="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-3xs">
+                                        <Check class="size-3 stroke-[3]" />
+                                    </span>
+                                    <span v-else class="inline-flex size-5 items-center justify-center rounded-full bg-muted text-muted-foreground/30 border border-border shrink-0 opacity-40">
+                                        <X class="size-3 stroke-[3]" />
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </DialogContent>
         </Dialog>

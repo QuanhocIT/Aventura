@@ -176,9 +176,19 @@ function scrollToBottom() {
     });
 }
 
-// Simple Markdown renderer
-function renderMarkdown(text: string): string {
+function escapeHtml(text: string): string {
     return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Simple Markdown renderer — input is HTML-escaped first since msg.content
+// can come from user-typed chat input, then rendered via v-html.
+function renderMarkdown(text: string): string {
+    return escapeHtml(text)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>')
@@ -286,6 +296,9 @@ function renderMarkdown(text: string): string {
 
             <!-- Input area -->
             <div class="p-4 border-t border-border shrink-0 bg-card/65 backdrop-blur-md z-10">
+                <p class="mb-2 text-center text-[10px] text-muted-foreground">
+                    Trợ lý dựa trên quy tắc nghiệp vụ và dữ liệu thật của nhà hàng bạn, không phải AI tổng quát.
+                </p>
                 <div class="flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-2.5 transition focus-within:border-indigo-500/40 focus-within:bg-background focus-within:shadow-md">
                     <input
                         v-model="inputText"

@@ -30,12 +30,16 @@ class BackupDatabase extends Command
         
         try {
             $result = $backupService->backup();
-            
+
             $this->info("Sao lưu thành công!");
             $this->line("Tệp tin: {$result['filename']}");
             $this->line("Dung lượng: {$result['size_mb']} MB");
             $this->line("Lưu tại Disk: {$result['disk']}");
-            
+
+            if ($result['used_fallback'] ?? false) {
+                $this->warn('CẢNH BÁO: mysqldump không khả dụng/thất bại — bản sao lưu này được tạo bằng bộ dump PHP dự phòng (chậm hơn, ít được kiểm thử hơn). Vui lòng kiểm tra mysqldump trên máy chủ.');
+            }
+
             return self::SUCCESS;
         } catch (\Exception $e) {
             $this->error("Lỗi khi sao lưu cơ sở dữ liệu: " . $e->getMessage());

@@ -50,7 +50,11 @@ class BackupMaintenanceTest extends TestCase
     }
 
     /**
-     * Test chức năng sao lưu thủ công.
+     * The test environment runs on SQLite :memory: (see phpunit.xml), which has no
+     * on-disk state to copy. DatabaseBackupService now fails loudly for that case
+     * instead of silently writing a placeholder file that looked like a real backup —
+     * so the "manual backup" trigger should surface a clear error here, not a fake
+     * success. Real production backups (MySQL) are covered by DatabaseBackupServiceTest.
      */
     public function test_super_admin_can_trigger_manual_backup(): void
     {
@@ -64,12 +68,8 @@ class BackupMaintenanceTest extends TestCase
             ->post('/super-admin/backup-maintenance/backup');
 
         $response->assertRedirect();
-        $response->assertSessionHas('success');
-
-        // Quét ổ đĩa local hoặc S3 để tìm tệp tin .sql.gz
-        $files = Storage::disk('local')->allFiles('backups');
-        $this->assertNotEmpty($files);
-        $this->assertStringEndsWith('.sql.gz', $files[0]);
+        $response->assertSessionHas('error');
+        $this->assertEmpty(Storage::disk('local')->allFiles('backups'));
     }
 
     /**

@@ -10,6 +10,7 @@ import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, TerminalCard, LedIndicator, StatusBadge } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -252,19 +253,13 @@ return `${Math.round(s)}s`;
 <template>
     <Head title="Chatbot Diagnostics" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <!-- ── Header ─────────────────────────────────────────────────────── -->
-        <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-3">
-                <div class="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 shadow-lg shadow-violet-500/30">
-                    <Brain class="size-6 text-white" />
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight">Chatbot Diagnostics & Retraining</h1>
-                    <p class="text-sm text-muted-foreground">Giám sát hiệu năng · Tái huấn luyện · Kiểm thử câu hỏi</p>
-                </div>
-            </div>
-        </div>
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <!-- Header -->
+        <PageHeader
+            title="Chatbot Diagnostics & Retraining"
+            subtitle="Giám sát hiệu năng · Tái huấn luyện · Kiểm thử câu hỏi"
+            :icon="Brain"
+        />
 
         <!-- ── Service Health Strip ───────────────────────────────────────── -->
         <div class="flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3" :class="healthStatusClass">

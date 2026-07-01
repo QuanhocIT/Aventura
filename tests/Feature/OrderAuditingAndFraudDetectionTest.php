@@ -381,18 +381,30 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
         $service = new FraudDetectionService();
         $alerts = $service->detectAiFraudAlerts($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
 
-        // Verify both fallback static alerts AND the parsed database audit log alert exist!
-        $this->assertCount(3, $alerts);
-
-        $simulatedAlert1 = collect($alerts)->firstWhere('employee_name', 'Nguyễn Thị Thu');
-        $this->assertNotNull($simulatedAlert1);
-        $this->assertEquals('AI: Sửa giá món nhiều lần', $simulatedAlert1['violation_type']);
-        $this->assertEquals(97.8, $simulatedAlert1['risk_score']);
+        // Only the alert genuinely derived from the AuditLog row created above should
+        // exist — the fallback path used to always inject 2 fabricated "ai-1"/"ai-2"
+        // incidents with invented order numbers/amounts regardless of real activity;
+        // that fabrication has been removed so alerts reflect real events only.
+        $this->assertCount(1, $alerts);
 
         $dbAlert = collect($alerts)->firstWhere('violation_type', 'AI: Sửa đổi giá món nhạy cảm');
         $this->assertNotNull($dbAlert);
         $this->assertEquals(92.5, $dbAlert['risk_score']);
         $this->assertStringContainsString('Nguyễn Thị Thu', $dbAlert['description']);
+    }
+
+    public function test_ai_fraud_detection_returns_no_alerts_when_nothing_suspicious(): void
+    {
+        \Illuminate\Support\Facades\Http::fake([
+            '*/api/analytics/fraud-detection' => \Illuminate\Support\Facades\Http::response(null, 500),
+        ]);
+
+        $service = new FraudDetectionService();
+        $alerts = $service->detectAiFraudAlerts($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
+
+        // With no matching audit log activity, there must be zero alerts — not the old
+        // hardcoded "always at least 2 simulated AI alerts for WOW factor" fabrication.
+        $this->assertCount(0, $alerts);
     }
 
     public function test_waiter_can_create_order_but_cannot_pay_and_cannot_split(): void

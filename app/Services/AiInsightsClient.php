@@ -36,13 +36,16 @@ class AiInsightsClient
                 if ($response->successful()) {
                     $data = $response->json();
                     if ($data && isset($data['overall_health'])) {
+                        $data['data_source'] = 'live';
+                        $data['is_degraded'] = false;
+
                         return $data;
                     }
                 }
 
                 Log::warning('AiInsightsClient: Python service trả lỗi hoặc dữ liệu thiếu, sử dụng fallback', ['status' => $response->status()]);
             } catch (\Throwable $e) {
-                Log::critical('Hệ thống cảnh báo: Python Analytics & AI Service (AiInsights) hiện đang ngoại tuyến hoặc không phản hồi. Chuyển sang chế độ dữ liệu giả lập (mock fallback).', [
+                Log::critical('Hệ thống cảnh báo: Python Analytics & AI Service (AiInsights) hiện đang ngoại tuyến hoặc không phản hồi. Chuyển sang chế độ dữ liệu ước tính (rule-based fallback).', [
                     'url' => $this->baseUrl,
                     'error' => $e->getMessage()
                 ]);
@@ -55,8 +58,12 @@ class AiInsightsClient
     }
 
     /**
-     * Generate dynamic, highly realistic mock insights based on real restaurant stats
-     * when the Python microservice is unavailable.
+     * Generate rule-based estimated insights from real restaurant stats for use when the
+     * Python analytics microservice is unavailable. These are genuine heuristic
+     * computations (not random/fabricated numbers), but they are NOT the same as the
+     * ML-driven output the live service would produce, so callers must check
+     * `data_source`/`is_degraded` and surface that distinction to the admin instead of
+     * presenting this silently as live data.
      */
     protected function generateMockInsights(array $restaurants, array $tenantGrowth): array
     {
@@ -235,6 +242,8 @@ class AiInsightsClient
                 'label' => $overallLabel,
                 'color' => $overallColor,
             ],
+            'data_source' => 'estimated_fallback',
+            'is_degraded' => true,
         ];
     }
 }

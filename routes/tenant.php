@@ -202,8 +202,23 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('promotions/{promotion}/approve', [PromotionController::class, 'approve'])->name('promotions.approve');
     Route::post('promotions/combos', [PromotionController::class, 'storeCombo'])->name('promotions.combos.store');
     Route::post('api/promotions/apply', [PromotionController::class, 'apply'])->name('promotions.apply');
+    Route::post('api/promotions/validate', [PromotionController::class, 'validatePromotion'])->name('promotions.validate');
     Route::get('api/promotions/basket-analysis', [PromotionController::class, 'getBasketAnalysis'])->name('promotions.basket-analysis');
     Route::post('api/promotions/upsell-suggestion', [PromotionController::class, 'getUpsellSuggestion'])->name('promotions.upsell-suggestion');
+
+    // Promotion QR Codes
+    Route::get('promotions/{promotion}/qr', [PromotionController::class, 'generateQr'])->name('promotions.qr');
+    Route::post('promotions/print-qr-sheet', [PromotionController::class, 'printQrSheet'])->name('promotions.print-qr');
+
+    // Promotion Triggers
+    Route::get('promotions/triggers', [\App\Http\Controllers\PromotionTriggerController::class, 'index'])->name('promotions.triggers.index');
+    Route::post('promotions/triggers', [\App\Http\Controllers\PromotionTriggerController::class, 'store'])->name('promotions.triggers.store');
+    Route::put('promotions/triggers/{trigger}', [\App\Http\Controllers\PromotionTriggerController::class, 'update'])->name('promotions.triggers.update');
+    Route::delete('promotions/triggers/{trigger}', [\App\Http\Controllers\PromotionTriggerController::class, 'destroy'])->name('promotions.triggers.destroy');
+    Route::patch('promotions/triggers/{trigger}/toggle', [\App\Http\Controllers\PromotionTriggerController::class, 'toggleActive'])->name('promotions.triggers.toggle');
+
+    // Promotion Analytics
+    Route::get('promotions/analytics', [\App\Http\Controllers\PromotionAnalyticsController::class, 'index'])->name('promotions.analytics.index');
 
     // Tables management
     Route::get('tables', [\App\Http\Controllers\TablesController::class, 'index'])->name('tables.index');
@@ -380,7 +395,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Trợ lý AI Chiến lược (AI Advisor)
     Route::get('ai-advisor', [\App\Http\Controllers\ChatbotController::class, 'advisorIndex'])->name('ai-advisor.index');
-    Route::post('api/chatbot/advisor-message', [\App\Http\Controllers\ChatbotController::class, 'advisorMessage'])->name('chatbot.advisor-message');
+    Route::post('api/chatbot/advisor-message', [\App\Http\Controllers\ChatbotController::class, 'advisorMessage'])->name('chatbot.advisor-message')->middleware('throttle:30,1');
     Route::get('api/chatbot/advisor-history', [\App\Http\Controllers\ChatbotController::class, 'advisorHistory'])->name('chatbot.advisor-history');
 
     // ── Smart Routing & Dispatch ────────────────────────────────────────────
@@ -396,14 +411,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
             Route::post('optimize-route',    [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'optimizeRoute'])->name('optimize-route');
             Route::post('suggest-shippers',  [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'suggestShippers'])->name('suggest-shippers');
             Route::post('suggest-batches',   [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'suggestBatches'])->name('suggest-batches');
-            Route::post('batches',           [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'createBatch'])->name('batches.create');
-            Route::post('batches/{batch}/dispatch', [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'dispatchBatch'])->name('batches.dispatch');
-            Route::post('batches/{batch}/complete', [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'completeBatch'])->name('batches.complete');
-            Route::post('batches/{batch}/cancel',   [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'cancelBatch'])->name('batches.cancel');
+            Route::post('batches',           [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'createBatch'])->name('batches.create')->middleware('throttle:30,1');
+            Route::post('batches/{batch}/dispatch', [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'dispatchBatch'])->name('batches.dispatch')->middleware('throttle:30,1');
+            Route::post('batches/{batch}/complete', [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'completeBatch'])->name('batches.complete')->middleware('throttle:30,1');
+            Route::post('batches/{batch}/cancel',   [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'cancelBatch'])->name('batches.cancel')->middleware('throttle:30,1');
 
             // Shipper PWA API
-            Route::post('shipper/location',        [\App\Http\Controllers\Delivery\ShipperPwaController::class, 'updateLocation'])->name('shipper.location');
-            Route::post('shipper/location/batch',  [\App\Http\Controllers\Delivery\ShipperPwaController::class, 'updateLocationBatch'])->name('shipper.location.batch');
+            Route::post('shipper/location',        [\App\Http\Controllers\Delivery\ShipperPwaController::class, 'updateLocation'])->name('shipper.location')->middleware('throttle:shipper_location');
+            Route::post('shipper/location/batch',  [\App\Http\Controllers\Delivery\ShipperPwaController::class, 'updateLocationBatch'])->name('shipper.location.batch')->middleware('throttle:shipper_location_batch');
             Route::post('shipper/items/{item}/status', [\App\Http\Controllers\Delivery\ShipperPwaController::class, 'updateItemStatus'])->name('shipper.item.status');
         });
 
@@ -418,7 +433,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     });
 
     // Employee Self-Service Portal
-    Route::prefix('employee-portal')->name('employee-portal.')->group(function () {
+    Route::prefix('employee-portal')
+        ->middleware(['throttle:employee_portal'])
+        ->name('employee-portal.')
+        ->group(function () {
         Route::get('/', [\App\Http\Controllers\EmployeePortalController::class, 'index'])->name('index');
         Route::get('/data', [\App\Http\Controllers\EmployeePortalController::class, 'getDashboardData'])->name('data');
         Route::get('/salaries', [\App\Http\Controllers\EmployeePortalController::class, 'getSalaries'])->name('salaries');
@@ -429,5 +447,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/swaps/{swap}/respond', [\App\Http\Controllers\EmployeePortalController::class, 'respondSwap'])->name('swaps.respond');
         Route::post('/notifications/read-all', [\App\Http\Controllers\EmployeePortalController::class, 'readAllNotifications'])->name('notifications.read-all');
     });
+
+    // Chi nhánh làm việc
+    Route::post('branch/switch', [\App\Http\Controllers\BranchSwitchController::class, 'switchBranch'])->name('branch.switch');
 });
 

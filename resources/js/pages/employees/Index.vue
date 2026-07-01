@@ -2,12 +2,13 @@
 import { Head, useForm, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
-    Users, Plus, Calendar, Clock, CheckCircle2,
-    AlertCircle, Sparkles, UserCheck, ShieldCheck, Mail, Phone,
+    Users, Plus, Calendar, Clock,
+    AlertCircle, Sparkles, ShieldCheck, Mail, Phone,
     Pencil, ToggleLeft, ToggleRight, X, Trash2, Settings,
     RefreshCw, ArrowUpDown, Search
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
+import FormModal from '@/components/shared/FormModal.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -710,222 +711,197 @@ const submitSwapReject = () => {
         </div>
 
         <!-- Add Employee Form Modal Overlay -->
-        <div v-if="showAddEmployee" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <Card class="max-w-2xl w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader>
-                    <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
-                        <UserCheck class="size-5" />
-                        Tạo tài khoản nhân viên mới (Hồ sơ bảo mật)
-                    </CardTitle>
-                    <CardDescription>Khai báo chi tiết lý lịch trích ngang của nhân sự để đảm bảo tính pháp lý và phòng chống rủi ro gian lận.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitEmployee" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-name">Họ và tên nhân sự <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-name" v-model="employeeForm.name" placeholder="Ví dụ: Nguyễn Văn A" required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-email">Email đăng nhập <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-email" type="email" v-model="employeeForm.email" placeholder="Ví dụ: nva@aventura.vn" required />
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-phone">Số điện thoại liên lạc <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-phone" v-model="employeeForm.phone" placeholder="0900 000 000" required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-dob">Ngày tháng năm sinh <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-dob" type="date" v-model="employeeForm.date_of_birth" required />
-                            </div>
-                        </div>
+        <FormModal
+            :open="showAddEmployee"
+            @update:open="showAddEmployee = $event"
+            title="Tạo tài khoản nhân viên mới (Hồ sơ bảo mật)"
+            description="Khai báo chi tiết lý lịch trích ngang của nhân sự để đảm bảo tính pháp lý và phòng chống rủi ro gian lận."
+            max-width-class="max-w-2xl"
+            :processing="employeeForm.processing"
+            submit-label="Tạo nhân sự"
+            processing-label="Đang tạo..."
+            @submit="submitEmployee"
+        >
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label for="emp-name">Họ và tên nhân sự <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-name" v-model="employeeForm.name" placeholder="Ví dụ: Nguyễn Văn A" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label for="emp-email">Email đăng nhập <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-email" type="email" v-model="employeeForm.email" placeholder="Ví dụ: nva@aventura.vn" required />
+                </div>
+            </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-citizen-number">Số định danh / Số CCCD <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-citizen-number" v-model="employeeForm.citizen_id_number" placeholder="12 chữ số..." required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-address">Địa chỉ tạm trú hiện tại <span class="text-rose-500">*</span></Label>
-                                <Input id="emp-address" v-model="employeeForm.address" placeholder="Ví dụ: 123 Lê Lợi, Quận 1, TP. HCM" required />
-                            </div>
-                        </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label for="emp-phone">Số điện thoại liên lạc <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-phone" v-model="employeeForm.phone" placeholder="0900 000 000" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label for="emp-dob">Ngày tháng năm sinh <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-dob" type="date" v-model="employeeForm.date_of_birth" required />
+                </div>
+            </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-role">Phân quyền hệ thống</Label>
-                                <select
-                                    id="emp-role"
-                                    v-model="employeeForm.role"
-                                    @change="handleRoleChange"
-                                    required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                                >
-                                    <option value="cashier">Thu ngân (Bán hàng)</option>
-                                    <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
-                                    <option value="manager">Quản lý cửa hàng</option>
-                                    <option value="waiter">Nhân viên order (Phục vụ)</option>
-                                </select>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-title">Chức danh công việc</Label>
-                                <Input id="emp-title" v-model="employeeForm.job_title" required />
-                            </div>
-                        </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label for="emp-citizen-number">Số định danh / Số CCCD <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-citizen-number" v-model="employeeForm.citizen_id_number" placeholder="12 chữ số..." required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label for="emp-address">Địa chỉ tạm trú hiện tại <span class="text-rose-500">*</span></Label>
+                    <Input id="emp-address" v-model="employeeForm.address" placeholder="Ví dụ: 123 Lê Lợi, Quận 1, TP. HCM" required />
+                </div>
+            </div>
 
-                        <!-- CCCD Front / Back File Upload Section -->
-                        <div class="grid grid-cols-2 gap-4 border-t pt-3">
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold text-slate-700">Ảnh mặt trước CCCD <span class="text-rose-500">*</span></Label>
-                                <div class="flex items-center justify-center w-full">
-                                    <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
-                                            <Plus class="size-4 text-indigo-600 mb-0.5" />
-                                            <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_front ? employeeForm.citizen_id_front.name : 'Tải lên mặt trước CCCD' }}</p>
-                                        </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" required />
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold text-slate-700">Ảnh mặt sau CCCD <span class="text-rose-500">*</span></Label>
-                                <div class="flex items-center justify-center w-full">
-                                    <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
-                                            <Plus class="size-4 text-indigo-600 mb-0.5" />
-                                            <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_back ? employeeForm.citizen_id_back.name : 'Tải lên mặt sau CCCD' }}</p>
-                                        </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" required />
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 rounded-xl flex items-start gap-2 text-[11px] text-amber-700 dark:text-amber-400">
-                            <AlertCircle class="size-4 shrink-0 mt-0.5" />
-                            <p><strong>Bảo mật mật khẩu:</strong> Tài khoản mới sẽ có mật khẩu mặc định là <code class="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded font-bold font-mono">12345678</code>. Nhân viên dùng mật khẩu này đăng nhập và bắt buộc đổi mật khẩu riêng tư ngay sau đó.</p>
-                        </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label for="emp-role">Phân quyền hệ thống</Label>
+                    <select
+                        id="emp-role"
+                        v-model="employeeForm.role"
+                        @change="handleRoleChange"
+                        required
+                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                        <option value="cashier">Thu ngân (Bán hàng)</option>
+                        <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
+                        <option value="manager">Quản lý cửa hàng</option>
+                        <option value="waiter">Nhân viên order (Phục vụ)</option>
+                    </select>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label for="emp-title">Chức danh công việc</Label>
+                    <Input id="emp-title" v-model="employeeForm.job_title" required />
+                </div>
+            </div>
 
-                        <div class="flex justify-end gap-2 pt-2 border-t">
-                            <Button type="button" variant="outline" @click="showAddEmployee = false">Hủy</Button>
-                            <Button type="submit" class="bg-indigo-600 text-white" :disabled="employeeForm.processing">
-                                {{ employeeForm.processing ? 'Đang tạo...' : 'Tạo nhân sự' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+            <!-- CCCD Front / Back File Upload Section -->
+            <div class="grid grid-cols-2 gap-4 border-t pt-3">
+                <div class="grid gap-1.5">
+                    <Label class="text-xs font-semibold text-slate-700">Ảnh mặt trước CCCD <span class="text-rose-500">*</span></Label>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
+                                <Plus class="size-4 text-indigo-600 mb-0.5" />
+                                <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_front ? employeeForm.citizen_id_front.name : 'Tải lên mặt trước CCCD' }}</p>
+                            </div>
+                            <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" required />
+                        </label>
+                    </div>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label class="text-xs font-semibold text-slate-700">Ảnh mặt sau CCCD <span class="text-rose-500">*</span></Label>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
+                                <Plus class="size-4 text-indigo-600 mb-0.5" />
+                                <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ employeeForm.citizen_id_back ? employeeForm.citizen_id_back.name : 'Tải lên mặt sau CCCD' }}</p>
+                            </div>
+                            <input type="file" class="hidden" accept="image/*" @change="e => employeeForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" required />
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 rounded-xl flex items-start gap-2 text-[11px] text-amber-700 dark:text-amber-400">
+                <AlertCircle class="size-4 shrink-0 mt-0.5" />
+                <p><strong>Bảo mật mật khẩu:</strong> Tài khoản mới sẽ có mật khẩu mặc định là <code class="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded font-bold font-mono">12345678</code>. Nhân viên dùng mật khẩu này đăng nhập và bắt buộc đổi mật khẩu riêng tư ngay sau đó.</p>
+            </div>
+        </FormModal>
 
         <!-- Edit Employee Modal -->
-        <div v-if="editingEmployee" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <Card class="max-w-2xl w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
-                            <Pencil class="size-4" />
-                            Sửa hồ sơ & thông tin nhân viên
-                        </CardTitle>
-                        <button @click="editingEmployee = null" class="text-muted-foreground hover:text-foreground">
-                            <X class="size-4" />
-                        </button>
+        <FormModal
+            :open="!!editingEmployee"
+            @update:open="(v: boolean) => { if (!v) editingEmployee = null }"
+            title="Sửa hồ sơ & thông tin nhân viên"
+            max-width-class="max-w-2xl"
+            :processing="editForm.processing"
+            submit-label="Lưu hồ sơ"
+            processing-label="Đang lưu..."
+            @submit="submitEditEmployee"
+        >
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label>Họ và tên <span class="text-rose-500">*</span></Label>
+                    <Input v-model="editForm.full_name" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Số điện thoại <span class="text-rose-500">*</span></Label>
+                    <Input v-model="editForm.phone" required />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label>Ngày sinh <span class="text-rose-500">*</span></Label>
+                    <Input type="date" v-model="editForm.date_of_birth" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Số định danh / CCCD <span class="text-rose-500">*</span></Label>
+                    <Input v-model="editForm.citizen_id_number" required />
+                </div>
+            </div>
+
+            <div class="grid gap-1.5">
+                <Label>Địa chỉ tạm trú <span class="text-rose-500">*</span></Label>
+                <Input v-model="editForm.address" required />
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+                <div class="grid gap-1.5">
+                    <Label>Chức danh <span class="text-rose-500">*</span></Label>
+                    <Input v-model="editForm.job_title" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Phân quyền hệ thống</Label>
+                    <select v-model="editForm.role"
+                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <option value="cashier">Thu ngân (Bán hàng)</option>
+                        <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
+                        <option value="manager">Quản lý cửa hàng</option>
+                        <option value="waiter">Nhân viên order (Phục vụ)</option>
+                    </select>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Trạng thái tài khoản</Label>
+                    <select v-model="editForm.status"
+                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <option value="active">Đang hoạt động</option>
+                        <option value="inactive">Khóa / Tạm ngưng</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Optional CCCD Front / Back File Upload Section -->
+            <div class="grid grid-cols-2 gap-4 border-t pt-3">
+                <div class="grid gap-1.5">
+                    <Label class="text-xs font-semibold text-slate-700">Cập nhật mặt trước CCCD <span class="text-[9px] text-slate-400">(Tùy chọn)</span></Label>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
+                                <Plus class="size-4 text-indigo-600 mb-0.5" />
+                                <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_front ? editForm.citizen_id_front.name : 'Chọn ảnh mới' }}</p>
+                            </div>
+                            <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" />
+                        </label>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitEditEmployee" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Họ và tên <span class="text-rose-500">*</span></Label>
-                                <Input v-model="editForm.full_name" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label class="text-xs font-semibold text-slate-700">Cập nhật mặt sau CCCD <span class="text-[9px] text-slate-400">(Tùy chọn)</span></Label>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
+                                <Plus class="size-4 text-indigo-600 mb-0.5" />
+                                <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_back ? editForm.citizen_id_back.name : 'Chọn ảnh mới' }}</p>
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label>Số điện thoại <span class="text-rose-500">*</span></Label>
-                                <Input v-model="editForm.phone" required />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Ngày sinh <span class="text-rose-500">*</span></Label>
-                                <Input type="date" v-model="editForm.date_of_birth" required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Số định danh / CCCD <span class="text-rose-500">*</span></Label>
-                                <Input v-model="editForm.citizen_id_number" required />
-                            </div>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label>Địa chỉ tạm trú <span class="text-rose-500">*</span></Label>
-                            <Input v-model="editForm.address" required />
-                        </div>
-
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Chức danh <span class="text-rose-500">*</span></Label>
-                                <Input v-model="editForm.job_title" required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Phân quyền hệ thống</Label>
-                                <select v-model="editForm.role"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                                    <option value="cashier">Thu ngân (Bán hàng)</option>
-                                    <option value="kitchen">Nhà bếp (Chuẩn bị món)</option>
-                                    <option value="manager">Quản lý cửa hàng</option>
-                                    <option value="waiter">Nhân viên order (Phục vụ)</option>
-                                </select>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Trạng thái tài khoản</Label>
-                                <select v-model="editForm.status"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                                    <option value="active">Đang hoạt động</option>
-                                    <option value="inactive">Khóa / Tạm ngưng</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Optional CCCD Front / Back File Upload Section -->
-                        <div class="grid grid-cols-2 gap-4 border-t pt-3">
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold text-slate-700">Cập nhật mặt trước CCCD <span class="text-[9px] text-slate-400">(Tùy chọn)</span></Label>
-                                <div class="flex items-center justify-center w-full">
-                                    <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
-                                            <Plus class="size-4 text-indigo-600 mb-0.5" />
-                                            <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_front ? editForm.citizen_id_front.name : 'Chọn ảnh mới' }}</p>
-                                        </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_front = (e.target as HTMLInputElement).files?.[0] || null" />
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold text-slate-700">Cập nhật mặt sau CCCD <span class="text-[9px] text-slate-400">(Tùy chọn)</span></Label>
-                                <div class="flex items-center justify-center w-full">
-                                    <label class="flex flex-col items-center justify-center w-full h-20 border border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <div class="flex flex-col items-center justify-center pt-2 pb-2 px-3 text-center">
-                                            <Plus class="size-4 text-indigo-600 mb-0.5" />
-                                            <p class="text-[10px] text-slate-500 font-medium truncate max-w-[200px]">{{ editForm.citizen_id_back ? editForm.citizen_id_back.name : 'Chọn ảnh mới' }}</p>
-                                        </div>
-                                        <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" />
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t">
-                            <Button type="button" variant="outline" @click="editingEmployee = null">Hủy</Button>
-                            <Button type="submit" class="bg-indigo-600 text-white" :disabled="editForm.processing">
-                                {{ editForm.processing ? 'Đang lưu...' : 'Lưu hồ sơ' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                            <input type="file" class="hidden" accept="image/*" @change="e => editForm.citizen_id_back = (e.target as HTMLInputElement).files?.[0] || null" />
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </FormModal>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left content: Employee roster -->
@@ -1469,329 +1445,247 @@ const submitSwapReject = () => {
         </div>
  
         <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
-        <div v-if="showAssignModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <Card class="max-w-sm w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
-                            <Calendar class="size-5" />
-                            Xếp ca - {{ currentAssignDayLabel }}
-                        </CardTitle>
-                        <CardDescription>Chọn nhân sự và gán ca tương ứng vào ngày này.</CardDescription>
-                    </div>
-                    <button @click="showAssignModal = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <X class="size-4" />
+        <FormModal
+            :open="showAssignModal"
+            @update:open="showAssignModal = $event"
+            :title="`Xếp ca - ${currentAssignDayLabel}`"
+            description="Chọn nhân sự và gán ca tương ứng vào ngày này."
+            max-width-class="max-w-sm"
+            submit-label="Xác nhận xếp ca"
+            @submit="submitAssignment"
+        >
+            <div class="grid gap-1.5">
+                <Label for="assign-emp">Chọn nhân sự <span class="text-rose-500">*</span></Label>
+                <select
+                    id="assign-emp"
+                    v-model="assignForm.employee_name"
+                    required
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                    <option
+                        v-for="name in availableEmployeesList"
+                        :key="name"
+                        :value="name"
+                    >
+                        {{ name }}
+                    </option>
+                </select>
+            </div>
+
+            <div class="grid gap-1.5">
+                <Label for="assign-shift">Chọn ca làm việc <span class="text-rose-500">*</span></Label>
+                <select
+                    id="assign-shift"
+                    v-model="assignForm.shift_name"
+                    required
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                    <option
+                        v-for="s in shiftsState"
+                        :key="s.id"
+                        :value="s.name.split(' (')[0]"
+                    >
+                        {{ s.name }} ({{ s.start }} - {{ s.end }})
+                    </option>
+                </select>
+            </div>
+
+            <!-- Suggestions helper -->
+            <div v-if="getRegistrationsForDay(currentAssignDay).length" class="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-350">
+                <span class="font-bold flex items-center gap-1"><Sparkles class="size-3.5" /> Gợi ý: Nhân viên đăng ký rảnh hôm nay</span>
+                <div class="mt-1.5 flex flex-wrap gap-1">
+                    <button
+                        v-for="r in getRegistrationsForDay(currentAssignDay)"
+                        :key="r.employee_name + '-' + r.shift_name"
+                        type="button"
+                        @click="assignForm.employee_name = r.employee_name; assignForm.shift_name = r.shift_name.split(' (')[0]"
+                        class="px-2 py-1 rounded bg-white dark:bg-slate-900 border text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer active:scale-95 text-[10px] transition-colors"
+                        title="Chọn nhanh nhân viên này"
+                    >
+                        {{ r.employee_name }} ({{ r.shift_name.split(' (')[0] }})
                     </button>
-                </CardHeader>
-                <CardContent class="pt-4 space-y-4">
-                    <form @submit.prevent="submitAssignment" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="assign-emp">Chọn nhân sự <span class="text-rose-500">*</span></Label>
-                            <select
-                                id="assign-emp"
-                                v-model="assignForm.employee_name"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            >
-                                <option 
-                                    v-for="name in availableEmployeesList" 
-                                    :key="name" 
-                                    :value="name"
-                                >
-                                    {{ name }}
-                                </option>
-                            </select>
-                        </div>
- 
-                        <div class="grid gap-1.5">
-                            <Label for="assign-shift">Chọn ca làm việc <span class="text-rose-500">*</span></Label>
-                            <select
-                                id="assign-shift"
-                                v-model="assignForm.shift_name"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            >
-                                <option 
-                                    v-for="s in shiftsState" 
-                                    :key="s.id" 
-                                    :value="s.name.split(' (')[0]"
-                                >
-                                    {{ s.name }} ({{ s.start }} - {{ s.end }})
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Suggestions helper -->
-                        <div v-if="getRegistrationsForDay(currentAssignDay).length" class="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-350">
-                            <span class="font-bold flex items-center gap-1"><Sparkles class="size-3.5" /> Gợi ý: Nhân viên đăng ký rảnh hôm nay</span>
-                            <div class="mt-1.5 flex flex-wrap gap-1">
-                                <button
-                                    v-for="r in getRegistrationsForDay(currentAssignDay)"
-                                    :key="r.employee_name + '-' + r.shift_name"
-                                    type="button"
-                                    @click="assignForm.employee_name = r.employee_name; assignForm.shift_name = r.shift_name.split(' (')[0]"
-                                    class="px-2 py-1 rounded bg-white dark:bg-slate-900 border text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer active:scale-95 text-[10px] transition-colors"
-                                    title="Chọn nhanh nhân viên này"
-                                >
-                                    {{ r.employee_name }} ({{ r.shift_name.split(' (')[0] }})
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
-                            <Button type="button" variant="outline" size="sm" @click="showAssignModal = false">Hủy</Button>
-                            <Button type="submit" size="sm" class="bg-indigo-600 text-white font-semibold">Xác nhận xếp ca</Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                </div>
+            </div>
+        </FormModal>
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
-        <div v-if="showLeaveModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <Card class="max-w-md w-full shadow-2xl">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-indigo-600">
-                            <Sparkles class="size-5" />
-                            Tạo Đơn Nghỉ Phép / Thôi Việc
-                        </CardTitle>
-                        <CardDescription>Khai báo đơn xin nghỉ cho nhân sự trực thuộc chi nhánh.</CardDescription>
-                    </div>
-                    <button @click="showLeaveModal = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="pt-4">
-                    <form @submit.prevent="submitLeaveRequest" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="leave-emp">Chọn nhân sự <span class="text-rose-500">*</span></Label>
-                            <select
-                                id="leave-emp"
-                                v-model="leaveForm.employee_id"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            >
-                                <option 
-                                    v-for="emp in employees" 
-                                    :key="emp.id" 
-                                    :value="String(emp.id)"
-                                >
-                                    {{ emp.full_name }} ({{ emp.employee_code }})
-                                </option>
-                            </select>
-                        </div>
+        <FormModal
+            :open="showLeaveModal"
+            @update:open="showLeaveModal = $event"
+            title="Tạo Đơn Nghỉ Phép / Thôi Việc"
+            description="Khai báo đơn xin nghỉ cho nhân sự trực thuộc chi nhánh."
+            :processing="leaveForm.processing"
+            submit-label="Gửi yêu cầu"
+            processing-label="Đang gửi..."
+            @submit="submitLeaveRequest"
+        >
+            <div class="grid gap-1.5">
+                <Label for="leave-emp">Chọn nhân sự <span class="text-rose-500">*</span></Label>
+                <select
+                    id="leave-emp"
+                    v-model="leaveForm.employee_id"
+                    required
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                    <option
+                        v-for="emp in employees"
+                        :key="emp.id"
+                        :value="String(emp.id)"
+                    >
+                        {{ emp.full_name }} ({{ emp.employee_code }})
+                    </option>
+                </select>
+            </div>
 
-                        <div class="grid gap-1.5">
-                            <Label for="leave-type">Loại đơn <span class="text-rose-500">*</span></Label>
-                            <select
-                                id="leave-type"
-                                v-model="leaveForm.leave_type"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            >
-                                <option value="annual">Nghỉ phép năm (Dự phòng phép)</option>
-                                <option value="sick">Nghỉ ốm (Đau ốm / Khám bệnh)</option>
-                                <option value="unpaid">Nghỉ không lương (Việc cá nhân)</option>
-                                <option value="emergency">Nghỉ đột xuất (Tự động xóa/hủy ca làm việc)</option>
-                                <option value="resignation">Đơn xin nghỉ việc hẳn (Khóa tài khoản, SoftDelete)</option>
-                            </select>
-                        </div>
+            <div class="grid gap-1.5">
+                <Label for="leave-type">Loại đơn <span class="text-rose-500">*</span></Label>
+                <select
+                    id="leave-type"
+                    v-model="leaveForm.leave_type"
+                    required
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                    <option value="annual">Nghỉ phép năm (Dự phòng phép)</option>
+                    <option value="sick">Nghỉ ốm (Đau ốm / Khám bệnh)</option>
+                    <option value="unpaid">Nghỉ không lương (Việc cá nhân)</option>
+                    <option value="emergency">Nghỉ đột xuất (Tự động xóa/hủy ca làm việc)</option>
+                    <option value="resignation">Đơn xin nghỉ việc hẳn (Khóa tài khoản, SoftDelete)</option>
+                </select>
+            </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="leave-start">Từ ngày <span class="text-rose-500">*</span></Label>
-                                <Input type="date" id="leave-start" v-model="leaveForm.start_date" required />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="leave-end">Đến hết ngày <span class="text-rose-500">*</span></Label>
-                                <Input type="date" id="leave-end" v-model="leaveForm.end_date" required />
-                            </div>
-                        </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-1.5">
+                    <Label for="leave-start">Từ ngày <span class="text-rose-500">*</span></Label>
+                    <Input type="date" id="leave-start" v-model="leaveForm.start_date" required />
+                </div>
+                <div class="grid gap-1.5">
+                    <Label for="leave-end">Đến hết ngày <span class="text-rose-500">*</span></Label>
+                    <Input type="date" id="leave-end" v-model="leaveForm.end_date" required />
+                </div>
+            </div>
 
-                        <div class="grid gap-1.5">
-                            <Label for="leave-reason">Lý do xin nghỉ</Label>
-                            <textarea
-                                id="leave-reason"
-                                v-model="leaveForm.reason"
-                                rows="3"
-                                placeholder="Nhập lý do chi tiết..."
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            ></textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
-                            <Button type="button" variant="outline" size="sm" @click="showLeaveModal = false">Hủy</Button>
-                            <Button type="submit" size="sm" class="bg-indigo-600 text-white font-semibold">Gửi yêu cầu</Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+            <div class="grid gap-1.5">
+                <Label for="leave-reason">Lý do xin nghỉ</Label>
+                <textarea
+                    id="leave-reason"
+                    v-model="leaveForm.reason"
+                    rows="3"
+                    placeholder="Nhập lý do chi tiết..."
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                ></textarea>
+            </div>
+        </FormModal>
 
         <!-- Modal: Duyệt đơn & Gợi ý thế chỗ nhân sự (showApproveReplacementModal) -->
-        <div v-if="showApproveReplacementModal && replacementLeaveData" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <Card class="max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-emerald-600">
-                            <UserCheck class="size-5" />
-                            Duyệt Nghỉ Phép & Thế Chỗ Nhân Sự
-                        </CardTitle>
-                        <CardDescription>
-                            Nhân viên <strong class="text-slate-800 dark:text-slate-200">{{ replacementLeaveData.employee_name }}</strong> xin nghỉ từ {{ replacementLeaveData.start_date }} đến {{ replacementLeaveData.end_date }}.
-                        </CardDescription>
+        <FormModal
+            v-if="replacementLeaveData"
+            :open="showApproveReplacementModal"
+            @update:open="showApproveReplacementModal = $event"
+            title="Duyệt Nghỉ Phép & Thế Chỗ Nhân Sự"
+            :description="`Nhân viên ${replacementLeaveData.employee_name} xin nghỉ từ ${replacementLeaveData.start_date} đến ${replacementLeaveData.end_date}.`"
+            submit-label="Phê duyệt & Thế chỗ (1-Click)"
+            @submit="submitApproveWithReplacements"
+        >
+            <p class="text-xs text-muted-foreground">
+                Hệ thống tự động phát hiện nhân sự có lịch làm trùng lặp. Vui lòng chọn nhân sự thay thế cho từng ca trực dưới đây:
+            </p>
+
+            <div class="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                <div
+                    v-for="assignment in replacementLeaveData.assignments"
+                    :key="assignment.assignment_id"
+                    class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 space-y-3"
+                >
+                    <div class="flex justify-between items-center">
+                        <div class="text-xs">
+                            <span class="font-black text-slate-800 dark:text-slate-200">Thứ {{ assignment.formatted_date }}</span>
+                            <p class="text-[10px] text-muted-foreground font-semibold mt-0.5">{{ assignment.shift_name }} ({{ assignment.shift_time }})</p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                            Ca cần thế chỗ
+                        </span>
                     </div>
-                    <button @click="showApproveReplacementModal = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="pt-4 space-y-4">
-                    <p class="text-xs text-muted-foreground">
-                        Hệ thống tự động phát hiện nhân sự có lịch làm trùng lặp. Vui lòng chọn nhân sự thay thế cho từng ca trực dưới đây:
-                    </p>
 
-                    <div class="max-h-[300px] overflow-y-auto space-y-3 pr-1">
-                        <div 
-                            v-for="assignment in replacementLeaveData.assignments" 
-                            :key="assignment.assignment_id"
-                            class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 space-y-3"
+                    <div class="grid gap-1.5">
+                        <Label class="text-[10px] text-muted-foreground uppercase font-bold">Nhân sự thay thế</Label>
+                        <select
+                            v-model="selectedReplacements[assignment.assignment_id]"
+                            class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                         >
-                            <div class="flex justify-between items-center">
-                                <div class="text-xs">
-                                    <span class="font-black text-slate-800 dark:text-slate-200">Thứ {{ assignment.formatted_date }}</span>
-                                    <p class="text-[10px] text-muted-foreground font-semibold mt-0.5">{{ assignment.shift_name }} ({{ assignment.shift_time }})</p>
-                                </div>
-                                <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
-                                    Ca cần thế chỗ
-                                </span>
-                            </div>
-
-                            <div class="grid gap-1.5">
-                                <Label class="text-[10px] text-muted-foreground uppercase font-bold">Nhân sự thay thế</Label>
-                                <select
-                                    v-model="selectedReplacements[assignment.assignment_id]"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                                >
-                                    <option value="">-- Để trống ca trực --</option>
-                                    <option 
-                                        v-for="cand in assignment.suggestions" 
-                                        :key="cand.id" 
-                                        :value="String(cand.id)"
-                                    >
-                                        {{ cand.full_name }} ({{ cand.employee_code }}) {{ cand.registered_available ? '⚡ AI Đề xuất (Rảnh)' : '' }} {{ cand.has_warning ? ' [⚠️ ' + cand.warning_message + ']' : '' }}
-                                    </option>
-                                </select>
-                                
-                                <!-- Warning description alert block -->
-                                <div 
-                                    v-if="getSelectedReplacementWarning(assignment.assignment_id)" 
-                                    class="text-[10px] text-amber-600 dark:text-amber-400 flex items-start gap-1 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-150 rounded-lg animate-in fade-in slide-in-from-top-1 duration-150"
-                                >
-                                    <AlertCircle class="size-3.5 shrink-0 mt-0.5" />
-                                    <span>{{ getSelectedReplacementWarning(assignment.assignment_id) }}</span>
-                                </div>
-                            </div>
-
-                            <div 
-                                v-if="assignment.suggestions.length === 0" 
-                                class="text-[10px] text-rose-500 italic flex items-center gap-1"
+                            <option value="">-- Để trống ca trực --</option>
+                            <option
+                                v-for="cand in assignment.suggestions"
+                                :key="cand.id"
+                                :value="String(cand.id)"
                             >
-                                <AlertCircle class="size-3" /> Không có nhân viên cùng vị trí rảnh ca này.
-                            </div>
+                                {{ cand.full_name }} ({{ cand.employee_code }}) {{ cand.registered_available ? '⚡ AI Đề xuất (Rảnh)' : '' }} {{ cand.has_warning ? ' [⚠️ ' + cand.warning_message + ']' : '' }}
+                            </option>
+                        </select>
+
+                        <!-- Warning description alert block -->
+                        <div
+                            v-if="getSelectedReplacementWarning(assignment.assignment_id)"
+                            class="text-[10px] text-amber-600 dark:text-amber-400 flex items-start gap-1 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-150 rounded-lg animate-in fade-in slide-in-from-top-1 duration-150"
+                        >
+                            <AlertCircle class="size-3.5 shrink-0 mt-0.5" />
+                            <span>{{ getSelectedReplacementWarning(assignment.assignment_id) }}</span>
                         </div>
                     </div>
 
-                    <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
-                        <Button type="button" variant="outline" size="sm" @click="showApproveReplacementModal = false">Hủy</Button>
-                        <Button 
-                            type="button" 
-                            size="sm" 
-                            @click="submitApproveWithReplacements" 
-                            class="bg-indigo-600 text-white font-semibold flex items-center gap-1 hover:bg-indigo-700 shadow"
-                        >
-                            <CheckCircle2 class="size-4" />
-                            Phê duyệt & Thế chỗ (1-Click)
-                        </Button>
+                    <div
+                        v-if="assignment.suggestions.length === 0"
+                        class="text-[10px] text-rose-500 italic flex items-center gap-1"
+                    >
+                        <AlertCircle class="size-3" /> Không có nhân viên cùng vị trí rảnh ca này.
                     </div>
-                </CardContent>
-            </Card>
-        </div>
+                </div>
+            </div>
+        </FormModal>
 
         <!-- Modal: Nhập lý do từ chối (showRejectModal) -->
-        <div v-if="showRejectModal !== null" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <Card class="max-w-sm w-full shadow-2xl">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
-                            <AlertCircle class="size-5" />
-                            Từ chối đơn xin nghỉ
-                        </CardTitle>
-                        <CardDescription>Vui lòng khai báo lý do từ chối đơn xin nghỉ này.</CardDescription>
-                    </div>
-                    <button @click="showRejectModal = null" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="pt-4">
-                    <form @submit.prevent="submitRejectLeave" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="reject-reason">Lý do từ chối <span class="text-rose-500">*</span></Label>
-                            <textarea
-                                id="reject-reason"
-                                v-model="rejectReason"
-                                required
-                                rows="3"
-                                placeholder="Ví dụ: Ca trực hôm nay đang thiếu nhân sự trầm trọng..."
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            ></textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
-                            <Button type="button" variant="outline" size="sm" @click="showRejectModal = null">Hủy</Button>
-                            <Button type="submit" size="sm" class="bg-rose-600 text-white font-semibold">Xác nhận từ chối</Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="showRejectModal !== null"
+            @update:open="(v: boolean) => { if (!v) showRejectModal = null }"
+            title="Từ chối đơn xin nghỉ"
+            description="Vui lòng khai báo lý do từ chối đơn xin nghỉ này."
+            max-width-class="max-w-sm"
+            submit-label="Xác nhận từ chối"
+            @submit="submitRejectLeave"
+        >
+            <div class="grid gap-1.5">
+                <Label for="reject-reason">Lý do từ chối <span class="text-rose-500">*</span></Label>
+                <textarea
+                    id="reject-reason"
+                    v-model="rejectReason"
+                    required
+                    rows="3"
+                    placeholder="Ví dụ: Ca trực hôm nay đang thiếu nhân sự trầm trọng..."
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                ></textarea>
+            </div>
+        </FormModal>
 
         <!-- Modal: Nhập lý do từ chối đổi ca trực (showSwapRejectModal) -->
-        <div v-if="showSwapRejectModal !== null" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <Card class="max-w-sm w-full shadow-2xl">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
-                            <AlertCircle class="size-5" />
-                            Từ chối yêu cầu đổi ca
-                        </CardTitle>
-                        <CardDescription>Vui lòng nhập lý do từ chối yêu cầu đổi ca trực này.</CardDescription>
-                    </div>
-                    <button @click="showSwapRejectModal = null" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="pt-4">
-                    <form @submit.prevent="submitSwapReject" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="swap-reject-reason">Lý do từ chối <span class="text-rose-500">*</span></Label>
-                            <textarea
-                                id="swap-reject-reason"
-                                v-model="swapRejectReason"
-                                required
-                                rows="3"
-                                placeholder="Ví dụ: Ca trực hôm nay không thể thay đổi do yêu cầu đặc biệt..."
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            ></textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t border-border/60">
-                            <Button type="button" variant="outline" size="sm" @click="showSwapRejectModal = null">Hủy</Button>
-                            <Button type="submit" size="sm" class="bg-rose-600 text-white font-semibold">Xác nhận từ chối</Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="showSwapRejectModal !== null"
+            @update:open="(v: boolean) => { if (!v) showSwapRejectModal = null }"
+            title="Từ chối yêu cầu đổi ca"
+            description="Vui lòng nhập lý do từ chối yêu cầu đổi ca trực này."
+            max-width-class="max-w-sm"
+            submit-label="Xác nhận từ chối"
+            @submit="submitSwapReject"
+        >
+            <div class="grid gap-1.5">
+                <Label for="swap-reject-reason">Lý do từ chối <span class="text-rose-500">*</span></Label>
+                <textarea
+                    id="swap-reject-reason"
+                    v-model="swapRejectReason"
+                    required
+                    rows="3"
+                    placeholder="Ví dụ: Ca trực hôm nay không thể thay đổi do yêu cầu đặc biệt..."
+                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                ></textarea>
+            </div>
+        </FormModal>
     </div>
 </template>

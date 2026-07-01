@@ -92,4 +92,18 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHasErrors('email');
     }
+
+    public function test_password_reset_request_is_rate_limited(): void
+    {
+        // Fortify registers this route with no throttle of its own (see
+        // AppServiceProvider::boot(), which attaches throttle:5,1 after the fact) —
+        // without it, anyone could hammer this endpoint to spam reset emails.
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('password.email'), ['email' => 'nobody@example.com']);
+        }
+
+        $response = $this->post(route('password.email'), ['email' => 'nobody@example.com']);
+
+        $response->assertTooManyRequests();
+    }
 }

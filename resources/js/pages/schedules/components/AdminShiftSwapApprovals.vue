@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { RefreshCw, Ban, X, AlertTriangle } from 'lucide-vue-next';
+import { RefreshCw, AlertTriangle } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { Button } from '@/components/ui/button';
+import FormModal from '@/components/shared/FormModal.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,49 +129,25 @@ return;
         </Card>
 
         <!-- Reject Swap Modal -->
-        <div v-if="isRejectingSwap" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
-            <Card class="max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between gap-4">
-                    <div>
-                        <CardTitle class="text-base flex items-center gap-1.5 text-rose-600">
-                            <Ban class="size-5" />
-                            Từ Chối Yêu Cầu Đổi Ca
-                        </CardTitle>
-                        <CardDescription>Vui lòng nhập lý do từ chối yêu cầu đổi ca để thông báo cho nhân viên.</CardDescription>
-                    </div>
-                    <button @click="isRejectingSwap = false" class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer">
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                
-                <CardContent class="pt-4 space-y-4">
-                    <div class="grid gap-1.5">
-                        <Label for="reject-reason" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lý do từ chối</Label>
-                        <Input 
-                            id="reject-reason" 
-                            type="text" 
-                            v-model="rejectNotes" 
-                            placeholder="Ví dụ: Không cân bằng được vai trò nhân sự trong ca..."
-                            required 
-                            class="h-10 text-xs border-rose-200 focus-visible:ring-rose-500" 
-                        />
-                    </div>
-
-                    <!-- Buttons -->
-                    <div class="flex justify-end gap-2 pt-2 border-t">
-                        <Button type="button" variant="outline" size="sm" @click="isRejectingSwap = false">Hủy</Button>
-                        <Button 
-                            type="button" 
-                            size="sm" 
-                            @click="submitRejectSwap" 
-                            class="bg-rose-650 hover:bg-rose-755 text-white font-bold cursor-pointer"
-                            :disabled="!rejectNotes"
-                        >
-                            Xác nhận từ chối
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+        <FormModal
+            :open="isRejectingSwap"
+            @update:open="isRejectingSwap = $event"
+            title="Từ Chối Yêu Cầu Đổi Ca"
+            description="Vui lòng nhập lý do từ chối yêu cầu đổi ca để thông báo cho nhân viên."
+            submit-label="Xác nhận từ chối"
+            @submit="submitRejectSwap"
+        >
+            <div class="grid gap-1.5">
+                <Label for="reject-reason" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lý do từ chối</Label>
+                <Input
+                    id="reject-reason"
+                    type="text"
+                    v-model="rejectNotes"
+                    placeholder="Ví dụ: Không cân bằng được vai trò nhân sự trong ca..."
+                    required
+                    class="h-10 text-xs border-rose-200 focus-visible:ring-rose-500"
+                />
+            </div>
+        </FormModal>
     </div>
 </template>
