@@ -12,9 +12,12 @@ from models import (
     RevenueForecastRequest,
     PriceAnalyticsRequest,
     TransferRecommendationsRequest,
-    WeatherMenuForecastRequest
+    WeatherMenuForecastRequest,
+    AiInsightsRequest
 )
 from security import verify_internal_key
+from services.ai_service import analyze
+
 
 
 app = FastAPI(
@@ -617,6 +620,16 @@ def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
         "success": True,
         "forecast": forecast_results
     }
+
+
+@app.post("/api/analytics/insights")
+def ai_insights(payload: AiInsightsRequest):
+    try:
+        result = analyze(payload.restaurants, payload.tenant_growth)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 

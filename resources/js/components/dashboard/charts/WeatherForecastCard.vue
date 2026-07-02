@@ -10,15 +10,21 @@ import {
     TrendingDown, 
     Sparkles, 
     Calendar,
-    Loader2
+    Loader2,
+    Gauge,
+    Droplets,
+    AlertTriangle,
+    ExternalLink
 } from 'lucide-vue-next';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const isLoading = ref(true);
 const forecastData = ref<any[]>([]);
 const selectedDayIndex = ref(0);
 const apiSource = ref('');
+const weatherDataSource = ref('');
+const isDegraded = ref(false);
 
 const fetchForecast = async () => {
     try {
@@ -27,6 +33,8 @@ const fetchForecast = async () => {
         if (response.data && response.data.forecast) {
             forecastData.value = response.data.forecast;
             apiSource.value = response.data.source || 'AI Analytics';
+            weatherDataSource.value = response.data.weather_data_source || '';
+            isDegraded.value = response.data.is_degraded ?? false;
         }
     } catch (e) {
         console.error('Failed to fetch weather menu forecast:', e);
@@ -53,38 +61,52 @@ const formatTabDate = (dateStr: string) => {
 const getWeatherIcon = (condition: string) => {
     const cond = condition.toLowerCase();
 
-    if (cond.includes('sun') || cond.includes('nắng')) {
-return Sun;
-}
-
-    if (cond.includes('rain') || cond.includes('mưa')) {
-return CloudRain;
-}
-
-    if (cond.includes('wind') || cond.includes('gió')) {
-return Wind;
-}
-
+    if (cond.includes('sun') || cond.includes('nắng')) return Sun;
+    if (cond.includes('rain') || cond.includes('mưa'))  return CloudRain;
+    if (cond.includes('wind') || cond.includes('gió'))  return Wind;
     return Cloud; // default to cloudy
 };
 
 const getWeatherColor = (condition: string) => {
     const cond = condition.toLowerCase();
 
-    if (cond.includes('sun') || cond.includes('nắng')) {
-return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-}
-
-    if (cond.includes('rain') || cond.includes('mưa')) {
-return 'text-sky-500 bg-sky-500/10 border-sky-500/20';
-}
-
-    if (cond.includes('wind') || cond.includes('gió')) {
-return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
-}
-
+    if (cond.includes('sun') || cond.includes('nắng')) return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
+    if (cond.includes('rain') || cond.includes('mưa')) return 'text-sky-500 bg-sky-500/10 border-sky-500/20';
+    if (cond.includes('wind') || cond.includes('gió')) return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
     return 'text-slate-400 bg-slate-500/10 border-slate-500/10';
 };
+
+// --- Data source badge ---
+const sourceBadge = computed(() => {
+    if (weatherDataSource.value === 'openweathermap') {
+        return { label: 'OpenWeather · Dữ liệu thật', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
+    }
+    if (weatherDataSource.value === 'open-meteo') {
+        return { label: 'Open-Meteo · Dữ liệu thật', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
+    }
+    if (weatherDataSource.value === 'no_coordinates') {
+        return { label: 'Chưa cấu hình GPS · Dữ liệu giả lập', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
+    }
+    if (weatherDataSource.value) {
+        return { label: 'Dữ liệu giả lập', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
+    }
+    return null;
+});
+
+const noGpsConfigured = computed(() => weatherDataSource.value === 'no_coordinates');
+
+// Selected day extra metrics
+const selectedDay = computed(() => forecastData.value[selectedDayIndex.value] ?? null);
+
+const uvLevel = computed(() => {
+    const uv = selectedDay.value?.uv_index;
+    if (uv === null || uv === undefined) return null;
+    if (uv >= 11) return { label: 'Cực nguy hiểm', cls: 'text-violet-600' };
+    if (uv >= 8)  return { label: 'Rất cao', cls: 'text-rose-500' };
+    if (uv >= 6)  return { label: 'Cao', cls: 'text-orange-500' };
+    if (uv >= 3)  return { label: 'Trung bình', cls: 'text-amber-500' };
+    return { label: 'Thấp', cls: 'text-emerald-500' };
+});
 </script>
 
 <template>
@@ -97,10 +119,11 @@ return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
                     <Sparkles class="size-4.5 text-amber-500 animate-pulse" />
                     AI Dự báo Món Ăn Theo Thời Tiết
                 </CardTitle>
-                <p class="text-xs text-muted-foreground mt-0.5">Khuyến nghị chuẩn bị nguyên liệu & chiến dịch marketing</p>
+                <p class="text-xs text-muted-foreground mt-0.5">Khuyến nghị chuẩn bị nguyên liệu &amp; chiến dịch marketing</p>
             </div>
-            <span v-if="apiSource" class="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 shrink-0">
-                {{ apiSource }}
+            <!-- Dynamic source badge -->
+            <span v-if="sourceBadge" :class="['text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0', sourceBadge.cls]">
+                {{ sourceBadge.label }}
             </span>
         </CardHeader>
         
@@ -108,10 +131,24 @@ return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
             <!-- Loading state -->
             <div v-if="isLoading" class="flex flex-col items-center py-12 text-muted-foreground text-center">
                 <Loader2 class="size-8 text-amber-500 animate-spin mb-3" />
-                <p class="text-xs">Đang tải phân tích thời tiết & nhu cầu món ăn...</p>
+                <p class="text-xs">Đang tải phân tích thời tiết &amp; nhu cầu món ăn...</p>
             </div>
-            
-            <div v-else-if="forecastData.length > 0" class="space-y-4">
+
+            <template v-else-if="forecastData.length > 0">
+                <!-- ── No-GPS warning banner ── -->
+                <div
+                    v-if="noGpsConfigured"
+                    class="flex items-start gap-2 p-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-300/50 rounded-xl text-[10px] text-amber-700 dark:text-amber-400"
+                >
+                    <AlertTriangle class="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                    <span>
+                        Cửa hàng chưa cấu hình tọa độ GPS — dự báo thời tiết đang dùng dữ liệu giả lập.
+                        <a href="/schedules?tab=settings" class="font-bold underline underline-offset-2 inline-flex items-center gap-0.5 ml-0.5">
+                            Cài đặt ngay <ExternalLink class="size-2.5" />
+                        </a>
+                    </span>
+                </div>
+
                 <!-- Day selector tabs -->
                 <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                     <button
@@ -132,24 +169,39 @@ return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
                 </div>
                 
                 <!-- Selected day detail card -->
-                <div class="bg-muted/30 border border-border/60 rounded-2xl p-4 space-y-3">
+                <div v-if="selectedDay" class="bg-muted/30 border border-border/60 rounded-2xl p-4 space-y-3">
                     <div class="flex items-center justify-between pb-2 border-b border-border/50">
                         <div class="flex items-center gap-2">
-                            <span :class="['p-1.5 rounded-lg border', getWeatherColor(forecastData[selectedDayIndex].condition)]">
-                                <component :is="getWeatherIcon(forecastData[selectedDayIndex].condition)" class="size-4" />
+                            <span :class="['p-1.5 rounded-lg border', getWeatherColor(selectedDay.condition)]">
+                                <component :is="getWeatherIcon(selectedDay.condition)" class="size-4" />
                             </span>
                             <div>
                                 <h4 class="font-bold text-foreground capitalize text-xs">
-                                    {{ forecastData[selectedDayIndex].condition === 'sunny' ? 'Nắng ráo' :
-                                       forecastData[selectedDayIndex].condition === 'rainy' ? 'Trời mưa lạnh' :
-                                       forecastData[selectedDayIndex].condition === 'windy' ? 'Trời lộng gió' : 'Nhiều mây / Mát mẻ' }}
+                                    {{ selectedDay.condition === 'sunny' ? 'Nắng ráo' :
+                                       selectedDay.condition === 'rainy' ? 'Trời mưa lạnh' :
+                                       selectedDay.condition === 'windy' ? 'Trời lộng gió' : 'Nhiều mây / Mát mẻ' }}
                                 </h4>
-                                <p class="text-[10px] text-muted-foreground">Thời tiết dự kiến ngày {{ forecastData[selectedDayIndex].date }}</p>
+                                <p class="text-[10px] text-muted-foreground">Thời tiết dự kiến ngày {{ selectedDay.date }}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-1 text-sm font-black text-foreground">
                             <Thermometer class="size-4 text-rose-500" />
-                            <span>{{ forecastData[selectedDayIndex].temperature }}°C</span>
+                            <span>{{ selectedDay.temperature }}°C</span>
+                        </div>
+                    </div>
+
+                    <!-- Extra metrics row: UV + precipitation -->
+                    <div
+                        v-if="selectedDay.uv_index !== null && selectedDay.uv_index !== undefined || selectedDay.precipitation_probability !== null && selectedDay.precipitation_probability !== undefined"
+                        class="flex items-center gap-3 text-[10px] text-muted-foreground"
+                    >
+                        <div v-if="selectedDay.uv_index !== null && selectedDay.uv_index !== undefined" class="flex items-center gap-1">
+                            <Gauge class="size-3 text-orange-400" />
+                            <span>UV: <strong :class="uvLevel?.cls">{{ selectedDay.uv_index.toFixed(1) }} ({{ uvLevel?.label }})</strong></span>
+                        </div>
+                        <div v-if="selectedDay.precipitation_probability !== null && selectedDay.precipitation_probability !== undefined" class="flex items-center gap-1">
+                            <Droplets class="size-3 text-sky-400" />
+                            <span>XS mưa: <strong :class="selectedDay.precipitation_probability >= 70 ? 'text-sky-600 dark:text-sky-400' : ''">{{ selectedDay.precipitation_probability }}%</strong></span>
                         </div>
                     </div>
                     
@@ -159,9 +211,9 @@ return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
                             <Calendar class="size-3 text-amber-500" /> AI Đề xuất thực đơn ca trực:
                         </h5>
                         
-                        <div v-if="forecastData[selectedDayIndex].recommendations.length > 0" class="space-y-2 max-h-[220px] overflow-y-auto pr-0.5">
+                        <div v-if="selectedDay.recommendations.length > 0" class="space-y-2 max-h-[220px] overflow-y-auto pr-0.5">
                             <div 
-                                v-for="(rec, rIdx) in forecastData[selectedDayIndex].recommendations" 
+                                v-for="(rec, rIdx) in selectedDay.recommendations" 
                                 :key="rIdx"
                                 class="p-3 bg-card border border-border/50 rounded-xl space-y-1.5 hover:border-border transition-all"
                             >
@@ -193,7 +245,7 @@ return 'text-teal-500 bg-teal-500/10 border-teal-500/20';
                         </div>
                     </div>
                 </div>
-            </div>
+            </template>
             
             <div v-else class="flex flex-col items-center py-10 text-muted-foreground text-center">
                 <Sparkles class="size-8 text-muted-foreground/30 mb-2" />

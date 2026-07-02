@@ -5,7 +5,6 @@ from typing import Any
 
 from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, VerificationEmailRequest, EmailResponse, CampaignEmailRequest
 from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email, send_campaign_email
-from services.ai_service import analyze
 from config import BREVO_API_KEY
 from security import verify_internal_key
 
@@ -14,15 +13,10 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Aventura Microservice",
-    description="Email & AI Python microservice cho Aventura SaaS",
+    description="Email Python microservice cho Aventura SaaS",
     version="1.1.0",
     dependencies=[Depends(verify_internal_key)],
 )
-
-
-class AiInsightsRequest(BaseModel):
-    restaurants: list[dict[str, Any]]
-    tenant_growth: list[dict[str, Any]]
 
 
 @app.get("/health")
@@ -30,15 +24,6 @@ def health_check():
     has_key = bool(BREVO_API_KEY)
     return {"status": "ok", "brevo_configured": has_key}
 
-
-@app.post("/ai/insights")
-def ai_insights(payload: AiInsightsRequest):
-    try:
-        result = analyze(payload.restaurants, payload.tenant_growth)
-        return result
-    except Exception as e:
-        logger.error("AI insights error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/send/welcome", response_model=EmailResponse)

@@ -106,16 +106,15 @@ class WeatherForecastService
             'success' => true,
             'source' => 'Laravel Fallback (Rules Engine)',
             'weather_data_source' => $forecast['source'],
-            'is_degraded' => $forecast['source'] !== 'openweathermap',
+            'is_degraded' => !in_array($forecast['source'], ['openweathermap', 'open-meteo']),
             'forecast' => $this->runFallbackForecast($forecast['days'], $productsData)
         ];
     }
 
     /**
-     * Get a real 7-day-ish weather forecast from OpenWeather when the restaurant has GPS
-     * coordinates and an API key is configured; otherwise fall back to the rules-based
-     * heuristic and say so explicitly via the returned 'source' key, rather than
-     * presenting a hash-based fake forecast as if it were real.
+     * Get a real 7-day-ish weather forecast from OpenWeather (if configured)
+     * or Open-Meteo (free fallback) when the restaurant has GPS coordinates.
+     * Otherwise, fall back to mock weather generator.
      *
      * @return array{days: array, source: string}
      */
@@ -124,47 +123,75 @@ class WeatherForecastService
         $restaurant = Restaurant::find($restaurantId);
         $apiKey = (string) config('services.openweather.key');
 
-        if (! $restaurant?->latitude || ! $restaurant?->longitude || empty($apiKey)) {
-            return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'no_coordinates_or_api_key'];
+        if (! $restaurant?->latitude || ! $restaurant?->longitude) {
+            return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'no_coordinates'];
         }
 
         // Round to ~1.1km precision so nearby tenants share the same cached forecast and
-        // we stay well under OpenWeather's free-tier daily call quota.
+        // we stay well under daily API limits.
         $latKey = round((float) $restaurant->latitude, 2);
         $lngKey = round((float) $restaurant->longitude, 2);
         $cacheKey = "weather_forecast:{$latKey}:{$lngKey}";
 
-        $days = Cache::remember($cacheKey, now()->addHours(3), function () use ($restaurant, $apiKey) {
+        $daysData = Cache::remember($cacheKey, now()->addHours(3), function () use ($restaurant, $apiKey) {
+            if (!empty($apiKey)) {
+                try {
+                    $response = Http::timeout(5)->get(config('services.openweather.url'), [
+                        'lat' => $restaurant->latitude,
+                        'lon' => $restaurant->longitude,
+                        'appid' => $apiKey,
+                        'units' => 'metric',
+                        'lang' => 'vi',
+                    ]);
+
+                    if ($response->successful()) {
+                        return [
+                            'days' => $this->parseOpenWeatherResponse($response->json()),
+                            'source' => 'openweathermap'
+                        ];
+                    }
+
+                    Log::warning('OpenWeather API returned an error response', ['status' => $response->status()]);
+                } catch (\Throwable $e) {
+                    Log::warning('OpenWeather API unreachable: ' . $e->getMessage());
+                }
+            }
+
+            // Fallback to Open-Meteo (No API key required)
             try {
-                $response = Http::timeout(5)->get(config('services.openweather.url'), [
-                    'lat' => $restaurant->latitude,
-                    'lon' => $restaurant->longitude,
-                    'appid' => $apiKey,
-                    'units' => 'metric',
-                    'lang' => 'vi',
+                $response = Http::timeout(5)->get('https://api.open-meteo.com/v1/forecast', [
+                    'latitude'  => $restaurant->latitude,
+                    'longitude' => $restaurant->longitude,
+                    'daily'     => 'weather_code,temperature_2m_max,uv_index_max,precipitation_probability_max',
+                    'timezone'  => 'auto',
                 ]);
 
                 if ($response->successful()) {
-                    return $this->parseOpenWeatherResponse($response->json());
+                    return [
+                        'days'   => $this->parseOpenMeteoResponse($response->json()),
+                        'source' => 'open-meteo'
+                    ];
                 }
 
-                Log::warning('OpenWeather API returned an error response', ['status' => $response->status()]);
+                Log::warning('Open-Meteo API returned an error response', ['status' => $response->status()]);
             } catch (\Throwable $e) {
-                Log::warning('OpenWeather API unreachable: ' . $e->getMessage());
+                Log::warning('Open-Meteo API unreachable: ' . $e->getMessage());
             }
 
             return null;
         });
 
-        if ($days !== null && count($days) > 0) {
-            return ['days' => $this->padToSevenDays($days), 'source' => 'openweathermap'];
+        if ($daysData !== null && !empty($daysData['days'])) {
+            return [
+                'days' => $this->padToSevenDays($daysData['days']),
+                'source' => $daysData['source']
+            ];
         }
 
-        // Don't cache the failure itself — a transient OpenWeather outage should be
-        // retried on the next request rather than sticking for the full cache TTL.
+        // Don't cache the failure itself — a transient outage should be retried
         Cache::forget($cacheKey);
 
-        return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'openweather_unavailable'];
+        return ['days' => $this->generateFallbackWeatherDays(), 'source' => 'weather_api_unavailable'];
     }
 
     /**
@@ -222,6 +249,54 @@ class WeatherForecastService
     }
 
     /**
+     * Parse the daily response data from Open-Meteo.
+     */
+    private function parseOpenMeteoResponse(array $response): array
+    {
+        $days = [];
+        $daily = $response['daily'] ?? [];
+        $times  = $daily['time'] ?? [];
+        $codes  = $daily['weather_code'] ?? [];
+        $temps  = $daily['temperature_2m_max'] ?? [];
+        $uvs    = $daily['uv_index_max'] ?? [];
+        $rains  = $daily['precipitation_probability_max'] ?? [];
+
+        foreach ($times as $index => $time) {
+            $code = $codes[$index] ?? 3;  // default overcast/cloudy
+            $temp = $temps[$index] ?? 25.0;
+            $uv   = $uvs[$index]   ?? null;
+            $rain = $rains[$index]  ?? null;
+
+            $days[] = [
+                'date'                   => $time,
+                'condition'              => $this->mapOpenMeteoCode((int) $code),
+                'temperature'            => (float) $temp,
+                'uv_index'               => $uv !== null ? (float) $uv : null,
+                'precipitation_probability' => $rain !== null ? (int) $rain : null,
+            ];
+        }
+
+        return $days;
+    }
+
+    /**
+     * Map Open-Meteo's WMO weather code to internal condition keywords.
+     */
+    private function mapOpenMeteoCode(int $code): string
+    {
+        // 0, 1: Clear sky, mainly clear
+        if (in_array($code, [0, 1])) {
+            return 'sunny';
+        }
+        // 2, 3, 45, 48: Partly cloudy, overcast, fog, depositing rime fog
+        if (in_array($code, [2, 3, 45, 48])) {
+            return 'cloudy';
+        }
+        // 51 to 99: Drizzle, rain, freezing rain, snow, rain showers, thunderstorms
+        return 'rainy';
+    }
+
+    /**
      * The free OpenWeather tier only covers ~5 days; fill any remaining days up to 7
      * using the same rules-based generator as the no-API-key fallback, so callers always
      * get 7 days back, with the tail end simply less precise than the real forecast.
@@ -265,10 +340,14 @@ class WeatherForecastService
                 default => 24.0 + ($hash % 5),
             };
 
+            // uv_index and precipitation_probability are null for fallback/mock data.
+            // Real values are only set when Open-Meteo or OpenWeather data is fetched.
             $days[] = [
-                'date' => $date->format('Y-m-d'),
-                'condition' => $cond,
-                'temperature' => (float) $temp,
+                'date'                      => $date->format('Y-m-d'),
+                'condition'                 => $cond,
+                'temperature'               => (float) $temp,
+                'uv_index'                  => null,
+                'precipitation_probability' => null,
             ];
         }
 
@@ -277,67 +356,105 @@ class WeatherForecastService
 
     /**
      * Fallback rules-engine bằng PHP đề phòng service Python offline.
+     * Uses temperature, condition, UV index, and precipitation probability
+     * (when available from Open-Meteo) to refine demand multipliers.
      */
     private function runFallbackForecast(array $forecastDays, array $products): array
     {
         $results = [];
 
         foreach ($forecastDays as $day) {
-            $cond = strtolower($day['condition']);
+            $cond = mb_strtolower($day['condition'], 'UTF-8');
             $temp = $day['temperature'];
+            $uv   = $day['uv_index'] ?? null;
+            $rain = $day['precipitation_probability'] ?? null; // 0–100 %
+
             $recommendations = [];
 
             foreach ($products as $prod) {
-                $cat = strtolower($prod['category_name']);
-                $name = strtolower($prod['product_name']);
+                $cat  = mb_strtolower($prod['category_name'], 'UTF-8');
+                $name = mb_strtolower($prod['product_name'], 'UTF-8');
+
                 $multiplier = 1.0;
-                $reason = "";
+                $reason     = '';
+                $hints      = []; // collect multiple insight phrases
 
-                $isHot = str_contains($cat, 'lẩu') || str_contains($cat, 'nướng') || str_contains($cat, 'súp') || str_contains($cat, 'soup') || str_contains($name, 'hotpot');
-                $isCold = str_contains($cat, 'uống') || str_contains($cat, 'nước') || str_contains($cat, 'bia') || str_contains($cat, 'drink') || str_contains($cat, 'beer') || str_contains($cat, 'kem') || str_contains($name, 'sinh tố');
+                $isHot  = str_contains($cat, 'lẩu')  || str_contains($cat, 'nướng') ||
+                           str_contains($cat, 'súp')  || str_contains($cat, 'soup')  ||
+                           str_contains($name, 'hotpot');
+                $isCold = str_contains($cat, 'uống') || str_contains($cat, 'nước')  ||
+                           str_contains($cat, 'bia')  || str_contains($cat, 'drink') ||
+                           str_contains($cat, 'beer') || str_contains($cat, 'kem')   ||
+                           str_contains($name, 'sinh tố');
 
+                // ── Temperature / condition signals ───────────────────────────
                 if ($cond === 'rainy' || $temp < 22) {
                     if ($isHot) {
-                        $multiplier = 1.35;
-                        $reason = "Thời tiết mát/mưa ({$temp}°C) làm tăng nhu cầu các món ăn nóng như {$prod['product_name']} (+35%).";
+                        $multiplier += 0.35;
+                        $hints[] = "Trời mát/mưa ({$temp}°C) kéo tăng nhu cầu món nóng (+35%)";
                     } elseif ($isCold) {
-                        $multiplier = 0.8;
-                        $reason = "Thời tiết mưa lạnh làm giảm nhẹ lượng tiêu thụ đồ uống lạnh {$prod['product_name']} (-20%).";
+                        $multiplier -= 0.20;
+                        $hints[] = "Trời lạnh/mưa làm giảm nhu cầu đồ uống lạnh (-20%)";
                     }
                 } elseif ($cond === 'sunny' || $temp > 30) {
                     if ($isCold) {
-                        $multiplier = 1.45;
-                        $reason = "Trời nắng nóng ({$temp}°C) làm tăng đột biến nhu cầu nước giải khát, bia như {$prod['product_name']} (+45%).";
+                        $multiplier += 0.45;
+                        $hints[] = "Trời nắng nóng ({$temp}°C) thúc đẩy nhu cầu nước giải khát (+45%)";
                     } elseif ($isHot) {
-                        $multiplier = 0.7;
-                        $reason = "Nắng nóng làm giảm sức mua các món nóng như {$prod['product_name']} (-30%).";
+                        $multiplier -= 0.30;
+                        $hints[] = "Nắng nóng giảm sức mua các món nóng (-30%)";
                     }
                 } elseif ($cond === 'windy') {
                     if ($isHot) {
-                        $multiplier = 1.15;
-                        $reason = "Trời lộng gió thích hợp dùng món nóng như {$prod['product_name']} (+15%).";
+                        $multiplier += 0.15;
+                        $hints[] = "Trời gió lộng kích thích ăn món ấm nóng (+15%)";
                     }
                 }
 
+                // ── UV index signal (only when data is real from Open-Meteo) ──
+                if ($uv !== null && $uv >= 8 && $isCold) {
+                    $uvBonus = min(0.15, ($uv - 7) * 0.03);
+                    $multiplier += $uvBonus;
+                    $hints[] = sprintf('Chỉ số UV cao (%.0f) thúc đẩy tiêu thụ đồ uống mát (+%d%%)', $uv, round($uvBonus * 100));
+                }
+
+                // ── Precipitation probability signal ─────────────────────────
+                if ($rain !== null) {
+                    if ($rain >= 70 && $isHot) {
+                        $rainBonus = min(0.20, ($rain - 69) / 100);
+                        $multiplier += $rainBonus;
+                        $hints[] = sprintf('Xác suất mưa cao (%d%%) tăng thêm nhu cầu món ấm nóng (+%d%%)', $rain, round($rainBonus * 100));
+                    } elseif ($rain >= 70 && $isCold) {
+                        $multiplier -= 0.10;
+                        $hints[] = sprintf('Xác suất mưa cao (%d%%) giảm nhẹ tiêu thụ đồ uống lạnh (-10%%)', $rain);
+                    }
+                }
+
+                // Clamp to reasonable bounds [0.5 … 2.0]
+                $multiplier = max(0.5, min(2.0, $multiplier));
+
                 if (abs($multiplier - 1.0) > 0.01) {
+                    $reason = implode('. ', $hints) . '.';
                     $recommendations[] = [
-                        'product_id' => $prod['product_id'],
-                        'product_name' => $prod['product_name'],
-                        'category_name' => $prod['category_name'],
-                        'avg_daily_sales' => $prod['avg_daily_sales'],
-                        'predicted_sales' => round($prod['avg_daily_sales'] * $multiplier, 2),
-                        'change_pct' => round(($multiplier - 1.0) * 100.0, 1),
+                        'product_id'           => $prod['product_id'],
+                        'product_name'         => $prod['product_name'],
+                        'category_name'        => $prod['category_name'],
+                        'avg_daily_sales'      => $prod['avg_daily_sales'],
+                        'predicted_sales'      => round($prod['avg_daily_sales'] * $multiplier, 2),
+                        'change_pct'           => round(($multiplier - 1.0) * 100.0, 1),
                         'suggested_multiplier' => round($multiplier, 2),
-                        'reason' => $reason
+                        'reason'               => $reason,
                     ];
                 }
             }
 
             $results[] = [
-                'date' => $day['date'],
-                'condition' => $day['condition'],
-                'temperature' => $day['temperature'],
-                'recommendations' => $recommendations
+                'date'                      => $day['date'],
+                'condition'                 => $day['condition'],
+                'temperature'               => $day['temperature'],
+                'uv_index'                  => $day['uv_index'] ?? null,
+                'precipitation_probability' => $day['precipitation_probability'] ?? null,
+                'recommendations'           => $recommendations,
             ];
         }
 

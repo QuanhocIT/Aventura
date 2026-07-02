@@ -94,8 +94,24 @@ class TableReservationController extends Controller
             'confirmed_at'   => now(),
         ]);
 
-        // TODO: Gửi email xác nhận cho khách
-        // app(EmailMicroserviceClient::class)->sendReservationConfirmation($reservation);
+        // Gửi email xác nhận cho khách
+        try {
+            app(\App\Services\EmailMicroserviceClient::class)->sendReservationConfirmation([
+                'recipient_email'  => $reservation->guest_email,
+                'recipient_name'   => $reservation->guest_name,
+                'restaurant_name'  => $reservation->restaurant->name,
+                'reservation_date' => $reservation->reservation_date->format('d/m/Y'),
+                'reservation_time' => $reservation->reservation_time,
+                'party_size'       => $reservation->party_size,
+                'table_name'       => $reservation->table?->name ?? 'Chưa xếp bàn',
+                'internal_notes'   => $reservation->internal_notes,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('TableReservationController: Lỗi gửi email xác nhận đặt bàn', [
+                'reservation_id' => $reservation->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
 
         \App\Models\AuditLog::create([
             'restaurant_id'  => $reservation->restaurant_id,
@@ -153,6 +169,23 @@ class TableReservationController extends Controller
             'cancellation_reason'  => $data['reason'],
             'cancelled_at'         => now(),
         ]);
+
+        // Gửi email thông báo hủy đặt bàn cho khách
+        try {
+            app(\App\Services\EmailMicroserviceClient::class)->sendReservationCancellation([
+                'recipient_email'  => $reservation->guest_email,
+                'recipient_name'   => $reservation->guest_name,
+                'restaurant_name'  => $reservation->restaurant->name,
+                'reservation_date' => $reservation->reservation_date->format('d/m/Y'),
+                'reservation_time' => $reservation->reservation_time,
+                'reason'           => $reservation->cancellation_reason,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('TableReservationController: Lỗi gửi email hủy đặt bàn', [
+                'reservation_id' => $reservation->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
 
         return back()->with('success', "Đã hủy đặt bàn của khách {$reservation->guest_name}.");
     }

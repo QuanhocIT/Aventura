@@ -95,5 +95,11 @@ class WeatherMenuForecastRequest(BaseModel):
     products: List[ProductSalesData]
 
 
+class AiInsightsRequest(BaseModel):
+    restaurants: List[Dict[str, Any]]
+    tenant_growth: List[Dict[str, Any]]
+
+
+
 
 

@@ -195,6 +195,24 @@ class Restaurant extends Model
         return 'active';
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (Restaurant $restaurant) {
+            // Bypass geocoding during testing to avoid calling external API in test suite unless explicitly enabled
+            if (app()->environment('testing') && !config('app.test_enable_geocoding')) {
+                return;
+            }
+
+            $hasAddress = !empty($restaurant->address);
+            $addressChanged = $restaurant->wasChanged('address');
+            $coordsMissing = is_null($restaurant->latitude) || is_null($restaurant->longitude);
+
+            if ($hasAddress && ($addressChanged || $coordsMissing)) {
+                dispatch(new \App\Jobs\GeocodeRestaurantAddress($restaurant));
+            }
+        });
+    }
+
     protected static function newFactory(): Factory
     {
         return RestaurantFactory::new();

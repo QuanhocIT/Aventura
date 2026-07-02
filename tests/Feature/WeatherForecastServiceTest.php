@@ -58,13 +58,22 @@ class WeatherForecastServiceTest extends TestCase
             'longitude' => 106.7009,
         ]);
 
-        Http::fake(['*/api/analytics/*' => Http::response([], 500)]);
+        Http::fake([
+            'api.open-meteo.com/*' => Http::response([
+                'daily' => [
+                    'time' => [now()->addDay()->format('Y-m-d'), now()->addDays(2)->format('Y-m-d')],
+                    'weather_code' => [0, 61],
+                    'temperature_2m_max' => [32.0, 22.0]
+                ]
+            ], 200),
+            '*/api/analytics/*' => Http::response([], 500)
+        ]);
 
         $service = new WeatherForecastService();
         $result = $service->getForecast($restaurant->id);
 
-        $this->assertEquals('no_coordinates_or_api_key', $result['weather_data_source']);
-        $this->assertTrue($result['is_degraded']);
+        $this->assertEquals('open-meteo', $result['weather_data_source']);
+        $this->assertFalse($result['is_degraded']);
     }
 
     public function test_falls_back_honestly_when_openweather_api_errors(): void
@@ -81,13 +90,40 @@ class WeatherForecastServiceTest extends TestCase
 
         Http::fake([
             'api.openweathermap.org/*' => Http::response(['message' => 'Unauthorized'], 401),
+            'api.open-meteo.com/*' => Http::response([
+                'daily' => [
+                    'time' => [now()->addDay()->format('Y-m-d'), now()->addDays(2)->format('Y-m-d')],
+                    'weather_code' => [0, 61],
+                    'temperature_2m_max' => [32.0, 22.0]
+                ]
+            ], 200),
             '*/api/analytics/*' => Http::response([], 500),
         ]);
 
         $service = new WeatherForecastService();
         $result = $service->getForecast($restaurant->id);
 
-        $this->assertEquals('openweather_unavailable', $result['weather_data_source']);
+        $this->assertEquals('open-meteo', $result['weather_data_source']);
+        $this->assertFalse($result['is_degraded']);
+    }
+
+    public function test_falls_back_to_mock_when_no_coordinates_configured(): void
+    {
+        config(['services.openweather.key' => '']);
+
+        $restaurant = Restaurant::factory()->create([
+            'latitude' => null,
+            'longitude' => null,
+        ]);
+
+        Http::fake([
+            '*/api/analytics/*' => Http::response([], 500),
+        ]);
+
+        $service = new WeatherForecastService();
+        $result = $service->getForecast($restaurant->id);
+
+        $this->assertEquals('no_coordinates', $result['weather_data_source']);
         $this->assertTrue($result['is_degraded']);
     }
 

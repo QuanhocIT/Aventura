@@ -17,18 +17,20 @@ class AiInsightsClient
 
     public function getInsights(array $restaurants, array $tenantGrowth): array
     {
+        $breaker = new \App\Support\CircuitBreaker('ai_insights', 3, 60);
+
         // Fail fast if the Python service is known to be offline
-        if (\Illuminate\Support\Facades\Cache::has('ai_insights_service_offline')) {
+        if (!$breaker->isAvailable()) {
             return $this->generateMockInsights($restaurants, $tenantGrowth);
         }
 
-        return \Illuminate\Support\Facades\Cache::remember('superadmin_ai_insights', 3600, function () use ($restaurants, $tenantGrowth) {
+        return \Illuminate\Support\Facades\Cache::remember('superadmin_ai_insights', 3600, function () use ($restaurants, $tenantGrowth, $breaker) {
             if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('analytics_service')) {
                 return $this->generateMockInsights($restaurants, $tenantGrowth);
             }
 
             try {
-                $response = Http::timeout(3)->post($this->baseUrl . '/ai/insights', [
+                $response = Http::timeout(3)->post($this->baseUrl . '/api/analytics/insights', [
                     'restaurants'   => $restaurants,
                     'tenant_growth' => $tenantGrowth,
                 ]);
@@ -38,24 +40,26 @@ class AiInsightsClient
                     if ($data && isset($data['overall_health'])) {
                         $data['data_source'] = 'live';
                         $data['is_degraded'] = false;
+                        $breaker->recordSuccess();
 
                         return $data;
                     }
                 }
 
+                $breaker->recordFailure();
                 Log::warning('AiInsightsClient: Python service trả lỗi hoặc dữ liệu thiếu, sử dụng fallback', ['status' => $response->status()]);
             } catch (\Throwable $e) {
+                $breaker->recordFailure();
                 Log::critical('Hệ thống cảnh báo: Python Analytics & AI Service (AiInsights) hiện đang ngoại tuyến hoặc không phản hồi. Chuyển sang chế độ dữ liệu ước tính (rule-based fallback).', [
                     'url' => $this->baseUrl,
                     'error' => $e->getMessage()
                 ]);
-                // Cache the offline status for 5 minutes
-                \Illuminate\Support\Facades\Cache::put('ai_insights_service_offline', true, 300);
             }
 
             return $this->generateMockInsights($restaurants, $tenantGrowth);
         });
     }
+
 
     /**
      * Generate rule-based estimated insights from real restaurant stats for use when the

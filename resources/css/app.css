@@ -356,3 +356,25 @@
         line-height: 1.15;
     }
 }
+
+/* Leaflet maps dark mode theme */
+.dark #restaurant-map .leaflet-tile-container {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+.dark #restaurant-map .leaflet-container {
+    background: #1e293b;
+}
+.dark #restaurant-map .leaflet-bar a {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    border-bottom: 1px solid #334155;
+}
+.dark #restaurant-map .leaflet-bar a:hover {
+    background-color: #334155;
+}
+.dark #restaurant-map .leaflet-popup-content-wrapper,
+.dark #restaurant-map .leaflet-popup-tip {
+    background: #1e293b;
+    color: #f1f5f9;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}

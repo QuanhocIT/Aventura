@@ -150,11 +150,19 @@ class EmailMicroserviceClient
 
     private function post(string $endpoint, array $payload): bool
     {
-        // Fail fast if Python service is offline to bypass the 3-second timeout
-        $isOffline = \Illuminate\Support\Facades\Cache::has('email_service_offline');
+        $breaker = new \App\Support\CircuitBreaker('email_service', 3, 60);
+
+        // Check if endpoint is supported by Python service to avoid redundant 404s
+        $supportedByPython = in_array($endpoint, [
+            '/send/welcome',
+            '/send/otp',
+            '/send/verification',
+            '/send/invoice',
+            '/send/campaign',
+        ]);
 
         // Thử Python service trước nếu URL được cấu hình và không ở chế độ bảo trì
-        if (!$isOffline && !empty($this->baseUrl) && !app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
+        if ($supportedByPython && $breaker->isAvailable() && !empty($this->baseUrl) && !app(\App\Services\ServiceMonitorService::class)->isMaintenance('email_service')) {
             try {
                 $response = Http::timeout(3)->post($this->baseUrl.$endpoint, $payload);
 
@@ -162,20 +170,23 @@ class EmailMicroserviceClient
                     Log::info('EmailMicroserviceClient: gửi email thành công qua Python service', [
                         'endpoint' => $endpoint,
                     ]);
+                    $breaker->recordSuccess();
                     return true;
                 }
+
+                $breaker->recordFailure();
             } catch (\Throwable $e) {
                 Log::warning('EmailMicroserviceClient: Python service không khả dụng, chuyển sang Brevo trực tiếp', [
                     'endpoint' => $endpoint,
                 ]);
-                // Cache the offline status for 5 minutes
-                \Illuminate\Support\Facades\Cache::put('email_service_offline', true, 300);
+                $breaker->recordFailure();
             }
         }
 
         // Fallback: gọi Brevo API trực tiếp từ Laravel
         return $this->sendViaBrevoDirectly($endpoint, $payload);
     }
+
 
     private function sendViaBrevoDirectly(string $endpoint, array $payload): bool
     {

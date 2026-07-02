@@ -109,8 +109,8 @@ class FraudDetectionService
         // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
         // We use a lock flag to avoid dispatching multiple duplicate jobs simultaneously
         $lockKey = "fraud_alerts_job_dispatched:{$restaurantId}";
-        $isOffline = \Illuminate\Support\Facades\Cache::has('analytics_service_offline');
-        if (!$isOffline && !\Illuminate\Support\Facades\Cache::has($lockKey)) {
+        $breaker = new \App\Support\CircuitBreaker('analytics_service', 5, 60);
+        if ($breaker->isAvailable() && !\Illuminate\Support\Facades\Cache::has($lockKey)) {
             \Illuminate\Support\Facades\Cache::put($lockKey, true, 60); // 1 minute lock
             dispatch(new \App\Jobs\FetchAiFraudAlertsJob($restaurantId, $periodStart, $periodEnd));
 
@@ -118,6 +118,7 @@ class FraudDetectionService
                 return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, \Illuminate\Support\Facades\Cache::get($cacheKey));
             }
         }
+
 
         // 3. Fallback PHP preparation: Fetch audit logs for fallback data
         $logs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
