@@ -29,8 +29,11 @@ class RestaurantDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        $restaurant = Restaurant::where('code', 'FNBVIET-DEMO')->firstOrFail();
+        // Tìm owner được tạo bởi TenantDemoSeeder (qua pipeline onboarding),
+        // sau đó load restaurant qua quan hệ thay vì hardcode code.
         $owner = User::where('email', 'owner@bepso.test')->firstOrFail();
+        $restaurant = $owner->restaurant()->firstOrFail();
+
 
         $manager = $this->upsertStaffUser('manager@bepso.test', 'Manager Demo', '0900000002', 'manager', $restaurant);
         $cashier = $this->upsertStaffUser('cashier@bepso.test', 'Cashier Demo', '0900000003', 'cashier', $restaurant);

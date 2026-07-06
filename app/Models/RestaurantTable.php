@@ -2,16 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+
 use Database\Factories\Restaurant\RestaurantTableFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RestaurantTable extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
+    use SoftDeletes;
 
     protected $guarded = [];
 
@@ -25,9 +31,27 @@ class RestaurantTable extends Model
         return $this->belongsTo(Area::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class, 'table_id');
+    }
+
+    public function activeOrder(): HasOne
+    {
+        return $this->hasOne(Order::class, 'table_id')
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where('payment_status', 'unpaid');
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
+        static::deleted(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
     }
 
     protected static function newFactory(): Factory
@@ -35,3 +59,4 @@ class RestaurantTable extends Model
         return RestaurantTableFactory::new();
     }
 }
+

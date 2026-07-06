@@ -1,0 +1,22 @@
+{
+    "name": "Aventura Shipper",
+    "short_name": "Shipper",
+    "description": "Ứng dụng giao hàng Aventura",
+    "start_url": "/delivery/shipper",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0a0a0a",
+    "theme_color": "#E97316",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        }
+    ]
+}

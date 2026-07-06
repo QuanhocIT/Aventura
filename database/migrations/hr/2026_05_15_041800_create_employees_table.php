@@ -33,7 +33,7 @@ return new class extends Migration
             $table->unique(['restaurant_id', 'employee_code'], 'employees_restaurant_code_unique');
             $table->index(['restaurant_id', 'status'], 'employees_restaurant_status_index');
             $table->index('branch_id', 'employees_branch_index');
-            $table->foreignId('role_id')->constrained('roles')->cascadeOnDelete();
+            $table->foreignId('role_id')->nullable()->constrained('roles')->cascadeOnDelete();
         });
     }
 

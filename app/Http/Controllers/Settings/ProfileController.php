@@ -12,17 +12,105 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class ProfileController extends Controller
+use App\Models\CommissionLog;
+use App\Models\User;
+use App\Models\WithdrawalRequest;
+use Laravel\Fortify\Features;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class ProfileController extends Controller implements HasMiddleware
 {
+    /**
+     * Get the middleware that should be assigned to the controller.
+     */
+    public static function middleware(): array
+    {
+        if (request()->query('tab') === 'security') {
+            return Features::canManageTwoFactorAuthentication()
+                && Features::optionEnabled(Features::twoFactorAuthentication(), 'confirmPassword')
+                    ? [new Middleware('password.confirm')]
+                    : [];
+        }
+
+        return [];
+    }
+
     /**
      * Show the user's profile settings page.
      */
     public function edit(Request $request): Response
     {
-        return Inertia::render('settings/Profile', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => $request->session()->get('status'),
-        ]);
+        $user = $request->user();
+
+        // 1. Profile data
+        $mustVerifyEmail = $user instanceof MustVerifyEmail;
+        $status = $request->session()->get('status');
+
+        // 2. Security data
+        $canManageTwoFactor = Features::canManageTwoFactorAuthentication();
+        $passwordRules = Password::defaults()->toPasswordRulesString();
+
+        // 3. Referrals data
+        $referrals = User::query()
+            ->where('referred_by_id', $user->id)
+            ->latest('id')
+            ->get(['id', 'name', 'created_at', 'status'])
+            ->map(fn ($u) => [
+                'name' => $u->name,
+                'created_at' => $u->created_at->format('d/m/Y H:i'),
+                'status' => $u->status,
+            ]);
+
+        $commissionLogs = CommissionLog::query()
+            ->where('user_id', $user->id)
+            ->with(['buyer:id,name', 'restaurant:id,name'])
+            ->latest('id')
+            ->get()
+            ->map(fn ($log) => [
+                'id' => $log->id,
+                'buyer_name' => $log->buyer?->name ?? 'Người dùng ẩn',
+                'restaurant_name' => $log->restaurant?->name ?? 'Doanh nghiệp',
+                'amount' => (float) $log->amount,
+                'commission_percentage' => (float) $log->commission_percentage,
+                'commission_amount' => (float) $log->commission_amount,
+                'created_at' => $log->created_at->format('d/m/Y H:i'),
+            ]);
+
+        $withdrawalRequests = WithdrawalRequest::query()
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->get()
+            ->map(fn ($req) => [
+                'id' => $req->id,
+                'amount' => (float) $req->amount,
+                'bank_name' => $req->bank_name,
+                'bank_account_number' => $req->bank_account_number,
+                'bank_account_name' => $req->bank_account_name,
+                'status' => $req->status,
+                'notes' => $req->notes,
+                'created_at' => $req->created_at->format('d/m/Y H:i'),
+            ]);
+
+        $props = [
+            'mustVerifyEmail' => $mustVerifyEmail,
+            'status' => $status,
+            'canManageTwoFactor' => $canManageTwoFactor,
+            'passwordRules' => $passwordRules,
+            'referrals' => $referrals,
+            'commissionLogs' => $commissionLogs,
+            'withdrawalRequests' => $withdrawalRequests,
+            'success' => session('success'),
+            'error' => session('error'),
+        ];
+
+        if ($canManageTwoFactor) {
+            $props['twoFactorEnabled'] = $user->hasEnabledTwoFactorAuthentication();
+            $props['requiresConfirmation'] = Features::optionEnabled(Features::twoFactorAuthentication(), 'confirm');
+        }
+
+        return Inertia::render('settings/Profile', $props);
     }
 
     /**
@@ -58,5 +146,21 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * Update the user's mobile device token.
+     */
+    public function updateDeviceToken(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'device_token' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $request->user()->update([
+            'device_token' => $request->input('device_token'),
+        ]);
+
+        return back()->with('success', 'Đã cập nhật token thiết bị.');
     }
 }

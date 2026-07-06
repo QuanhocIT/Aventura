@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
 import { ref } from 'vue';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -34,9 +34,9 @@ const inputEmail = ref(props.email);
 
     <Form
         v-bind="update.form()"
-        :transform="(data) => ({ ...data, token, email })"
-        :reset-on-success="['password', 'password_confirmation']"
         v-slot="{ errors, processing }"
+        :transform="(formData: Record<string, unknown>) => ({ ...formData, token: props.token, email: inputEmail })"
+        :reset-on-success="['password', 'password_confirmation']"
     >
         <div class="grid gap-6">
             <div class="grid gap-2">
@@ -92,3 +92,4 @@ const inputEmail = ref(props.email);
         </div>
     </Form>
 </template>
+

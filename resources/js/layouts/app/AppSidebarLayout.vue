@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import { Link, usePage, router } from '@inertiajs/vue3';
+import { AlertTriangle } from 'lucide-vue-next';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
+import ChatbotWidget from '@/components/ChatbotWidget.vue';
+import FlashToast from '@/components/FlashToast.vue';
+import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
+import OnboardingTour from '@/components/OnboardingTour.vue';
+import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
+import CommandPalette from '@/components/CommandPalette.vue';
 import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
 
@@ -13,15 +22,197 @@ type Props = {
 withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
+
+const page = usePage();
+const isImpersonating = computed(() => !!page.props.is_impersonating);
+const upcomingMaintenance = computed(() => page.props.upcoming_maintenance as any);
+
+const user = computed(() => (page.props.auth?.user as any) ?? null);
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+const hasRole = (...roleNames: string[]) =>
+    roles.value.some((r: string) => roleNames.includes(r));
+const isSuperAdmin  = computed(() => hasRole('super_admin') || hasRole('admin'));
+const isOwner       = computed(() => hasRole('owner'));
+
+const showChatbot = computed(() => !user.value || isOwner.value || isSuperAdmin.value);
+
+const tenant = computed(() => page.props.tenant as any);
+const quotaSummary = computed(() => tenant.value?.quota_summary ?? null);
+
+const quotaWarnings = computed(() => {
+    if (!quotaSummary.value || !quotaSummary.value.resources) {
+return [];
+}
+
+    return Object.entries(quotaSummary.value.resources)
+        .map(([key, res]: [string, any]) => ({
+            key,
+            label: key === 'branches' ? 'Chi nhánh' : key === 'tables' ? 'Bàn' : key === 'employees' ? 'Nhân viên' : 'Khu vực',
+            ...res
+        }))
+        .filter(res => !res.unlimited && res.percentage >= 85);
+});
+
+function openUpgradeModal() {
+    window.dispatchEvent(new CustomEvent('open-upgrade-modal'));
+}
+
+const shiftAllowedUntil = computed(() => page.props.auth?.shift_allowed_until as number | null);
+const currentTimeSec = ref(Math.floor(Date.now() / 1000));
+const showShiftExpiredModal = ref(false);
+
+const shiftWarningMinutes = computed(() => {
+    if (!shiftAllowedUntil.value) return null;
+    const diff = shiftAllowedUntil.value - currentTimeSec.value;
+    if (diff > 0 && diff <= 600) { // 10 minutes or less
+        return Math.max(1, Math.ceil(diff / 60));
+    }
+    return null;
+});
+
+let checkShiftTimer: any = null;
+let autoLogoutTimer: any = null;
+
+const confirmLogout = () => {
+    router.flushAll();
+    router.post('/logout', {}, {
+        onSuccess: () => { window.location.href = '/login'; },
+        onError: () => { window.location.href = '/login'; }
+    });
+};
+
+const triggerShiftExpired = () => {
+    if (showShiftExpiredModal.value) return;
+    showShiftExpiredModal.value = true;
+    
+    // Dispatch save event to active pages (like cashier dashboard)
+    window.dispatchEvent(new CustomEvent('shift-expired-save'));
+    
+    // Auto logout after 8 seconds
+    autoLogoutTimer = setTimeout(() => {
+        confirmLogout();
+    }, 8000);
+};
+
+onMounted(() => {
+    window.addEventListener('shift-expired', triggerShiftExpired);
+    
+    checkShiftTimer = setInterval(() => {
+        currentTimeSec.value = Math.floor(Date.now() / 1000);
+        
+        if (shiftAllowedUntil.value && currentTimeSec.value > shiftAllowedUntil.value) {
+            triggerShiftExpired();
+        }
+    }, 10000); // Check every 10s
+    
+    // Initial check
+    if (shiftAllowedUntil.value && currentTimeSec.value > shiftAllowedUntil.value) {
+        triggerShiftExpired();
+    }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('shift-expired', triggerShiftExpired);
+    if (checkShiftTimer) clearInterval(checkShiftTimer);
+    if (autoLogoutTimer) clearTimeout(autoLogoutTimer);
+});
 </script>
 
 <template>
     <AppShell variant="sidebar">
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
+            <!-- Upcoming Maintenance Banner -->
+            <div v-if="upcomingMaintenance" class="bg-gradient-to-r from-rose-600 to-red-700 text-white px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm font-medium border-b border-rose-800/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-bounce text-white" />
+                    <span>
+                        <strong>Hệ thống chuẩn bị bảo trì định kỳ:</strong> {{ upcomingMaintenance.title }}.
+                        Thời gian: <strong>{{ new Date(upcomingMaintenance.downtime_start).toLocaleString('vi-VN') }}</strong> đến <strong>{{ new Date(upcomingMaintenance.downtime_end).toLocaleString('vi-VN') }}</strong>.
+                        Ảnh hưởng: <span v-for="serv in upcomingMaintenance.services" :key="serv" class="bg-red-900/60 px-1.5 py-0.5 rounded font-mono text-[10px] mr-1 uppercase">{{ serv }}</span>.
+                        {{ upcomingMaintenance.banner_message }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Impersonation Warning Banner -->
+            <div v-if="isImpersonating" class="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-xs sm:text-sm font-medium border-b border-amber-600/30 w-full shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-600 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-700"></span>
+                    </span>
+                    <span>Bạn đang sắm vai thành viên: <strong class="underline">{{ page.props.auth?.user?.name }}</strong> ({{ page.props.auth?.user?.email }})</span>
+                </div>
+                <Link href="/impersonate/stop" method="post" as="button" class="bg-amber-950 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-amber-900 transition-colors">
+                    Thoát sắm vai
+                </Link>
+            </div>
+
+            <!-- Quota Alerting Banner -->
+            <div v-if="isOwner && quotaWarnings.length > 0" class="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm font-medium border-b border-orange-600/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-pulse text-white" />
+                    <span>
+                        Bạn đã sử dụng gần hết hạn mức: 
+                        <span v-for="(warn, idx) in quotaWarnings" :key="warn.key">
+                            <strong class="underline font-bold">{{ warn.used }}/{{ warn.limit }} {{ warn.label }}</strong> ({{ warn.percentage }}%){{ idx < quotaWarnings.length - 1 ? ', ' : '' }}
+                        </span>. 
+                        Nâng cấp gói dịch vụ để không làm gián đoạn trải nghiệm của nhà hàng.
+                    </span>
+                </div>
+                <button @click="openUpgradeModal" class="bg-white text-orange-700 hover:bg-orange-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap">
+                    Nâng cấp gói ngay
+                </button>
+            </div>
+
+            <!-- Shift Ending Warning Banner -->
+            <div v-if="shiftWarningMinutes !== null" class="bg-gradient-to-r from-amber-500 to-yellow-600 text-white px-4 py-2.5 flex items-center justify-between text-xs sm:text-sm font-medium border-b border-amber-600/30 w-full shrink-0 gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <AlertTriangle class="size-4 shrink-0 animate-bounce text-white" />
+                    <span>
+                        <strong>Ca làm việc sắp kết thúc:</strong> Ca làm việc của bạn sẽ kết thúc sau {{ shiftWarningMinutes }} phút. Vui lòng hoàn thành các hóa đơn dở dang.
+                    </span>
+                </div>
+            </div>
+            
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
             <slot />
         </AppContent>
         <Toaster />
+        <FlashToast />
+        <QROrderAlertCenter />
+        <GlobalCampaignListener />
+        <OnboardingTour />
+        <ChatbotWidget v-if="showChatbot" source="support" />
+        <CommandPalette v-if="isSuperAdmin" />
+
+        <!-- Shift Expired Modal Overlay -->
+        <div v-if="showShiftExpiredModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div class="flex items-center gap-3 text-red-600">
+                    <AlertTriangle class="size-6 shrink-0 animate-pulse" />
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Ca làm việc đã kết thúc</h3>
+                </div>
+                <p class="text-sm text-slate-600 dark:text-slate-400">
+                    Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ tự động đăng xuất để bảo mật thông tin.
+                </p>
+                <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-2.5 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                    <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu form đang thực hiện đã được tự động lưu tạm trên trình duyệt của bạn và sẽ khôi phục khi bạn vào ca trở lại.
+                </p>
+                <div class="flex justify-end pt-2">
+                    <button 
+                        @click="confirmLogout" 
+                        class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors cursor-pointer"
+                    >
+                        Đăng xuất ngay
+                    </button>
+                </div>
+            </div>
+        </div>
     </AppShell>
 </template>

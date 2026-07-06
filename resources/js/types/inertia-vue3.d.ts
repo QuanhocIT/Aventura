@@ -1,4 +1,4 @@
-declare module '@inertiajs/vue3' {
+﻿declare module '@inertiajs/vue3' {
     import type { Component } from 'vue';
 
     export const Form: Component;

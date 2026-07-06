@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
+use Laravel\Scout\Searchable;
+
 use Database\Factories\Restaurant\ProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -13,9 +17,43 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Product extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
+    use SoftDeletes;
+    use Searchable;
 
     protected $guarded = [];
+
+    /**
+     * Get the indexable data array for the model.
+     *
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (int) $this->id,
+            'restaurant_id' => (int) $this->restaurant_id,
+            'category_id' => (int) $this->category_id,
+            'code' => $this->code,
+            'name' => $this->name,
+            'price' => (float) $this->price,
+            'description' => $this->description,
+            'is_active' => (bool) $this->is_active,
+            'is_available' => (bool) $this->is_available,
+            'created_at' => $this->created_at?->timestamp,
+        ];
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'paused_until' => 'datetime',
+            'out_of_stock_until' => 'datetime',
+            'is_active' => 'boolean',
+            'is_available' => 'boolean',
+        ];
+    }
 
     public function category(): BelongsTo
     {
@@ -38,8 +76,59 @@ class Product extends Model
             ->where('collection', 'product_image');
     }
 
+    public function priceTests(): HasMany
+    {
+        return $this->hasMany(MenuPriceTest::class);
+    }
+
+    public function activePriceTest()
+    {
+        return $this->hasOne(MenuPriceTest::class)->where('status', 'running');
+    }
+
+    public function scopeForTimeSlot($query, ?string $slot = null)
+    {
+        if (! $slot) {
+            $hour = (int) now()->format('H');
+            $slot = match (true) {
+                $hour < 11 => 'morning',
+                $hour < 14 => 'lunch',
+                $hour < 17 => 'afternoon',
+                default => 'dinner',
+            };
+        }
+
+        return $query->where(fn ($q) => $q->whereNull('time_slot')->orWhere('time_slot', $slot));
+    }
+
+    public function scopeForSeason($query, ?string $season = null)
+    {
+        $season = $season ?? $this->getCurrentSeason();
+
+        return $query->where(fn ($q) => $q->whereNull('season')->orWhere('season', $season));
+    }
+
+    private function getCurrentSeason(): string
+    {
+        $month = (int) now()->format('m');
+
+        return match (true) {
+            $month <= 3 => 'spring',
+            $month <= 6 => 'summer',
+            $month <= 9 => 'autumn',
+            default => 'winter',
+        };
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
+        static::deleted(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
+    }
+
     protected static function newFactory(): Factory
     {
         return ProductFactory::new();
     }
 }
+

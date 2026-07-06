@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mã xác thực đăng nhập - Aventura</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; }
+  .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); padding: 40px 32px; text-align: center; }
+  .header h1 { margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 15px; }
+  .body { padding: 40px 32px; text-align: center; }
+  .greeting { font-size: 20px; font-weight: 600; color: #1e3a5f; margin: 0 0 16px; }
+  .text { font-size: 15px; line-height: 1.7; color: #555; margin: 0 0 20px; }
+  .otp-box { display: inline-block; background: #f0f7ff; border: 1px dashed #2d6a9f; border-radius: 12px; padding: 20px 36px; margin: 12px 0 24px; }
+  .otp-code { font-size: 36px; font-weight: 700; letter-spacing: 10px; color: #1e3a5f; }
+  .expiry { font-size: 13px; color: #b45309; background: #fff3cd; border: 1px solid #ffc107; border-radius: 20px; display: inline-block; padding: 6px 16px; }
+  .warning { font-size: 13px; color: #777; margin-top: 24px; }
+  .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; }
+  .footer p { margin: 4px 0; font-size: 13px; color: #888; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>🔐 Aventura</h1>
+    <p>Mã xác thực đăng nhập (2FA)</p>
+  </div>
+
+  <div class="body">
+    <p class="greeting">Xin chào{% if recipient_name %} {{ recipient_name }}{% endif %},</p>
+
+    <p class="text">
+      Đây là mã xác thực 2 lớp để hoàn tất đăng nhập vào tài khoản Aventura của bạn.
+      Vui lòng nhập mã dưới đây vào màn hình xác thực:
+    </p>
+
+    <div class="otp-box">
+      <span class="otp-code">{{ code }}</span>
+    </div>
+    <br />
+    <span class="expiry">⏰ Mã có hiệu lực trong {{ expires_in_minutes }} phút</span>
+
+    <p class="warning">
+      Nếu bạn không thực hiện yêu cầu đăng nhập này, vui lòng bỏ qua email và không chia sẻ mã này cho bất kỳ ai
+      — kể cả nhân viên Aventura.
+    </p>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 Aventura — Hệ thống quản lý nhà hàng SaaS</p>
+    <p>Email này được gửi tự động, vui lòng không reply trực tiếp.</p>
+  </div>
+</div>
+</body>
+</html>
