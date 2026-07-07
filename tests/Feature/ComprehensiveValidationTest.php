@@ -315,6 +315,85 @@ class ComprehensiveValidationTest extends TestCase
         $response2->assertSessionHasNoErrors();
     }
 
+    public function test_order_cancellation_manager_pin_bypass(): void
+    {
+        $this->actingAs($this->cashier);
+
+        // Assign a pin code to the manager (who has manager/owner role)
+        $managerUser = \App\Models\User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (!$managerUser) {
+            $managerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+            $managerUser->assignRole($managerRole);
+        }
+        $managerUser->update(['pin_code' => '9999']);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Try with manager PIN code
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => '9999',
+        ]);
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_order_cancellation_manager_email_password_bypass(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $managerUser = \App\Models\User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (!$managerUser) {
+            $managerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active', 'password' => 'secret123']);
+            $managerUser->assignRole($managerRole);
+        } else {
+            $managerUser->update(['password' => 'secret123']);
+        }
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Try with manager email & password bypass_code formatted as email:password
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => $managerUser->email . ':secret123',
+        ]);
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_order_cancellation_lockout_after_3_failed_attempts(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Submit incorrect bypass code 2 times
+        for ($i = 0; $i < 2; $i++) {
+            $response = $this->patch(route('orders.update-status', $order->id), [
+                'status' => 'cancelled',
+                'bypass_code' => 'WRONG_CODE_' . $i,
+            ]);
+            $response->assertSessionHasErrors(['status']);
+        }
+
+        // The 3rd attempt should hit the lockout validation exception and return the lockout message
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => 'WRONG_CODE_3',
+        ]);
+        
+        $response->assertSessionHasErrors(['bypass_code']);
+    }
+
     public function test_schedule_11_hour_rest_rule_validation(): void
     {
         Carbon::setTestNow('2026-06-08 00:00:00');
@@ -676,5 +755,149 @@ class ComprehensiveValidationTest extends TestCase
         ]);
         $responseCheckoutSuccess->assertSessionHasNoErrors();
         $responseCheckoutSuccess->assertSessionHas('success');
+    }
+
+    public function test_duplicate_checkin_is_blocked(): void
+    {
+        // Configure restaurant without GPS/QR so we can test pure check-in logic
+        $this->restaurant->update([
+            'latitude'        => null,
+            'longitude'       => null,
+            'qr_checkin_code' => null,
+        ]);
+
+        $shift = WorkShift::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'start_time'    => now()->subMinutes(10)->format('H:i:s'),
+            'end_time'      => now()->addHours(4)->format('H:i:s'),
+            'status'        => 'active',
+        ]);
+
+        // Link employee1 to cashier via user_id
+        $this->employee1->update(['user_id' => $this->cashier->id]);
+
+        // Create a scheduled assignment for employee1
+        $assignment = ScheduleAssignment::factory()->create([
+            'restaurant_id'  => $this->restaurant->id,
+            'employee_id'    => $this->employee1->id,
+            'shift_id'       => $shift->id,
+            'scheduled_date' => now()->toDateString(),
+            'status'         => 'scheduled',
+        ]);
+
+        $this->actingAs($this->cashier);
+
+        // First check-in should succeed
+        $resp1 = $this->post(route('schedules.check-in'), []);
+        $resp1->assertSessionHasNoErrors();
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+        $this->assertNotNull($assignment->check_in_at);
+        $originalCheckInAt = $assignment->check_in_at->toDateTimeString();
+
+        // Second check-in: no more 'scheduled' slot found. Backend should return
+        // the idempotent-success since employee is already checked-in today.
+        $resp2 = $this->post(route('schedules.check-in'), []);
+        // Either returns early with success (idempotent) OR returns an error about no slot.
+        // The critical assertion is that assignment check_in_at was NOT overwritten.
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+        $this->assertEquals($originalCheckInAt, $assignment->check_in_at->toDateTimeString());
+    }
+
+    public function test_violation_report_created_successfully(): void
+    {
+        // Give owner the needed permissions
+        $permView   = \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'view_violations',   'guard_name' => 'web']);
+        $permReport = \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'report_violations', 'guard_name' => 'web']);
+        $permManage = \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'manage_violations', 'guard_name' => 'web']);
+        $this->ownerRole->givePermissionTo([$permView, $permReport, $permManage]);
+
+        $this->actingAs($this->owner);
+
+        // Enable hr_full feature for testing (bypass quota gate) using actual schema columns
+        $plan = \App\Models\SubscriptionPlan::firstOrCreate(
+            ['code' => 'pro_test'],
+            [
+                'name'           => 'Chuyên Nghiệp',
+                'price'          => 0,
+                'billing_cycle'  => 'monthly',
+                'max_branches'   => 10,
+                'max_tables'     => 100,
+                'max_users'      => 50,
+                'max_dishes'     => 500,
+                'features'       => json_encode(['hr_full' => true]),
+                'status'         => 'active',
+            ]
+        );
+        $this->restaurant->update(['plan_id' => $plan->id]);
+
+        $response = $this->post(route('violations.store'), [
+            'employee_id'    => $this->employee1->id,
+            'violation_type' => 'Đi trễ',
+            'description'    => 'Nhân viên đến trễ hơn 30 phút không có lý do chính đáng.',
+            'is_anonymous'   => false,
+            'occurred_at'    => now()->toDateTimeString(),
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
+
+        // Verify violation was stored in DB
+        $this->assertDatabaseHas('violation_reports', [
+            'restaurant_id'  => $this->restaurant->id,
+            'employee_id'    => $this->employee1->id,
+            'violation_type' => 'Đi trễ',
+            'status'         => 'open',
+        ]);
+    }
+
+    public function test_internal_transfer_duplicate_blocked_by_insufficient_stock(): void
+    {
+        // Test that InternalTransfer correctly blocks when stock is insufficient (prevents over-transfer)
+        $managerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status'        => 'active',
+        ]);
+        $manager->assignRole($managerRole);
+
+        $branch1 = \App\Models\RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $branch2 = \App\Models\RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
+
+        $unit       = \App\Models\Unit::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $ingredient = Ingredient::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'unit_id'       => $unit->id,
+            'status'        => 'active',
+        ]);
+
+        // Create inventory with only 5kg on hand
+        Inventory::factory()->create([
+            'restaurant_id'    => $this->restaurant->id,
+            'branch_id'        => $branch1->id,
+            'ingredient_id'    => $ingredient->id,
+            'quantity_on_hand' => 5.0,
+        ]);
+
+        $this->actingAs($manager);
+
+        // Try to transfer 10kg (more than available 5kg)
+        $response = $this->post(route('inventory.internal-transfers'), [
+            'from_branch_id' => $branch1->id,
+            'to_branch_id'   => $branch2->id,
+            'ingredient_id'  => $ingredient->id,
+            'quantity'       => 10.0,
+            'notes'          => 'Test over-transfer',
+        ]);
+
+        $response->assertSessionHas('error');
+
+        // Verify stock was NOT changed
+        $this->assertDatabaseHas('inventories', [
+            'branch_id'        => $branch1->id,
+            'ingredient_id'    => $ingredient->id,
+            'quantity_on_hand'  => 5.0,
+        ]);
     }
 }

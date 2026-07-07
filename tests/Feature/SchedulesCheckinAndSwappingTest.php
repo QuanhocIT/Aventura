@@ -193,6 +193,70 @@ class SchedulesCheckinAndSwappingTest extends TestCase
         $this->assertEquals('scheduled', $assignment->status);
     }
 
+    public function test_dynamic_qr_checkin_success(): void
+    {
+        // Setup a daily QR code so the system expects a QR code verification
+        $this->restaurant->update([
+            'qr_checkin_code' => 'QR_STATIC_TEST',
+            'qr_checkin_expires_at' => now()->addHours(1),
+        ]);
+
+        $assignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        // Calculate a valid dynamic QR code token
+        $nowTs = now()->timestamp;
+        $chunk = floor($nowTs / 20);
+        $validToken = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$this->restaurant->id . '_checkin_secret_key_123'), 0, 8);
+
+        $this->actingAs($this->employeeUser1);
+        $response = $this->post(route('schedules.check-in'), [
+            'latitude' => 10.7769,
+            'longitude' => 106.7009,
+            'qr_code' => $validToken,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+    }
+
+    public function test_dynamic_qr_checkin_fails_invalid_token(): void
+    {
+        $this->restaurant->update([
+            'qr_checkin_code' => 'QR_STATIC_TEST',
+            'qr_checkin_expires_at' => now()->addHours(1),
+        ]);
+
+        $assignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        $invalidToken = 'DYN_INVALID';
+
+        $this->actingAs($this->employeeUser1);
+        $response = $this->post(route('schedules.check-in'), [
+            'latitude' => 10.7769,
+            'longitude' => 106.7009,
+            'qr_code' => $invalidToken,
+        ]);
+
+        $response->assertSessionHasErrors(['email']);
+        $assignment->refresh();
+        $this->assertEquals('scheduled', $assignment->status);
+    }
+
     public function test_shift_swapping_complete_flow(): void
     {
         // Create assignments for employee 1 and employee 2

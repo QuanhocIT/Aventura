@@ -19,6 +19,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\Promotion;
 use App\Services\SalaryService;
 use App\Services\OrderService;
 use Carbon\Carbon;
@@ -284,6 +285,84 @@ class FiveProposalsDevelopmentTest extends TestCase
             'order_id' => $order->id,
             'code' => 'TESTVOUCHER',
             'bypass_code' => 'MANAGER123',
+        ]);
+
+        $response->assertStatus(200);
+        $order->refresh();
+        $this->assertEquals(50000, (float) $order->discount_amount);
+    }
+
+    public function test_voucher_fraud_prevention_cache_rate_limiter(): void
+    {
+        $cashierUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $cashierUser->assignRole(Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']));
+
+        $product = \App\Models\Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'price' => 500000,
+        ]);
+
+        $promotion = Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Test Voucher 2',
+            'code' => 'TESTVOUCHER2',
+            'type' => 'fixed_amount',
+            'value' => 50000,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_number' => 'ORD-TEST-FRAUD-2',
+            'subtotal' => 500000,
+            'total_amount' => 500000,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 500000,
+            'line_total' => 500000,
+        ]);
+
+        $this->actingAs($cashierUser);
+
+        // Put 3 hits in the cache to simulate fast successive attempts (race condition)
+        $cashierFastKey = "voucher_applied_fast_check:{$this->restaurant->id}:{$cashierUser->id}";
+        \Illuminate\Support\Facades\Cache::put($cashierFastKey, 3, now()->addMinutes(5));
+
+        // Attempting to apply without bypass code should fail because cache count is 3 (rate limit hit)
+        $response = $this->postJson(route('promotions.apply'), [
+            'order_id' => $order->id,
+            'code' => 'TESTVOUCHER2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'status' => 'requires_bypass'
+        ]);
+
+        // Attempting with PIN code bypass should succeed
+        $managerUser = \App\Models\User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (!$managerUser) {
+            $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+            $managerUser->assignRole($managerRole);
+        }
+        $managerUser->update(['pin_code' => '8888']);
+
+        $response = $this->postJson(route('promotions.apply'), [
+            'order_id' => $order->id,
+            'code' => 'TESTVOUCHER2',
+            'bypass_code' => '8888',
         ]);
 
         $response->assertStatus(200);
