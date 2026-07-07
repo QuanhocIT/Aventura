@@ -71,6 +71,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('schedules/toggle-leader', [ScheduleController::class, 'toggleShiftLeader'])->name('schedules.toggle-leader');
     Route::post('schedules/settings', [ScheduleController::class, 'updateSettings'])->name('schedules.update-settings');
     Route::post('schedules/settings/generate-qr', [ScheduleController::class, 'generateDailyQR'])->name('schedules.settings.generate-qr');
+    Route::get('schedules/dynamic-qr', [ScheduleController::class, 'getDynamicQR'])->name('schedules.dynamic-qr');
     Route::post('schedules/approve-registration', [ScheduleController::class, 'approveRegistration'])->name('schedules.approve-registration');
     Route::get('schedules/export', [ScheduleController::class, 'export'])->name('schedules.export');
 
@@ -235,7 +236,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('promotions/{promotion}/toggle', [PromotionController::class, 'toggleActive'])->name('promotions.toggle');
     Route::post('promotions/{promotion}/approve', [PromotionController::class, 'approve'])->name('promotions.approve');
     Route::post('promotions/combos', [PromotionController::class, 'storeCombo'])->name('promotions.combos.store');
-    Route::post('api/promotions/apply', [PromotionController::class, 'apply'])->name('promotions.apply');
+    Route::post('api/promotions/apply', [PromotionController::class, 'apply'])->middleware('throttle:voucher_apply')->name('promotions.apply');
     Route::post('api/promotions/validate', [PromotionController::class, 'validatePromotion'])->name('promotions.validate');
     Route::get('api/promotions/basket-analysis', [PromotionController::class, 'getBasketAnalysis'])->name('promotions.basket-analysis');
     Route::post('api/promotions/upsell-suggestion', [PromotionController::class, 'getUpsellSuggestion'])->name('promotions.upsell-suggestion');

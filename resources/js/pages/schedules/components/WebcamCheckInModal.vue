@@ -91,6 +91,9 @@ const closeCheckInFlow = () => {
 };
 
 const submitCheckIn = () => {
+    if (isCheckingIn.value) {
+        return;
+    }
     if (!checkInPhoto.value) {
         import('vue-sonner').then(m => m.toast.error('Vui lòng chụp ảnh selfie để xác minh danh tính.'));
 

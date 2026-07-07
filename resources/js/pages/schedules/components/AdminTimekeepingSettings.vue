@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
 import { Settings, AlertCircle } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -57,6 +57,43 @@ const generateDailyQR = () => {
         }
     });
 };
+
+// Dynamic QR State
+const dynamicQrCode = ref('');
+const dynamicQrSvg = ref('');
+const dynamicQrExpiresIn = ref(0);
+let dynamicQrInterval: any = null;
+
+const fetchDynamicQr = () => {
+    fetch('/schedules/dynamic-qr')
+        .then(res => res.json())
+        .then(data => {
+            if (data.code && data.svg) {
+                dynamicQrCode.value = data.code;
+                dynamicQrSvg.value = data.svg;
+                dynamicQrExpiresIn.value = data.expires_in;
+            }
+        })
+        .catch(err => console.error('Lỗi lấy QR động:', err));
+};
+
+onMounted(() => {
+    fetchDynamicQr();
+    
+    dynamicQrInterval = setInterval(() => {
+        if (dynamicQrExpiresIn.value > 1) {
+            dynamicQrExpiresIn.value--;
+        } else {
+            fetchDynamicQr();
+        }
+    }, 1000);
+});
+
+onUnmounted(() => {
+    if (dynamicQrInterval) {
+        clearInterval(dynamicQrInterval);
+    }
+});
 </script>
 
 <template>
@@ -187,6 +224,33 @@ const generateDailyQR = () => {
                         >
                             {{ isGeneratingQR ? 'Đang tạo...' : 'Tạo mã QR' }}
                         </Button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Rotating QR Code for POS / Front Desk -->
+                <div class="border-t pt-6 space-y-4">
+                    <h3 class="text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider flex items-center gap-2">
+                        <span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Mã QR xoay vòng thời gian thực (POS / Quầy)
+                    </h3>
+                    <p class="text-[11px] text-muted-foreground">
+                        Mã QR này tự động thay đổi sau mỗi 20 giây để nhân viên quét trực tiếp tại cửa hàng, chống GPS giả lập và chấm công hộ từ xa.
+                    </p>
+
+                    <div class="p-4 bg-slate-50 dark:bg-slate-900 border rounded-xl flex flex-col items-center justify-center gap-4">
+                        <div v-if="dynamicQrSvg" v-html="dynamicQrSvg" class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800" />
+                        <div v-else class="h-[155px] w-[155px] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs text-slate-400">
+                            Đang tải mã QR...
+                        </div>
+                        
+                        <div class="text-center">
+                            <span class="text-xs font-bold font-mono tracking-widest bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-150">
+                                {{ dynamicQrCode || '------' }}
+                            </span>
+                            <p class="text-[10px] text-slate-400 mt-2">
+                                Tự động đổi mới trong <strong class="text-indigo-600 dark:text-indigo-400">{{ dynamicQrExpiresIn }}</strong> giây
+                            </p>
+                        </div>
                     </div>
                 </div>
 

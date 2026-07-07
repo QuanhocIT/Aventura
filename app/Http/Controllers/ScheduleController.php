@@ -501,13 +501,32 @@ class ScheduleController extends Controller
 
         // 2. QR Code Validation
         if ($restaurant && $restaurant->qr_checkin_code) {
-            if ($restaurant->qr_checkin_expires_at && now()->greaterThan($restaurant->qr_checkin_expires_at)) {
-                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công trong ngày đã hết hạn. Hãy yêu cầu quản lý tạo mã QR mới.']);
+            $clientQR = $request->input('qr_code');
+
+            // Hỗ trợ mã QR động bên cạnh mã QR tĩnh truyền thống
+            $isDynamicValid = false;
+            if ($clientQR && str_starts_with($clientQR, 'DYN_')) {
+                $nowTs = now()->timestamp;
+                for ($i = 0; $i <= 1; $i++) {
+                    $ts = $nowTs - ($i * 20);
+                    $chunk = floor($ts / 20);
+                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . '_checkin_secret_key_123'), 0, 8);
+                    if (hash_equals(strtoupper($expectedDyn), strtoupper($clientQR))) {
+                        $isDynamicValid = true;
+                        break;
+                    }
+                }
             }
 
-            $clientQR = $request->input('qr_code');
-            if (empty($clientQR) || $clientQR !== $restaurant->qr_checkin_code) {
-                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công không hợp lệ hoặc không khớp.']);
+            if (!$isDynamicValid) {
+                // Nếu không khớp mã động, kiểm tra mã tĩnh
+                if ($restaurant->qr_checkin_expires_at && now()->greaterThan($restaurant->qr_checkin_expires_at)) {
+                    return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công trong ngày đã hết hạn. Hãy yêu cầu quản lý tạo mã QR mới.']);
+                }
+
+                if (empty($clientQR) || $clientQR !== $restaurant->qr_checkin_code) {
+                    return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công không hợp lệ hoặc không khớp.']);
+                }
             }
         }
 
@@ -973,6 +992,39 @@ class ScheduleController extends Controller
         }
 
         return back()->with('success', 'Đã tạo mã QR chấm công mới trong ngày thành công (hiệu lực 16 giờ).');
+    }
+
+    /**
+     * Lấy mã QR chấm công động thời gian thực (xoay vòng mỗi 20 giây).
+     */
+    public function getDynamicQR(Request $request): \Illuminate\Http\JsonResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $restaurantId = $request->user()->restaurant_id;
+
+        $now = now()->timestamp;
+        $chunk = floor($now / 20);
+        $expiresIn = 20 - ($now % 20);
+
+        $cacheKey = "dynamic_qr_svg:{$restaurantId}:{$chunk}";
+
+        // Tối ưu hóa: Dùng cache trong chu kỳ 20s để giảm tải tính toán dựng QR SVG trên CPU khi có nhiều thiết bị poll đồng thời
+        $qrData = \Illuminate\Support\Facades\Cache::remember($cacheKey, $expiresIn, function () use ($chunk, $restaurantId) {
+            $token = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurantId . '_checkin_secret_key_123'), 0, 8);
+            $qrService = app(\App\Services\QrCodeService::class);
+            $svg = $qrService->renderSvg($token, 155);
+
+            return [
+                'code' => $token,
+                'svg'  => $svg,
+            ];
+        });
+
+        return response()->json([
+            'code'       => $qrData['code'],
+            'svg'        => $qrData['svg'],
+            'expires_in' => $expiresIn,
+        ]);
     }
 
     /**

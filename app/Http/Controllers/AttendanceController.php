@@ -73,13 +73,32 @@ class AttendanceController extends Controller
 
         // 2. QR Code Validation
         if ($restaurant && $restaurant->qr_checkin_code) {
-            if ($restaurant->qr_checkin_expires_at && now()->greaterThan($restaurant->qr_checkin_expires_at)) {
-                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công trong ngày đã hết hạn. Hãy yêu cầu quản lý tạo mã QR mới.']);
+            $clientQR = $request->input('qr_code');
+
+            // Hỗ trợ mã QR động bên cạnh mã QR tĩnh truyền thống
+            $isDynamicValid = false;
+            if ($clientQR && str_starts_with($clientQR, 'DYN_')) {
+                $nowTs = now()->timestamp;
+                for ($i = 0; $i <= 1; $i++) {
+                    $ts = $nowTs - ($i * 20);
+                    $chunk = floor($ts / 20);
+                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . '_checkin_secret_key_123'), 0, 8);
+                    if (hash_equals(strtoupper($expectedDyn), strtoupper($clientQR))) {
+                        $isDynamicValid = true;
+                        break;
+                    }
+                }
             }
 
-            $clientQR = $request->input('qr_code');
-            if (empty($clientQR) || $clientQR !== $restaurant->qr_checkin_code) {
-                return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công không hợp lệ hoặc không khớp.']);
+            if (!$isDynamicValid) {
+                // Nếu không khớp mã động, kiểm tra mã tĩnh
+                if ($restaurant->qr_checkin_expires_at && now()->greaterThan($restaurant->qr_checkin_expires_at)) {
+                    return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công trong ngày đã hết hạn. Hãy yêu cầu quản lý tạo mã QR mới.']);
+                }
+
+                if (empty($clientQR) || $clientQR !== $restaurant->qr_checkin_code) {
+                    return back()->withErrors(['email' => 'Check-in thất bại: Mã QR chấm công không hợp lệ hoặc không khớp.']);
+                }
             }
         }
 
@@ -87,36 +106,49 @@ class AttendanceController extends Controller
         $sa = null;
         $now = now();
 
-        $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
-            ->where('status', 'scheduled')
-            ->with('shift')
-            ->get();
+        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, $employee, $now) {
+            $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('status', 'scheduled')
+                ->lockForUpdate()
+                ->with('shift')
+                ->get();
 
-        foreach ($scheduledAssignments as $saCandidate) {
-            $shift = $saCandidate->shift;
-            if (!$shift || $shift->status !== 'active') {
-                continue;
+            foreach ($scheduledAssignments as $saCandidate) {
+                $shift = $saCandidate->shift;
+                if (!$shift || $shift->status !== 'active') {
+                    continue;
+                }
+
+                $dateStr = $saCandidate->scheduled_date instanceof Carbon ? $saCandidate->scheduled_date->toDateString() : Carbon::parse($saCandidate->scheduled_date)->toDateString();
+                $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
+                
+                if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                } else {
+                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
+                }
+
+                $allowedStart = $start->copy()->subMinutes(30);
+                $allowedEnd = $end;
+
+                if ($now->between($allowedStart, $allowedEnd)) {
+                    $sa = $saCandidate;
+                    break;
+                }
             }
-
-            $dateStr = $saCandidate->scheduled_date instanceof Carbon ? $saCandidate->scheduled_date->toDateString() : Carbon::parse($saCandidate->scheduled_date)->toDateString();
-            $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
-            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
-            } else {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
-            }
-
-            $allowedStart = $start->copy()->subMinutes(30);
-            $allowedEnd = $end;
-
-            if ($now->between($allowedStart, $allowedEnd)) {
-                $sa = $saCandidate;
-                break;
-            }
-        }
+        });
 
         if (!$sa) {
+            // Idempotent guard: nếu nhân viên đã check-in ca đang active trong cùng thời điểm
+            $alreadyCheckedIn = ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('status', 'checked_in')
+                ->where('scheduled_date', now()->toDateString())
+                ->exists();
+
+            if ($alreadyCheckedIn) {
+                return back()->with('success', 'Bạn đã CHECK-IN thành công trước đó.');
+            }
+
             return back()->withErrors(['email' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.']);
         }
 
@@ -157,6 +189,10 @@ class AttendanceController extends Controller
                 'status'         => 'open',
                 'is_anonymous'   => false,
             ]);
+        }
+
+        if ($sa->check_in_at !== null || $sa->status === 'checked_in') {
+            return back()->with('success', 'Bạn đã CHECK-IN thành công trước đó.');
         }
 
         $sa->update([
@@ -228,10 +264,14 @@ class AttendanceController extends Controller
             }
         }
 
-        $sa = ScheduleAssignment::where('employee_id', $employee->id)
-            ->where('status', 'checked_in')
-            ->with('shift')
-            ->first();
+        $sa = null;
+        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, $employee) {
+            $sa = ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('status', 'checked_in')
+                ->lockForUpdate()
+                ->with('shift')
+                ->first();
+        });
 
         if (!$sa) {
             return back()->withErrors(['email' => 'Không tìm thấy ca trực nào đang hoạt động để check-out.']);
@@ -271,6 +311,10 @@ class AttendanceController extends Controller
                     'is_anonymous'   => false,
                 ]);
             }
+        }
+
+        if ($sa->check_out_at !== null || $sa->status === 'completed') {
+            return back()->with('success', 'Bạn đã CHECK-OUT thành công trước đó.');
         }
 
         $sa->update([
