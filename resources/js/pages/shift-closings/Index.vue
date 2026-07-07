@@ -150,6 +150,7 @@ const form = useForm({
 });
 
 const isSubmitting = ref(false);
+const isProcessing = ref(false);
 
 const cashDifference = computed(() => {
     if (!previewData.value) {
@@ -208,6 +209,10 @@ async function loadPreview() {
 }
 
 function submitForm(isSubmit: boolean) {
+    if (isProcessing.value) {
+        return;
+    }
+    isProcessing.value = true;
     isSubmitting.value = isSubmit;
     form.transform((data: any) => ({ ...data, submit: isSubmit ? 1 : 0 }))
         .post('/shift-closings', {
@@ -216,17 +221,19 @@ function submitForm(isSubmit: boolean) {
             form.reset();
             previewData.value = null;
             dialogStep.value = 1;
-            isSubmitting.value = false;
             toast.success(isSubmit ? 'Đã nộp phiếu chốt ca thành công!' : 'Đã lưu bản nháp.');
         },
         onError: (errors: any) => {
-            isSubmitting.value = false;
             const msg = Object.values(errors)[0];
 
             if (msg) {
-toast.error(String(msg));
-}
+                toast.error(String(msg));
+            }
         },
+        onFinish: () => {
+            isSubmitting.value = false;
+            isProcessing.value = false;
+        }
     });
 }
 

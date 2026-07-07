@@ -113,15 +113,22 @@ const removeFromCart = (productId: number) => {
     }
 };
 
+const isSubmitting = ref(false);
+
 // Form submit helper
 const submitOrder = () => {
+    if (isSubmitting.value) {
+        return;
+    }
     if (cartItems.value.length === 0) {
         toast.error('Giỏ hàng trống! Hãy chọn ít nhất một món ăn trước khi chuyển bếp.');
 
         return;
     }
 
-    const form = useForm({
+    isSubmitting.value = true;
+
+    router.post('/orders', {
         table_id: selectedTableId.value,
         note: '',
         items: cartItems.value.map(item => ({
@@ -129,12 +136,13 @@ const submitOrder = () => {
             quantity: item.quantity,
             notes: item.notes
         }))
-    });
-
-    form.post('/orders', {
+    }, {
         onSuccess: () => {
             cartItems.value = [];
             selectedTableId.value = null;
+        },
+        onFinish: () => {
+            isSubmitting.value = false;
         }
     });
 };
@@ -488,11 +496,12 @@ onMounted(() => {
 
                     <Button 
                         @click="submitOrder"
-                        :disabled="cartItems.length === 0"
+                        :disabled="cartItems.length === 0 || isSubmitting"
                         class="w-full h-10 font-bold text-sm bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 dark:from-violet-500 dark:to-indigo-500 text-white rounded-xl shadow-lg border-0 shadow-violet-200 dark:shadow-none hover:shadow-xl transition-all duration-300 select-none flex items-center justify-center gap-2"
                     >
-                        <ChefHat class="size-4" />
-                        Xác nhận & Chuyển bếp
+                        <ChefHat v-if="!isSubmitting" class="size-4" />
+                        <RefreshCw v-else class="size-4 animate-spin" />
+                        {{ isSubmitting ? 'Đang chuyển bếp...' : 'Xác nhận & Chuyển bếp' }}
                     </Button>
                 </div>
             </div>

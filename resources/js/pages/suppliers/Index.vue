@@ -570,6 +570,7 @@ const openManualTransferModal = () => {
 };
 
 const submitManualTransfer = () => {
+    if (transferForm.processing) return;
     transferForm.post(route('inventory.internal-transfers'), {
         onSuccess: () => {
             showManualTransferModal.value = false;

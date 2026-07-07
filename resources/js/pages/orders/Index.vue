@@ -73,8 +73,19 @@ const setStatus = (s: string) => {
     router.get('/orders', { status: s, date: dateInput.value }, { preserveScroll: true });
 };
 
+const statusUpdating = ref<Record<number, boolean>>({});
+
 const updateOrderStatus = (order: Order, newStatus: string) => {
-    router.patch(`/orders/${order.id}/status`, { status: newStatus }, { preserveScroll: true });
+    if (statusUpdating.value[order.id]) {
+        return;
+    }
+    statusUpdating.value[order.id] = true;
+    router.patch(`/orders/${order.id}/status`, { status: newStatus }, { 
+        preserveScroll: true,
+        onFinish: () => {
+            statusUpdating.value[order.id] = false;
+        }
+    });
 };
 
 // ─── Tách bill / Chuyển bàn ───
@@ -534,9 +545,11 @@ onMounted(() => {
                                 </span>
                                 <button
                                     v-if="nextStatus[o.status] && canUpdateStatus"
+                                    :disabled="statusUpdating[o.id]"
                                     @click="updateOrderStatus(o, nextStatus[o.status]!)"
-                                    class="h-7 px-2.5 rounded-lg text-[10px] font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors cursor-pointer"
+                                    class="h-7 px-2.5 rounded-lg text-[10px] font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
                                 >
+                                    <RefreshCw v-if="statusUpdating[o.id]" class="size-3 animate-spin" />
                                     {{ nextStatus[o.status] === 'confirmed' ? 'Xác nhận'
                                         : nextStatus[o.status] === 'preparing' ? 'Chuyển bếp'
                                         : nextStatus[o.status] === 'completed' ? 'Hoàn thành'

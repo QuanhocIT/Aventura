@@ -182,17 +182,25 @@ function generateDrafts() {
 
 // ── Approve / Paid ────────────────────────────────────────────────────────────
 
+const actionProcessing = ref(false);
+
 function approveSalary(salary: SalaryRow) {
+    if (actionProcessing.value) return;
+    actionProcessing.value = true;
     router.patch(`/salaries/${salary.id}/approve`, {}, {
         onSuccess: () => toast.success(`Đã duyệt lương cho ${salary.employee_name}.`),
         onError:   () => toast.error('Có lỗi khi duyệt lương.'),
+        onFinish:  () => { actionProcessing.value = false; }
     });
 }
 
 function markPaid(salary: SalaryRow) {
+    if (actionProcessing.value) return;
+    actionProcessing.value = true;
     router.patch(`/salaries/${salary.id}/paid`, {}, {
         onSuccess: () => toast.success(`Đã đánh dấu đã trả lương cho ${salary.employee_name}.`),
         onError:   () => toast.error('Có lỗi khi cập nhật trạng thái.'),
+        onFinish:  () => { actionProcessing.value = false; }
     });
 }
 
@@ -249,6 +257,7 @@ return;
 }
 
 function submitBulkAdj() {
+    if (bulkForm.processing) return;
     bulkForm.salary_ids = selectedIds.value;
     bulkForm.post('/salaries/adjustments/bulk', {
         onSuccess: () => {
@@ -280,6 +289,7 @@ function openAdjDialog(salary: SalaryRow) {
 }
 
 function submitAdj() {
+    if (adjForm.processing) return;
     if (!adjTarget.value) {
 return;
 }

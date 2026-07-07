@@ -156,8 +156,12 @@ const submitLeave = async () => {
     }
 };
 
+const isSendingSwapRequest = ref(false);
+
 // Handle Swap Submit
 const submitSwapRequest = async () => {
+    if (isSendingSwapRequest.value) return;
+    isSendingSwapRequest.value = true;
     swapErrors.value = {};
     swapSuccessMessage.value = '';
 
@@ -175,11 +179,17 @@ const submitSwapRequest = async () => {
         } else {
             swapErrors.value = { general: 'Có lỗi xảy ra khi yêu cầu đổi ca.' };
         }
+    } finally {
+        isSendingSwapRequest.value = false;
     }
 };
 
+const isRespondingSwap = ref<Record<number, boolean>>({});
+
 // Handle Swap Response (Accept/Cancel/Reject)
 const handleSwapResponse = async (swapId: number, action: 'accept' | 'cancel' | 'reject') => {
+    if (isRespondingSwap.value[swapId]) return;
+    isRespondingSwap.value[swapId] = true;
     try {
         const response = await axios.post(`/employee-portal/swaps/${swapId}/respond`, { action });
 
@@ -189,6 +199,8 @@ const handleSwapResponse = async (swapId: number, action: 'accept' | 'cancel' | 
         }
     } catch (error) {
         console.error('Error responding to swap:', error);
+    } finally {
+        isRespondingSwap.value[swapId] = false;
     }
 };
 
