@@ -627,66 +627,84 @@ class LeaveScheduleController extends Controller
             'Bạn không thể tự phê duyệt đơn xin nghỉ của chính mình.'
         );
 
-        $leave->update([
-            'status' => 'approved',
-            'approved_by' => $user->id,
-        ]);
-
-        $employee = $leave->employee;
-        $employeeUser = $employee?->user;
-
-        if ($employee) {
-            if ($leave->leave_type === 'resignation') {
-                // Chuyển trạng thái sang terminated
-                $employee->update(['status' => 'terminated']);
-
-                // Vô hiệu hóa tài khoản
-                $empUser = $employee->user;
-                if ($empUser) {
-                    $empUser->update(['status' => 'inactive']);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($leave, $user, $request) {
+                // Khóa bi quan bản ghi phép nghỉ
+                $lockedLeave = LeaveRequest::where('id', $leave->id)->lockForUpdate()->firstOrFail();
+                if ($lockedLeave->status !== 'pending') {
+                    throw new \Exception('Đơn xin nghỉ này đã được xử lý trước đó.');
                 }
 
-                // Kích hoạt Xóa mềm
-                $employee->delete();
-            } else {
-                $replacements = $request->input('replacements', []);
-                $replacementEmpIds = array_filter(array_values($replacements));
-                $replacementEmployees = Employee::where('restaurant_id', $user->restaurant_id)
-                    ->whereIn('id', $replacementEmpIds)
-                    ->where('status', 'active')
-                    ->get()
-                    ->keyBy('id');
+                $lockedLeave->update([
+                    'status' => 'approved',
+                    'approved_by' => $user->id,
+                ]);
 
-                $assignments = ScheduleAssignment::where('employee_id', $employee->id)->get();
-                foreach ($assignments as $assignment) {
-                    $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
-                        ? $assignment->scheduled_date->toDateString()
-                        : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+                $employee = $lockedLeave->employee;
 
-                    if ($dateStr >= $leave->start_date->toDateString() && $dateStr <= $leave->end_date->toDateString()) {
-                        // Cập nhật trạng thái lịch làm sang leave_approved
-                        $assignment->update(['status' => 'leave_approved']);
+                if ($employee) {
+                    if ($lockedLeave->leave_type === 'resignation') {
+                        // Chuyển trạng thái sang terminated
+                        $employee->update(['status' => 'terminated']);
 
-                        // Tạo lịch trực mới cho nhân viên thay thế (nếu có)
-                        if (!empty($replacements[$assignment->id])) {
-                            $replacementEmpId = $replacements[$assignment->id];
-                            $replacementEmp = $replacementEmployees->get($replacementEmpId);
+                        // Vô hiệu hóa tài khoản
+                        $empUser = $employee->user;
+                        if ($empUser) {
+                            $empUser->update(['status' => 'inactive']);
+                        }
 
-                            if ($replacementEmp) {
-                                ScheduleAssignment::create([
-                                    'restaurant_id' => $user->restaurant_id,
-                                    'branch_id' => $assignment->branch_id,
-                                    'employee_id' => $replacementEmp->id,
-                                    'shift_id' => $assignment->shift_id,
-                                    'scheduled_date' => $assignment->scheduled_date,
-                                    'status' => 'scheduled',
-                                ]);
+                        // Kích hoạt Xóa mềm
+                        $employee->delete();
+                    } else {
+                        $replacements = $request->input('replacements', []);
+                        $replacementEmpIds = array_filter(array_values($replacements));
+                        $replacementEmployees = Employee::where('restaurant_id', $user->restaurant_id)
+                            ->whereIn('id', $replacementEmpIds)
+                            ->where('status', 'active')
+                            ->get()
+                            ->keyBy('id');
+
+                        // Khóa các assignments của nhân viên để tránh trùng lặp ca thay thế
+                        $assignments = ScheduleAssignment::where('employee_id', $employee->id)
+                            ->lockForUpdate()
+                            ->get();
+
+                        foreach ($assignments as $assignment) {
+                            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+                                ? $assignment->scheduled_date->toDateString()
+                                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+
+                            if ($dateStr >= $lockedLeave->start_date->toDateString() && $dateStr <= $lockedLeave->end_date->toDateString()) {
+                                // Cập nhật trạng thái lịch làm sang leave_approved
+                                $assignment->update(['status' => 'leave_approved']);
+
+                                // Tạo lịch trực mới cho nhân viên thay thế (nếu có)
+                                if (!empty($replacements[$assignment->id])) {
+                                    $replacementEmpId = $replacements[$assignment->id];
+                                    $replacementEmp = $replacementEmployees->get($replacementEmpId);
+
+                                    if ($replacementEmp) {
+                                        ScheduleAssignment::create([
+                                            'restaurant_id' => $user->restaurant_id,
+                                            'branch_id' => $assignment->branch_id,
+                                            'employee_id' => $replacementEmp->id,
+                                            'shift_id' => $assignment->shift_id,
+                                            'scheduled_date' => $assignment->scheduled_date,
+                                            'status' => 'scheduled',
+                                        ]);
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
         }
+
+        $employee = $leave->employee;
+        $employeeUser = $employee?->user;
 
         if ($employeeUser) {
             $employeeUser->notify(new \App\Notifications\LeaveRequestNotification(
@@ -827,8 +845,14 @@ class LeaveScheduleController extends Controller
         }
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $user, $request) {
-            $reqAssignment = $swap->requesterAssignment;
-            $recAssignment = $swap->receiverAssignment;
+            // Khóa dòng ShiftSwap để tránh phê duyệt đúp
+            $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+            if ($lockedSwap->status !== 'accepted') {
+                throw new \Exception('Yêu cầu đổi ca này đã được xử lý trước đó.');
+            }
+
+            $reqAssignment = $lockedSwap->requesterAssignment ? ScheduleAssignment::where('id', $lockedSwap->requesterAssignment->id)->lockForUpdate()->first() : null;
+            $recAssignment = $lockedSwap->receiverAssignment ? ScheduleAssignment::where('id', $lockedSwap->receiverAssignment->id)->lockForUpdate()->first() : null;
 
             if ($reqAssignment && $recAssignment) {
                 // Swap employee_ids
@@ -837,7 +861,7 @@ class LeaveScheduleController extends Controller
                 $recAssignment->update(['employee_id' => $tempEmpId]);
             }
 
-            $swap->update([
+            $lockedSwap->update([
                 'status' => 'approved',
                 'approved_by' => $user->id,
                 'notes' => $request->input('notes', 'Phê duyệt bởi Quản lý/Chủ nhà hàng')

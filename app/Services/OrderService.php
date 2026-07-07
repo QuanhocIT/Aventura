@@ -135,7 +135,13 @@ class OrderService
     public function updateOrderStatus(Order $order, string $newStatus, \App\Models\User $user): void
     {
         DB::transaction(function () use ($order, $newStatus, $user) {
+            // Khóa dòng order để tránh race condition khi cập nhật trạng thái từ nhiều luồng/thiết bị
+            $order = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
             $oldStatus = $order->status;
+
+            if ($oldStatus === $newStatus) {
+                return;
+            }
 
             if ($newStatus === 'completed' && $oldStatus !== 'completed') {
                 $this->inventoryService->deductInventoryForOrder($order, $user);
@@ -176,6 +182,8 @@ class OrderService
     public function splitOrder(Order $order, array $data, \App\Models\User $user): Order
     {
         return DB::transaction(function () use ($order, $data, $user) {
+            // Khóa dòng order gốc để tránh thay đổi đồng thời
+            $order = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
             $oldAmount = (float) $order->total_amount;
 
             // 1. Tạo đơn hàng mới ở bàn trống
@@ -197,10 +205,15 @@ class OrderService
             // 2. Chuyển các món ăn chỉ định sang đơn mới
             foreach ($data['items'] as $itemData) {
                 $originalItem = OrderItem::where('order_id', $order->id)
+                    ->lockForUpdate() // Khóa dòng item gốc để tránh ghi đè đồng thời
                     ->findOrFail($itemData['order_item_id']);
 
                 $splitQty = (float) $itemData['quantity'];
                 $origQty = (float) $originalItem->quantity;
+
+                if ($splitQty > $origQty) {
+                    abort(422, 'Số lượng tách không thể lớn hơn số lượng món hiện có.');
+                }
 
                 if ($splitQty >= $origQty) {
                     $originalItem->update(['order_id' => $newOrder->id]);
@@ -412,6 +425,12 @@ class OrderService
 
             if (! $order || $order->payment_status === 'paid') {
                 return false;
+            }
+
+            // Cập nhật customer_id bên trong transaction an toàn
+            if (isset($data['customer_id']) && $data['customer_id']) {
+                $order->update(['customer_id' => $data['customer_id']]);
+                $order->refresh();
             }
 
             $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;

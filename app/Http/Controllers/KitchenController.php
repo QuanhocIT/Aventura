@@ -131,6 +131,10 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
+        if ($item->prepared_at !== null || $item->status === 'preparing' || $item->status === 'served') {
+            return back()->with('success', 'Món ăn đã được chế biến trước đó.');
+        }
+
         $item->update([
             'prepared_at' => now(),
             'status' => 'preparing', // transition status
@@ -146,6 +150,10 @@ class KitchenController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+
+        if ($item->served_at !== null || $item->status === 'served') {
+            return back()->with('success', 'Món ăn đã được phục vụ trước đó.');
+        }
 
         $item->update([
             'served_at' => now(),
