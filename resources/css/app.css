@@ -79,6 +79,15 @@
     }
 }
 
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+    body {
+        overflow-x: clip;
+    }
+}
+
 @layer utilities {
     body,
     html {
@@ -248,7 +257,7 @@
     from { opacity: 0.01; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.animate-enter { animation: enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-enter { animation: enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger-1 { animation-delay: 60ms; }
 .stagger-2 { animation-delay: 120ms; }
 .stagger-3 { animation-delay: 180ms; }
@@ -309,10 +318,24 @@
 
 /* Hiệu ứng chuyển trang khi điều hướng Inertia */
 @keyframes page-enter {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.page-enter { animation: page-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+.page-enter { animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Transition tiện ích cho chuyển đổi Tab / Nội dung động */
+.fade-slide-tab-enter-active,
+.fade-slide-tab-leave-active {
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fade-slide-tab-enter-from {
+    opacity: 0;
+    transform: translateY(4px);
+}
+.fade-slide-tab-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
 
 /* Nảy nhẹ cho badge (số lượng giỏ hàng...) khi giá trị thay đổi */
 @keyframes badge-pop {
@@ -419,3 +442,62 @@ button:not(:disabled):active,
         line-height: 1.15;
     }
 }
+
+/* ── Custom Micro-Animations & Transitions (Option 3) ── */
+@keyframes ai-breathing-glow {
+    0%, 100% {
+        box-shadow: 0 0 12px -3px rgba(99, 102, 241, 0.12), inset 0 0 0 1px rgba(99, 102, 241, 0.1);
+        border-color: rgba(99, 102, 241, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 20px -2px rgba(99, 102, 241, 0.25), inset 0 0 0 1px rgba(99, 102, 241, 0.25);
+        border-color: rgba(99, 102, 241, 0.4);
+    }
+}
+
+.premium-ai-glow {
+    animation: ai-breathing-glow 4s ease-in-out infinite;
+}
+
+@keyframes fade-in-x {
+    0% { opacity: 0; transform: scaleX(0); transform-origin: left; }
+    100% { opacity: 1; transform: scaleX(1); transform-origin: left; }
+}
+
+.animate-fade-in {
+    animation: fade-in-x 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* List Transition (TransitionGroup) */
+.list-enter-active,
+.list-leave-active {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.list-enter-from {
+    opacity: 0;
+    transform: translateX(12px);
+}
+.list-leave-to {
+    opacity: 0;
+    transform: translateX(-12px);
+}
+.list-leave-active {
+    position: absolute;
+    width: 100%;
+}
+.list-move {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .premium-ai-glow,
+    .animate-fade-in {
+        animation: none !important;
+    }
+    .list-enter-active,
+    .list-leave-active,
+    .list-move {
+        transition: none !important;
+    }
+}
+

@@ -103,7 +103,7 @@ function formatMoney(v: number): string {
         </Card>
 
         <!-- AI Insights Card -->
-        <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative">
+        <Card class="bg-card text-card-foreground border border-border shadow-sm overflow-hidden relative premium-ai-glow">
             <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl"></div>
             <CardHeader class="pb-2 border-b border-border/50 bg-muted/20">
                 <CardTitle class="text-base font-bold flex items-center gap-2">
@@ -114,7 +114,7 @@ function formatMoney(v: number): string {
             </CardHeader>
             <CardContent class="pt-4 space-y-3 relative z-10 text-xs">
                 <div v-if="topProductsChartData?.length && channelChartData?.length" class="space-y-3">
-                    <div class="flex items-start gap-2">
+                    <div class="flex items-start gap-2 animate-enter stagger-1">
                         <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-500/10 text-indigo-500 mt-0.5">
                             <Utensils class="size-3" />
                         </div>
@@ -122,7 +122,7 @@ function formatMoney(v: number): string {
                             Kênh <strong class="text-foreground">{{ topChannelLabel }}</strong> chiếm tỉ trọng đơn hàng lớn nhất.
                         </p>
                     </div>
-                    <div class="flex items-start gap-2">
+                    <div class="flex items-start gap-2 animate-enter stagger-2">
                         <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 mt-0.5">
                             <Trophy class="size-3" />
                         </div>
@@ -130,7 +130,7 @@ function formatMoney(v: number): string {
                             Món bán chạy nhất: <strong class="text-foreground">{{ topDishName }}</strong>.
                         </p>
                     </div>
-                    <div class="flex items-start gap-2 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3">
+                    <div class="flex items-start gap-2 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3 animate-enter stagger-3">
                         <span class="text-sm">💡</span>
                         <p class="leading-relaxed text-indigo-700 dark:text-indigo-300 font-medium">
                             Gợi ý: Thiết lập combo kèm <strong>{{ topDishName }}</strong> trên QR Menu để tăng giá trị trung bình đơn hàng.

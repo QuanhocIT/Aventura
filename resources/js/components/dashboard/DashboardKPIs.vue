@@ -59,14 +59,18 @@ const products  = computed(() => Number(props.stats?.products_count ?? 0));
 const employees = computed(() => Number(props.stats?.employees_count ?? 0));
 const health    = computed(() => Number(props.healthScore ?? 0));
 const revenue   = computed(() => Number(props.stats?.revenue_today ?? 0));
+const tables    = computed(() => Number(props.stats?.tables_count ?? 0));
+const branches  = computed(() => Number(props.stats?.branches_count ?? 0));
+const profitMargin = computed(() => Number(props.stats?.profit_margin_today ?? 0));
+const completionRate = computed(() => Number(props.stats?.completion_rate ?? 0));
 
 // Pulse trigger khi health score vừa load
 const healthLoaded = ref(false);
 watch(() => props.healthScore, (v) => {
  if (v != null) {
-setTimeout(() => {
- healthLoaded.value = true; 
-}, 300);
+ setTimeout(() => {
+  healthLoaded.value = true; 
+ }, 300);
 } 
 });
 </script>
@@ -89,7 +93,7 @@ setTimeout(() => {
 
             <!-- Doanh thu + xu hướng -->
             <div class="group relative rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-500/5 dark:bg-emerald-950/10 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/80 hover:translate-y-[-2px]">
-                <div class="p-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 shrink-0 group-hover:scale-105 transition-all">
+                <div class="p-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-455 shrink-0 group-hover:scale-105 transition-all">
                     <Banknote class="size-4.5" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -153,22 +157,20 @@ setTimeout(() => {
             </div>
 
             <!-- Chi nhánh / Bàn -->
-            <div v-if="planCode() === 'free'" class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
+            <div class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
                 <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0 group-hover:scale-105 transition-all">
                     <Building2 class="size-4.5" />
                 </div>
                 <div class="min-w-0">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bàn ăn</p>
-                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100">{{ stats.tables_count }} bàn</p>
-                </div>
-            </div>
-            <div v-else class="group relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 hover:translate-y-[-2px]">
-                <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0 group-hover:scale-105 transition-all">
-                    <Building2 class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">CN / Bàn</p>
-                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100">{{ stats.branches_count }}/{{ stats.tables_count }}</p>
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{{ planCode() === 'free' ? 'Bàn ăn' : 'CN / Bàn' }}</p>
+                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums">
+                        <template v-if="planCode() === 'free'">
+                            <AnimatedNumber :value="tables" /> bàn
+                        </template>
+                        <template v-else>
+                            <AnimatedNumber :value="branches" />/<AnimatedNumber :value="tables" />
+                        </template>
+                    </p>
                 </div>
             </div>
 
@@ -179,7 +181,9 @@ setTimeout(() => {
                 </div>
                 <div class="min-w-0">
                     <p class="text-[10px] font-bold text-violet-600/70 dark:text-violet-500/80 uppercase tracking-wider">Biên LN</p>
-                    <p class="text-xl font-black leading-none mt-1 text-violet-700 dark:text-violet-400">{{ stats.profit_margin_today }}%</p>
+                    <p class="text-xl font-black leading-none mt-1 text-violet-700 dark:text-violet-400">
+                        <AnimatedNumber :value="profitMargin" suffix="%" />
+                    </p>
                 </div>
             </div>
 
@@ -210,7 +214,9 @@ setTimeout(() => {
                     <p :class="[
                         'text-xl font-black leading-none mt-1',
                         stats.completion_rate >= 80 ? 'text-teal-700 dark:text-teal-400' : stats.completion_rate >= 50 ? 'text-amber-700 dark:text-amber-400' : 'text-rose-700 dark:text-rose-400'
-                    ]">{{ stats.completion_rate }}%</p>
+                    ]">
+                        <AnimatedNumber :value="completionRate" suffix="%" />
+                    </p>
                 </div>
             </div>
         </div>

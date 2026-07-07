@@ -247,10 +247,11 @@ function getTableStatusInfo(status: string) {
         <DashboardKPIs
             :stats="props.stats"
             :health-score="props.healthScore"
+            class="animate-enter stagger-1"
         />
 
         <!-- Consolidated Branch Comparisons (only in consolidated view) -->
-        <Card v-if="!branchId && props.branchComparisons && props.branchComparisons.length > 0" class="shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 backdrop-blur-md">
+        <Card v-if="!branchId && props.branchComparisons && props.branchComparisons.length > 0" class="animate-enter stagger-2 shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 backdrop-blur-md">
             <CardHeader class="pb-4 border-b border-slate-100 dark:border-slate-850 bg-slate-50/30 dark:bg-slate-900/10">
                 <div class="flex items-center gap-2.5">
                     <div class="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
@@ -356,14 +357,14 @@ function getTableStatusInfo(status: string) {
         </Card>
 
         <!-- Quick Actions -->
-        <QuickActions />
+        <QuickActions class="animate-enter stagger-3" />
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- FREE PLAN LAYOUT: 2 cột đơn giản, tập trung vào cơ bản       -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <template v-if="activePlanCode === 'free'">
             <!-- Upgrade CTA Banner -->
-            <Card class="shadow-sm border border-primary/20 rounded-2xl overflow-hidden bg-gradient-to-r from-primary/5 via-transparent to-amber-500/5">
+            <Card class="animate-enter stagger-4 shadow-sm border border-primary/20 rounded-2xl overflow-hidden bg-gradient-to-r from-primary/5 via-transparent to-amber-500/5">
                 <CardContent class="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="flex items-center gap-3">
                         <div class="h-10 w-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0">
@@ -380,7 +381,7 @@ function getTableStatusInfo(status: string) {
                 </CardContent>
             </Card>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="animate-enter stagger-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <!-- Hiệu suất Bán hàng Hôm nay -->
                 <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40">
                     <CardHeader class="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
@@ -565,7 +566,7 @@ function getTableStatusInfo(status: string) {
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <template v-else-if="activePlanCode === 'starter'">
             <!-- Thống kê tổng hợp Starter -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="animate-enter stagger-4 grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900/40">
                     <CardContent class="p-4 flex flex-col items-center text-center">
                         <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formatVND(props.stats?.revenue_today ?? 0) }}</p>
@@ -598,7 +599,7 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div class="animate-enter stagger-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="null" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -700,7 +701,7 @@ function getTableStatusInfo(status: string) {
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <template v-else-if="activePlanCode === 'pro'">
             <!-- Thống kê tổng hợp Pro -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="animate-enter stagger-4 grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900/40">
                     <CardContent class="p-4 flex flex-col items-center text-center">
                         <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formatVND(props.stats?.revenue_today ?? 0) }}</p>
@@ -733,7 +734,7 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
+            <div class="animate-enter stagger-5 grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="null" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -806,7 +807,7 @@ function getTableStatusInfo(status: string) {
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <template v-else>
             <!-- Thống kê tổng hợp Enterprise -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="animate-enter stagger-4 grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card class="shadow-sm border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900/40">
                     <CardContent class="p-4 flex flex-col items-center text-center">
                         <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formatVND(props.stats?.revenue_today ?? 0) }}</p>
@@ -839,7 +840,7 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
+            <div class="animate-enter stagger-5 grid grid-cols-1 lg:grid-cols-3 gap-5 pb-14">
                 <div class="lg:col-span-2 space-y-6">
                     <RevenueForecastChart :revenue-chart-data="props.revenueChartData" :forecast-data="props.forecastData" />
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { Moon, Sun, Menu } from 'lucide-vue-next';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import Footer from '@/components/Footer.vue';
@@ -8,6 +8,8 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useAppearance } from '@/composables/useAppearance';
 import { login, register } from '@/routes';
+
+const page = usePage();
 
 const { resolvedAppearance, updateAppearance } = useAppearance();
 
@@ -113,7 +115,9 @@ const navLinks = [
 
         <!-- PAGE CONTENT -->
         <main class="flex-1">
-            <slot />
+            <div :key="String(page.component)" class="page-enter flex flex-1 flex-col">
+                <slot />
+            </div>
         </main>
 
         <!-- FOOTER -->

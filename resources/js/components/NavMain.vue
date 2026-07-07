@@ -124,9 +124,14 @@ const groupedSections = computed(() => {
                         as-child
                         :is-active="isCurrentUrl(item.href)"
                         :tooltip="item.title"
-                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
+                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0 group relative"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch>
+                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch class="relative w-full flex items-center gap-2 pl-3">
+                            <!-- Active left border marker -->
+                            <span 
+                                v-if="isCurrentUrl(item.href)" 
+                                class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary animate-fade-in"
+                            />
                             <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
                             <span class="flex-1 font-medium">{{ item.title }}</span>
                             <span
@@ -152,9 +157,14 @@ const groupedSections = computed(() => {
                         as-child
                         :is-active="isCurrentUrl(item.href)"
                         :tooltip="item.title"
-                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
+                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0 group relative"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch>
+                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch class="relative w-full flex items-center gap-2 pl-3">
+                            <!-- Active left border marker -->
+                            <span 
+                                v-if="isCurrentUrl(item.href)" 
+                                class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary animate-fade-in"
+                            />
                             <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
                             <span class="flex-1 font-medium">{{ item.title }}</span>
                             <span

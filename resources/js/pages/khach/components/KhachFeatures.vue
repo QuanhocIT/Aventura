@@ -440,240 +440,244 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <!-- Selected Feature Overview -->
-                        <div class="mt-4 space-y-3">
-                            <div class="flex items-center gap-3">
+                        <Transition name="fade-slide-tab" mode="out-in">
+                            <div :key="activeFeature.title" class="flex flex-col flex-1 justify-between">
+                                <!-- Selected Feature Overview -->
+                                <div class="mt-4 space-y-3">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="rounded-xl border p-2.5 transition-all duration-300"
+                                            :class="{
+                                                'border-indigo-500/30 bg-indigo-950/50 text-indigo-400':
+                                                    activeFeature.color ===
+                                                    'indigo',
+                                                'border-emerald-500/30 bg-emerald-950/50 text-emerald-400':
+                                                    activeFeature.color ===
+                                                    'emerald',
+                                                'border-amber-500/30 bg-amber-950/50 text-amber-400':
+                                                    activeFeature.color === 'amber',
+                                                'border-sky-500/30 bg-sky-950/50 text-sky-400':
+                                                    activeFeature.color === 'sky',
+                                                'border-rose-500/30 bg-rose-950/50 text-rose-400':
+                                                    activeFeature.color === 'rose',
+                                                'border-blue-500/30 bg-blue-950/50 text-blue-400':
+                                                    activeFeature.color === 'blue',
+                                                'border-teal-500/30 bg-teal-950/50 text-teal-400':
+                                                    activeFeature.color === 'teal',
+                                                'border-violet-500/30 bg-violet-950/50 text-violet-400':
+                                                    activeFeature.color ===
+                                                    'violet',
+                                                'border-cyan-500/30 bg-cyan-950/50 text-cyan-400':
+                                                    activeFeature.color === 'cyan',
+                                            }"
+                                        >
+                                            <component
+                                                :is="activeFeature.icon"
+                                                class="size-6 animate-pulse"
+                                            />
+                                        </div>
+                                        <div>
+                                            <h3
+                                                class="flex items-center gap-2 text-base font-bold tracking-tight text-white"
+                                            >
+                                                Bước {{ activeFeature.step }}:
+                                                {{ activeFeature.title }}
+                                            </h3>
+                                            <p
+                                                class="mt-0.5 text-xs leading-relaxed text-zinc-400"
+                                            >
+                                                {{ activeFeature.description }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Flow Visualization -->
                                 <div
-                                    class="rounded-xl border p-2.5 transition-all duration-300"
-                                    :class="{
-                                        'border-indigo-500/30 bg-indigo-950/50 text-indigo-400':
-                                            activeFeature.color ===
-                                            'indigo',
-                                        'border-emerald-500/30 bg-emerald-950/50 text-emerald-400':
-                                            activeFeature.color ===
-                                            'emerald',
-                                        'border-amber-500/30 bg-amber-950/50 text-amber-400':
-                                            activeFeature.color === 'amber',
-                                        'border-sky-500/30 bg-sky-950/50 text-sky-400':
-                                            activeFeature.color === 'sky',
-                                        'border-rose-500/30 bg-rose-950/50 text-rose-400':
-                                            activeFeature.color === 'rose',
-                                        'border-blue-500/30 bg-blue-950/50 text-blue-400':
-                                            activeFeature.color === 'blue',
-                                        'border-teal-500/30 bg-teal-950/50 text-teal-400':
-                                            activeFeature.color === 'teal',
-                                        'border-violet-500/30 bg-violet-950/50 text-violet-400':
-                                            activeFeature.color ===
-                                            'violet',
-                                        'border-cyan-500/30 bg-cyan-950/50 text-cyan-400':
-                                            activeFeature.color === 'cyan',
-                                    }"
+                                    class="mt-5 flex-grow space-y-3.5 border-y border-zinc-900/60 py-4"
                                 >
-                                    <component
-                                        :is="activeFeature.icon"
-                                        class="size-6 animate-pulse"
-                                    />
-                                </div>
-                                <div>
-                                    <h3
-                                        class="flex items-center gap-2 text-base font-bold tracking-tight text-white"
-                                    >
-                                        Bước {{ activeFeature.step }}:
-                                        {{ activeFeature.title }}
-                                    </h3>
                                     <p
-                                        class="mt-0.5 text-xs leading-relaxed text-zinc-400"
+                                        class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
                                     >
-                                        {{ activeFeature.description }}
+                                        LUỒNG HOẠT ĐỘNG & ĐỒNG BỘ
                                     </p>
+
+                                    <!-- Step 1: TRIGGER -->
+                                    <div class="relative flex items-start gap-3">
+                                        <div
+                                            class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                                            :class="{
+                                                'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                    activeFeature.color ===
+                                                    'indigo',
+                                                'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                    activeFeature.color ===
+                                                    'emerald',
+                                                'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                    activeFeature.color === 'amber',
+                                                'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                    activeFeature.color === 'sky',
+                                                'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                    activeFeature.color === 'rose',
+                                                'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                    activeFeature.color === 'blue',
+                                                'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                    activeFeature.color === 'teal',
+                                                'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                    activeFeature.color ===
+                                                    'violet',
+                                                'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                    activeFeature.color === 'cyan',
+                                            }"
+                                        ></div>
+                                        <div
+                                            class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
+                                        ></div>
+                                        <div class="space-y-0.5">
+                                            <span
+                                                class="font-mono text-[9px] text-zinc-500 uppercase"
+                                                >Trigger (Sự kiện kích hoạt)</span
+                                            >
+                                            <p
+                                                class="text-xs font-semibold text-zinc-200"
+                                            >
+                                                {{ activeFeature.flow.trigger }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step 2: PROCESS -->
+                                    <div class="relative flex items-start gap-3">
+                                        <div
+                                            class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                                            :class="{
+                                                'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                    activeFeature.color ===
+                                                    'indigo',
+                                                'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                    activeFeature.color ===
+                                                    'emerald',
+                                                'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                    activeFeature.color === 'amber',
+                                                'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                    activeFeature.color === 'sky',
+                                                'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                    activeFeature.color === 'rose',
+                                                'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                    activeFeature.color === 'blue',
+                                                'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                    activeFeature.color === 'teal',
+                                                'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                    activeFeature.color ===
+                                                    'violet',
+                                                'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                    activeFeature.color === 'cyan',
+                                            }"
+                                        ></div>
+                                        <div
+                                            class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
+                                        ></div>
+                                        <div class="space-y-0.5">
+                                            <span
+                                                class="font-mono text-[9px] text-zinc-500 uppercase"
+                                                >Xử lý (Processing)</span
+                                            >
+                                            <p
+                                                class="text-xs font-semibold text-zinc-200"
+                                            >
+                                                {{ activeFeature.flow.process }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step 3: STORAGE -->
+                                    <div class="relative flex items-start gap-3">
+                                        <div
+                                            class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full"
+                                            :class="{
+                                                'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
+                                                    activeFeature.color ===
+                                                    'indigo',
+                                                'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
+                                                    activeFeature.color ===
+                                                    'emerald',
+                                                'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
+                                                    activeFeature.color === 'amber',
+                                                'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
+                                                    activeFeature.color === 'sky',
+                                                'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
+                                                    activeFeature.color === 'rose',
+                                                'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
+                                                    activeFeature.color === 'blue',
+                                                'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
+                                                    activeFeature.color === 'teal',
+                                                'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
+                                                    activeFeature.color ===
+                                                    'violet',
+                                                'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
+                                                    activeFeature.color === 'cyan',
+                                            }"
+                                        ></div>
+                                        <div class="flex-grow space-y-0.5">
+                                            <span
+                                                class="font-mono text-[9px] text-zinc-500 uppercase"
+                                                >Lưu trữ Database</span
+                                            >
+                                            <p
+                                                class="text-xs font-semibold text-white"
+                                            >
+                                                {{ activeFeature.flow.storage }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Technology & DB details -->
+                                <div class="mt-4 space-y-3 pt-3">
+                                    <div class="space-y-1">
+                                        <span
+                                            class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
+                                            >MAPPED SCHEMAS (DATABASE TABLES)</span
+                                        >
+                                        <div class="flex flex-wrap gap-1.5">
+                                            <code
+                                                v-for="tbl in activeFeature.dbTables"
+                                                :key="tbl"
+                                                class="rounded border border-zinc-800 bg-zinc-900 px-2 py-0.5 font-mono text-[10px] font-bold text-zinc-300 transition-colors hover:border-zinc-700"
+                                            >
+                                                {{ tbl }}
+                                            </code>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="rounded-xl border border-zinc-900/60 bg-zinc-900/30 p-3 text-[11px] leading-relaxed text-zinc-400"
+                                    >
+                                        <span class="font-bold text-zinc-200"
+                                            >Tech note: </span
+                                        >{{ activeFeature.techNote }}
+                                    </div>
+
+                                    <div
+                                        class="flex items-center justify-between border-t border-zinc-900/40 pt-3 font-mono text-[10px] text-zinc-500"
+                                    >
+                                        <span
+                                            >Mục tiêu SLA:
+                                            <strong
+                                                class="font-medium text-zinc-300"
+                                                >{{ activeFeature.sla }}</strong
+                                            ></span
+                                        >
+                                        <span
+                                            >STATUS:
+                                            <strong class="text-green-500"
+                                                >ACTIVE</strong
+                                            ></span
+                                        >
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Flow Visualization -->
-                        <div
-                            class="mt-5 flex-grow space-y-3.5 border-y border-zinc-900/60 py-4"
-                        >
-                            <p
-                                class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
-                            >
-                                LUỒNG HOẠT ĐỘNG & ĐỒNG BỘ
-                            </p>
-
-                            <!-- Step 1: TRIGGER -->
-                            <div class="relative flex items-start gap-3">
-                                <div
-                                    class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                                    :class="{
-                                        'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
-                                            activeFeature.color ===
-                                            'indigo',
-                                        'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
-                                            activeFeature.color ===
-                                            'emerald',
-                                        'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                            activeFeature.color === 'amber',
-                                        'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                            activeFeature.color === 'sky',
-                                        'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                            activeFeature.color === 'rose',
-                                        'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                            activeFeature.color === 'blue',
-                                        'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                            activeFeature.color === 'teal',
-                                        'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
-                                            activeFeature.color ===
-                                            'violet',
-                                        'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                            activeFeature.color === 'cyan',
-                                    }"
-                                ></div>
-                                <div
-                                    class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
-                                ></div>
-                                <div class="space-y-0.5">
-                                    <span
-                                        class="font-mono text-[9px] text-zinc-500 uppercase"
-                                        >Trigger (Sự kiện kích hoạt)</span
-                                    >
-                                    <p
-                                        class="text-xs font-semibold text-zinc-200"
-                                    >
-                                        {{ activeFeature.flow.trigger }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Step 2: PROCESS -->
-                            <div class="relative flex items-start gap-3">
-                                <div
-                                    class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                                    :class="{
-                                        'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
-                                            activeFeature.color ===
-                                            'indigo',
-                                        'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
-                                            activeFeature.color ===
-                                            'emerald',
-                                        'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                            activeFeature.color === 'amber',
-                                        'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                            activeFeature.color === 'sky',
-                                        'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                            activeFeature.color === 'rose',
-                                        'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                            activeFeature.color === 'blue',
-                                        'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                            activeFeature.color === 'teal',
-                                        'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
-                                            activeFeature.color ===
-                                            'violet',
-                                        'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                            activeFeature.color === 'cyan',
-                                    }"
-                                ></div>
-                                <div
-                                    class="absolute top-[14px] left-[3px] h-[28px] w-[1px] bg-gradient-to-b from-zinc-700 to-zinc-900"
-                                ></div>
-                                <div class="space-y-0.5">
-                                    <span
-                                        class="font-mono text-[9px] text-zinc-500 uppercase"
-                                        >Xử lý (Processing)</span
-                                    >
-                                    <p
-                                        class="text-xs font-semibold text-zinc-200"
-                                    >
-                                        {{ activeFeature.flow.process }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Step 3: STORAGE -->
-                            <div class="relative flex items-start gap-3">
-                                <div
-                                    class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full"
-                                    :class="{
-                                        'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]':
-                                            activeFeature.color ===
-                                            'indigo',
-                                        'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]':
-                                            activeFeature.color ===
-                                            'emerald',
-                                        'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                            activeFeature.color === 'amber',
-                                        'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                            activeFeature.color === 'sky',
-                                        'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                            activeFeature.color === 'rose',
-                                        'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                            activeFeature.color === 'blue',
-                                        'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                            activeFeature.color === 'teal',
-                                        'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
-                                            activeFeature.color ===
-                                            'violet',
-                                        'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                            activeFeature.color === 'cyan',
-                                    }"
-                                ></div>
-                                <div class="flex-grow space-y-0.5">
-                                    <span
-                                        class="font-mono text-[9px] text-zinc-500 uppercase"
-                                        >Lưu trữ Database</span
-                                    >
-                                    <p
-                                        class="text-xs font-semibold text-white"
-                                    >
-                                        {{ activeFeature.flow.storage }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Technology & DB details -->
-                        <div class="mt-4 space-y-3 pt-3">
-                            <div class="space-y-1">
-                                <span
-                                    class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
-                                    >MAPPED SCHEMAS (DATABASE TABLES)</span
-                                >
-                                <div class="flex flex-wrap gap-1.5">
-                                    <code
-                                        v-for="tbl in activeFeature.dbTables"
-                                        :key="tbl"
-                                        class="rounded border border-zinc-800 bg-zinc-900 px-2 py-0.5 font-mono text-[10px] font-bold text-zinc-300 transition-colors hover:border-zinc-700"
-                                    >
-                                        {{ tbl }}
-                                    </code>
-                                </div>
-                            </div>
-
-                            <div
-                                class="rounded-xl border border-zinc-900/60 bg-zinc-900/30 p-3 text-[11px] leading-relaxed text-zinc-400"
-                            >
-                                <span class="font-bold text-zinc-200"
-                                    >Tech note: </span
-                                >{{ activeFeature.techNote }}
-                            </div>
-
-                            <div
-                                class="flex items-center justify-between border-t border-zinc-900/40 pt-3 font-mono text-[10px] text-zinc-500"
-                            >
-                                <span
-                                    >Mục tiêu SLA:
-                                    <strong
-                                        class="font-medium text-zinc-300"
-                                        >{{ activeFeature.sla }}</strong
-                                    ></span
-                                >
-                                <span
-                                    >STATUS:
-                                    <strong class="text-green-500"
-                                        >ACTIVE</strong
-                                    ></span
-                                >
-                            </div>
-                        </div>
+                        </Transition>
 
                         <!-- Global SaaS Operations Step-by-Step Flow Map -->
                         <div

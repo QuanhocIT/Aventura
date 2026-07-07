@@ -1365,59 +1365,65 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                         Chưa chọn món nào. Hãy click "Thêm món" để chọn món.
                     </div>
 
-                    <div
-                        v-for="item in cartItems"
-                        :key="item.id ? 'exist-' + item.id : 'new-' + item.product_id"
-                        class="flex justify-between items-center p-3 border rounded-2xl transition-colors"
-                        :class="item.id
-                            ? 'bg-amber-50/40 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40'
-                            : 'bg-slate-50/50 dark:bg-slate-900/20'"
+                    <TransitionGroup
+                        name="list"
+                        tag="div"
+                        class="flex flex-col gap-2.5 relative"
                     >
-                        <div class="text-left max-w-[60%]">
-                            <span class="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
-                                {{ item.product_name }}
-                                <span v-if="item.id" class="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-md">
-                                    <Lock class="size-2.5" /> Đã gửi
+                        <div
+                            v-for="item in cartItems"
+                            :key="item.id ? 'exist-' + item.id : 'new-' + item.product_id"
+                            class="flex justify-between items-center p-3 border rounded-2xl transition-colors"
+                            :class="item.id
+                                ? 'bg-amber-50/40 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40'
+                                : 'bg-slate-50/50 dark:bg-slate-900/20'"
+                        >
+                            <div class="text-left max-w-[60%]">
+                                <span class="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                    {{ item.product_name }}
+                                    <span v-if="item.id" class="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-md">
+                                        <Lock class="size-2.5" /> Đã gửi
+                                    </span>
                                 </span>
-                            </span>
-                            <p class="text-[10px] text-muted-foreground font-mono mt-0.5">
-                                {{ number_format(item.price) }}đ × {{ item.quantity }}
-                                <span class="text-indigo-600 font-bold">= {{ number_format(item.price * item.quantity) }}đ</span>
-                            </p>
-                        </div>
+                                <p class="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                    {{ number_format(item.price) }}đ × {{ item.quantity }}
+                                    <span class="text-indigo-600 font-bold">= {{ number_format(item.price * item.quantity) }}đ</span>
+                                </p>
+                            </div>
 
-                        <!-- Bộ điều khiển số lượng -->
-                        <div class="flex items-center gap-2">
-                            <Button
-                                size="icon"
-                                variant="outline"
-                                class="h-7 w-7 rounded-lg"
-                                :disabled="!!item.id"
-                                @click="decreaseQty(item)"
-                            >
-                                <Minus class="size-3" />
-                            </Button>
-                            <span class="text-xs font-mono font-bold w-6 text-center">{{ item.quantity }}</span>
-                            <Button
-                                size="icon"
-                                variant="outline"
-                                class="h-7 w-7 rounded-lg"
-                                :class="item.id ? 'border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30' : ''"
-                                @click="increaseQty(item)"
-                            >
-                                <Plus class="size-3" />
-                            </Button>
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                class="h-7 w-7 rounded-lg text-rose-500 hover:text-rose-600"
-                                :disabled="!!item.id"
-                                @click="removeItem(item)"
-                            >
-                                <Trash2 class="size-3.5" />
-                            </Button>
+                            <!-- Bộ điều khiển số lượng -->
+                            <div class="flex items-center gap-2">
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    class="h-7 w-7 rounded-lg"
+                                    :disabled="!!item.id"
+                                    @click="decreaseQty(item)"
+                                >
+                                    <Minus class="size-3" />
+                                </Button>
+                                <span class="text-xs font-mono font-bold w-6 text-center">{{ item.quantity }}</span>
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    class="h-7 w-7 rounded-lg"
+                                    :class="item.id ? 'border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30' : ''"
+                                    @click="increaseQty(item)"
+                                >
+                                    <Plus class="size-3" />
+                                </Button>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    class="h-7 w-7 rounded-lg text-rose-500 hover:text-rose-600"
+                                    :disabled="!!item.id"
+                                    @click="removeItem(item)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    </TransitionGroup>
                 </div>
 
                 <!-- BƯỚC 1: MENU MÓN ĂN ĐỂ CLICK THÊM VỚI SỐ LƯỢNG (CHỈ HIỂN THỊ KHI Ở BƯỚC SELECT) -->
