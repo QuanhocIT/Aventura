@@ -166,47 +166,55 @@ class SalaryController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        if ($data['type'] === 'advance') {
-            $employee = $salary->employee;
-            if (!$employee) {
-                return back()->withErrors(['amount' => 'Nhân viên không tồn tại.']);
-            }
-            $salaryMonth = Carbon::parse($salary->pay_period_start);
-            $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
-            $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
-            
-            $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
-                ->where('salary_id', $salary->id)
-                ->where('type', 'advance')
-                ->where('status', 'applied')
-                ->sum('amount');
-                
-            $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
-                ->where('status', 'pending')
-                ->where('operation_type', 'salary_adjustment')
-                ->where('operation_data->salary_id', $salary->id)
-                ->where('operation_data->type', 'advance')
-                ->sum('operation_data->amount');
-                
-            $limit = $earnedWages * 0.50;
-            if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
-                return back()->withErrors(['amount' => sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ, Đã tạm ứng/đang chờ: %sđ).', number_format($earnedWages), number_format($limit), number_format($existingAdvanceAmount + $pendingAdvanceAmount))]);
-            }
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($salary, $data, $request) {
+                // Lock the salary record
+                $lockedSalary = Salary::where('id', $salary->id)->lockForUpdate()->firstOrFail();
+
+                if ($data['type'] === 'advance') {
+                    $employee = $lockedSalary->employee;
+                    if (!$employee) {
+                        throw new \Exception('Nhân viên không tồn tại.');
+                    }
+                    $salaryMonth = Carbon::parse($lockedSalary->pay_period_start);
+                    $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
+                    $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
+                    
+                    $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('salary_id', $lockedSalary->id)
+                        ->where('type', 'advance')
+                        ->where('status', 'applied')
+                        ->sum('amount');
+                        
+                    $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                        ->where('status', 'pending')
+                        ->where('operation_type', 'salary_adjustment')
+                        ->where('operation_data->salary_id', $lockedSalary->id)
+                        ->where('operation_data->type', 'advance')
+                        ->sum('operation_data->amount');
+                        
+                    $limit = $earnedWages * 0.50;
+                    if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
+                        throw new \Exception(sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ, Đã tạm ứng/đang chờ: %sđ).', number_format($earnedWages), number_format($limit), number_format($existingAdvanceAmount + $pendingAdvanceAmount)));
+                    }
+                }
+
+                if (! $request->user()->can('approve_requests')) {
+                    $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
+                        'salary_id' => $lockedSalary->id,
+                    ]), $request->user());
+                } else {
+                    $this->salaryService->addAdjustment($lockedSalary, array_merge($data, [
+                        'employee_id' => $lockedSalary->employee_id,
+                        'status'      => 'applied',
+                    ]));
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['amount' => $e->getMessage()]);
         }
 
-        if (! $request->user()->can('approve_requests')) {
-            $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
-                'salary_id' => $salary->id,
-            ]), $request->user());
-            return back()->with('success', 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
-        }
-
-        $this->salaryService->addAdjustment($salary, array_merge($data, [
-            'employee_id' => $salary->employee_id,
-            'status'      => 'applied',
-        ]));
-
-        return back()->with('success', 'Đã thêm điều chỉnh lương.');
+        return back()->with('success', $request->user()->can('approve_requests') ? 'Đã thêm điều chỉnh lương.' : 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
     }
 
     /**

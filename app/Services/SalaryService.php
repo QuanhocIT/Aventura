@@ -237,18 +237,22 @@ class SalaryService
 
     /**
      * Thêm điều chỉnh lương (bonus hoặc khấu trừ) rồi tính lại net_salary.
+     * Bọc trong transaction để đảm bảo Atomicity: hoặc cả 2 (create + recalculate) thành công,
+     * hoặc không có gì được lưu.
      */
     public function addAdjustment(Salary $salary, array $data): SalaryAdjustment
     {
-        $adjustment = SalaryAdjustment::create(array_merge($data, [
-            'salary_id'     => $salary->id,
-            'restaurant_id' => $salary->restaurant_id,
-            'status'        => $data['status'] ?? 'applied',
-        ]));
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($salary, $data) {
+            $adjustment = SalaryAdjustment::create(array_merge($data, [
+                'salary_id'     => $salary->id,
+                'restaurant_id' => $salary->restaurant_id,
+                'status'        => $data['status'] ?? 'applied',
+            ]));
 
-        $this->recalculate($salary);
+            $this->recalculate($salary);
 
-        return $adjustment;
+            return $adjustment;
+        });
     }
 
     /**
@@ -374,34 +378,40 @@ class SalaryService
         foreach ($employees as $employee) {
             $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString(), $context);
 
-            $salary = Salary::withoutGlobalScopes()
-                ->where('restaurant_id', $restaurantId)
-                ->where('employee_id', $employee->id)
-                ->where('pay_period_start', $periodStart)
-                ->where('pay_period_end', $periodEnd)
-                ->first();
+            // Bọc mỗi nhân viên trong transaction riêng để tránh duplicate salary
+            // khi 2 request gọi generateMonthlyDrafts đồng thời.
+            \Illuminate\Support\Facades\DB::transaction(function () use ($employee, $restaurantId, $periodStart, $periodEnd, $baseSalary, $context, &$created, &$skipped) {
+                // Khóa tìm kiếm trước khi tạo để tránh race condition
+                $salary = Salary::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('employee_id', $employee->id)
+                    ->where('pay_period_start', $periodStart)
+                    ->where('pay_period_end', $periodEnd)
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($salary) {
-                $salary->update(['base_salary' => $baseSalary]);
+                if ($salary) {
+                    $salary->update(['base_salary' => $baseSalary]);
+                    $this->sweepAdjustments($salary, $employee, $context);
+                    $skipped++;
+                    return;
+                }
+
+                $salary = Salary::create([
+                    'restaurant_id'    => $restaurantId,
+                    'employee_id'      => $employee->id,
+                    'pay_period_start' => $periodStart,
+                    'pay_period_end'   => $periodEnd,
+                    'base_salary'      => $baseSalary,
+                    'bonus_amount'     => 0,
+                    'deduction_amount' => 0,
+                    'net_salary'       => $baseSalary,
+                    'status'           => 'draft',
+                ]);
+
                 $this->sweepAdjustments($salary, $employee, $context);
-                $skipped++;
-                continue;
-            }
-
-            $salary = Salary::create([
-                'restaurant_id'    => $restaurantId,
-                'employee_id'      => $employee->id,
-                'pay_period_start' => $periodStart,
-                'pay_period_end'   => $periodEnd,
-                'base_salary'      => $baseSalary,
-                'bonus_amount'     => 0,
-                'deduction_amount' => 0,
-                'net_salary'       => $baseSalary,
-                'status'           => 'draft',
-            ]);
-
-            $this->sweepAdjustments($salary, $employee, $context);
-            $created++;
+                $created++;
+            });
         }
 
         return ['created' => $created, 'skipped' => $skipped];

@@ -296,13 +296,21 @@ class ShiftClosingController extends Controller
 
         $restaurantId = $user->restaurant_id;
 
-        $exists = ShiftClosing::withoutGlobalScopes()
+        $branchId = $user->branch_id;
+        $employee = \App\Models\Employee::where('user_id', $user->id)->first();
+        if ($employee && $employee->branch_id) {
+            $branchId = $employee->branch_id;
+        }
+
+        // Kiểm tra nhanh trước khi vào lock để tiết kiệm tài nguyên
+        $quickCheck = ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('shift_id', $data['shift_id'])
             ->whereDate('closing_date', $data['closing_date'])
             ->exists();
 
-        if ($exists) {
+        if ($quickCheck) {
             return back()->withErrors(['shift_id' => 'Ca này đã được chốt cho ngày đã chọn.']);
         }
 
@@ -322,15 +330,12 @@ class ShiftClosingController extends Controller
                 ->whereIn('status', ['pending', 'confirmed', 'preparing'])
                 ->get();
 
+            // Lưu snapshot trước khi auto-pay
+            $this->saveBeforeAutoPaySnapshot($restaurantId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
+
             foreach ($unpaidOrders as $order) {
                 $this->processAutoPay($order, $user->id, $endDt);
             }
-        }
-
-        $branchId = $user->branch_id;
-        $employee = \App\Models\Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id) {
-            $branchId = $employee->branch_id;
         }
 
         $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date'], $branchId);
@@ -343,35 +348,54 @@ class ShiftClosingController extends Controller
             $notes = trim(($notes ?? '') . "\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -" . number_format($calculated['split_penalty_total']) . "đ");
         }
 
-        ShiftClosing::create([
-            'restaurant_id'        => $restaurantId,
-            'shift_id'             => $data['shift_id'],
-            'closing_date'         => $data['closing_date'],
-            'cashier_user_id'      => $user->id,
-            'expected_cash'        => $calculated['expected_cash'],
-            'actual_cash'          => $data['actual_cash'],
-            'cash_difference'      => $cashDifference,
-            'transfer_amount'      => $calculated['transfer_amount'],
-            'other_expense_amount' => $data['other_expense_amount'] ?? 0,
-            'notes'                => $notes,
-            'status'               => $status,
-            'closed_at'            => now(),
-            'cash_register_id'     => $calculated['register_id'],
-        ]);
+        // Bọc việc tạo phiếu chốt ca và cập nhật cash register trong cùng một transaction
+        // để đảm bảo Atomicity và tránh race condition tạo 2 phiếu cho cùng 1 ca.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $calculated, $cashDifference, $status, $notes) {
+            // Kiểm tra lại trong transaction với lock để tránh race condition
+            $existsInLock = ShiftClosing::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('branch_id', $branchId)
+                ->where('shift_id', $data['shift_id'])
+                ->whereDate('closing_date', $data['closing_date'])
+                ->lockForUpdate()
+                ->exists();
 
-        if ($calculated['register_id'] && $status === 'submitted') {
-            $register = \App\Models\CashRegister::find($calculated['register_id']);
-            if ($register) {
-                $register->update([
-                    'status' => 'closed',
-                    'closed_by' => $user->id,
-                    'closed_at' => now(),
-                    'closing_balance' => $data['actual_cash'],
-                    'expected_closing_balance' => $calculated['expected_cash'],
-                    'difference' => $cashDifference,
-                ]);
+            if ($existsInLock) {
+                // Nếu có race condition, transaction này sẽ không tạo bản ghi trùng
+                return;
             }
-        }
+
+            ShiftClosing::create([
+                'restaurant_id'        => $restaurantId,
+                'branch_id'            => $branchId,
+                'shift_id'             => $data['shift_id'],
+                'closing_date'         => $data['closing_date'],
+                'cashier_user_id'      => $user->id,
+                'expected_cash'        => $calculated['expected_cash'],
+                'actual_cash'          => $data['actual_cash'],
+                'cash_difference'      => $cashDifference,
+                'transfer_amount'      => $calculated['transfer_amount'],
+                'other_expense_amount' => $data['other_expense_amount'] ?? 0,
+                'notes'                => $notes,
+                'status'               => $status,
+                'closed_at'            => now(),
+                'cash_register_id'     => $calculated['register_id'],
+            ]);
+
+            if ($calculated['register_id'] && $status === 'submitted') {
+                $register = \App\Models\CashRegister::find($calculated['register_id']);
+                if ($register) {
+                    $register->update([
+                        'status'                    => 'closed',
+                        'closed_by'                 => $user->id,
+                        'closed_at'                 => now(),
+                        'closing_balance'           => $data['actual_cash'],
+                        'expected_closing_balance'  => $calculated['expected_cash'],
+                        'difference'                => $cashDifference,
+                    ]);
+                }
+            }
+        });
 
         $message = $status === 'submitted'
             ? 'Đã nộp phiếu chốt ca, chờ manager xét duyệt.'
@@ -386,44 +410,54 @@ class ShiftClosingController extends Controller
         abort_if($closing->status !== 'submitted', 422);
 
         $restaurantId = $request->user()->restaurant_id;
+        $user = $request->user();
 
-        $closing->update([
-            'status'       => 'confirmed',
-            'confirmed_by' => $request->user()->id,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($closing, $restaurantId, $user) {
+            // Khóa bản ghi closing trong transaction để tránh confirm đồng thời
+            $closing = ShiftClosing::where('id', $closing->id)->lockForUpdate()->firstOrFail();
 
-        // Auto-tạo khấu trừ lương nếu cashier thiếu quỹ
-        if ((float) $closing->cash_difference < 0 && $closing->cashier_user_id) {
-            $employee = Employee::withoutGlobalScopes()
-                ->where('restaurant_id', $restaurantId)
-                ->where('user_id', $closing->cashier_user_id)
-                ->first();
+            if ($closing->status !== 'submitted') {
+                return; // Đã được xử lý bởi request khác
+            }
 
-            if ($employee) {
-                // Idempotency guard: không tạo duplicate
-                $alreadyExists = SalaryAdjustment::withoutGlobalScopes()
-                    ->where('reference_id', $closing->id)
-                    ->where('reference_type', ShiftClosing::class)
-                    ->exists();
+            $closing->update([
+                'status'       => 'confirmed',
+                'confirmed_by' => $user->id,
+            ]);
 
-                if (! $alreadyExists) {
-                    $dateStr      = Carbon::parse($closing->closing_date)->toDateString();
-                    $shiftName    = $closing->shift?->name ?? 'ca';
-                    $shortageAmt  = abs((float) $closing->cash_difference);
+            // Auto-tạo khấu trừ lương nếu cashier thiếu quỹ
+            if ((float) $closing->cash_difference < 0 && $closing->cashier_user_id) {
+                $employee = Employee::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('user_id', $closing->cashier_user_id)
+                    ->first();
 
-                    $salaryService = app(SalaryService::class);
-                    $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $dateStr);
-                    $salaryService->addAdjustment($salary, [
-                        'employee_id'    => $employee->id,
-                        'type'           => 'cash_shortage',
-                        'amount'         => $shortageAmt,
-                        'reason'         => "Thiếu quỹ {$shiftName} ngày " . Carbon::parse($closing->closing_date)->format('d/m/Y') . ': ' . number_format($shortageAmt) . 'đ',
-                        'reference_id'   => $closing->id,
-                        'reference_type' => ShiftClosing::class,
-                    ]);
+                if ($employee) {
+                    // Idempotency guard: không tạo duplicate (kiểm tra trong cùng transaction)
+                    $alreadyExists = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('reference_id', $closing->id)
+                        ->where('reference_type', ShiftClosing::class)
+                        ->exists();
+
+                    if (! $alreadyExists) {
+                        $dateStr     = Carbon::parse($closing->closing_date)->toDateString();
+                        $shiftName   = $closing->shift?->name ?? 'ca';
+                        $shortageAmt = abs((float) $closing->cash_difference);
+
+                        $salaryService = app(SalaryService::class);
+                        $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $dateStr);
+                        $salaryService->addAdjustment($salary, [
+                            'employee_id'    => $employee->id,
+                            'type'           => 'cash_shortage',
+                            'amount'         => $shortageAmt,
+                            'reason'         => "Thiếu quỹ {$shiftName} ngày " . Carbon::parse($closing->closing_date)->format('d/m/Y') . ': ' . number_format($shortageAmt) . 'đ',
+                            'reference_id'   => $closing->id,
+                            'reference_type' => ShiftClosing::class,
+                        ]);
+                    }
                 }
             }
-        }
+        });
 
         return back()->with('success', 'Đã xác nhận chốt ca thành công.');
     }
@@ -564,6 +598,14 @@ class ShiftClosingController extends Controller
     private function processAutoPay(Order $order, int $userId, Carbon $completedAt): void
     {
         \Illuminate\Support\Facades\DB::transaction(function () use ($order, $userId, $completedAt) {
+            // Khoá row và đọc lại trạng thái mới nhất để tránh thanh toán trùng
+            // khi cashier bấm thanh toán thủ công đồng thời với auto-pay lúc chốt ca.
+            $order = \App\Models\Order::where('id', $order->id)->lockForUpdate()->first();
+
+            if (! $order || $order->payment_status === 'paid') {
+                return; // Đã được thanh toán bởi luồng khác, bỏ qua
+            }
+
             // 1. Tạo Payment record
             \App\Models\Payment::create([
                 'restaurant_id' => $order->restaurant_id,
@@ -590,15 +632,24 @@ class ShiftClosingController extends Controller
 
                         $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
 
-                        $inventory = \App\Models\Inventory::firstOrCreate([
+                        // Lock the inventory record using lockForUpdate() to prevent concurrent lost updates
+                        $inventory = \App\Models\Inventory::where([
                             'restaurant_id' => $order->restaurant_id,
                             'branch_id' => $order->branch_id,
                             'ingredient_id' => $recipe->ingredient_id,
-                        ], [
-                            'quantity_on_hand' => 0,
-                            'theoretical_quantity' => 0,
-                            'last_cost' => $recipe->ingredient->average_cost ?? 0,
-                        ]);
+                        ])->lockForUpdate()->first();
+
+                        if (!$inventory) {
+                            $inventory = \App\Models\Inventory::create([
+                                'restaurant_id' => $order->restaurant_id,
+                                'branch_id' => $order->branch_id,
+                                'ingredient_id' => $recipe->ingredient_id,
+                                'quantity_on_hand' => 0,
+                                'theoretical_quantity' => 0,
+                                'last_cost' => $recipe->ingredient->average_cost ?? 0,
+                            ]);
+                            $inventory = \App\Models\Inventory::where('id', $inventory->id)->lockForUpdate()->first();
+                        }
 
                         $oldQty = (float) $inventory->quantity_on_hand;
                         $oldTheoretical = (float) $inventory->theoretical_quantity;
@@ -647,5 +698,42 @@ class ShiftClosingController extends Controller
 
             \App\Models\AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);
         });
+    }
+
+    /**
+     * Tạo file snapshot lưu trữ trạng thái các đơn hàng trước khi thực hiện auto-pay lúc chốt ca.
+     */
+    private function saveBeforeAutoPaySnapshot(int $restaurantId, int $shiftId, string $closingDate, $orders): void
+    {
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $snapshot = [
+            'restaurant_id' => $restaurantId,
+            'shift_id'      => $shiftId,
+            'closing_date'  => $closingDate,
+            'created_at'    => now()->toIso8601String(),
+            'orders'        => $orders->map(fn($o) => [
+                'id'             => $o->id,
+                'order_number'   => $o->order_number,
+                'status'         => $o->status,
+                'payment_status' => $o->payment_status,
+                'total_amount'   => (float) $o->total_amount,
+                'table_id'       => $o->table_id,
+            ])->toArray()
+        ];
+
+        $dir = storage_path('app/snapshots');
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        // Loại bỏ ký tự lạ để tránh directory traversal
+        $cleanDate = preg_replace('/[^0-9\-]/', '', $closingDate);
+        $filename = "{$dir}/shift_closing_{$restaurantId}_{$shiftId}_{$cleanDate}_before_autopay.json";
+        file_put_contents($filename, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        \Illuminate\Support\Facades\Log::info("ShiftClosingController: Đã lưu snapshot trước auto-pay", ['file' => $filename]);
     }
 }
