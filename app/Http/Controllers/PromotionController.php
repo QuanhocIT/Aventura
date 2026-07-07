@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -357,9 +358,7 @@ class PromotionController extends Controller
             'bypass_code' => ['nullable', 'string'],
         ]);
 
-        $order = Order::where('restaurant_id', $restaurantId)->findOrFail($data['order_id']);
-        
-        // 1. Tìm kiếm voucher hoạt động và đã được duyệt
+        // Tìm kiếm voucher hoạt động và đã được duyệt
         $promotion = Promotion::where('restaurant_id', $restaurantId)
             ->where('code', strtoupper($data['code']))
             ->where('is_active', true)
@@ -370,113 +369,141 @@ class PromotionController extends Controller
             return response()->json(['message' => 'Mã khuyến mãi không tồn tại hoặc đã bị vô hiệu hóa.'], 422);
         }
 
-        // Real-Time Fraud Prevention Checks
-        $cashierAppliedCount = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
-            ->where('user_id', $user->id)
-            ->where('action', 'discount_applied')
-            ->where('created_at', '>=', now()->subMinutes(5))
-            ->count();
+        // Bọc toàn bộ check budget, cập nhật order và voucher trong transaction với lockForUpdate
+        return DB::transaction(function () use ($promotion, $data, $restaurantId, $user) {
+            // Lock order và promotion
+            $order = Order::where('id', $data['order_id'])->lockForUpdate()->firstOrFail();
+            $promotion = Promotion::where('id', $promotion->id)->lockForUpdate()->firstOrFail();
 
-        $customerId = $order->customer_id;
-        $customerAppliedCount = 0;
-        if ($customerId) {
-            $customerAppliedCount = Order::where('restaurant_id', $restaurantId)
-                ->where('customer_id', $customerId)
-                ->where('id', '!=', $order->id)
-                ->whereNotNull('completed_at')
-                ->where('discount_amount', '>', 0)
-                ->where('completed_at', '>=', now()->subMinutes(10))
-                ->count();
-        }
+            // Real-Time Fraud Prevention Checks
+            $cashierFastKey = "voucher_applied_fast_check:{$restaurantId}:{$user->id}";
+            $cashierFastCount = (int) \Illuminate\Support\Facades\Cache::get($cashierFastKey, 0);
 
-        $suspicious = ($cashierAppliedCount >= 3) || ($customerAppliedCount > 0);
+            $customerId = $order->customer_id;
+            $customerFastCount = 0;
+            if ($customerId) {
+                $customerFastKey = "voucher_applied_fast_check_cust:{$restaurantId}:{$customerId}";
+                $customerFastCount = (int) \Illuminate\Support\Facades\Cache::get($customerFastKey, 0);
+            }
 
-        if ($suspicious) {
-            $bypassCode = $data['bypass_code'] ?? null;
-            $expectedCode = $order->restaurant->manager_bypass_code ?? 'MANAGER123';
+            $cashierAppliedCount = max($cashierFastCount, \App\Models\AuditLog::where('restaurant_id', $restaurantId)
+                ->where('user_id', $user->id)
+                ->where('action', 'discount_applied')
+                ->where('created_at', '>=', now()->subMinutes(5))
+                ->count());
 
-            if ($bypassCode !== $expectedCode) {
+            $customerAppliedCount = 0;
+            if ($customerId) {
+                $customerAppliedCount = max($customerFastCount, Order::where('restaurant_id', $restaurantId)
+                    ->where('customer_id', $customerId)
+                    ->where('id', '!=', $order->id)
+                    ->whereNotNull('completed_at')
+                    ->where('discount_amount', '>', 0)
+                    ->where('completed_at', '>=', now()->subMinutes(10))
+                    ->count());
+            }
+
+            $suspicious = ($cashierAppliedCount >= 3) || ($customerAppliedCount > 0);
+
+            if ($suspicious) {
+                $approvingUser = \App\Models\User::validateManagerBypass($data['bypass_code'] ?? '', $restaurantId);
+
+                if (!$approvingUser) {
+                    return response()->json([
+                        'status' => 'requires_bypass',
+                        'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý để tiếp tục.'
+                    ], 422);
+                }
+
+                // Log special bypass action
+                AuditLog::log('discount_applied_bypass', 'updated', $order, null, [
+                    'cashier_applied_last_5_min' => $cashierAppliedCount,
+                    'customer_applied_last_10_min' => $customerAppliedCount,
+                    'bypass_code_used' => true,
+                    'approved_by_user_id' => $approvingUser->id,
+                    'approved_by_user_name' => $approvingUser->name
+                ]);
+            }
+
+            // 2. Kiểm tra thời hạn áp dụng
+            $now = now();
+            if ($promotion->start_date && $promotion->start_date->greaterThan($now)) {
+                return response()->json(['message' => 'Chương trình khuyến mãi chưa đến thời gian áp dụng.'], 422);
+            }
+            if ($promotion->end_date && $promotion->end_date->lessThan($now)) {
+                return response()->json(['message' => 'Mã khuyến mãi này đã hết hạn sử dụng.'], 422);
+            }
+
+            // 3. Kiểm tra giá trị đơn hàng tối thiểu
+            $subtotal = (float) $order->subtotal;
+            if ($subtotal < (float) $promotion->min_order_amount) {
                 return response()->json([
-                    'status' => 'requires_bypass',
-                    'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý để tiếp tục.'
+                    'message' => 'Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã giảm giá này. Giá trị tối thiểu cần đạt: ' . number_format($promotion->min_order_amount) . 'đ'
                 ], 422);
             }
 
-            // Log special bypass action
-            AuditLog::log('discount_applied_bypass', 'updated', $order, null, [
-                'cashier_applied_last_5_min' => $cashierAppliedCount,
-                'customer_applied_last_10_min' => $customerAppliedCount,
-                'bypass_code_used' => true,
-            ]);
-        }
-
-        // 2. Kiểm tra thời hạn áp dụng
-        $now = now();
-        if ($promotion->start_date && $promotion->start_date->greaterThan($now)) {
-            return response()->json(['message' => 'Chương trình khuyến mãi chưa đến thời gian áp dụng.'], 422);
-        }
-        if ($promotion->end_date && $promotion->end_date->lessThan($now)) {
-            return response()->json(['message' => 'Mã khuyến mãi này đã hết hạn sử dụng.'], 422);
-        }
-
-        // 3. Kiểm tra giá trị đơn hàng tối thiểu
-        $subtotal = (float) $order->subtotal;
-        if ($subtotal < (float) $promotion->min_order_amount) {
-            return response()->json([
-                'message' => 'Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã giảm giá này. Giá trị tối thiểu cần đạt: ' . number_format($promotion->min_order_amount) . 'đ'
-            ], 422);
-        }
-
-        // 4. Tính toán số tiền được giảm
-        $discountAmount = 0.0;
-        if ($promotion->type === 'fixed_amount') {
-            $discountAmount = (float) $promotion->value;
-        } else {
-            // Giảm theo phần trăm
-            $calculated = $subtotal * ((float) $promotion->value / 100);
-            
-            // Giới hạn giảm giá tối đa
-            $maxDiscount = (float) $promotion->max_discount_amount;
-            if ($maxDiscount > 0 && $calculated > $maxDiscount) {
-                $discountAmount = $maxDiscount;
+            // 4. Tính toán số tiền được giảm
+            $discountAmount = 0.0;
+            if ($promotion->type === 'fixed_amount') {
+                $discountAmount = (float) $promotion->value;
             } else {
-                $discountAmount = $calculated;
+                // Giảm theo phần trăm
+                $calculated = $subtotal * ((float) $promotion->value / 100);
+                
+                // Giới hạn giảm giá tối đa
+                $maxDiscount = (float) $promotion->max_discount_amount;
+                if ($maxDiscount > 0 && $calculated > $maxDiscount) {
+                    $discountAmount = $maxDiscount;
+                } else {
+                    $discountAmount = $calculated;
+                }
             }
-        }
 
-        // Đảm bảo số tiền giảm giá không lớn hơn subtotal
-        $discountAmount = min($discountAmount, $subtotal);
+            // Đảm bảo số tiền giảm giá không lớn hơn subtotal
+            $discountAmount = min($discountAmount, $subtotal);
 
-        // Budget cap check
-        if ($promotion->budget_cap !== null) {
-            if ($promotion->isBudgetExhausted()) {
-                return response()->json(['message' => 'Chương trình khuyến mãi đã hết ngân sách.'], 422);
+            // Budget cap check
+            if ($promotion->budget_cap !== null) {
+                if ($promotion->isBudgetExhausted()) {
+                    return response()->json(['message' => 'Chương trình khuyến mãi đã hết ngân sách.'], 422);
+                }
+                $remaining = $promotion->remainingBudget();
+                $discountAmount = min($discountAmount, $remaining);
             }
-            $remaining = $promotion->remainingBudget();
-            $discountAmount = min($discountAmount, $remaining);
-        }
 
-        // 5. Cập nhật Order
-        $order->update([
-            'discount_amount' => $discountAmount,
-            'total_amount' => max(0.0, $subtotal - $discountAmount),
-            'note' => $order->note . " [Đã áp mã voucher: " . $promotion->code . "]"
-        ]);
+            // 5. Cập nhật Order
+            $order->update([
+                'discount_amount' => $discountAmount,
+                'total_amount' => max(0.0, $subtotal - $discountAmount),
+                'note' => ($order->note ? $order->note . ' ' : '') . "[Đã áp mã voucher: " . $promotion->code . "]"
+            ]);
 
-        // Track budget spent
-        if ($promotion->budget_cap !== null) {
-            $promotion->increment('budget_spent', $discountAmount);
-            if ($promotion->auto_deactivate_on_budget && $promotion->fresh()->isBudgetExhausted()) {
-                $promotion->update(['is_active' => false]);
+            // Cập nhật bộ đếm Cache thời gian thực (chống Race Condition)
+            $cashierFastKey = "voucher_applied_fast_check:{$restaurantId}:{$user->id}";
+            $cnt = (int) \Illuminate\Support\Facades\Cache::get($cashierFastKey, 0);
+            \Illuminate\Support\Facades\Cache::put($cashierFastKey, $cnt + 1, now()->addMinutes(5));
+
+            if ($customerId) {
+                $customerFastKey = "voucher_applied_fast_check_cust:{$restaurantId}:{$customerId}";
+                $cntCust = (int) \Illuminate\Support\Facades\Cache::get($customerFastKey, 0);
+                \Illuminate\Support\Facades\Cache::put($customerFastKey, $cntCust + 1, now()->addMinutes(10));
             }
-        }
 
-        return response()->json([
-            'message' => 'Áp dụng mã giảm giá thành công!',
-            'discount_amount' => $discountAmount,
-            'total_amount' => $order->total_amount,
-            'promotion_name' => $promotion->name
-        ]);
+            // Track budget spent
+            if ($promotion->budget_cap !== null) {
+                $promotion->increment('budget_spent', $discountAmount);
+                if ($promotion->auto_deactivate_on_budget && $promotion->fresh()->isBudgetExhausted()) {
+                    $promotion->update(['is_active' => false]);
+                }
+            }
+
+            return response()->json([
+                'message' => 'Áp dụng mã giảm giá thành công!',
+                'discount_amount' => $discountAmount,
+                'total_amount' => $order->total_amount,
+                'promotion_name' => $promotion->name
+            ]);
+        });
     }
 
     public function validatePromotion(Request $request): JsonResponse

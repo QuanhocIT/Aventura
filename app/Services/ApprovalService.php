@@ -53,9 +53,15 @@ class ApprovalService
     public function approve(ApprovalRequest $approval, User $reviewer): void
     {
         DB::transaction(function () use ($approval, $reviewer) {
-            $this->executeOperation($approval);
+            // Khóa bi quan bản ghi phê duyệt để tránh chạy trùng lặp
+            $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
+            if ($lockedApproval->status !== 'pending') {
+                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            }
 
-            $approval->update([
+            $this->executeOperation($lockedApproval);
+
+            $lockedApproval->update([
                 'status'      => 'approved',
                 'reviewer_id' => $reviewer->id,
                 'reviewed_at' => now(),
@@ -70,12 +76,20 @@ class ApprovalService
      */
     public function reject(ApprovalRequest $approval, User $reviewer, string $reason): void
     {
-        $approval->update([
-            'status'           => 'rejected',
-            'reviewer_id'      => $reviewer->id,
-            'reviewed_at'      => now(),
-            'rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($approval, $reviewer, $reason) {
+            // Khóa bi quan bản ghi phê duyệt
+            $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
+            if ($lockedApproval->status !== 'pending') {
+                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            }
+
+            $lockedApproval->update([
+                'status'           => 'rejected',
+                'reviewer_id'      => $reviewer->id,
+                'reviewed_at'      => now(),
+                'rejection_reason' => $reason,
+            ]);
+        });
 
         $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected'));
     }

@@ -201,14 +201,17 @@ class OrdersController extends Controller
         ]);
 
         if ($data['status'] === 'cancelled' && !$user->can('approve_requests')) {
-            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
-                ->where('restaurant_id', $order->restaurant_id)
-                ->where('key_name', 'manager_bypass_code')
-                ->value('value');
-            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
-            if (($data['bypass_code'] ?? null) !== $expectedCode) {
-                return back()->withErrors(['status' => 'Bạn không có quyền hủy đơn hàng. Liên hệ quản lý.']);
+            $approvingUser = \App\Models\User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+            if (!$approvingUser) {
+                return back()->withErrors(['status' => 'Bạn không có quyền hủy đơn hàng hoặc chưa cấu hình mã phê duyệt của quản lý.']);
             }
+            // Ghi log bypass huỷ đơn
+            \App\Models\AuditLog::log('order_cancelled_bypass', 'updated', $order, ['status' => $order->status], [
+                'status' => 'cancelled', 
+                'bypass_code_used' => true,
+                'approved_by_user_id' => $approvingUser->id,
+                'approved_by_user_name' => $approvingUser->name
+            ]);
         }
 
         $this->orderService->updateOrderStatus($order, $data['status'], $user);
@@ -292,14 +295,19 @@ class OrdersController extends Controller
                     $prod = $products->get($itemData['product_id']);
                     if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] < (float) $prod->price) {
                         if (!$user->can('approve_requests')) {
-                            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
-                                ->where('restaurant_id', $order->restaurant_id)
-                                ->where('key_name', 'manager_bypass_code')
-                                ->value('value');
-                            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
-                            if (($data['bypass_code'] ?? null) !== $expectedCode) {
-                                return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu quyền phê duyệt của quản lý.']);
+                            $approvingUser = \App\Models\User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+                            if (!$approvingUser) {
+                                return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu quyền phê duyệt của quản lý hoặc chưa cấu hình mã phê duyệt.']);
                             }
+                            // Ghi log bypass giảm giá món trực tiếp
+                            \App\Models\AuditLog::log('price_discount_bypass', 'updated', $order, null, [
+                                'product_id' => $prod->id,
+                                'original_price' => $prod->price,
+                                'new_price' => $itemData['unit_price'],
+                                'bypass_code_used' => true,
+                                'approved_by_user_id' => $approvingUser->id,
+                                'approved_by_user_name' => $approvingUser->name
+                            ]);
                         }
                     }
                 }
@@ -376,10 +384,6 @@ class OrdersController extends Controller
             'customer_id' => ['nullable', 'exists:customers,id'],
         ]);
 
-        if (isset($data['customer_id']) && $data['customer_id']) {
-            $order->update(['customer_id' => $data['customer_id']]);
-        }
-
         if ($data['payment_method'] === 'debt') {
             $customerId = $order->customer_id ?: ($data['customer_id'] ?? null);
             if (!$customerId) {
@@ -389,92 +393,99 @@ class OrdersController extends Controller
                 return back()->withErrors(['customer_id' => 'Giao dịch ghi nợ yêu cầu thông tin khách hàng.']);
             }
 
-            $customer = \App\Models\Customer::find($customerId);
-            if (!$customer || (!$customer->is_vip && !$customer->is_b2b)) {
-                if ($request->wantsJson()) {
-                    return response()->json(['error' => 'Khách hàng không được cấp quyền ghi nợ (Yêu cầu VIP/B2B).'], 422);
-                }
-                return back()->withErrors(['customer_id' => 'Khách hàng không được cấp quyền ghi nợ (Yêu cầu VIP/B2B).']);
-            }
+            try {
+                DB::transaction(function () use ($order, $customerId, $data, $user) {
+                    // Lock the customer row
+                    $customer = \App\Models\Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
 
-            $newDebt = (float)$customer->current_debt + (float)$order->total_amount;
-            if ($newDebt > (float)$customer->credit_limit) {
-                if ($request->wantsJson()) {
-                    return response()->json(['error' => 'Hạn mức tín dụng của khách hàng không đủ.'], 422);
-                }
-                return back()->withErrors(['customer_id' => 'Hạn mức tín dụng của khách hàng không đủ.']);
-            }
-
-            // Perform transaction
-            DB::transaction(function () use ($order, $customer, $data, $user) {
-                // Apply membership discount
-                if (!str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
-                    $lvl = $customer->membership_level ?? 'silver';
-                    $loyaltyDiscount = 0.0;
-                    if ($lvl === 'diamond') {
-                        $loyaltyDiscount = round($order->subtotal * 0.10, 2);
-                    } elseif ($lvl === 'gold') {
-                        $loyaltyDiscount = round($order->subtotal * 0.05, 2);
+                    if (!$customer->is_vip && !$customer->is_b2b) {
+                        throw new \Exception('Khách hàng không được cấp quyền ghi nợ (Yêu cầu VIP/B2B).');
                     }
-                    
-                    if ($loyaltyDiscount > 0) {
-                        $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
-                        $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
-                        $order->note = ($order->note ? $order->note . ' ' : '') . "[Ưu đãi Hội viên " . ($lvl === 'diamond' ? 'Kim Cương' : 'Vàng') . ": -" . number_format($loyaltyDiscount) . "đ]";
-                        $order->save();
+
+                    $newDebt = (float)$customer->current_debt + (float)$order->total_amount;
+                    if ($newDebt > (float)$customer->credit_limit) {
+                        throw new \Exception('Hạn mức tín dụng của khách hàng không đủ.');
                     }
+
+                    // Cập nhật customer_id an toàn trong transaction
+                    if (isset($data['customer_id']) && $data['customer_id']) {
+                        $order->update(['customer_id' => $data['customer_id']]);
+                    }
+
+                    // Apply membership discount
+                    if (!str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
+                        $lvl = $customer->membership_level ?? 'silver';
+                        $loyaltyDiscount = 0.0;
+                        if ($lvl === 'diamond') {
+                            $loyaltyDiscount = round($order->subtotal * 0.10, 2);
+                        } elseif ($lvl === 'gold') {
+                            $loyaltyDiscount = round($order->subtotal * 0.05, 2);
+                        }
+                        
+                        if ($loyaltyDiscount > 0) {
+                            $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
+                            $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
+                            $order->note = ($order->note ? $order->note . ' ' : '') . "[Ưu đãi Hội viên " . ($lvl === 'diamond' ? 'Kim Cương' : 'Vàng') . ": -" . number_format($loyaltyDiscount) . "đ]";
+                            $order->save();
+                        }
+                    }
+
+                    // Increment customer debt
+                    $customer->increment('current_debt', $order->total_amount);
+
+                    // Create AccountReceivable record
+                    \App\Models\AccountReceivable::create([
+                        'restaurant_id' => $order->restaurant_id,
+                        'order_id' => $order->id,
+                        'customer_id' => $customer->id,
+                        'amount' => $order->total_amount,
+                        'received_amount' => 0,
+                        'due_date' => now()->addDays(30)->toDateString(), // 30-day payment term
+                        'status' => 'unpaid',
+                    ]);
+
+                    // Create Payment record
+                    \App\Models\Payment::create([
+                        'restaurant_id' => $order->restaurant_id,
+                        'branch_id' => $order->branch_id,
+                        'order_id' => $order->id,
+                        'processed_by' => $user->id,
+                        'payment_method' => 'debt',
+                        'status' => 'unpaid',
+                        'amount' => $order->total_amount,
+                        'cash_received' => 0,
+                        'change_amount' => 0,
+                        'paid_at' => null,
+                    ]);
+
+                    // Deduct inventory
+                    app(\App\Services\InventoryService::class)->deductInventoryForOrder($order, $user);
+
+                    // Update order to completed and payment_status to unpaid
+                    $order->update([
+                        'status' => 'completed',
+                        'payment_status' => 'unpaid',
+                        'completed_at' => now(),
+                        'cashier_user_id' => $user->id,
+                    ]);
+
+                    // Release table
+                    if ($order->table_id) {
+                        \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                    }
+
+                    // Customer updates
+                    $customer->update(['last_order_at' => now()]);
+                    \App\Services\CdpService::calculateRfmForCustomer($customer);
+
+                    \App\Models\AuditLog::log('order_paid_with_debt', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'unpaid']);
+                });
+            } catch (\Exception $e) {
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => $e->getMessage()], 422);
                 }
-
-                // Increment customer debt
-                $customer->increment('current_debt', $order->total_amount);
-
-                // Create AccountReceivable record
-                \App\Models\AccountReceivable::create([
-                    'restaurant_id' => $order->restaurant_id,
-                    'order_id' => $order->id,
-                    'customer_id' => $customer->id,
-                    'amount' => $order->total_amount,
-                    'received_amount' => 0,
-                    'due_date' => now()->addDays(30)->toDateString(), // 30-day payment term
-                    'status' => 'unpaid',
-                ]);
-
-                // Create Payment record
-                \App\Models\Payment::create([
-                    'restaurant_id' => $order->restaurant_id,
-                    'branch_id' => $order->branch_id,
-                    'order_id' => $order->id,
-                    'processed_by' => $user->id,
-                    'payment_method' => 'debt',
-                    'status' => 'unpaid',
-                    'amount' => $order->total_amount,
-                    'cash_received' => 0,
-                    'change_amount' => 0,
-                    'paid_at' => null,
-                ]);
-
-                // Deduct inventory
-                app(\App\Services\InventoryService::class)->deductInventoryForOrder($order, $user);
-
-                // Update order to completed and payment_status to unpaid
-                $order->update([
-                    'status' => 'completed',
-                    'payment_status' => 'unpaid',
-                    'completed_at' => now(),
-                    'cashier_user_id' => $user->id,
-                ]);
-
-                // Release table
-                if ($order->table_id) {
-                    \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
-                }
-
-                // Customer updates
-                $customer->update(['last_order_at' => now()]);
-                \App\Services\CdpService::calculateRfmForCustomer($customer);
-
-                \App\Models\AuditLog::log('order_paid_with_debt', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'unpaid']);
-            });
+                return back()->withErrors(['customer_id' => $e->getMessage()]);
+            }
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -553,14 +564,17 @@ class OrdersController extends Controller
 
         // Nếu không phải Owner/Manager → phải có bypass code
         if (!$user->can('approve_requests')) {
-            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
-                ->where('restaurant_id', $order->restaurant_id)
-                ->where('key_name', 'manager_bypass_code')
-                ->value('value');
-            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
-            if (($data['bypass_code'] ?? null) !== $expectedCode) {
-                return back()->withErrors(['bypass_code' => 'Hoàn tiền yêu cầu mã phê duyệt của quản lý.']);
+            $approvingUser = \App\Models\User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+            if (!$approvingUser) {
+                return back()->withErrors(['bypass_code' => 'Hoàn tiền yêu cầu mã phê duyệt của quản lý hoặc chưa cấu hình mã phê duyệt.']);
             }
+            // Ghi log bypass hoàn tiền
+            \App\Models\AuditLog::log('order_refund_bypass', 'updated', $order, null, [
+                'refund_amount' => $data['refund_amount'],
+                'bypass_code_used' => true,
+                'approved_by_user_id' => $approvingUser->id,
+                'approved_by_user_name' => $approvingUser->name
+            ]);
         }
 
         DB::transaction(function () use ($order, $data, $user) {
