@@ -17,8 +17,11 @@ class AuditLogObserver
      */
     public function created(AuditLog $log): void
     {
-        // Only run audit check for typical operational logs
-        if (!in_array($log->action, ['price_modified', 'order_cancelled', 'discount_applied'])) {
+        // Check if bypass code was used in the log metadata
+        $isBypassAction = str_ends_with($log->action, '_bypass') || (is_array($log->new_values) && ($log->new_values['bypass_code_used'] ?? false));
+
+        // Only run audit check for typical operational logs or bypass actions
+        if (!in_array($log->action, ['price_modified', 'order_cancelled', 'discount_applied']) && !$isBypassAction) {
             return;
         }
 
@@ -103,6 +106,26 @@ class AuditLogObserver
                 $riskScore = 92.0;
 
                 $description = "Phát hiện tài khoản {$employeeName} áp dụng mã giảm giá liên tục {$count} lần trên các hóa đơn trong vòng 15 phút. Khuyến nghị kiểm đếm ca để tránh lạm dụng ưu đãi.";
+            }
+        }
+
+        // Rule 4: Multiple Bypass Code usage >= 3 times in 30 minutes
+        if ($isBypassAction) {
+            $count = AuditLog::where('restaurant_id', $restaurantId)
+                ->where('user_id', $userId)
+                ->where(function ($query) {
+                    $query->where('action', 'like', '%_bypass')
+                          ->orWhere('new_values->bypass_code_used', true);
+                })
+                ->where('created_at', '>=', now()->subMinutes(30))
+                ->count();
+
+            if ($count >= 3) {
+                $triggered = true;
+                $type = 'AI: Lạm dụng mã phê duyệt quản lý';
+                $severity = 'critical';
+                $riskScore = 97.0;
+                $description = "Phát hiện tài khoản {$employeeName} sử dụng mã phê duyệt của quản lý (bypass code) liên tục {$count} lần trong vòng 30 phút. Cảnh báo nguy cơ rò rỉ mã phê duyệt hoặc lạm dụng để trục lợi.";
             }
         }
 

@@ -152,6 +152,24 @@ class AppServiceProvider extends ServiceProvider
                     'retry_after' => 60,
                 ], 429));
         });
+
+        RateLimiter::for('voucher_apply', function (Request $request) {
+            return Limit::perMinute(10)
+                ->by($request->user()?->id ?? $request->ip())
+                ->response(fn() => response()->json([
+                    'message'     => 'Quá nhiều yêu cầu áp dụng mã giảm giá. Vui lòng thử lại sau.',
+                    'retry_after' => 60,
+                ], 429));
+        });
+
+        RateLimiter::for('qr_order_submit', function (Request $request) {
+            return Limit::perMinute(5)
+                ->by($request->ip())
+                ->response(fn() => response()->json([
+                    'message'     => 'Quá nhiều yêu cầu gửi đơn hàng. Vui lòng thử lại sau.',
+                    'retry_after' => 60,
+                ], 429));
+        });
     }
 
     /**

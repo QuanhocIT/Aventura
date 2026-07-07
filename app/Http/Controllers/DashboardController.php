@@ -489,6 +489,9 @@ class DashboardController extends Controller
                     ->selectRaw('employees.branch_id, COUNT(*) as count')
                     ->pluck('count', 'branch_id');
 
+                // Pre-fetch health scores in batch to eliminate N+1 queries in the loop
+                $branchHealthScores = $this->getHealthScoresForBranches($rid, $branchIds);
+
                 foreach ($branches as $b) {
                     $bId = $b['id'];
                     $bRevToday = (float) ($revenuesByBranch[$bId] ?? 0.0);
@@ -503,7 +506,7 @@ class DashboardController extends Controller
                         $bMargin = round(($bGrossProfit / $bRevToday) * 100, 1);
                     }
 
-                    $bHealth = $this->getHealthScore($rid, $bId);
+                    $bHealth = $branchHealthScores[$bId] ?? 75;
                     $bViolations = (int) ($violationsByBranch[$bId] ?? 0);
 
                     $branchComparisons[] = [
@@ -606,7 +609,11 @@ class DashboardController extends Controller
                     $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
                 })
                 ->whereNotNull('check_in_at')
-                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw('CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'))
+                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw(
+                    \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite'
+                        ? 'scheduled_date || " " || (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id)'
+                        : 'CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'
+                ))
                 ->count()
             : null;
         $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
@@ -822,6 +829,155 @@ class DashboardController extends Controller
         }
 
         return $shiftRevenue;
+    }
+
+    /**
+     * Batch pre-fetch health scores for multiple branches to prevent N+1 query bottlenecks.
+     */
+    private function getHealthScoresForBranches(int $rid, array $branchIds): array
+    {
+        $scores = [];
+        $uncachedIds = [];
+        foreach ($branchIds as $id) {
+            $cached = Cache::get("health_score:{$rid}" . ($id ? ":{$id}" : ""));
+            if ($cached !== null) {
+                $scores[$id] = (int) $cached;
+            } else {
+                $uncachedIds[] = $id;
+            }
+        }
+
+        if (empty($uncachedIds)) {
+            return $scores;
+        }
+
+        // 1. Pre-query summaries
+        $summariesToday = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->whereIn('branch_id', $uncachedIds)
+            ->where('summary_date', today())
+            ->where('summary_type', 'daily')
+            ->get()
+            ->keyBy('branch_id');
+
+        $summariesYesterday = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->whereIn('branch_id', $uncachedIds)
+            ->where('summary_date', today()->subDay())
+            ->where('summary_type', 'daily')
+            ->get()
+            ->keyBy('branch_id');
+
+        // 2. Pre-query orders today
+        $ordersToday = Order::where('restaurant_id', $rid)
+            ->whereIn('branch_id', $uncachedIds)
+            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
+            ->selectRaw('branch_id, status, COUNT(*) as cnt')
+            ->groupBy('branch_id', 'status')
+            ->get()
+            ->groupBy('branch_id');
+
+        // 3. Pre-query scheduled work assignments today
+        $scheduledToday = \App\Models\ScheduleAssignment::where('schedule_assignments.restaurant_id', $rid)
+            ->where('scheduled_date', today())
+            ->whereHas('employee', fn($q) => $q->whereIn('branch_id', $uncachedIds))
+            ->join('employees', 'schedule_assignments.employee_id', '=', 'employees.id')
+            ->selectRaw('employees.branch_id, COUNT(*) as cnt')
+            ->groupBy('employees.branch_id')
+            ->pluck('cnt', 'employees.branch_id');
+
+        // Checked in on time
+        $checkedInOnTime = \App\Models\ScheduleAssignment::where('schedule_assignments.restaurant_id', $rid)
+            ->where('scheduled_date', today())
+            ->whereHas('employee', fn($q) => $q->whereIn('branch_id', $uncachedIds))
+            ->whereNotNull('check_in_at')
+            ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw(
+                \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite'
+                    ? 'scheduled_date || " " || (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id)'
+                    : 'CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'
+            ))
+            ->join('employees', 'schedule_assignments.employee_id', '=', 'employees.id')
+            ->selectRaw('employees.branch_id, COUNT(*) as cnt')
+            ->groupBy('employees.branch_id')
+            ->pluck('cnt', 'employees.branch_id');
+
+        // 4. Pre-query inventories
+        $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)
+            ->whereIn('branch_id', $uncachedIds)
+            ->selectRaw('branch_id, COUNT(*) as cnt')
+            ->groupBy('branch_id')
+            ->pluck('cnt', 'branch_id');
+
+        $safeIngredients = \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+            ->where('inventories.restaurant_id', $rid)
+            ->whereIn('inventories.branch_id', $uncachedIds)
+            ->whereRaw('inventories.quantity_on_hand > ingredients.min_stock_level')
+            ->selectRaw('inventories.branch_id, COUNT(*) as cnt')
+            ->groupBy('inventories.branch_id')
+            ->pluck('cnt', 'inventories.branch_id');
+
+        // 5. Customer feedback NPS (restaurant-wide, constant across branches)
+        $npsData = \App\Models\CustomerFeedback::where('restaurant_id', $rid)
+            ->where('created_at', '>=', now()->subDays(7))
+            ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->first();
+        $npsScore = $npsData && $npsData->cnt > 0
+            ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100))
+            : 70;
+
+        foreach ($uncachedIds as $bId) {
+            $todaySum = $summariesToday->get($bId);
+            $yesterdaySum = $summariesYesterday->get($bId);
+
+            $branchOrders = $ordersToday->get($bId) ?? collect();
+            $totalTodayVal = $branchOrders->sum('cnt');
+            $completedTodayVal = $branchOrders->where('status', 'completed')->sum('cnt');
+            $cancelledTodayVal = $branchOrders->where('status', 'cancelled')->sum('cnt');
+
+            $revenueTodayVal = (float) ($todaySum?->net_revenue ?? 0);
+            $revenueYesterdayVal = (float) ($yesterdaySum?->net_revenue ?? 0);
+            $revTrendVal = $revenueYesterdayVal > 0
+                ? round(($revenueTodayVal - $revenueYesterdayVal) / $revenueYesterdayVal * 100, 1)
+                : null;
+
+            $grossProfitVal = (float) ($todaySum?->gross_profit ?? 0);
+            $profitMarginVal = $revenueTodayVal > 0
+                ? round($grossProfitVal / $revenueTodayVal * 100, 1)
+                : 0.0;
+
+            $completionRateVal = $totalTodayVal > 0 ? round($completedTodayVal / $totalTodayVal * 100, 1) : 0.0;
+            $cancellationRateVal = $totalTodayVal > 0 ? ($cancelledTodayVal / $totalTodayVal) * 100 : 0;
+            $revenueGrowthScoreVal = $revTrendVal !== null ? min(100, max(0, 50 + $revTrendVal)) : 50;
+
+            // Punctuality
+            $bScheduled = $scheduledToday->get($bId, 0);
+            $bCheckedIn = $checkedInOnTime->get($bId, null);
+            $punctualityScoreVal = $bScheduled > 0 && $bCheckedIn !== null
+                ? min(100, ($bCheckedIn / $bScheduled) * 100)
+                : 75;
+
+            // Inventory
+            $bTotalIng = $totalIngredients->get($bId, 0);
+            $bSafeIng = $safeIngredients->get($bId, null);
+            $inventoryScoreVal = $bTotalIng > 0 && $bSafeIng !== null
+                ? ($bSafeIng / $bTotalIng) * 100
+                : 80;
+
+            $score = (int) round(
+                min(100, max(0,
+                    ($completionRateVal    * 0.25) +
+                    (max(0, 100 - $cancellationRateVal * 4) * 0.15) +
+                    ($revenueGrowthScoreVal * 0.20) +
+                    (min(100, $profitMarginVal * 1.5) * 0.15) +
+                    ($punctualityScoreVal  * 0.10) +
+                    ($inventoryScoreVal    * 0.10) +
+                    ($npsScore             * 0.05)
+                ))
+            );
+
+            Cache::put("health_score:{$rid}" . ($bId ? ":{$bId}" : ""), $score, 300);
+            $scores[$bId] = $score;
+        }
+
+        return $scores;
     }
 
     private function getOwnerSummary(int $rid, ?int $branchId = null): array
