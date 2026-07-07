@@ -81,34 +81,61 @@ class TableReservationController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('approve_requests'), 403);
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($reservation->status === 'pending', 422, 'Chỉ xác nhận được đặt bàn đang chờ.');
 
         $data = $request->validate([
             'table_id'       => ['nullable', "exists:restaurant_tables,id,restaurant_id,{$user->restaurant_id}"],
             'internal_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $reservation->update([
-            'status'         => 'confirmed',
-            'table_id'       => $data['table_id'] ?? null,
-            'internal_notes' => $data['internal_notes'] ?? $reservation->internal_notes,
-            'confirmed_by'   => $user->id,
-            'confirmed_at'   => now(),
-        ]);
+        try {
+            DB::transaction(function () use ($reservation, $data, $user) {
+                $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
+                if ($lockedReservation->status !== 'pending') {
+                    throw new \Exception('Chỉ xác nhận được đặt bàn đang chờ.');
+                }
 
-        // TODO: Gửi email xác nhận cho khách
-        // app(EmailMicroserviceClient::class)->sendReservationConfirmation($reservation);
+                if (!empty($data['table_id'])) {
+                    // Kiểm tra bàn có bị chiếm không
+                    $table = RestaurantTable::where('id', $data['table_id'])->lockForUpdate()->firstOrFail();
+                    if ($table->status === 'occupied') {
+                        throw new \Exception('Bàn này hiện tại đang có khách ngồi.');
+                    }
 
-        \App\Models\AuditLog::create([
-            'restaurant_id'  => $reservation->restaurant_id,
-            'user_id'        => $user->id,
-            'action'         => 'reservation_confirmed',
-            'auditable_type' => TableReservation::class,
-            'auditable_id'   => $reservation->id,
-            'old_values'     => json_encode(['status' => 'pending']),
-            'new_values'     => json_encode(['status' => 'confirmed', 'table_id' => $data['table_id'] ?? null]),
-            'ip_address'     => $request->ip(),
-        ]);
+                    // Kiểm tra bàn có bị trùng giờ với một đặt bàn khác đã confirm không
+                    $conflict = TableReservation::where('restaurant_id', $user->restaurant_id)
+                        ->where('table_id', $data['table_id'])
+                        ->where('reservation_date', $lockedReservation->reservation_date)
+                        ->where('reservation_time', $lockedReservation->reservation_time)
+                        ->where('status', 'confirmed')
+                        ->where('id', '!=', $lockedReservation->id)
+                        ->exists();
+
+                    if ($conflict) {
+                        throw new \Exception('Bàn này đã được gán cho một đặt bàn khác cùng khung giờ.');
+                    }
+                }
+
+                $lockedReservation->update([
+                    'status'         => 'confirmed',
+                    'table_id'       => $data['table_id'] ?? null,
+                    'internal_notes' => $data['internal_notes'] ?? $lockedReservation->internal_notes,
+                    'confirmed_by'   => $user->id,
+                    'confirmed_at'   => now(),
+                ]);
+
+                \App\Models\AuditLog::create([
+                    'restaurant_id'  => $lockedReservation->restaurant_id,
+                    'user_id'        => $user->id,
+                    'action'         => 'reservation_confirmed',
+                    'auditable_type' => TableReservation::class,
+                    'auditable_id'   => $lockedReservation->id,
+                    'old_values'     => json_encode(['status' => 'pending']),
+                    'new_values'     => json_encode(['status' => 'confirmed', 'table_id' => $data['table_id'] ?? null]),
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['table_id' => $e->getMessage()]);
+        }
 
         return back()->with('success', "Đã xác nhận đặt bàn cho khách {$reservation->guest_name}.");
     }
@@ -196,30 +223,46 @@ class TableReservationController extends Controller
         // Kiểm tra nhà hàng tồn tại và đang hoạt động
         $restaurant = \App\Models\Restaurant::findOrFail($restaurantId);
 
-        // Kiểm tra có bàn trống không trong ngày/giờ đó
-        $existingCount = TableReservation::where('restaurant_id', $restaurantId)
-            ->where('reservation_date', $data['reservation_date'])
-            ->where('reservation_time', $data['reservation_time'])
-            ->whereIn('status', ['pending', 'confirmed', 'seated'])
-            ->count();
+        try {
+            $reservation = DB::transaction(function () use ($restaurantId, $data) {
+                // Khóa dòng restaurant để tuần tự hóa việc tạo đặt bàn đồng thời cho nhà hàng đó
+                \App\Models\Restaurant::where('id', $restaurantId)->lockForUpdate()->firstOrFail();
 
-        $totalTables = RestaurantTable::where('restaurant_id', $restaurantId)->count();
-        if ($existingCount >= $totalTables) {
-            return back()->withErrors(['reservation_time' => 'Khung giờ này đã hết bàn trống. Vui lòng chọn giờ khác.']);
+                // Kiểm tra có bàn trống không trong ngày/giờ đó
+                $existingCount = TableReservation::where('restaurant_id', $restaurantId)
+                    ->where('reservation_date', $data['reservation_date'])
+                    ->where('reservation_time', $data['reservation_time'])
+                    ->whereIn('status', ['pending', 'confirmed', 'seated'])
+                    ->lockForUpdate()
+                    ->count();
+
+                $totalTables = RestaurantTable::where('restaurant_id', $restaurantId)->count();
+                if ($existingCount >= $totalTables) {
+                    throw new \Exception('Khung giờ này đã hết bàn trống. Vui lòng chọn giờ khác.');
+                }
+
+                return TableReservation::create([
+                    'restaurant_id'    => $restaurantId,
+                    'guest_name'       => $data['guest_name'],
+                    'guest_phone'      => $data['guest_phone'],
+                    'guest_email'      => $data['guest_email'] ?? null,
+                    'reservation_date' => $data['reservation_date'],
+                    'reservation_time' => $data['reservation_time'],
+                    'party_size'       => $data['party_size'],
+                    'special_requests' => $data['special_requests'] ?? null,
+                    'source'           => $data['source'] ?? 'qr',
+                    'status'           => 'pending',
+                ]);
+            });
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+            return back()->withErrors(['reservation_time' => $e->getMessage()]);
         }
-
-        $reservation = TableReservation::create([
-            'restaurant_id'    => $restaurantId,
-            'guest_name'       => $data['guest_name'],
-            'guest_phone'      => $data['guest_phone'],
-            'guest_email'      => $data['guest_email'] ?? null,
-            'reservation_date' => $data['reservation_date'],
-            'reservation_time' => $data['reservation_time'],
-            'party_size'       => $data['party_size'],
-            'special_requests' => $data['special_requests'] ?? null,
-            'source'           => $data['source'] ?? 'qr',
-            'status'           => 'pending',
-        ]);
 
         try {
             app(\App\Services\Integrations\WebhookDispatchService::class)->dispatch(

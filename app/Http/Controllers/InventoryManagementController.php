@@ -333,46 +333,67 @@ class InventoryManagementController extends Controller
             return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
-        $ingredient = Ingredient::findOrFail($data['ingredient_id']);
-
-        $inventory = Inventory::firstOrCreate(
-            ['restaurant_id' => $user->restaurant_id, 'ingredient_id' => $ingredient->id],
-            ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]
-        );
-
+        $ingredientId = $data['ingredient_id'];
         $newQty  = (float) $data['quantity'];
         $newCost = (float) $data['unit_cost'];
-        $oldQty  = (float) $inventory->quantity_on_hand;
-        $oldAvg  = (float) $ingredient->average_cost;
 
-        // Weighted average cost
-        $newAvg = ($oldQty + $newQty) > 0
-            ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
-            : $newCost;
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($user, $ingredientId, $newQty, $newCost, $data) {
+                // Lock the ingredient row to prevent average cost recalculation collisions
+                $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
 
-        InventoryTransaction::create([
-            'restaurant_id'    => $user->restaurant_id,
-            'ingredient_id'    => $ingredient->id,
-            'inventory_id'     => $inventory->id,
-            'supplier_id'      => $data['supplier_id'] ?? null,
-            'performed_by'     => $user->id,
-            'type'             => 'purchase',
-            'direction'        => 'in',
-            'quantity'         => $newQty,
-            'unit_cost'        => $newCost,
-            'total_cost'       => $newQty * $newCost,
-            'invoice_file_url' => $data['invoice_file_url'] ?? null,
-            'notes'            => $data['notes'] ?? null,
-            'occurred_at'      => $data['occurred_at'] ?? now(),
-        ]);
+                // Find or create inventory row, then lock it
+                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                    ->where('ingredient_id', $ingredientId)
+                    ->lockForUpdate()
+                    ->first();
 
-        $inventory->update([
-            'quantity_on_hand'     => $oldQty + $newQty,
-            'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
-            'last_cost'            => $newCost,
-        ]);
+                if (!$inventory) {
+                    $inventory = Inventory::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'ingredient_id' => $ingredientId,
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => 0,
+                    ]);
+                    $inventory = Inventory::where('id', $inventory->id)->lockForUpdate()->firstOrFail();
+                }
 
-        $ingredient->update(['average_cost' => round($newAvg, 2)]);
+                $oldQty  = (float) $inventory->quantity_on_hand;
+                $oldAvg  = (float) $ingredient->average_cost;
+
+                // Weighted average cost
+                $newAvg = ($oldQty + $newQty) > 0
+                    ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
+                    : $newCost;
+
+                InventoryTransaction::create([
+                    'restaurant_id'    => $user->restaurant_id,
+                    'ingredient_id'    => $ingredient->id,
+                    'inventory_id'     => $inventory->id,
+                    'supplier_id'      => $data['supplier_id'] ?? null,
+                    'performed_by'     => $user->id,
+                    'type'             => 'purchase',
+                    'direction'        => 'in',
+                    'quantity'         => $newQty,
+                    'unit_cost'        => $newCost,
+                    'total_cost'       => $newQty * $newCost,
+                    'invoice_file_url' => $data['invoice_file_url'] ?? null,
+                    'notes'            => $data['notes'] ?? null,
+                    'occurred_at'      => $data['occurred_at'] ?? now(),
+                ]);
+
+                $inventory->update([
+                    'quantity_on_hand'     => $oldQty + $newQty,
+                    'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
+                    'last_cost'            => $newCost,
+                ]);
+
+                $ingredient->update(['average_cost' => round($newAvg, 2)]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['unit_cost' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã ghi nhận nhập hàng và cập nhật giá vốn bình quân.');
     }
@@ -390,25 +411,30 @@ class InventoryManagementController extends Controller
             ->with(['unit'])
             ->get();
 
+        // Fix N+1: batch load inventories
+        $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->get()
+            ->keyBy('ingredient_id');
+
+        // Fix N+1: batch load 30-day transactions grouped by ingredient_id
+        $thirtyDaysAgo = now()->subDays(30);
+        $transactionsGrouped = InventoryTransaction::where('restaurant_id', $restaurantId)
+            ->where('type', 'usage')
+            ->where('direction', 'out')
+            ->where('occurred_at', '>=', $thirtyDaysAgo)
+            ->selectRaw('ingredient_id, DATE(occurred_at) as date, SUM(quantity) as qty')
+            ->groupBy('ingredient_id', 'date')
+            ->orderBy('date')
+            ->get()
+            ->groupBy('ingredient_id');
+
         $ingredientsData = [];
         foreach ($ingredients as $ing) {
-            $inventory = Inventory::where('restaurant_id', $restaurantId)
-                ->where('ingredient_id', $ing->id)
-                ->first();
+            $inventory = $inventories->get($ing->id);
             $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
 
-            $thirtyDaysAgo = now()->subDays(30);
-            $transactions = InventoryTransaction::where('restaurant_id', $restaurantId)
-                ->where('ingredient_id', $ing->id)
-                ->where('type', 'usage')
-                ->where('direction', 'out')
-                ->where('occurred_at', '>=', $thirtyDaysAgo)
-                ->selectRaw('DATE(occurred_at) as date, SUM(quantity) as qty')
-                ->groupBy('date')
-                ->orderBy('date')
-                ->get();
-
             $historyPayload = [];
+            $transactions = $transactionsGrouped->get($ing->id) ?? collect();
             foreach ($transactions as $t) {
                 $historyPayload[] = [
                     'date' => $t->date,
@@ -469,25 +495,31 @@ class InventoryManagementController extends Controller
      */
     private function runFallbackForecast($ingredients, int $restaurantId): \Illuminate\Http\JsonResponse
     {
-        $forecast = $ingredients->map(function ($ing) use ($restaurantId) {
-            $thirtyDaysAgo = now()->subDays(30);
-            $totalUsage = InventoryTransaction::where('restaurant_id', $restaurantId)
-                ->where('ingredient_id', $ing->id)
-                ->where('type', 'usage')
-                ->where('direction', 'out')
-                ->where('occurred_at', '>=', $thirtyDaysAgo)
-                ->sum('quantity');
+        $thirtyDaysAgo = now()->subDays(30);
 
-            $avgDailyUsage = (float) $totalUsage / 30.0;
+        // Fix N+1: Pre-load all inventories for this restaurant
+        $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->get()
+            ->keyBy('ingredient_id');
+
+        // Fix N+1: Pre-load total usages in the last 30 days grouped by ingredient_id
+        $totalUsages = InventoryTransaction::where('restaurant_id', $restaurantId)
+            ->where('type', 'usage')
+            ->where('direction', 'out')
+            ->where('occurred_at', '>=', $thirtyDaysAgo)
+            ->groupBy('ingredient_id')
+            ->selectRaw('ingredient_id, SUM(quantity) as total_qty')
+            ->pluck('total_qty', 'ingredient_id');
+
+        $forecast = $ingredients->map(function ($ing) use ($restaurantId, $inventories, $totalUsages) {
+            $totalUsage = (float) ($totalUsages[$ing->id] ?? 0.0);
+            $avgDailyUsage = $totalUsage / 30.0;
 
             if ($avgDailyUsage <= 0) {
                 $avgDailyUsage = (float) rand(50, 150);
             }
 
-            $inventory = Inventory::where('restaurant_id', $restaurantId)
-                ->where('ingredient_id', $ing->id)
-                ->first();
-
+            $inventory = $inventories->get($ing->id);
             $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
             $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.1, 2);
             $suggestedPurchase = max(0.0, round($predictedUsageNext7Days - $currentStock, 2));
@@ -542,51 +574,61 @@ class InventoryManagementController extends Controller
             return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
-        $ingredient = Ingredient::findOrFail($data['ingredient_id']);
-
-        $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
-            ->where('ingredient_id', $ingredient->id)
-            ->first();
-
+        $ingredientId = $data['ingredient_id'];
         $wasteQty  = (float) $data['quantity'];
-        $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
-        $transaction = InventoryTransaction::create([
-            'restaurant_id' => $user->restaurant_id,
-            'ingredient_id' => $ingredient->id,
-            'inventory_id'  => $inventory?->id,
-            'performed_by'  => $user->id,
-            'type'          => 'waste',
-            'waste_category' => $data['waste_category'] ?? null,
-            'direction'     => 'out',
-            'quantity'      => $wasteQty,
-            'unit_cost'     => (float) $ingredient->average_cost,
-            'total_cost'    => $wasteCost,
-            'notes'         => $data['notes'] ?? null,
-            'occurred_at'   => now(),
-        ]);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($user, $ingredientId, $wasteQty, $data) {
+                // Lock ingredient and inventory records
+                $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
+                
+                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                    ->where('ingredient_id', $ingredientId)
+                    ->lockForUpdate()
+                    ->first();
 
-        if ($inventory) {
-            $inventory->update([
-                'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
-            ]);
-        }
+                $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
-        // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
-        if (! empty($data['employee_id']) && $wasteCost > 0) {
-            $employee = \App\Models\Employee::find($data['employee_id']);
-            if ($employee) {
-                $salaryService = app(SalaryService::class);
-                $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
-                $salaryService->addAdjustment($salary, [
-                    'employee_id'    => $employee->id,
-                    'type'           => 'inventory_loss',
-                    'amount'         => $wasteCost,
-                    'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ',
-                    'reference_id'   => $transaction->id,
-                    'reference_type' => InventoryTransaction::class,
+                $transaction = InventoryTransaction::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'ingredient_id' => $ingredient->id,
+                    'inventory_id'  => $inventory?->id,
+                    'performed_by'  => $user->id,
+                    'type'          => 'waste',
+                    'waste_category' => $data['waste_category'] ?? null,
+                    'direction'     => 'out',
+                    'quantity'      => $wasteQty,
+                    'unit_cost'     => (float) $ingredient->average_cost,
+                    'total_cost'    => $wasteCost,
+                    'notes'         => $data['notes'] ?? null,
+                    'occurred_at'   => now(),
                 ]);
-            }
+
+                if ($inventory) {
+                    $inventory->update([
+                        'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
+                    ]);
+                }
+
+                // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
+                if (! empty($data['employee_id']) && $wasteCost > 0) {
+                    $employee = \App\Models\Employee::find($data['employee_id']);
+                    if ($employee) {
+                        $salaryService = app(SalaryService::class);
+                        $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
+                        $salaryService->addAdjustment($salary, [
+                            'employee_id'    => $employee->id,
+                            'type'           => 'inventory_loss',
+                            'amount'         => $wasteCost,
+                            'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ',
+                            'reference_id'   => $transaction->id,
+                            'reference_type' => InventoryTransaction::class,
+                        ]);
+                    }
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['quantity' => $e->getMessage()]);
         }
 
         return back()->with('success', 'Đã ghi nhận hao hụt nguyên liệu.');

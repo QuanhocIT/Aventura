@@ -209,65 +209,75 @@ class RfpController extends Controller
     {
         $rfp = $bid->rfp;
         abort_unless($request->user()->hasRole('owner') && $rfp->restaurant_id === $request->user()->restaurant_id, 403);
-        abort_unless($rfp->status !== 'completed', 400);
 
-        DB::transaction(function () use ($bid, $rfp, $request) {
-            // 1. Accept winning bid and reject others
-            $bid->update(['status' => 'accepted']);
-            $rfp->bids()->where('id', '!=', $bid->id)->update(['status' => 'rejected']);
-            $rfp->update(['status' => 'completed']);
+        try {
+            DB::transaction(function () use ($bid, $rfp, $request) {
+                // Lock RFP row
+                $lockedRfp = RequestForProposal::where('id', $rfp->id)->lockForUpdate()->firstOrFail();
 
-            // 2. Generate approved Purchase Order automatically
-            $po = PurchaseOrder::create([
-                'restaurant_id' => $rfp->restaurant_id,
-                'supplier_id' => $bid->supplier_id,
-                'po_number' => 'PO-' . now()->format('Ymd') . '-RFP-' . $rfp->id,
-                'status' => 'approved',
-                'total_amount' => $bid->total_amount,
-                'created_by' => $request->user()->id,
-                'approved_by' => $request->user()->id,
-                'notes' => "Đơn hàng tự động tạo từ hồ sơ thầu thắng cuộc cho yêu cầu RFP #{$rfp->id}: {$rfp->title}.",
-                'delivery_due_date' => $bid->proposed_delivery_date,
-                'payment_status' => 'escrow_locked',
-                'escrow_transaction_id' => 'ESC-' . now()->format('Ymd') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(8)),
-            ]);
-
-            // 3. Map bid items to PO items
-            $itemNames = $bid->items->map(fn($item) => $item->rfpItem->ingredient_name)->toArray();
-            
-            $ingredientsByName = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                ->whereIn('name', $itemNames)
-                ->get()
-                ->keyBy('name');
-
-            $fallbackIngredient = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                ->where('supplier_id', $bid->supplier_id)
-                ->first();
-
-            foreach ($bid->items as $bidItem) {
-                // Try to map to an existing ingredient in restaurant inventory by name match
-                $ingredient = $ingredientsByName->get($bidItem->rfpItem->ingredient_name);
-
-                // If not found, map to the first ingredient associated with this supplier as fallback
-                if (!$ingredient) {
-                    $ingredient = $fallbackIngredient;
+                if ($lockedRfp->status === 'completed') {
+                    throw new \Exception('Yêu cầu báo giá (RFP) này đã hoàn thành hoặc đã được duyệt thầu.');
                 }
 
-                if (!$ingredient) {
-                    throw new \Exception("Không tìm thấy nguyên vật liệu phù hợp cho '{$bidItem->rfpItem->ingredient_name}' trong kho của nhà hàng. Vui lòng thiết lập nguyên vật liệu này trước khi duyệt thầu.");
-                }
+                // 1. Accept winning bid and reject others
+                $bid->update(['status' => 'accepted']);
+                $lockedRfp->bids()->where('id', '!=', $bid->id)->update(['status' => 'rejected']);
+                $lockedRfp->update(['status' => 'completed']);
 
-                $po->items()->create([
-                    'ingredient_id' => $ingredient->id,
-                    'quantity_ordered' => $bidItem->rfpItem->quantity_required,
-                    'price_per_unit' => $bidItem->proposed_price_per_unit,
-                    'total_cost' => $bidItem->rfpItem->quantity_required * $bidItem->proposed_price_per_unit,
+                // 2. Generate approved Purchase Order automatically
+                $po = PurchaseOrder::create([
+                    'restaurant_id' => $lockedRfp->restaurant_id,
+                    'supplier_id' => $bid->supplier_id,
+                    'po_number' => 'PO-' . now()->format('Ymd') . '-RFP-' . $lockedRfp->id,
+                    'status' => 'approved',
+                    'total_amount' => $bid->total_amount,
+                    'created_by' => $request->user()->id,
+                    'approved_by' => $request->user()->id,
+                    'notes' => "Đơn hàng tự động tạo từ hồ sơ thầu thắng cuộc cho yêu cầu RFP #{$lockedRfp->id}: {$lockedRfp->title}.",
+                    'delivery_due_date' => $bid->proposed_delivery_date,
+                    'payment_status' => 'escrow_locked',
+                    'escrow_transaction_id' => 'ESC-' . now()->format('Ymd') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(8)),
                 ]);
-            }
 
-            // 4. Dispatch PO processing job (triggers realtime broadcast to supplier)
-            dispatch(new \App\Jobs\ProcessApprovedPurchaseOrderJob($po->id));
-        });
+                // 3. Map bid items to PO items
+                $itemNames = $bid->items->map(fn($item) => $item->rfpItem->ingredient_name)->toArray();
+                
+                $ingredientsByName = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->whereIn('name', $itemNames)
+                    ->get()
+                    ->keyBy('name');
+
+                $fallbackIngredient = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->where('supplier_id', $bid->supplier_id)
+                    ->first();
+
+                foreach ($bid->items as $bidItem) {
+                    // Try to map to an existing ingredient in restaurant inventory by name match
+                    $ingredient = $ingredientsByName->get($bidItem->rfpItem->ingredient_name);
+
+                    // If not found, map to the first ingredient associated with this supplier as fallback
+                    if (!$ingredient) {
+                        $ingredient = $fallbackIngredient;
+                    }
+
+                    if (!$ingredient) {
+                        throw new \Exception("Không tìm thấy nguyên vật liệu phù hợp cho '{$bidItem->rfpItem->ingredient_name}' trong kho của nhà hàng. Vui lòng thiết lập nguyên vật liệu này trước khi duyệt thầu.");
+                    }
+
+                    $po->items()->create([
+                        'ingredient_id' => $ingredient->id,
+                        'quantity_ordered' => $bidItem->rfpItem->quantity_required,
+                        'price_per_unit' => $bidItem->proposed_price_per_unit,
+                        'total_cost' => $bidItem->rfpItem->quantity_required * $bidItem->proposed_price_per_unit,
+                    ]);
+                }
+
+                // 4. Dispatch PO processing job (triggers realtime broadcast to supplier)
+                dispatch(new \App\Jobs\ProcessApprovedPurchaseOrderJob($po->id));
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã chấp nhận hồ sơ thầu thắng cuộc. Đơn hàng PO đã được tạo và tự động gửi tới nhà cung cấp.');
     }

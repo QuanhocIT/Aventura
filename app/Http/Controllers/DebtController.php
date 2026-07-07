@@ -267,6 +267,9 @@ class DebtController extends Controller
         $notes = $request->input('notes');
 
         DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user) {
+            // Khóa bản ghi AccountReceivable
+            $receivable = AccountReceivable::where('id', $receivable->id)->lockForUpdate()->firstOrFail();
+
             $newReceivedAmount = (float)$receivable->received_amount + $collectAmount;
             $status = $newReceivedAmount >= (float)$receivable->amount ? 'paid' : 'partially_paid';
 
@@ -276,8 +279,8 @@ class DebtController extends Controller
                 'notes' => $notes ? ($receivable->notes ? $receivable->notes . "\n" : '') . "[" . now()->format('d/m/Y') . "] Thu nợ: " . number_format($collectAmount) . "đ. Ghi chú: " . $notes : $receivable->notes,
             ]);
 
-            // Deduct customer's current debt
-            $customer = Customer::findOrFail($receivable->customer_id);
+            // Khóa và cập nhật dư nợ của khách hàng
+            $customer = Customer::where('id', $receivable->customer_id)->lockForUpdate()->firstOrFail();
             $customer->decrement('current_debt', $collectAmount);
 
             // Update Order payment status if fully paid
