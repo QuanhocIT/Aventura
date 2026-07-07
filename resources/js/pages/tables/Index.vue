@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -71,6 +72,7 @@ const itemsPerPage = 12;
 const totalPages = computed(() => Math.ceil(filteredTables.value.length / itemsPerPage));
 const paginatedTables = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return filteredTables.value.slice(start, start + itemsPerPage);
 });
 
@@ -87,6 +89,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 
@@ -134,7 +137,10 @@ const statusConfig: Record<string, { label: string; color: string; dot: string; 
 
 // Check if a table is occupied and waiting for food for > 15 minutes
 const isTableDelayed = (table: Table) => {
-    if (table.status !== 'occupied' || !table.active_order) return false;
+    if (table.status !== 'occupied' || !table.active_order) {
+return false;
+}
+
     return table.active_order.pending_items.some(item => item.is_late);
 };
 
@@ -153,7 +159,10 @@ const submitTable = () => tableForm.post('/tables', {
 });
 
 const openEdit = (t: Table) => {
-    if (isEditLayout.value) return; // ignore edit modal click in dragging mode
+    if (isEditLayout.value) {
+return;
+} // ignore edit modal click in dragging mode
+
     editingTable.value = t;
     editForm.name     = t.name;
     editForm.capacity = String(t.capacity);
@@ -161,7 +170,10 @@ const openEdit = (t: Table) => {
 };
 
 const submitEdit = () => {
-    if (!editingTable.value) return;
+    if (!editingTable.value) {
+return;
+}
+
     editForm.patch(`/tables/${editingTable.value.id}`, {
         onSuccess: () => {
             editingTable.value = null; 
@@ -170,7 +182,10 @@ const submitEdit = () => {
 };
 
 const submitDelete = () => {
-    if (!deletingTable.value) return;
+    if (!deletingTable.value) {
+return;
+}
+
     router.delete(`/tables/${deletingTable.value.id}`, {
         onSuccess: () => {
             deletingTable.value = null; 
@@ -179,29 +194,45 @@ const submitDelete = () => {
 };
 
 const getQrUrl = (table: Table | null) => {
-    if (!table) return '';
+    if (!table) {
+return '';
+}
+
     const tenantId = table.restaurant_id || (page.props.tenant as any)?.id;
+
     return window.location.origin + '/customer/order/' + tenantId + '/' + table.qr_token;
 };
 
 const showQrModal = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     selectedQrTable.value = table;
 };
 
 const copyLink = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     const url = getQrUrl(table);
     navigator.clipboard.writeText(url);
     toast.success('Đã sao chép liên kết đặt món tại bàn ' + table.name);
 };
 
 const printQrCode = (table: Table | null) => {
-    if (!table) return;
+    if (!table) {
+return;
+}
+
     const qrUrl = getQrUrl(table);
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+
+    if (!printWindow) {
+return;
+}
     
     printWindow.document.write(`
         <html>
@@ -235,15 +266,22 @@ const printQrCode = (table: Table | null) => {
     printWindow.document.close();
 };
 
-const regenerateQrCode = (table: Table | null) => {
-    if (!table) return;
-    if (confirm('Bạn có chắc chắn muốn tạo mới mã QR cho bàn "' + table.name + '"? Mã QR cũ sẽ không thể sử dụng để quét đặt món được nữa.')) {
+const regenerateQrCode = async (table: Table | null) => {
+    if (!table) {
+return;
+}
+
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn tạo mới mã QR cho bàn "' + table.name + '"? Mã QR cũ sẽ không thể sử dụng để quét đặt món được nữa.', variant: 'default' }))) {
         router.post(`/tables/${table.id}/regenerate-qr`, {}, {
             onSuccess: () => {
                 toast.success('Đã tạo mới mã QR cho bàn ' + table.name);
+
                 if (selectedQrTable.value && selectedQrTable.value.id === table.id) {
                     const updatedTable = props.tables.find(t => t.id === table.id);
-                    if (updatedTable) selectedQrTable.value = updatedTable;
+
+                    if (updatedTable) {
+selectedQrTable.value = updatedTable;
+}
                 }
             }
         });
@@ -252,7 +290,10 @@ const regenerateQrCode = (table: Table | null) => {
 
 // Custom interactive drag positions
 const onDragStart = (table: Table, event: MouseEvent) => {
-    if (!isEditLayout.value) return;
+    if (!isEditLayout.value) {
+return;
+}
+
     event.preventDefault();
     activeDragTable.value = table;
     
@@ -272,15 +313,23 @@ const onDragStart = (table: Table, event: MouseEvent) => {
 };
 
 const onDragMove = (event: MouseEvent) => {
-    if (!activeDragTable.value) return;
+    if (!activeDragTable.value) {
+return;
+}
     
     // Find the canvas container for the table's area
     const tableId = activeDragTable.value.id;
     const cardEl = document.getElementById(`table-card-${tableId}`);
-    if (!cardEl) return;
+
+    if (!cardEl) {
+return;
+}
     
     const parentEl = cardEl.parentElement;
-    if (!parentEl) return;
+
+    if (!parentEl) {
+return;
+}
     
     const rect = parentEl.getBoundingClientRect();
     
@@ -298,7 +347,9 @@ const onDragMove = (event: MouseEvent) => {
 };
 
 const onDragEnd = () => {
-    if (!activeDragTable.value) return;
+    if (!activeDragTable.value) {
+return;
+}
     
     const table = activeDragTable.value;
     
@@ -328,13 +379,19 @@ onUnmounted(() => {
 
 // Tooltip helpers on hover
 const handleMouseEnter = (table: Table, event: MouseEvent) => {
-    if (isEditLayout.value || table.status !== 'occupied') return;
+    if (isEditLayout.value || table.status !== 'occupied') {
+return;
+}
+
     hoverTableId.value = table.id;
     updateTooltipPosition(event);
 };
 
 const handleMouseMove = (event: MouseEvent) => {
-    if (hoverTableId.value === null) return;
+    if (hoverTableId.value === null) {
+return;
+}
+
     updateTooltipPosition(event);
 };
 

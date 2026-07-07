@@ -51,7 +51,7 @@ class OnlineOrderService
             throw ValidationException::withMessages(['store' => 'Cửa hàng online hiện đang tạm ngừng.']);
         }
 
-        return DB::transaction(function () use ($data, $config, $restaurant) {
+        $order = DB::transaction(function () use ($data, $config, $restaurant) {
             $channel = $data['channel'] ?? 'takeaway';
             $items = $data['items'] ?? [];
 
@@ -160,6 +160,30 @@ class OnlineOrderService
 
             return $order;
         });
+
+        // Sau khi commit: webhook developer + tin xác nhận Zalo OA.
+        // Lỗi tích hợp không được phép làm hỏng luồng đặt hàng của khách.
+        try {
+            app(\App\Services\Integrations\WebhookDispatchService::class)->dispatch(
+                $order->restaurant_id,
+                'order.created',
+                [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'channel' => $order->channel,
+                    'total_amount' => (float) $order->total_amount,
+                ]
+            );
+
+            app(\App\Services\Integrations\ZaloOaService::class)->sendOrderConfirmation($order);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('createOnlineOrder: lỗi post-order integrations', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $order;
     }
 
     public function calculateDeliveryFee(float $lat, float $lng, Restaurant $restaurant): array

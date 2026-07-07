@@ -126,6 +126,7 @@ class HandleInertiaRequests extends Middleware
                 'success'      => $request->session()->get('success'),
                 'error'        => $request->session()->get('error'),
                 'temp_password' => $request->session()->get('temp_password'),
+                'webhook_secret' => $request->session()->get('webhook_secret'),
             ],
             'locale' => app()->getLocale(),
             'service_maintenance' => json_decode(@file_get_contents(storage_path('framework/service-maintenance.json')), true) ?: [],

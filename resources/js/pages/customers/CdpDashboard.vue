@@ -8,6 +8,7 @@ import {
     Volume2, Compass, AlertTriangle, Eye, ShoppingCart, Info
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -247,7 +248,7 @@ return;
     })
     .catch(error => {
         console.error('Error running campaign:', error);
-        alert('Có lỗi xảy ra khi khởi chạy chiến dịch: ' + (error.response?.data?.message || error.message));
+        toast.error('Có lỗi xảy ra khi khởi chạy chiến dịch: ' + (error.response?.data?.message || error.message));
     })
     .finally(() => {
         isRunningCampaign.value = false;

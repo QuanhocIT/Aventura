@@ -31,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/webhooks/payments/vnpay',
             'api/webhooks/payments/momo',
             'api/webhooks/payments/zalopay',
+            'api/webhooks/delivery/*',
+            'api/pos/*',
             'api/online/*',
         ]);
 
@@ -49,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.subscription'  => CheckTenantSubscription::class,
             'tenant.ratelimit'     => \App\Http\Middleware\TenantRateLimit::class,
             'tenant.quota'         => \App\Http\Middleware\TenantQuotaMiddleware::class,
+            'auth.apikey'          => \App\Http\Middleware\AuthenticateApiKey::class,
             'role'                 => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'role.superadmin.2fa'  => \App\Http\Middleware\RequireSuperAdminTwoFactor::class,
             'permission'           => \Spatie\Permission\Middleware\PermissionMiddleware::class,

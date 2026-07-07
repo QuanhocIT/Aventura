@@ -8,6 +8,7 @@ import {
     Siren, Square, Ticket, Trash2, XCircle, Zap,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { StatusBadge, Pagination, LedIndicator, ProgressBar } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StatusBadge, Pagination, LedIndicator, ProgressBar } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -262,16 +263,16 @@ function submitEditTicket() {
     });
 }
 
-function deleteTicket(ticket: TicketRow) {
-    if (!confirm(`Xóa ticket "${ticket.code}"? Tất cả phản hồi cũng sẽ bị xóa.`)) {
+async function deleteTicket(ticket: TicketRow) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa ticket "${ticket.code}"? Tất cả phản hồi cũng sẽ bị xóa.` }))) {
         return;
     }
 
     router.delete(`/super-admin/support/tickets/${ticket.id}`, { preserveScroll: true });
 }
 
-function deleteReply(ticketId: number, replyId: number) {
-    if (!confirm('Xóa phản hồi này?')) {
+async function deleteReply(ticketId: number, replyId: number) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Xóa phản hồi này?' }))) {
         return;
     }
 
@@ -279,8 +280,8 @@ function deleteReply(ticketId: number, replyId: number) {
 }
 
 // ── Unpublish announcement ────────────────────────────────────
-function unpublishAnnouncement(id: number) {
-    if (!confirm('Gỡ đăng thông báo này? Thông báo sẽ chuyển sang trạng thái nháp.')) {
+async function unpublishAnnouncement(id: number) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Gỡ đăng thông báo này? Thông báo sẽ chuyển sang trạng thái nháp.', variant: 'default' }))) {
         return;
     }
 
@@ -317,8 +318,8 @@ function submitEditRule() {
     });
 }
 
-function deleteRule(rule: RuleRow) {
-    if (!confirm(`Xóa rule "${rule.name}"?`)) {
+async function deleteRule(rule: RuleRow) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa rule "${rule.name}"?` }))) {
         return;
     }
 

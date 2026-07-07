@@ -1,6 +1,7 @@
 import './lib/echo';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia';
 import { createApp, h  } from 'vue';
@@ -91,7 +92,15 @@ createInertiaApp({
 initializeTheme();
 initializeFlashToast();
 
-import axios from 'axios';
+// PWA: cache asset tĩnh qua Service Worker (offline-first cho JS/CSS build)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Không hỗ trợ / bị chặn — app vẫn hoạt động bình thường
+        });
+    });
+}
+
 
 axios.interceptors.response.use(
     (response) => response,
@@ -99,19 +108,25 @@ axios.interceptors.response.use(
         if (error.response && error.response.status === 403 && error.response.data && error.response.data.error === 'SHIFT_EXPIRED') {
             window.dispatchEvent(new CustomEvent('shift-expired', { detail: error.response.data }));
         }
+
         return Promise.reject(error);
     }
 );
 
 router.on('invalid', (event: any) => {
     const response = event.detail.response;
+
     if (response && response.status === 403) {
         let data = response.data;
+
         if (typeof data === 'string') {
             try {
                 data = JSON.parse(data);
-            } catch (e) {}
+            } catch {
+                // giữ nguyên chuỗi nếu không phải JSON
+            }
         }
+
         if (data && data.error === 'SHIFT_EXPIRED') {
             event.preventDefault();
             window.dispatchEvent(new CustomEvent('shift-expired', { detail: data }));

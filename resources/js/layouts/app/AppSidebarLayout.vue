@@ -7,11 +7,12 @@ import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
+import CommandPalette from '@/components/CommandPalette.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import OnboardingTour from '@/components/OnboardingTour.vue';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
-import CommandPalette from '@/components/CommandPalette.vue';
 import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
 
@@ -66,11 +67,16 @@ const currentTimeSec = ref(Math.floor(Date.now() / 1000));
 const showShiftExpiredModal = ref(false);
 
 const shiftWarningMinutes = computed(() => {
-    if (!shiftAllowedUntil.value) return null;
+    if (!shiftAllowedUntil.value) {
+return null;
+}
+
     const diff = shiftAllowedUntil.value - currentTimeSec.value;
+
     if (diff > 0 && diff <= 600) { // 10 minutes or less
         return Math.max(1, Math.ceil(diff / 60));
     }
+
     return null;
 });
 
@@ -80,13 +86,20 @@ let autoLogoutTimer: any = null;
 const confirmLogout = () => {
     router.flushAll();
     router.post('/logout', {}, {
-        onSuccess: () => { window.location.href = '/login'; },
-        onError: () => { window.location.href = '/login'; }
+        onSuccess: () => {
+ window.location.href = '/login'; 
+},
+        onError: () => {
+ window.location.href = '/login'; 
+}
     });
 };
 
 const triggerShiftExpired = () => {
-    if (showShiftExpiredModal.value) return;
+    if (showShiftExpiredModal.value) {
+return;
+}
+
     showShiftExpiredModal.value = true;
     
     // Dispatch save event to active pages (like cashier dashboard)
@@ -117,8 +130,14 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('shift-expired', triggerShiftExpired);
-    if (checkShiftTimer) clearInterval(checkShiftTimer);
-    if (autoLogoutTimer) clearTimeout(autoLogoutTimer);
+
+    if (checkShiftTimer) {
+clearInterval(checkShiftTimer);
+}
+
+    if (autoLogoutTimer) {
+clearTimeout(autoLogoutTimer);
+}
 });
 </script>
 
@@ -181,10 +200,15 @@ onUnmounted(() => {
             </div>
             
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <slot />
+            <!-- key theo component: hiệu ứng chuyển trang chỉ chạy khi đổi sang trang khác,
+                 form submit quay về cùng trang không bị re-mount mất state -->
+            <div :key="String(page.component)" class="page-enter flex flex-1 flex-col">
+                <slot />
+            </div>
         </AppContent>
         <Toaster />
         <FlashToast />
+        <ConfirmDialog />
         <QROrderAlertCenter />
         <GlobalCampaignListener />
         <OnboardingTour />

@@ -54,6 +54,8 @@ class KitchenController extends Controller
                 'creator_name' => $item->order->creator?->name ?? 'Hệ thống',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
                 'table_id' => $item->order->table_id,
+                // SLA riêng theo món: thời gian chuẩn bị chuẩn (phút), mặc định 10'
+                'prep_minutes' => max(1, (int) ($item->product?->preparation_time_minutes ?? 10)),
             ]);
 
         // 2. Đơn đã làm xong (Completed but not served yet)
@@ -95,7 +97,32 @@ class KitchenController extends Controller
             'pendingItems' => $pendingItems,
             'completedItems' => $completedItems,
             'products' => $products,
+            'kitchenStats' => $this->buildKitchenStats($restaurantId),
         ]);
+    }
+
+    /**
+     * Thống kê tốc độ bếp hôm nay: số món đã ra, thời gian chế biến trung bình,
+     * món chậm nhất. Tính bằng PHP để tương thích mọi DB (test chạy SQLite).
+     */
+    private function buildKitchenStats(int $restaurantId): array
+    {
+        $preparedToday = OrderItem::where('restaurant_id', $restaurantId)
+            ->whereNotNull('prepared_at')
+            ->whereDate('prepared_at', now()->toDateString())
+            ->get(['id', 'created_at', 'sent_to_kitchen_at', 'prepared_at']);
+
+        $prepTimes = $preparedToday->map(function (OrderItem $item) {
+            $start = $item->sent_to_kitchen_at ?? $item->created_at;
+
+            return max(0, $start->diffInMinutes($item->prepared_at));
+        });
+
+        return [
+            'done_today' => $preparedToday->count(),
+            'avg_prep_minutes' => $prepTimes->isNotEmpty() ? round($prepTimes->avg(), 1) : null,
+            'slowest_prep_minutes' => $prepTimes->isNotEmpty() ? (int) $prepTimes->max() : null,
+        ];
     }
 
     public function prepare(Request $request, OrderItem $item): RedirectResponse

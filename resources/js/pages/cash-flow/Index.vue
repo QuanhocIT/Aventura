@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     Wallet,
     ArrowUpRight,
@@ -20,10 +18,12 @@ import {
     ArrowRightLeft,
     Loader2
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -128,15 +128,17 @@ const txForm = useForm({
 function handleOpenRegister() {
     if (!openForm.shift_id) {
         toast.error('Vui lòng chọn ca làm việc');
+
         return;
     }
+
     openForm.post('/cash-flow/registers', {
         onSuccess: () => {
             showOpenModal.value = false;
             openForm.reset();
             toast.success('Đã mở két đầu ca thành công!');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
@@ -145,12 +147,16 @@ function handleOpenRegister() {
 function handleAddTransaction() {
     if (txForm.amount <= 0) {
         toast.error('Số tiền phải lớn hơn 0');
+
         return;
     }
+
     if (!txForm.notes.trim()) {
         toast.error('Vui lòng nhập ghi chú chi tiết');
+
         return;
     }
+
     txForm.type = transactionModalType.value;
     txForm.source = transactionModalType.value === 'out' ? 'expense' : 'other';
 
@@ -160,7 +166,7 @@ function handleAddTransaction() {
             txForm.reset();
             toast.success('Đã ghi nhận giao dịch dòng tiền!');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
@@ -181,7 +187,10 @@ const activeExpensesTotal = computed(() => {
 });
 
 const isBudgetExceeded = computed(() => {
-    if (!props.activeRegister || !props.activeRegister.expense_budget) return false;
+    if (!props.activeRegister || !props.activeRegister.expense_budget) {
+return false;
+}
+
     return activeExpensesTotal.value > props.activeRegister.expense_budget;
 });
 
@@ -189,9 +198,15 @@ const isBudgetExceeded = computed(() => {
 const chartMaxVal = computed(() => {
     let max = 0;
     props.chartData.forEach(d => {
-        if (d.in > max) max = d.in;
-        if (d.out > max) max = d.out;
+        if (d.in > max) {
+max = d.in;
+}
+
+        if (d.out > max) {
+max = d.out;
+}
     });
+
     return max || 1;
 });
 </script>

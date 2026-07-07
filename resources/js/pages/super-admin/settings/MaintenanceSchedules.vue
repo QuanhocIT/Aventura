@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { Calendar, Clock, Trash2, ShieldAlert, ArrowLeft, Wrench, CheckCircle2, AlertTriangle, AlertCircle, PlayCircle, Bell, Server, Check } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { PageHeader, DataTable, StatusBadge, AlertBanner, EmptyState } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader, DataTable, StatusBadge, AlertBanner, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -54,6 +55,7 @@ function submit() {
 
 function toggleService(key: string) {
     const idx = form.services.indexOf(key);
+
     if (idx > -1) {
         form.services.splice(idx, 1);
     } else {
@@ -61,8 +63,8 @@ function toggleService(key: string) {
     }
 }
 
-function cancelSchedule(id: number) {
-    if (confirm('Bạn có chắc chắn muốn hủy lịch bảo trì này không?')) {
+async function cancelSchedule(id: number) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn hủy lịch bảo trì này không?' }))) {
         router.delete(`/super-admin/maintenance-schedules/${id}`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Đã hủy lịch bảo trì thành công!'),
@@ -85,25 +87,36 @@ const statusLabels: Record<string, string> = {
     cancelled: 'Đã hủy',
 };
 const downtimeAdvice = computed(() => {
-    if (!form.downtime_start) return { status: 'neutral', text: 'Vui lòng chọn thời gian bắt đầu bảo trì.' };
+    if (!form.downtime_start) {
+return { status: 'neutral', text: 'Vui lòng chọn thời gian bắt đầu bảo trì.' };
+}
+
     const startHour = new Date(form.downtime_start).getHours();
+
     if (startHour >= 6 && startHour <= 22) {
         return { status: 'warning', text: `Khung giờ ${startHour}:00 nằm trong khoảng cao điểm của hệ thống SaaS (6h - 22h). Khuyến cáo dời lịch sang đêm khuya (23h - 5h) để giảm ảnh hưởng.` };
     }
+
     return { status: 'ok', text: 'Khung giờ bắt đầu bảo trì đêm khuya tối ưu, ít gây gián đoạn nhất.' };
 });
 
 const durationAdvice = computed(() => {
-    if (!form.downtime_start || !form.downtime_end) return { status: 'neutral', text: 'Nhập thời gian bắt đầu và kết thúc.' };
+    if (!form.downtime_start || !form.downtime_end) {
+return { status: 'neutral', text: 'Nhập thời gian bắt đầu và kết thúc.' };
+}
+
     const start = new Date(form.downtime_start).getTime();
     const end = new Date(form.downtime_end).getTime();
     const diffHrs = (end - start) / (1000 * 60 * 60);
+
     if (diffHrs < 0) {
         return { status: 'error', text: 'Thời gian kết thúc không thể trước thời gian bắt đầu.' };
     }
+
     if (diffHrs > 4) {
         return { status: 'warning', text: `Thời lượng bảo trì dài (${Math.round(diffHrs * 10) / 10} giờ). Đòi hỏi chuẩn bị kỹ kịch bản rollback và thông báo chi tiết đến các tenant.` };
     }
+
     return { status: 'ok', text: `Thời lượng bảo trì tối ưu (${Math.round(diffHrs * 10) / 10} giờ).` };
 });
 
@@ -111,6 +124,7 @@ const servicesAdvice = computed(() => {
     if (!form.services.length) {
         return { status: 'caution', text: 'Chưa có dịch vụ nào bị khóa. Hãy chọn ít nhất một dịch vụ bị khóa để hệ thống ngắt truy cập tạm thời.' };
     }
+
     return { status: 'ok', text: `Có ${form.services.length} dịch vụ sẽ tự động khóa khi tới giờ bảo trì.` };
 });
 
@@ -118,6 +132,7 @@ const bannerAdvice = computed(() => {
     if (!form.banner_message) {
         return { status: 'caution', text: 'Chưa soạn thảo tin nhắn cảnh báo. Tenants sẽ không thấy thông báo mô tả trên hệ thống.' };
     }
+
     return { status: 'ok', text: 'Tin nhắn cảnh báo đã sẵn sàng.' };
 });
 

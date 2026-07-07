@@ -7,6 +7,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -92,8 +93,8 @@ function toggleExpand(key: string) {
 
 // ── Override Split Penalty ─────────────────────────────────────────────────────
 
-function overrideSplit(orderId: number) {
-    if (!confirm('Bạn có chắc chắn muốn phê duyệt đối soát và gỡ bỏ khoản phạt âm tiền cho đơn hàng này?')) {
+async function overrideSplit(orderId: number) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn phê duyệt đối soát và gỡ bỏ khoản phạt âm tiền cho đơn hàng này?', variant: 'default' }))) {
 return;
 }
 

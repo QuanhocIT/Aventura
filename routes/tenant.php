@@ -176,6 +176,40 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('online-store', [\App\Http\Controllers\OnlineStoreSettingsController::class, 'index'])->name('online-store.index');
     Route::post('online-store', [\App\Http\Controllers\OnlineStoreSettingsController::class, 'update'])->name('online-store.update');
 
+    // Trung tâm Tích hợp (Integration Hub)
+    Route::prefix('settings/integrations')->name('integrations.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\IntegrationSettingsController::class, 'index'])->name('index');
+        Route::post('/simulate-order', [\App\Http\Controllers\IntegrationSettingsController::class, 'simulateOrder'])->name('simulate-order');
+        Route::post('/test-zalo', [\App\Http\Controllers\IntegrationSettingsController::class, 'testZalo'])->name('test-zalo');
+        Route::get('/misa/export', [\App\Http\Controllers\IntegrationSettingsController::class, 'misaExport'])->name('misa.export');
+        Route::post('/devices', [\App\Http\Controllers\PosDeviceController::class, 'store'])->name('devices.store');
+        Route::delete('/devices/{device}', [\App\Http\Controllers\PosDeviceController::class, 'destroy'])->name('devices.destroy');
+        Route::post('/api-keys', [\App\Http\Controllers\ApiKeyController::class, 'store'])->name('api-keys.store');
+        Route::patch('/api-keys/{apiKey}/toggle', [\App\Http\Controllers\ApiKeyController::class, 'toggle'])->name('api-keys.toggle');
+        Route::delete('/api-keys/{apiKey}', [\App\Http\Controllers\ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+        Route::post('/webhooks', [\App\Http\Controllers\WebhookEndpointController::class, 'store'])->name('webhooks.store');
+        Route::patch('/webhooks/{endpoint}/toggle', [\App\Http\Controllers\WebhookEndpointController::class, 'toggle'])->name('webhooks.toggle');
+        Route::post('/webhooks/{endpoint}/test', [\App\Http\Controllers\WebhookEndpointController::class, 'test'])->name('webhooks.test');
+        Route::delete('/webhooks/{endpoint}', [\App\Http\Controllers\WebhookEndpointController::class, 'destroy'])->name('webhooks.destroy');
+        Route::post('/{provider}/demo', [\App\Http\Controllers\IntegrationSettingsController::class, 'connectDemo'])->name('demo');
+        Route::post('/{provider}', [\App\Http\Controllers\IntegrationSettingsController::class, 'update'])->name('update');
+        Route::patch('/{provider}/toggle', [\App\Http\Controllers\IntegrationSettingsController::class, 'toggle'])->name('toggle');
+    });
+
+    // In hóa đơn qua máy in nhiệt
+    Route::post('orders/{order}/print-receipt', [\App\Http\Controllers\ReceiptPrintController::class, 'print'])->name('orders.print-receipt');
+    Route::get('orders/{order}/receipt.bin', [\App\Http\Controllers\ReceiptPrintController::class, 'download'])->name('orders.receipt-download');
+
+    // Hóa đơn điện tử (XML chuẩn TT78) cho đơn đã thanh toán
+    Route::get('orders/{order}/e-invoice.xml', [\App\Http\Controllers\EInvoiceController::class, 'download'])->name('orders.e-invoice');
+
+    // Tách bill / gộp đơn / chuyển bàn
+    Route::get('api/orders/{order}/items', [\App\Http\Controllers\OrderActionsController::class, 'items'])->name('orders.items');
+    Route::get('api/orders/available-tables', [\App\Http\Controllers\OrderActionsController::class, 'availableTables'])->name('orders.available-tables');
+    Route::post('orders/{order}/split', [\App\Http\Controllers\OrderActionsController::class, 'split'])->name('orders.split');
+    Route::post('orders/{order}/merge', [\App\Http\Controllers\OrderActionsController::class, 'merge'])->name('orders.merge');
+    Route::post('orders/{order}/move-table', [\App\Http\Controllers\OrderActionsController::class, 'moveTable'])->name('orders.move-table');
+
     // Chương trình Khách hàng Thân thiết (Loyalty Program)
     Route::prefix('loyalty')->name('loyalty.')->group(function () {
         Route::get('/', [\App\Http\Controllers\LoyaltyController::class, 'index'])->name('index');
@@ -267,6 +301,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Revenue / Reports
     Route::get('reports', [\App\Http\Controllers\ReportsController::class, 'index'])->name('reports.index');
+    Route::get('reports/profit-loss', [\App\Http\Controllers\ProfitLossController::class, 'index'])->name('reports.profit-loss');
     Route::post('reports/generate', [\App\Http\Controllers\ReportsController::class, 'generate'])->name('reports.generate');
     Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
     Route::get('reports/export-pdf', [\App\Http\Controllers\ReportsController::class, 'exportPdf'])->name('reports.export-pdf');

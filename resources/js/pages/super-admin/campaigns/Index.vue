@@ -19,12 +19,13 @@ import {
     Activity
 } from 'lucide-vue-next';
 import { ref, watch, onMounted, computed } from 'vue';
+import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 
 interface Campaign {
     id: number;
@@ -143,16 +144,16 @@ function createCampaign() {
 }
 
 // --- Actions ---
-function deleteCampaign(campaign: Campaign) {
-    if (confirm(`Xóa chiến dịch "${campaign.title}"?`)) {
+async function deleteCampaign(campaign: Campaign) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa chiến dịch "${campaign.title}"?` }))) {
         router.delete(`/super-admin/campaigns/${campaign.id}`, { preserveScroll: true });
     }
 }
 
 const isSendingMap = ref<Record<number, boolean>>({});
 
-function sendCampaign(campaign: Campaign) {
-    if (confirm(`Bạn chắc chắn muốn gửi chiến dịch "${campaign.title}" ngay lập tức? Điều này sẽ phát sóng Websocket và bắt đầu chạy tác vụ hàng loạt.`)) {
+async function sendCampaign(campaign: Campaign) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn chắc chắn muốn gửi chiến dịch "${campaign.title}" ngay lập tức? Điều này sẽ phát sóng Websocket và bắt đầu chạy tác vụ hàng loạt.`, variant: 'default' }))) {
         isSendingMap.value[campaign.id] = true;
         router.post(`/super-admin/campaigns/${campaign.id}/send`, {}, {
             preserveScroll: true,

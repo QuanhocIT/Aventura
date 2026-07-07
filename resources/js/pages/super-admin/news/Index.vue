@@ -5,13 +5,14 @@ import {
     RefreshCcw, Star, StarOff, Trash2, Upload, X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { PageHeader, StatCard, StatusBadge, FilterBar, Pagination, EmptyState } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, StatusBadge, FilterBar, Pagination, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -134,8 +135,8 @@ function submitForm() {
     }
 }
 
-function deletePost(post: NewsPost) {
-    if (!confirm(`Xóa bài: "${post.title}"?`)) {
+async function deletePost(post: NewsPost) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa bài: "${post.title}"?` }))) {
 return;
 }
 
@@ -183,9 +184,11 @@ const categoryStats = computed(() => {
             counts[p.category]++;
         }
     });
+
     return categoryOptions.map(opt => {
         const count = counts[opt.value] || 0;
         const percent = totalPosts > 0 ? Math.round((count / totalPosts) * 100) : 0;
+
         return {
             ...opt,
             count,
@@ -195,25 +198,42 @@ const categoryStats = computed(() => {
 });
 
 const avgViewsPerPost = computed(() => {
-    if (props.stats.published === 0) return 0;
+    if (props.stats.published === 0) {
+return 0;
+}
+
     return Math.round(props.stats.total_views / props.stats.published);
 });
 
 const draftRatio = computed(() => {
-    if (props.stats.total === 0) return 0;
+    if (props.stats.total === 0) {
+return 0;
+}
+
     const drafts = props.stats.total - props.stats.published;
+
     return Math.round((drafts / props.stats.total) * 100);
 });
 
 const featuredRatio = computed(() => {
-    if (props.stats.total === 0) return 0;
+    if (props.stats.total === 0) {
+return 0;
+}
+
     return Math.round((props.stats.featured / props.stats.total) * 100);
 });
 
 const engagementGrade = computed(() => {
     const avg = avgViewsPerPost.value;
-    if (avg >= 100) return 'Xuất sắc';
-    if (avg >= 20) return 'Khá tốt';
+
+    if (avg >= 100) {
+return 'Xuất sắc';
+}
+
+    if (avg >= 20) {
+return 'Khá tốt';
+}
+
     return 'Cần cải thiện';
 });
 

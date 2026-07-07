@@ -5,9 +5,10 @@ import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -19,8 +20,13 @@ const props = defineProps<{
 
 const page = usePage();
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error) toast.error(flash.error);
+    if (flash?.success) {
+toast.success(flash.success);
+}
+
+    if (flash?.error) {
+toast.error(flash.error);
+}
 });
 
 const programForm = useForm({
@@ -68,17 +74,24 @@ function openEditTier(tier: any) {
 function submitTier() {
     if (editingTier.value) {
         tierForm.patch(`/loyalty/tiers/${editingTier.value.id}`, {
-            onSuccess: () => { showTierDialog.value = false; },
+            onSuccess: () => {
+ showTierDialog.value = false; 
+},
         });
     } else {
         tierForm.post('/loyalty/tiers', {
-            onSuccess: () => { showTierDialog.value = false; tierForm.reset(); },
+            onSuccess: () => {
+ showTierDialog.value = false; tierForm.reset(); 
+},
         });
     }
 }
 
-function deleteTier(tier: any) {
-    if (!confirm(`Xóa hạng "${tier.name}"?`)) return;
+async function deleteTier(tier: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa hạng "${tier.name}"?` }))) {
+return;
+}
+
     router.delete(`/loyalty/tiers/${tier.id}`);
 }
 </script>

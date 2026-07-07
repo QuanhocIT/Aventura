@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
@@ -22,10 +21,11 @@ import {
     LogOut,
     Eye
 } from 'lucide-vue-next';
+import { ref, onMounted, computed } from 'vue';
 
 // Layout setting for Inertia
 defineOptions({
-    layout: null // Uses BareLayout since it's null in inertia resolve, giving us full screen control
+    layout: null as any, // Uses BareLayout since it's null in inertia resolve, giving us full screen control
 });
 
 const page = usePage();
@@ -81,8 +81,10 @@ const unreadNotificationCount = computed(() => {
 // Load all dashboard data
 const fetchData = async () => {
     loading.value = true;
+
     try {
         const response = await axios.get('/employee-portal/data');
+
         if (response.data.success) {
             summary.value = response.data.summary;
             kpiData.value = response.data.kpis;
@@ -99,6 +101,7 @@ const fetchData = async () => {
 const fetchSalaries = async () => {
     try {
         const response = await axios.get('/employee-portal/salaries');
+
         if (response.data.success) {
             salaries.value = response.data.salaries;
         }
@@ -110,6 +113,7 @@ const fetchSalaries = async () => {
 const fetchLeaves = async () => {
     try {
         const response = await axios.get('/employee-portal/leaves');
+
         if (response.data.success) {
             leaves.value = response.data.leaves;
         }
@@ -121,6 +125,7 @@ const fetchLeaves = async () => {
 const fetchSwaps = async () => {
     try {
         const response = await axios.get('/employee-portal/swaps');
+
         if (response.data.success) {
             swaps.value = response.data;
         }
@@ -133,8 +138,10 @@ const fetchSwaps = async () => {
 const submitLeave = async () => {
     leaveErrors.value = {};
     leaveSuccessMessage.value = '';
+
     try {
         const response = await axios.post('/employee-portal/leaves', leaveForm.value);
+
         if (response.data.success) {
             leaveSuccessMessage.value = response.data.message;
             leaveForm.value = { leave_type: 'annual', start_date: '', end_date: '', reason: '' };
@@ -153,8 +160,10 @@ const submitLeave = async () => {
 const submitSwapRequest = async () => {
     swapErrors.value = {};
     swapSuccessMessage.value = '';
+
     try {
         const response = await axios.post('/employee-portal/swaps/request', swapForm.value);
+
         if (response.data.success) {
             swapSuccessMessage.value = response.data.message;
             swapForm.value = { requester_assignment_id: '', receiver_assignment_id: '', notes: '' };
@@ -173,6 +182,7 @@ const submitSwapRequest = async () => {
 const handleSwapResponse = async (swapId: number, action: 'accept' | 'cancel' | 'reject') => {
     try {
         const response = await axios.post(`/employee-portal/swaps/${swapId}/respond`, { action });
+
         if (response.data.success) {
             fetchSwaps();
             fetchData();
@@ -200,9 +210,18 @@ onMounted(() => {
 // Watch tab shifts to load specific items
 const changeTab = (tab: string) => {
     activeTab.value = tab;
-    if (tab === 'salary') fetchSalaries();
-    if (tab === 'leave') fetchLeaves();
-    if (tab === 'swap') fetchSwaps();
+
+    if (tab === 'salary') {
+fetchSalaries();
+}
+
+    if (tab === 'leave') {
+fetchLeaves();
+}
+
+    if (tab === 'swap') {
+fetchSwaps();
+}
 };
 
 const formatCurrency = (val: number) => {
@@ -210,12 +229,20 @@ const formatCurrency = (val: number) => {
 };
 
 const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
+    if (!dateStr) {
+return '';
+}
+
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
+
+    if (isNaN(date.getTime())) {
+return dateStr;
+}
+
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
+
     return `${day}/${month}/${year}`;
 };
 

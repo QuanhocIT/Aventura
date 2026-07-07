@@ -12,7 +12,7 @@ import {
     Target
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import { useCountUp } from '@/composables/useCountUp';
+import AnimatedNumber from '@/components/AnimatedNumber.vue';
 import { useFeatureGate } from '@/composables/useFeatureGate';
 
 const props = defineProps<{
@@ -52,30 +52,23 @@ const healthScoreColor = computed(() => {
     };
 });
 
-function formatMoney(v: number): string {
-    if (v === 0) {
-        return '—';
-    }
-
-    return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + 'đ';
-}
-
-// ── Count-up animated values ────────────────────────────────────
-const ordersRef    = computed(() => props.stats?.orders_today ?? 0);
-const completedRef = computed(() => props.stats?.orders_completed ?? 0);
-const productsRef  = computed(() => props.stats?.products_count ?? 0);
-const employeesRef = computed(() => props.stats?.employees_count ?? 0);
-const healthRef    = computed(() => props.healthScore ?? 0);
-
-const animOrders    = useCountUp(ordersRef);
-const animCompleted = useCountUp(completedRef);
-const animProducts  = useCountUp(productsRef);
-const animEmployees = useCountUp(employeesRef);
-const animHealth    = useCountUp(healthRef, 900);
+// ── Count-up animated values (AnimatedNumber animate cả lúc mount) ──
+const orders    = computed(() => Number(props.stats?.orders_today ?? 0));
+const completed = computed(() => Number(props.stats?.orders_completed ?? 0));
+const products  = computed(() => Number(props.stats?.products_count ?? 0));
+const employees = computed(() => Number(props.stats?.employees_count ?? 0));
+const health    = computed(() => Number(props.healthScore ?? 0));
+const revenue   = computed(() => Number(props.stats?.revenue_today ?? 0));
 
 // Pulse trigger khi health score vừa load
 const healthLoaded = ref(false);
-watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { healthLoaded.value = true; }, 300); });
+watch(() => props.healthScore, (v) => {
+ if (v != null) {
+setTimeout(() => {
+ healthLoaded.value = true; 
+}, 300);
+} 
+});
 </script>
 
 <template>
@@ -90,7 +83,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
                 </div>
                 <div class="min-w-0">
                     <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đơn hàng</p>
-                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums">{{ animOrders }}</p>
+                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums"><AnimatedNumber :value="orders" /></p>
                 </div>
             </div>
 
@@ -103,7 +96,8 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
                     <p class="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-500/80 uppercase tracking-wider">Doanh thu</p>
                     <div class="flex items-center gap-1.5 mt-1">
                         <p class="text-xl font-black leading-none text-emerald-700 dark:text-emerald-400 truncate">
-                            {{ formatMoney(stats.revenue_today) }}
+                            <AnimatedNumber v-if="revenue > 0" :value="revenue" compact suffix="đ" />
+                            <template v-else>—</template>
                         </p>
                         <span v-if="stats.revenue_trend !== null"
                             :class="stats.revenue_trend >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40' : 'bg-rose-50 text-rose-500 dark:bg-rose-950/40'"
@@ -124,7 +118,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
                 <div class="min-w-0 flex-1">
                     <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hoàn thành</p>
                     <div class="flex items-center gap-1.5 mt-1">
-                        <p class="text-xl font-black leading-none text-slate-800 dark:text-slate-100 tabular-nums">{{ animCompleted }}</p>
+                        <p class="text-xl font-black leading-none text-slate-800 dark:text-slate-100 tabular-nums"><AnimatedNumber :value="completed" /></p>
                         <span v-if="stats.order_trend !== null"
                             :class="stats.order_trend >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40' : 'bg-rose-50 text-rose-500 dark:bg-rose-950/40'"
                             class="text-[9px] font-extrabold px-1 py-0.5 rounded-md shrink-0 flex items-center gap-0.5"
@@ -143,7 +137,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
                 </div>
                 <div class="min-w-0">
                     <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Sản phẩm</p>
-                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums">{{ animProducts }}</p>
+                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums"><AnimatedNumber :value="products" /></p>
                 </div>
             </div>
 
@@ -154,7 +148,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
                 </div>
                 <div class="min-w-0">
                     <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nhân viên</p>
-                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums">{{ animEmployees }}</p>
+                    <p class="text-xl font-black leading-none mt-1 text-slate-800 dark:text-slate-100 tabular-nums"><AnimatedNumber :value="employees" /></p>
                 </div>
             </div>
 
@@ -227,7 +221,7 @@ watch(() => props.healthScore, (v) => { if (v != null) setTimeout(() => { health
             
             <div class="flex items-center gap-4 shrink-0">
                 <div class="relative">
-                    <div :class="['text-4xl font-black tracking-tight tabular-nums leading-none', healthScoreColor.text]">{{ animHealth }}</div>
+                    <div :class="['text-4xl font-black tracking-tight tabular-nums leading-none', healthScoreColor.text]"><AnimatedNumber :value="health" /></div>
                     <!-- Pulse ring khi health score vừa load -->
                     <span
                         v-if="healthLoaded"

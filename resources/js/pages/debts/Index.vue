@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     BadgeDollarSign,
     PlusCircle,
@@ -24,10 +22,12 @@ import {
     ArrowDownLeft,
     Check
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -193,10 +193,15 @@ function openPayModal(p: AccountPayable) {
 }
 
 function submitPay() {
-    if (!selectedPayable.value) return;
+    if (!selectedPayable.value) {
+return;
+}
+
     const remaining = selectedPayable.value.amount - selectedPayable.value.paid_amount;
+
     if (payForm.amount <= 0 || payForm.amount > remaining) {
         toast.error(`Số tiền thanh toán phải lớn hơn 0 và không vượt quá ${vnd(remaining)}`);
+
         return;
     }
 
@@ -205,7 +210,7 @@ function submitPay() {
             showPayModal.value = false;
             toast.success('Đã ghi nhận thanh toán nợ nhà cung cấp thành công!');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
@@ -220,10 +225,15 @@ function openCollectModal(r: AccountReceivable) {
 }
 
 function submitCollect() {
-    if (!selectedReceivable.value) return;
+    if (!selectedReceivable.value) {
+return;
+}
+
     const remaining = selectedReceivable.value.amount - selectedReceivable.value.received_amount;
+
     if (collectForm.amount <= 0 || collectForm.amount > remaining) {
         toast.error(`Số tiền thu hồi phải lớn hơn 0 và không vượt quá ${vnd(remaining)}`);
+
         return;
     }
 
@@ -232,7 +242,7 @@ function submitCollect() {
             showCollectModal.value = false;
             toast.success('Đã ghi nhận thu hồi nợ của khách hàng thành công!');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
@@ -247,13 +257,16 @@ function openCreditModal(c: Customer) {
 }
 
 function submitCredit() {
-    if (!selectedCustomer.value) return;
+    if (!selectedCustomer.value) {
+return;
+}
+
     creditForm.post(`/debts/customers/${selectedCustomer.value.id}/credit`, {
         onSuccess: () => {
             showCreditModal.value = false;
             toast.success('Đã cập nhật hạn mức tín dụng khách hàng thành công.');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
@@ -277,7 +290,10 @@ const agingColors: Record<keyof AgingReport, string> = {
 };
 
 function getPercentage(value: number, total: number) {
-    if (total <= 0) return 0;
+    if (total <= 0) {
+return 0;
+}
+
     return Math.round((value / total) * 100);
 }
 </script>
@@ -549,7 +565,7 @@ function getPercentage(value: number, total: number) {
                                     <Button 
                                         v-if="p.status !== 'paid'"
                                         @click="openPayModal(p)"
-                                        size="xs"
+                                        size="sm"
                                         class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] h-7 px-2.5 rounded-md"
                                     >
                                         Trả nợ
@@ -660,7 +676,7 @@ function getPercentage(value: number, total: number) {
                                     <Button 
                                         v-if="r.status !== 'paid'"
                                         @click="openCollectModal(r)"
-                                        size="xs"
+                                        size="sm"
                                         class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] h-7 px-2.5 rounded-md"
                                     >
                                         Thu nợ

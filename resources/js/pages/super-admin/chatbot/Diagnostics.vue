@@ -7,10 +7,11 @@ import {
     TrendingUp, XCircle, Zap,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { PageHeader, TerminalCard, LedIndicator, StatusBadge } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader, TerminalCard, LedIndicator, StatusBadge } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -115,8 +116,8 @@ return;
     });
 }
 
-function deleteResolved() {
-    if (!confirm('Xóa tất cả câu hỏi đã đánh dấu xử lý?')) {
+async function deleteResolved() {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Xóa tất cả câu hỏi đã đánh dấu xử lý?' }))) {
 return;
 }
 

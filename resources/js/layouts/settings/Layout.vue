@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
-import { User, Building2, Shield, Gift } from 'lucide-vue-next';
+import { User, Building2, Shield, Gift, Blocks } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +17,11 @@ const sidebarNavItems = [
         title: 'Nhà hàng',
         href: '/settings/restaurant',
         icon: Building2,
+    },
+    {
+        title: 'Tích hợp',
+        href: '/settings/integrations',
+        icon: Blocks,
     },
     {
         title: 'Bảo mật',

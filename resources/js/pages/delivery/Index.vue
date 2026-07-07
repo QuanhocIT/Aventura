@@ -886,7 +886,7 @@ clearInterval(etaTicker);
                         </CardTitle>
                         <!-- Sort menu -->
                         <div class="relative">
-                            <Button variant="ghost" size="xs" class="gap-1" @click="showSortMenu = !showSortMenu">
+                            <Button variant="ghost" size="sm" class="gap-1" @click="showSortMenu = !showSortMenu">
                                 <ArrowUpDown class="h-3 w-3" />
                             </Button>
                             <div v-if="showSortMenu" class="absolute right-0 top-full z-10 mt-1 min-w-[130px] rounded-lg border bg-popover p-1 shadow-lg">
@@ -912,8 +912,8 @@ clearInterval(etaTicker);
                     </div>
                     <!-- Select actions + dispatch -->
                     <div class="mt-1.5 flex gap-1">
-                        <Button variant="ghost" size="xs" class="text-xs" @click="selectAll">Chọn tất cả</Button>
-                        <Button variant="ghost" size="xs" class="text-xs" @click="clearSelection">Bỏ chọn</Button>
+                        <Button variant="ghost" size="sm" class="text-xs" @click="selectAll">Chọn tất cả</Button>
+                        <Button variant="ghost" size="sm" class="text-xs" @click="clearSelection">Bỏ chọn</Button>
                     </div>
                     <Button v-if="selectedOrders.size > 0" size="sm" class="mt-1 w-full" @click="openCreateModal">
                         <Zap class="mr-1.5 h-3.5 w-3.5" />

@@ -504,8 +504,10 @@ class DemoDataSeederService
                 'status'         => 'completed',
                 'payment_status' => 'paid',
                 'channel'        => ['dine_in', 'takeaway'][rand(0, 1)],
+                'subtotal'       => $totalAmount,
                 'total_amount'   => $totalAmount,
                 'created_by'     => $creatorUserId,
+                'cashier_user_id'=> $creatorUserId,
                 'confirmed_at'   => $orderDate->copy()->addMinutes(2),
                 'completed_at'   => $orderDate->copy()->addMinutes(30),
                 'created_at'     => $orderDate,
@@ -518,16 +520,19 @@ class DemoDataSeederService
             }
             OrderItem::insert($orderItems);
 
-            // Payment
+            // Payment — dùng đúng cột schema (payment_method enum, status 'paid')
             Payment::create([
-                'restaurant_id' => $rid,
-                'order_id'      => $order->id,
-                'amount'        => $totalAmount,
-                'method'        => ['cash', 'bank_transfer', 'momo'][rand(0, 2)],
-                'status'        => 'success',
-                'paid_at'       => $orderDate->copy()->addMinutes(31),
-                'created_at'    => $orderDate,
-                'updated_at'    => $orderDate,
+                'restaurant_id'  => $rid,
+                'order_id'       => $order->id,
+                'processed_by'   => $creatorUserId,
+                'amount'         => $totalAmount,
+                'payment_method' => ['cash', 'bank_transfer', 'ewallet'][rand(0, 2)],
+                'status'         => 'paid',
+                'cash_received'  => $totalAmount,
+                'change_amount'  => 0,
+                'paid_at'        => $orderDate->copy()->addMinutes(31),
+                'created_at'     => $orderDate,
+                'updated_at'     => $orderDate,
             ]);
 
             // Tổng hợp revenue theo ngày
@@ -549,19 +554,25 @@ class DemoDataSeederService
             }
         }
 
-        // Ghi RestaurantRevenueSummary
-        foreach ($revenueSummaries as $dateStr => $summary) {
-            RestaurantRevenueSummary::updateOrCreate(
-                ['restaurant_id' => $rid, 'branch_id' => null, 'summary_date' => $dateStr],
-                [
-                    'total_revenue'     => $summary['total_revenue'],
-                    'total_orders'      => $summary['order_count'],
-                    'paid_orders'       => $summary['order_count'],
-                    'first_order_at'    => $summary['first_order_at'],
-                    'last_order_at'     => $summary['last_order_at'],
-                    'calculated_at'     => now(),
-                ]
-            );
+        // Ghi RestaurantRevenueSummary — bọc try/catch vì schema summary có thể
+        // khác giữa các phiên bản; lỗi ở đây không được làm hỏng toàn bộ seed.
+        // Báo cáo P&L/BI tính trực tiếp từ orders nên không phụ thuộc bảng này.
+        try {
+            foreach ($revenueSummaries as $dateStr => $summary) {
+                RestaurantRevenueSummary::updateOrCreate(
+                    ['restaurant_id' => $rid, 'branch_id' => null, 'summary_date' => $dateStr],
+                    [
+                        'total_revenue'     => $summary['total_revenue'],
+                        'total_orders'      => $summary['order_count'],
+                        'paid_orders'       => $summary['order_count'],
+                        'first_order_at'    => $summary['first_order_at'],
+                        'last_order_at'     => $summary['last_order_at'],
+                        'calculated_at'     => now(),
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('DemoSeeder: bỏ qua ghi revenue summary', ['error' => $e->getMessage()]);
         }
     }
 

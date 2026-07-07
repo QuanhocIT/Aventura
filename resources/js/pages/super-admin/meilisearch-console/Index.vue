@@ -22,9 +22,10 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { PageHeader, TerminalCard, StatusBadge, LedIndicator } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader, TerminalCard, StatusBadge, LedIndicator } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 // Layout config
@@ -157,8 +158,8 @@ async function triggerSync(indexName: string, action: 'import' | 'flush') {
     });
 }
 
-function clearSearchStatistics() {
-    if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử và số liệu thống kê tìm kiếm?')) {
+async function clearSearchStatistics() {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử và số liệu thống kê tìm kiếm?' }))) {
         return;
     }
     
@@ -221,7 +222,11 @@ const overallSyncPercentage = computed(() => {
         totalDB += idx.db_records_count;
         totalIndexed += idx.documents_count;
     });
-    if (totalDB === 0) return 100;
+
+    if (totalDB === 0) {
+return 100;
+}
+
     return Math.min(Math.round((totalIndexed / totalDB) * 100), 100);
 });
 
@@ -240,6 +245,7 @@ const searchHealthGrade = computed(() => {
         if (overallSyncPercentage.value < 70) {
             return { grade: 'C', color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', label: 'Mất đồng bộ nghiêm trọng', desc: `Phát hiện ${outOfSyncCount} chỉ mục có chênh lệch bản ghi lớn (Tỷ lệ khớp < 70%).` };
         }
+
         return { grade: 'B', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', label: 'Chưa đồng bộ đầy đủ', desc: `Phát hiện ${outOfSyncCount} chỉ mục chưa được đồng bộ hoàn toàn với Database.` };
     }
 
@@ -254,6 +260,7 @@ const connectionAdvice = computed(() => {
     if (!props.connection.online) {
         return { status: 'error', text: 'Meilisearch offline. Cần chạy dịch vụ meilisearch.exe hoặc kiểm tra cổng 7700 trên server.' };
     }
+
     return { status: 'ok', text: `Kết nối máy chủ Meilisearch trên ${props.connection.host} ổn định.` };
 });
 
@@ -261,14 +268,17 @@ const driverAdvice = computed(() => {
     if (props.connection.driver !== 'meilisearch') {
         return { status: 'warning', text: `Scout driver đang là '${props.connection.driver}'. Cần đổi SCOUT_DRIVER=meilisearch trong tệp .env.` };
     }
+
     return { status: 'ok', text: 'Scout driver cấu hình chính xác.' };
 });
 
 const indexSyncAdvice = computed(() => {
     const outOfSyncCount = props.indexes.filter(idx => idx.out_of_sync).length;
+
     if (outOfSyncCount > 0) {
         return { status: 'warning', text: `Có ${outOfSyncCount} chỉ mục bị lệch. Hãy bấm nút "Đồng bộ (Import)" tương ứng để đồng bộ.` };
     }
+
     return { status: 'ok', text: 'Tất cả chỉ mục tìm kiếm khớp hoàn toàn với CSDL chính.' };
 });
 
@@ -276,6 +286,7 @@ const latencyAdvice = computed(() => {
     if (props.statistics.average_latency > 50) {
         return { status: 'warning', text: 'Độ trễ trung bình cao (> 50ms). Khuyên lọc bớt searchableAttributes.' };
     }
+
     return { status: 'ok', text: 'Độ trễ truy vấn ở mức tối ưu.' };
 });
 </script>

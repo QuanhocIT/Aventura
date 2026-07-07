@@ -2,12 +2,13 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { Calendar, Gift, Plus, Sparkles, Trash2, Pencil, Zap } from 'lucide-vue-next';
 import { ref } from 'vue';
+import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -56,7 +57,9 @@ const generateForm = useForm({
 
 function submitCreate() {
     form.post('/super-admin/campaign-templates', {
-        onSuccess: () => { showCreate.value = false; form.reset(); },
+        onSuccess: () => {
+ showCreate.value = false; form.reset(); 
+},
     });
 }
 
@@ -67,14 +70,22 @@ function openGenerate(template: any) {
 }
 
 function submitGenerate() {
-    if (!generateTarget.value) return;
+    if (!generateTarget.value) {
+return;
+}
+
     generateForm.post(`/super-admin/campaign-templates/${generateTarget.value.id}/generate`, {
-        onSuccess: () => { showGenerate.value = false; },
+        onSuccess: () => {
+ showGenerate.value = false; 
+},
     });
 }
 
-function deleteTemplate(id: number) {
-    if (!confirm('Xóa template này?')) return;
+async function deleteTemplate(id: number) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Xóa template này?' }))) {
+return;
+}
+
     router.delete(`/super-admin/campaign-templates/${id}`);
 }
 </script>

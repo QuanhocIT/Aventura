@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -122,16 +123,16 @@ function submitTest() {
     });
 }
 
-function completeTest(test: any) {
-    if (!confirm('Kết thúc test và khôi phục giá gốc?')) {
+async function completeTest(test: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Kết thúc test và khôi phục giá gốc?', variant: 'default' }))) {
         return;
     }
 
     router.post(`/menu-engineering/price-tests/${test.id}/complete`);
 }
 
-function cancelTest(test: any) {
-    if (!confirm('Hủy test và khôi phục giá gốc?')) {
+async function cancelTest(test: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Hủy test và khôi phục giá gốc?' }))) {
         return;
     }
 

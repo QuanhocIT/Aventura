@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, CalendarCheck, LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
+import { LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
 
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import ChatbotWidget from '@/components/ChatbotWidget.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import Footer from '@/components/Footer.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
@@ -47,17 +48,22 @@ let lastScrollY = 0;
 let ticking = false;
 
 function onScroll() {
-    if (ticking) return;
+    if (ticking) {
+return;
+}
+
     ticking = true;
     requestAnimationFrame(() => {
         const currentY = window.scrollY;
         const diff = currentY - lastScrollY;
+
         // Hide when scrolling down more than 60px from top, show when scrolling up
         if (currentY > 120) {
             navHidden.value = diff > 0;
         } else {
             navHidden.value = false;
         }
+
         lastScrollY = currentY;
         ticking = false;
     });
@@ -66,7 +72,7 @@ function onScroll() {
 onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }));
 onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         transparent?: boolean;
     }>(),
@@ -74,9 +80,6 @@ const props = withDefaults(
         transparent: false,
     }
 );
-
-const flash = computed(() => (page.props as any).flash ?? {});
-const hasFlash = computed(() => !!(flash.value.success || flash.value.error));
 
 const { getInitials } = useInitials();
 
@@ -365,6 +368,7 @@ const handleLogout = () => {
 
     <ChatbotWidget v-if="showChatbot" source="widget" />
     <FlashToast />
+    <ConfirmDialog />
     <GlobalCampaignListener />
 </template>
 

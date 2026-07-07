@@ -20,9 +20,11 @@ import {
     Archive
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
+import { PageHeader, TerminalCard, StatCard, StatusBadge, LedIndicator, EmptyState } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PageHeader, TerminalCard, StatCard, StatusBadge, LedIndicator, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -87,14 +89,14 @@ function runBackup() {
     });
 }
 
-function runOptimization() {
+async function runOptimization() {
     if (selectedOptimizeTasks.value.length === 0) {
-        alert('Vui lòng chọn ít nhất một tác vụ tối ưu hóa.');
+        toast.error('Vui lòng chọn ít nhất một tác vụ tối ưu hóa.');
 
         return;
     }
 
-    if (confirm('Xác nhận kích hoạt các tác vụ tối ưu hóa hệ thống đã chọn? Thao tác dọn dẹp và nén lưu trữ logs có thể mất vài giây.')) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Xác nhận kích hoạt các tác vụ tối ưu hóa hệ thống đã chọn? Thao tác dọn dẹp và nén lưu trữ logs có thể mất vài giây.', variant: 'default' }))) {
         optimizing.value = true;
         router.post('/super-admin/backup-maintenance/optimize', {
             actions: selectedOptimizeTasks.value
@@ -107,8 +109,8 @@ function runOptimization() {
     }
 }
 
-function deleteBackup(file: BackupFile) {
-    if (confirm(`Bạn có chắc chắn muốn xóa tệp sao lưu "${file.filename}" khỏi bộ lưu trữ ${file.disk.toUpperCase()}? Thao tác này không thể phục hồi.`)) {
+async function deleteBackup(file: BackupFile) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn xóa tệp sao lưu "${file.filename}" khỏi bộ lưu trữ ${file.disk.toUpperCase()}? Thao tác này không thể phục hồi.` }))) {
         router.delete(`/super-admin/backup-maintenance/delete/${file.filename}?disk=${file.disk}`, {
             preserveScroll: true
         });
@@ -164,13 +166,31 @@ return '';
 
 const dbHealthGrade = computed(() => {
     let score = 100;
-    if (props.stats.failed_jobs_count > 0) score -= 20;
-    if (props.stats.expired_sessions_count > 50) score -= 15;
-    if (props.stats.old_audit_logs_count > 0) score -= 20;
-    if (!props.stats.is_s3_configured) score -= 15;
+
+    if (props.stats.failed_jobs_count > 0) {
+score -= 20;
+}
+
+    if (props.stats.expired_sessions_count > 50) {
+score -= 15;
+}
+
+    if (props.stats.old_audit_logs_count > 0) {
+score -= 20;
+}
+
+    if (!props.stats.is_s3_configured) {
+score -= 15;
+}
     
-    if (score >= 90) return { grade: 'A+', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', label: 'Tối ưu', desc: 'Cơ sở dữ liệu đang ở trạng thái sạch sẽ và hoạt động với hiệu suất tối đa.' };
-    if (score >= 70) return { grade: 'B', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', label: 'Cần chú ý', desc: 'Phát hiện một số tài nguyên thừa hoặc cấu hình lưu trữ chưa tối ưu.' };
+    if (score >= 90) {
+return { grade: 'A+', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', label: 'Tối ưu', desc: 'Cơ sở dữ liệu đang ở trạng thái sạch sẽ và hoạt động với hiệu suất tối đa.' };
+}
+
+    if (score >= 70) {
+return { grade: 'B', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', label: 'Cần chú ý', desc: 'Phát hiện một số tài nguyên thừa hoặc cấu hình lưu trữ chưa tối ưu.' };
+}
+
     return { grade: 'C', color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', label: 'Cần tối ưu', desc: 'Cơ sở dữ liệu đang có dung lượng rác tích tụ lớn hoặc thiếu cấu hình sao lưu an toàn.' };
 });
 
@@ -178,6 +198,7 @@ const s3Advice = computed(() => {
     if (!props.stats.is_s3_configured) {
         return { status: 'warning', text: 'Cấu hình S3 chưa hoạt động. Các bản sao lưu chỉ được lưu cục bộ trên máy chủ này, có nguy cơ mất dữ liệu cao.' };
     }
+
     return { status: 'ok', text: 'S3 Cloud Storage hoạt động tốt. Bản sao lưu được phân tán an toàn.' };
 });
 
@@ -185,6 +206,7 @@ const failedJobsAdvice = computed(() => {
     if (props.stats.failed_jobs_count > 0) {
         return { status: 'warning', text: `Phát hiện ${props.stats.failed_jobs_count} jobs hàng đợi lỗi chưa xóa. Kích hoạt dọn dẹp hàng đợi để giải phóng DB.` };
     }
+
     return { status: 'ok', text: 'Hàng đợi lỗi sạch sẽ.' };
 });
 
@@ -192,6 +214,7 @@ const sessionsAdvice = computed(() => {
     if (props.stats.expired_sessions_count > 100) {
         return { status: 'warning', text: `Phát hiện ${props.stats.expired_sessions_count} session hết hạn. Kích hoạt xóa session để tăng tốc truy vấn đăng nhập.` };
     }
+
     return { status: 'ok', text: 'Không có session hết hạn tích tụ.' };
 });
 
@@ -199,11 +222,15 @@ const auditLogsAdvice = computed(() => {
     if (props.stats.old_audit_logs_count > 0) {
         return { status: 'warning', text: `Có ${props.stats.old_audit_logs_count} dòng Audit Logs cũ (> 6 tháng). Nên kích hoạt dọn dẹp & nén gửi lên S3.` };
     }
+
     return { status: 'ok', text: 'Các Audit Logs cũ đã được giải phóng sạch sẽ khỏi DB chính.' };
 });
 
 const oldLogsPercentage = computed(() => {
-    if (!props.stats.total_audit_logs) return 0;
+    if (!props.stats.total_audit_logs) {
+return 0;
+}
+
     return Math.round((props.stats.old_audit_logs_count / props.stats.total_audit_logs) * 100);
 });
 

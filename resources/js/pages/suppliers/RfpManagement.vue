@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 
 const props = defineProps<{
     rfps: any[];
@@ -83,14 +84,14 @@ const submitRfp = () => {
     });
 };
 
-const closeRfp = (rfpId: number) => {
-    if (confirm('Bạn có chắc chắn muốn đóng thầu sớm? Các nhà cung cấp sẽ không thể gửi thêm báo giá.')) {
+const closeRfp = async (rfpId: number) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn đóng thầu sớm? Các nhà cung cấp sẽ không thể gửi thêm báo giá.', variant: 'default' }))) {
         router.post(route('rfps.close', rfpId));
     }
 };
 
-const acceptBid = (bidId: number) => {
-    if (confirm('Bạn có chắc chắn chọn hồ sơ báo giá này làm nhà thầu chiến thắng? Hệ thống sẽ tự động tạo đơn hàng PO tương ứng và gửi đi.')) {
+const acceptBid = async (bidId: number) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn chọn hồ sơ báo giá này làm nhà thầu chiến thắng? Hệ thống sẽ tự động tạo đơn hàng PO tương ứng và gửi đi.', variant: 'default' }))) {
         router.post(route('rfps.bids.accept', bidId));
     }
 };

@@ -3,13 +3,17 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     ShoppingCart, CheckCircle2, Clock, XCircle, ChefHat,
-    Banknote, Filter, CalendarDays, RefreshCw, AlertCircle,
-    Bot, Sparkles, Trash2, AlertTriangle, Check, X, Utensils
+    CalendarDays, RefreshCw, AlertCircle,
+    Bot, Sparkles, Trash2, Check, X, Utensils
 } from 'lucide-vue-next';
 import { computed, ref, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -72,6 +76,99 @@ const setStatus = (s: string) => {
 const updateOrderStatus = (order: Order, newStatus: string) => {
     router.patch(`/orders/${order.id}/status`, { status: newStatus }, { preserveScroll: true });
 };
+
+// ─── Tách bill / Chuyển bàn ───
+type BillItem = { id: number; name: string; quantity: number; line_total: number };
+type FreeTable = { id: number; name: string; capacity: number };
+
+const actionOrder = ref<Order | null>(null);
+const actionType = ref<'split' | 'move' | null>(null);
+const billItems = ref<BillItem[]>([]);
+const freeTables = ref<FreeTable[]>([]);
+const selectedItemIds = ref<number[]>([]);
+const selectedTableId = ref<number | null>(null);
+const actionLoading = ref(false);
+
+const canModify = (o: Order) =>
+    o.payment_status !== 'paid' && !['completed', 'cancelled'].includes(o.status);
+
+async function openSplit(o: Order) {
+    actionOrder.value = o;
+    actionType.value = 'split';
+    selectedItemIds.value = [];
+    actionLoading.value = true;
+
+    try {
+        const { data } = await axios.get(`/api/orders/${o.id}/items`);
+        billItems.value = data;
+    } catch {
+        toast.error('Không tải được danh sách món.');
+        actionType.value = null;
+    } finally {
+        actionLoading.value = false;
+    }
+}
+
+async function openMove(o: Order) {
+    actionOrder.value = o;
+    actionType.value = 'move';
+    selectedTableId.value = null;
+    actionLoading.value = true;
+
+    try {
+        const { data } = await axios.get('/api/orders/available-tables');
+        freeTables.value = data;
+    } catch {
+        toast.error('Không tải được danh sách bàn trống.');
+        actionType.value = null;
+    } finally {
+        actionLoading.value = false;
+    }
+}
+
+function toggleSplitItem(id: number) {
+    const idx = selectedItemIds.value.indexOf(id);
+
+    if (idx >= 0) {
+        selectedItemIds.value.splice(idx, 1);
+    } else {
+        selectedItemIds.value.push(id);
+    }
+}
+
+function submitAction() {
+    if (!actionOrder.value || !actionType.value) {
+        return;
+    }
+
+    actionLoading.value = true;
+    const url = actionType.value === 'split'
+        ? `/orders/${actionOrder.value.id}/split`
+        : `/orders/${actionOrder.value.id}/move-table`;
+    const payload = actionType.value === 'split'
+        ? { item_ids: selectedItemIds.value }
+        : { table_id: selectedTableId.value };
+
+    router.post(url, payload, {
+        preserveScroll: true,
+        onSuccess: () => {
+            actionType.value = null;
+            actionOrder.value = null;
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Có lỗi xảy ra.'));
+        },
+        onFinish: () => {
+            actionLoading.value = false;
+        },
+    });
+}
+
+const splitTotal = computed(() =>
+    billItems.value
+        .filter(i => selectedItemIds.value.includes(i.id))
+        .reduce((sum, i) => sum + i.line_total, 0)
+);
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {
     pending:   { label: 'Chờ xác nhận', color: 'text-amber-700',  bg: 'bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400',  icon: Clock },
@@ -229,7 +326,7 @@ return;
             showCancelModal.value = false;
             fetchPendingQr();
         }
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra khi hủy yêu cầu.');
     }
 };
@@ -251,7 +348,7 @@ return;
         });
         toast.success(`Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`);
         showUpsellModal.value = false;
-    } catch (e) {
+    } catch {
         toast.info(`Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`);
         showUpsellModal.value = false;
     }
@@ -445,6 +542,36 @@ onMounted(() => {
                                         : nextStatus[o.status] === 'completed' ? 'Hoàn thành'
                                         : '' }}
                                 </button>
+
+                                <!-- Tách bill / Chuyển bàn (đơn chưa thanh toán) -->
+                                <template v-if="canModify(o) && canUpdateStatus">
+                                    <button
+                                        v-if="o.items_count > 1"
+                                        @click="openSplit(o)"
+                                        class="h-7 px-2 rounded-lg text-[10px] font-semibold border border-border hover:bg-accent transition-colors cursor-pointer"
+                                        title="Tách bill để khách trả riêng"
+                                    >
+                                        Tách bill
+                                    </button>
+                                    <button
+                                        v-if="o.table_name"
+                                        @click="openMove(o)"
+                                        class="h-7 px-2 rounded-lg text-[10px] font-semibold border border-border hover:bg-accent transition-colors cursor-pointer"
+                                        title="Chuyển sang bàn khác"
+                                    >
+                                        Chuyển bàn
+                                    </button>
+                                </template>
+
+                                <!-- Tải hóa đơn điện tử (đơn đã thanh toán) -->
+                                <a
+                                    v-if="o.payment_status === 'paid'"
+                                    :href="`/orders/${o.id}/e-invoice.xml`"
+                                    class="h-7 px-2 rounded-lg text-[10px] font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 transition-colors inline-flex items-center"
+                                    title="Tải XML hóa đơn điện tử (TT78)"
+                                >
+                                    HĐĐT
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -667,4 +794,68 @@ onMounted(() => {
             </div>
         </div>
     </div>
+
+    <!-- ─── Dialog Tách bill ─── -->
+    <Dialog :open="actionType === 'split'" @update:open="(v: boolean) => { if (!v) actionType = null; }">
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle class="text-base">Tách bill — {{ actionOrder?.order_number }}</DialogTitle>
+                <DialogDescription class="text-xs">Chọn các món chuyển sang bill mới (bill gốc phải còn ít nhất 1 món).</DialogDescription>
+            </DialogHeader>
+            <div v-if="actionLoading" class="py-6 text-center text-xs text-muted-foreground">Đang tải danh sách món...</div>
+            <div v-else class="space-y-1.5 max-h-72 overflow-y-auto">
+                <label
+                    v-for="item in billItems"
+                    :key="item.id"
+                    class="flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer hover:bg-accent transition-colors"
+                    :class="selectedItemIds.includes(item.id) ? 'border-primary bg-primary/5' : ''"
+                >
+                    <Checkbox :model-value="selectedItemIds.includes(item.id)" @update:model-value="toggleSplitItem(item.id)" />
+                    <span class="flex-1 text-xs font-semibold truncate">x{{ Math.round(item.quantity) }} {{ item.name }}</span>
+                    <span class="text-xs tabular-nums text-muted-foreground">{{ item.line_total.toLocaleString('vi-VN') }}đ</span>
+                </label>
+            </div>
+            <DialogFooter class="items-center gap-3 sm:justify-between">
+                <span class="text-xs font-bold">Bill mới: {{ splitTotal.toLocaleString('vi-VN') }}đ</span>
+                <div class="flex gap-2">
+                    <Button variant="outline" size="sm" class="text-xs" @click="actionType = null">Hủy</Button>
+                    <Button
+                        size="sm" class="text-xs"
+                        :disabled="actionLoading || !selectedItemIds.length || selectedItemIds.length >= billItems.length"
+                        @click="submitAction"
+                    >
+                        Tách {{ selectedItemIds.length }} món
+                    </Button>
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <!-- ─── Dialog Chuyển bàn ─── -->
+    <Dialog :open="actionType === 'move'" @update:open="(v: boolean) => { if (!v) actionType = null; }">
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle class="text-base">Chuyển bàn — {{ actionOrder?.order_number }}</DialogTitle>
+                <DialogDescription class="text-xs">Đang ở: {{ actionOrder?.table_name }}. Chọn bàn trống muốn chuyển đến.</DialogDescription>
+            </DialogHeader>
+            <div v-if="actionLoading" class="py-6 text-center text-xs text-muted-foreground">Đang tải bàn trống...</div>
+            <p v-else-if="!freeTables.length" class="py-6 text-center text-xs text-muted-foreground">Không còn bàn trống nào.</p>
+            <div v-else class="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+                <button
+                    v-for="t in freeTables"
+                    :key="t.id"
+                    class="rounded-xl border px-2 py-3 text-center transition-all cursor-pointer hover:border-primary/50"
+                    :class="selectedTableId === t.id ? 'border-primary bg-primary/10 font-bold' : ''"
+                    @click="selectedTableId = t.id"
+                >
+                    <span class="block text-xs font-semibold truncate">{{ t.name }}</span>
+                    <span class="block text-[10px] text-muted-foreground mt-0.5">{{ t.capacity }} chỗ</span>
+                </button>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" size="sm" class="text-xs" @click="actionType = null">Hủy</Button>
+                <Button size="sm" class="text-xs" :disabled="actionLoading || !selectedTableId" @click="submitAction">Chuyển bàn</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

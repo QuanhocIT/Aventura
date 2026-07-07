@@ -6,9 +6,10 @@ import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -19,8 +20,13 @@ const props = defineProps<{
 
 const page = usePage();
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error) toast.error(flash.error);
+    if (flash?.success) {
+toast.success(flash.success);
+}
+
+    if (flash?.error) {
+toast.error(flash.error);
+}
 });
 
 const showDialog = ref(false);
@@ -56,9 +62,13 @@ function openEdit(r: any) {
 
 function submit() {
     if (editing.value) {
-        form.patch(`/loyalty/rewards/${editing.value.id}`, { onSuccess: () => { showDialog.value = false; } });
+        form.patch(`/loyalty/rewards/${editing.value.id}`, { onSuccess: () => {
+ showDialog.value = false; 
+} });
     } else {
-        form.post('/loyalty/rewards', { onSuccess: () => { showDialog.value = false; form.reset(); } });
+        form.post('/loyalty/rewards', { onSuccess: () => {
+ showDialog.value = false; form.reset(); 
+} });
     }
 }
 
@@ -66,8 +76,11 @@ function toggleReward(r: any) {
     router.patch(`/loyalty/rewards/${r.id}/toggle`);
 }
 
-function deleteReward(r: any) {
-    if (!confirm(`Xóa phần thưởng "${r.name}"?`)) return;
+async function deleteReward(r: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa phần thưởng "${r.name}"?` }))) {
+return;
+}
+
     router.delete(`/loyalty/rewards/${r.id}`);
 }
 

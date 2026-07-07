@@ -12,12 +12,12 @@ import {
     Filter,
     UserCheck,
     Ban,
-    Eye,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { confirmDialog } from '@/composables/useConfirm';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Props
@@ -86,12 +86,17 @@ function openConfirmModal(r: any) {
 
 function submitConfirm() {
     confirmForm.post(`/reservations/${selected.value.id}/confirm`, {
-        onSuccess: () => { showConfirmModal.value = false; },
+        onSuccess: () => {
+ showConfirmModal.value = false; 
+},
     });
 }
 
-function seat(r: any) {
-    if (!confirm(`Xác nhận dẫn khách ${r.guest_name} vào bàn?`)) return;
+async function seat(r: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xác nhận dẫn khách ${r.guest_name} vào bàn?`, variant: 'default' }))) {
+return;
+}
+
     router.post(`/reservations/${r.id}/seat`);
 }
 
@@ -103,12 +108,17 @@ function openCancelModal(r: any) {
 
 function submitCancel() {
     cancelForm.post(`/reservations/${selected.value.id}/cancel`, {
-        onSuccess: () => { showCancelModal.value = false; },
+        onSuccess: () => {
+ showCancelModal.value = false; 
+},
     });
 }
 
-function noShow(r: any) {
-    if (!confirm(`Đánh dấu khách ${r.guest_name} không đến?`)) return;
+async function noShow(r: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Đánh dấu khách ${r.guest_name} không đến?`, variant: 'default' }))) {
+return;
+}
+
     router.post(`/reservations/${r.id}/no-show`);
 }
 </script>
@@ -190,6 +200,16 @@ function noShow(r: any) {
                                     :class="colorMap[r.status_color]"
                                 >
                                     {{ r.status_label }}
+                                </span>
+                                <!-- Trạng thái cọc giữ bàn -->
+                                <span
+                                    v-if="r.deposit_status && r.deposit_status !== 'none'"
+                                    class="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                    :class="r.deposit_status === 'paid'
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
+                                >
+                                    💰 Cọc {{ Number(r.deposit_amount).toLocaleString('vi-VN') }}đ — {{ r.deposit_status === 'paid' ? 'đã trả' : 'chờ trả' }}
                                 </span>
                             </div>
                             <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

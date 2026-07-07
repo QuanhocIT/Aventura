@@ -1162,13 +1162,13 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
                                     <span>2. Doanh thu tiền mặt từ đơn hàng:</span>
                                     <span class="font-mono text-emerald-600">+{{ vnd(previewData.expected_cash - (previewData.opening_balance || 0) - (previewData.other_cash_in || 0) + (previewData.other_cash_out || 0)) }}</span>
                                 </div>
-                                <div v-if="previewData.other_cash_in > 0" class="flex justify-between">
+                                <div v-if="(previewData.other_cash_in ?? 0) > 0" class="flex justify-between">
                                     <span>3. Các khoản thu khác:</span>
-                                    <span class="font-mono text-emerald-600">+{{ vnd(previewData.other_cash_in) }}</span>
+                                    <span class="font-mono text-emerald-600">+{{ vnd(previewData.other_cash_in ?? 0) }}</span>
                                 </div>
-                                <div v-if="previewData.other_cash_out > 0" class="flex justify-between text-rose-600">
+                                <div v-if="(previewData.other_cash_out ?? 0) > 0" class="flex justify-between text-rose-600">
                                     <span>4. Các khoản chi ngoài (đi chợ/sửa chữa):</span>
-                                    <span class="font-mono">-{{ vnd(previewData.other_cash_out) }}</span>
+                                    <span class="font-mono">-{{ vnd(previewData.other_cash_out ?? 0) }}</span>
                                 </div>
                                 <div class="flex justify-between border-t pt-2 font-bold text-indigo-700">
                                     <span>Kỳ vọng thực tế trong két (1+2+3-4):</span>

@@ -50,6 +50,8 @@ class TableReservationController extends Controller
             'table_name'        => $r->table?->name,
             'confirmed_by_name' => $r->confirmedBy?->name,
             'source'            => $r->source,
+            'deposit_amount'    => (float) ($r->deposit_amount ?? 0),
+            'deposit_status'    => $r->deposit_status ?? 'none',
         ]);
 
         // Thống kê hôm nay
@@ -219,14 +221,100 @@ class TableReservationController extends Controller
             'status'           => 'pending',
         ]);
 
+        try {
+            app(\App\Services\Integrations\WebhookDispatchService::class)->dispatch(
+                $restaurantId,
+                'reservation.created',
+                [
+                    'reservation_id' => $reservation->id,
+                    'guest_name' => $reservation->guest_name,
+                    'reservation_date' => $data['reservation_date'],
+                    'reservation_time' => $data['reservation_time'],
+                    'party_size' => (int) $data['party_size'],
+                ]
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('publicStore: lỗi webhook reservation.created', ['error' => $e->getMessage()]);
+        }
+
+        // Đặt cọc giữ bàn: nhà hàng có cấu hình mức cọc + có cổng thanh toán khả dụng
+        $deposit = $this->createDepositPayment($reservation, $restaurant);
+
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Đặt bàn thành công! Nhà hàng sẽ xác nhận trong vòng 15 phút.',
+                'message' => $deposit
+                    ? 'Đặt bàn thành công! Vui lòng thanh toán cọc ' . number_format($deposit['amount']) . 'đ để giữ chỗ.'
+                    : 'Đặt bàn thành công! Nhà hàng sẽ xác nhận trong vòng 15 phút.',
                 'reservation_id' => $reservation->id,
+                'deposit' => $deposit,
             ]);
         }
 
+        if ($deposit && $deposit['payment_url']) {
+            return back()
+                ->with('success', 'Đặt bàn thành công! Vui lòng thanh toán cọc ' . number_format($deposit['amount']) . 'đ để giữ chỗ.')
+                ->with('deposit_payment_url', $deposit['payment_url']);
+        }
+
         return back()->with('success', 'Đặt bàn thành công! Nhà hàng sẽ sớm liên hệ xác nhận.');
+    }
+
+    /**
+     * Tạo đơn cọc + link thanh toán qua cổng có sẵn. Trả về null nếu nhà hàng
+     * không yêu cầu cọc hoặc chưa cấu hình cổng thanh toán nào (đặt bàn vẫn
+     * thành công như bình thường — không được chặn khách vì thiếu cấu hình).
+     */
+    private function createDepositPayment(TableReservation $reservation, \App\Models\Restaurant $restaurant): ?array
+    {
+        $amount = (float) ($restaurant->reservation_deposit_amount ?? 0);
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        try {
+            $gatewayService = app(\App\Services\PaymentGatewayService::class);
+            $gateways = $gatewayService->getAvailableGateways($restaurant->id);
+
+            if (empty($gateways)) {
+                return null;
+            }
+
+            $order = \App\Models\Order::create([
+                'restaurant_id' => $restaurant->id,
+                'branch_id' => $restaurant->branches()->first()?->id,
+                'order_number' => 'COC' . strtoupper(\Illuminate\Support\Str::random(8)),
+                'channel' => 'reservation_deposit',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'subtotal' => $amount,
+                'discount_amount' => 0,
+                'total_amount' => $amount,
+                'note' => "Cọc giữ bàn #{$reservation->id} — {$reservation->guest_name} ({$reservation->reservation_date->format('d/m/Y')} {$reservation->reservation_time})",
+            ]);
+
+            $reservation->update([
+                'deposit_amount' => $amount,
+                'deposit_status' => 'pending',
+                'deposit_order_id' => $order->id,
+            ]);
+
+            $gatewayKey = $gateways[0]['key'];
+            $paymentUrl = $gatewayService->createPayment($order, $gatewayKey, url('/'));
+
+            return [
+                'amount' => $amount,
+                'gateway' => $gatewayKey,
+                'payment_url' => $paymentUrl,
+            ];
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('publicStore: không tạo được thanh toán cọc', [
+                'reservation_id' => $reservation->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

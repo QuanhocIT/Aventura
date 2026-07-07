@@ -26,12 +26,14 @@ import {
     MessageSquare,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import { toast } from 'vue-sonner';
+import { StatusBadge, ProgressBar, LedIndicator, AlertBanner, SectionCard } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { StatusBadge, ProgressBar, LedIndicator, AlertBanner, SectionCard } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -183,21 +185,21 @@ function submitCustomPlan() {
     });
 }
 
-function impersonateUser() {
+async function impersonateUser() {
     if (!props.restaurant.owner?.id) {
-        alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+        toast.error('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
 
         return;
     }
 
-    if (confirm(`Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu "${props.restaurant.owner.name}" không?`)) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu "${props.restaurant.owner.name}" không?`, variant: 'default' }))) {
         router.post(`/super-admin/impersonate/${props.restaurant.owner.id}`);
     }
 }
 
 const unflagForm = useForm({});
-function unflagRestaurant() {
-    if (confirm('Bạn có chắc chắn muốn gỡ gắn cờ cảnh báo và đặt lại mốc hoạt động cuối của nhà hàng này không?')) {
+async function unflagRestaurant() {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn gỡ gắn cờ cảnh báo và đặt lại mốc hoạt động cuối của nhà hàng này không?', variant: 'default' }))) {
         unflagForm.patch(`/super-admin/restaurants/${props.restaurant.id}/unflag`);
     }
 }
@@ -318,8 +320,8 @@ function addNote() {
         onSuccess: () => noteForm.reset()
     });
 }
-function deleteNote(noteId: number) {
-    if (confirm('Bạn có chắc chắn muốn xóa ghi chú này?')) {
+async function deleteNote(noteId: number) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa ghi chú này?' }))) {
         router.delete(`/super-admin/restaurants/${props.restaurant.id}/notes/${noteId}`, {
             preserveScroll: true
         });
@@ -341,8 +343,8 @@ function addTag(name: string, color: string) {
         preserveScroll: true
     });
 }
-function removeTag(tagId: number) {
-    if (confirm('Bạn có chắc chắn muốn gỡ nhãn này?')) {
+async function removeTag(tagId: number) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn gỡ nhãn này?', variant: 'default' }))) {
         router.delete(`/super-admin/restaurants/${props.restaurant.id}/tags/${tagId}`, {
             preserveScroll: true
         });

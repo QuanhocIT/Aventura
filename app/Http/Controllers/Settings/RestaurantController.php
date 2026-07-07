@@ -30,6 +30,7 @@ class RestaurantController extends Controller
                 'qr_account_number' => $restaurant->qr_account_number,
                 'qr_account_name' => $restaurant->qr_account_name,
                 'qr_enabled' => (bool) $restaurant->qr_enabled,
+                'reservation_deposit_amount' => (float) ($restaurant->reservation_deposit_amount ?? 0),
             ] : null,
             'status' => $request->session()->get('status'),
         ]);
@@ -54,6 +55,7 @@ class RestaurantController extends Controller
             'qr_account_number' => ['nullable', 'string', 'max:50'],
             'qr_account_name' => ['nullable', 'string', 'max:255'],
             'qr_enabled' => ['nullable', 'boolean'],
+            'reservation_deposit_amount' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
         ]);
 
         $data['qr_enabled'] = $request->boolean('qr_enabled');

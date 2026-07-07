@@ -59,9 +59,18 @@ const periodOptions = [
 ];
 
 function progressColor(p: number): string {
-    if (p >= 100) return 'bg-emerald-500';
-    if (p >= 50) return 'bg-blue-500';
-    if (p >= 25) return 'bg-amber-500';
+    if (p >= 100) {
+return 'bg-emerald-500';
+}
+
+    if (p >= 50) {
+return 'bg-blue-500';
+}
+
+    if (p >= 25) {
+return 'bg-amber-500';
+}
+
     return 'bg-rose-500';
 }
 
@@ -81,9 +90,14 @@ function getTimeProgress(startDateStr: string, endDateStr: string): number {
     const start = new Date(startDateStr).getTime();
     const end = new Date(endDateStr).getTime();
     const now = new Date().getTime();
-    if (end <= start) return 0;
+
+    if (end <= start) {
+return 0;
+}
+
     const elapsed = now - start;
     const total = end - start;
+
     return Math.max(0, Math.min(100, Math.round((elapsed / total) * 100)));
 }
 
@@ -96,7 +110,9 @@ function getPaceStatus(progress: number, timeProgress: number): { label: string;
             border: 'border-emerald-500/30 dark:border-emerald-500/40 hover:shadow-[0_0_20px_-3px_rgba(16,185,129,0.12)]' 
         };
     }
+
     const diff = timeProgress - progress;
+
     if (diff > 15) {
         return { 
             label: 'Chậm tiến độ', 
@@ -123,8 +139,12 @@ function getPaceStatus(progress: number, timeProgress: number): { label: string;
 
 // Global Stats Computeds
 const avgProgress = computed(() => {
-    if (props.activeGoals.length === 0) return 0;
+    if (props.activeGoals.length === 0) {
+return 0;
+}
+
     const sum = props.activeGoals.reduce((s, g) => s + g.progress_percent, 0);
+
     return Math.round(sum / props.activeGoals.length);
 });
 
@@ -133,12 +153,16 @@ const actionsRatio = computed(() => {
     let done = 0;
     props.activeGoals.forEach(g => {
         if (g.actions) {
-            g.actions.forEach(a => {
+            g.actions.forEach((a: any) => {
                 total++;
-                if (a.status === 'done') done++;
+
+                if (a.status === 'done') {
+done++;
+}
             });
         }
     });
+
     return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 });
 
@@ -147,12 +171,16 @@ const milestonesRatio = computed(() => {
     let reached = 0;
     props.activeGoals.forEach(g => {
         if (g.milestones) {
-            g.milestones.forEach(m => {
+            g.milestones.forEach((m: any) => {
                 total++;
-                if (m.reached) reached++;
+
+                if (m.reached) {
+reached++;
+}
             });
         }
     });
+
     return { reached, total, pct: total === 0 ? 0 : Math.round((reached / total) * 100) };
 });
 

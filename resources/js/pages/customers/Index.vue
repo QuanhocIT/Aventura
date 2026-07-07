@@ -6,11 +6,12 @@ import {
     Gift, ArrowUpDown, ChevronDown, Check
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import { toast } from 'vue-sonner';
+import { Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Pagination } from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -167,7 +168,7 @@ return;
 
 const triggerExport = () => {
     if (!props.isOwner) {
-        alert('Chỉ có Chủ nhà hàng mới có quyền xuất tệp dữ liệu khách hàng.');
+        toast.error('Chỉ có Chủ nhà hàng mới có quyền xuất tệp dữ liệu khách hàng.');
 
         return;
     }

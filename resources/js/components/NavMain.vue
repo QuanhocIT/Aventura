@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import {
     SidebarGroup,
     SidebarGroupLabel,
@@ -9,7 +10,6 @@ import {
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import type { NavItem } from '@/types';
-import { computed } from 'vue';
 
 const props = defineProps<{
     items: NavItem[];
@@ -90,6 +90,7 @@ const groupedSections = computed(() => {
 
     props.items.forEach(item => {
         let matched = false;
+
         for (let i = 0; i < groupDefinitions.length; i++) {
             if (groupDefinitions[i].matches(item.title)) {
                 sections[i].items.push(item);
@@ -97,6 +98,7 @@ const groupedSections = computed(() => {
                 break;
             }
         }
+
         if (!matched) {
             unmatchedSection.items.push(item);
         }
@@ -124,7 +126,7 @@ const groupedSections = computed(() => {
                         :tooltip="item.title"
                         class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href">
+                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch>
                             <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
                             <span class="flex-1 font-medium">{{ item.title }}</span>
                             <span
@@ -152,7 +154,7 @@ const groupedSections = computed(() => {
                         :tooltip="item.title"
                         class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href">
+                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch>
                             <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
                             <span class="flex-1 font-medium">{{ item.title }}</span>
                             <span

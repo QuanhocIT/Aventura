@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -203,7 +204,7 @@ shippers.value[idx].is_active = !s.is_active;
 }
 
 async function deleteShipper(s: ShipperRow) {
-    if (!confirm(`Xác nhận vô hiệu hóa shipper "${s.name}"?`)) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xác nhận vô hiệu hóa shipper "${s.name}"?` }))) {
 return;
 }
 

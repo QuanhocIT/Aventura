@@ -3,13 +3,14 @@ import { useForm, router } from '@inertiajs/vue3';
 import { Head } from '@inertiajs/vue3';
 import { ArrowDown, ArrowUp, ExternalLink, ImageIcon, Pencil, Trash2, ToggleLeft, ToggleRight, Upload } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { PageHeader, StatusBadge, EmptyState } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader, StatusBadge, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 
 interface Banner {
     id: number;
@@ -104,8 +105,8 @@ function toggleActive(banner: Banner) {
     );
 }
 
-function deleteBanner(banner: Banner) {
-    if (!confirm(`Xóa banner "${banner.title || 'này'}"?`)) {
+async function deleteBanner(banner: Banner) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa banner "${banner.title || 'này'}"?` }))) {
 return;
 }
 

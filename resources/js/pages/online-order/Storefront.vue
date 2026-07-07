@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { Minus, MapPin, Clock, Phone, Plus, ShoppingCart, Store, Truck, X, Loader2, CheckCircle2 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
 import axios from 'axios';
+import { Minus, MapPin, Plus, ShoppingCart, Store, Truck, X, Loader2, CheckCircle2 } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { fireConfetti } from '@/composables/useConfetti';
+import { useOfflineQueue } from '@/composables/useOfflineQueue';
+import { useTracking } from '@/composables/useTracking';
 
 const props = defineProps<{
     restaurant: { id: number; name: string; address: string | null; logo_url: string | null; phone: string | null };
@@ -19,7 +23,11 @@ const props = defineProps<{
     categories: { id: number; name: string; slug: string }[];
     products: Record<number, { id: number; name: string; description: string | null; price: number; image_url: string | null; category_id: number }[]>;
     gateways: { key: string; name: string }[];
+    tracking?: { ga_measurement_id?: string | null; fb_pixel_id?: string | null };
 }>();
+
+const analytics = useTracking(props.tracking ?? {});
+onMounted(() => analytics.init());
 
 const activeCategory = ref<number | null>(props.categories[0]?.id ?? null);
 const cart = ref<Record<number, { id: number; name: string; price: number; quantity: number; notes: string }>>({});
@@ -45,18 +53,34 @@ const cartCount = computed(() => cartItems.value.reduce((sum, i) => sum + i.quan
 const subtotal = computed(() => cartItems.value.reduce((sum, i) => sum + i.price * i.quantity, 0));
 const total = computed(() => subtotal.value + (channel.value === 'delivery' ? deliveryFee.value : 0));
 
+const cartBadgePop = ref(false);
+
 function addToCart(product: any) {
     if (cart.value[product.id]) {
         cart.value[product.id].quantity++;
     } else {
         cart.value[product.id] = { id: product.id, name: product.name, price: product.price, quantity: 1, notes: '' };
     }
+
+    analytics.trackAddToCart(product.name, Number(product.price));
+
+    // Nảy badge giỏ hàng để phản hồi trực quan
+    cartBadgePop.value = false;
+    requestAnimationFrame(() => {
+ cartBadgePop.value = true; 
+});
 }
 
 function updateQuantity(id: number, delta: number) {
-    if (!cart.value[id]) return;
+    if (!cart.value[id]) {
+return;
+}
+
     cart.value[id].quantity += delta;
-    if (cart.value[id].quantity <= 0) delete cart.value[id];
+
+    if (cart.value[id].quantity <= 0) {
+delete cart.value[id];
+}
 }
 
 function removeFromCart(id: number) {
@@ -66,14 +90,18 @@ function removeFromCart(id: number) {
 async function calculateDeliveryFee() {
     if (!latitude.value || !longitude.value) {
         deliveryError.value = 'Vui lòng cho phép truy cập vị trí hoặc nhập tọa độ.';
+
         return;
     }
+
     calculatingFee.value = true;
     deliveryError.value = '';
+
     try {
         const { data } = await axios.post(`/api/online/${props.config.slug}/delivery-fee`, {
             latitude: latitude.value, longitude: longitude.value,
         });
+
         if (data.deliverable) {
             deliveryFee.value = data.fee;
             deliveryError.value = '';
@@ -89,7 +117,10 @@ async function calculateDeliveryFee() {
 }
 
 function getLocation() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+return;
+}
+
     navigator.geolocation.getCurrentPosition(pos => {
         latitude.value = pos.coords.latitude;
         longitude.value = pos.coords.longitude;
@@ -97,10 +128,18 @@ function getLocation() {
     });
 }
 
+// Hàng đợi offline: mất mạng vẫn đặt được đơn, tự gửi khi có mạng lại
+const { postWithQueue, pendingCount, isOnline } = useOfflineQueue((item, response: any) => {
+    if (response?.success) {
+        toast.success(`Đã gửi đơn offline thành công! Mã đơn: ${response.order_number}`);
+    }
+});
+
 async function submitOrder() {
     submitting.value = true;
+
     try {
-        const { data } = await axios.post(`/api/online/${props.config.slug}/checkout`, {
+        const result = await postWithQueue(`/api/online/${props.config.slug}/checkout`, {
             customer_name: customerName.value,
             phone: phone.value,
             channel: channel.value,
@@ -113,14 +152,28 @@ async function submitOrder() {
             scheduled_at: scheduledAt.value || null,
         });
 
+        if (result.queued) {
+            cart.value = {};
+            showCart.value = false;
+            showCheckout.value = false;
+            toast.warning('Mất kết nối mạng — đơn đã được lưu và sẽ tự động gửi ngay khi có mạng trở lại.');
+
+            return;
+        }
+
+        const data = result.data;
+
         if (data.success) {
             orderResult.value = data;
+            analytics.trackPurchase(data.order_number, total.value);
+            fireConfetti();
+
             if (data.payment_url) {
                 window.open(data.payment_url, '_blank');
             }
         }
     } catch (e: any) {
-        alert(e.response?.data?.message ?? 'Có lỗi xảy ra.');
+        toast.error(e.response?.data?.message ?? 'Có lỗi xảy ra.');
     } finally {
         submitting.value = false;
     }
@@ -168,6 +221,15 @@ async function submitOrder() {
                 </div>
             </header>
 
+            <!-- Chỉ báo offline / hàng đợi đơn -->
+            <div
+                v-if="!isOnline || pendingCount > 0"
+                class="sticky top-[60px] z-30 bg-amber-500 text-amber-950 text-center text-xs font-bold py-1.5 px-4"
+            >
+                <template v-if="!isOnline">📡 Mất kết nối mạng — bạn vẫn có thể đặt đơn, hệ thống sẽ tự gửi khi có mạng lại.</template>
+                <template v-else>⏳ Đang gửi {{ pendingCount }} đơn đã lưu offline...</template>
+            </div>
+
             <!-- Banner -->
             <div v-if="config.banner_url" class="max-w-3xl mx-auto">
                 <img :src="config.banner_url" class="w-full h-40 object-cover" />
@@ -210,7 +272,9 @@ async function submitOrder() {
             <button
                 v-if="cartCount > 0"
                 @click="showCart = true"
-                class="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full p-4 shadow-xl flex items-center gap-2 font-bold"
+                :class="cartBadgePop ? 'animate-badge-pop' : ''"
+                class="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full p-4 shadow-xl flex items-center gap-2 font-bold transition-transform hover:scale-105"
+                @animationend="cartBadgePop = false"
             >
                 <ShoppingCart class="size-5" />
                 <span>{{ cartCount }} món — {{ subtotal.toLocaleString() }}đ</span>

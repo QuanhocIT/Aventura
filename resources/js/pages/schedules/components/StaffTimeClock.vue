@@ -4,6 +4,7 @@ import { Clock, Sparkles, LogIn, LogOut, CheckCircle2, AlertCircle, HelpCircle }
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { confirmDialog } from '@/composables/useConfirm';
 
 const props = defineProps<{
     todayActiveAssignment: any;
@@ -52,8 +53,8 @@ clearInterval(durationInterval);
     durationInterval = setInterval(updateTimer, 1000);
 };
 
-const handleCheckOut = () => {
-    if (confirm('Bạn chắc chắn muốn check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.')) {
+const handleCheckOut = async () => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn chắc chắn muốn check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.', variant: 'default' }))) {
         router.post('/schedules/check-out', {}, {
             onFinish: () => {
                 if (durationInterval) {

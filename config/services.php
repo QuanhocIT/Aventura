@@ -81,6 +81,15 @@ return [
         'endpoint' => env('ZALOPAY_ENDPOINT', 'https://sb-openapi.zalopay.vn/v2/create'),
     ],
 
+    'grabfood' => [
+        // Để trống = chế độ demo, push trạng thái đơn chỉ ghi log
+        'status_url' => env('GRABFOOD_STATUS_URL', ''),
+    ],
+
+    'shopeefood' => [
+        'status_url' => env('SHOPEEFOOD_STATUS_URL', ''),
+    ],
+
     'push' => [
         'driver' => env('PUSH_DRIVER', 'log'),
         'fcm' => [

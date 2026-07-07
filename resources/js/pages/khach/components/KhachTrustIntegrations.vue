@@ -16,6 +16,10 @@ const integrations = [
     { name: 'Webhook API',      emoji: '⚙️', tag: 'Developer'  },
 ];
 
+// Chia 2 hàng marquee chạy ngược chiều nhau
+const rowA = integrations.slice(0, 6);
+const rowB = integrations.slice(6);
+
 const certifications = [
     { icon: ShieldCheck, label: 'SSL/TLS 256-bit',  sub: 'Mã hóa toàn bộ dữ liệu'   },
     { icon: Lock,        label: 'GDPR Compliant',    sub: 'Bảo vệ dữ liệu người dùng' },
@@ -37,7 +41,7 @@ const certifications = [
                     <div
                         v-for="cert in certifications"
                         :key="cert.label"
-                        class="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-sm hover:border-primary/40 hover:bg-accent transition-all duration-300"
+                        class="stagger-child flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-sm hover:border-primary/40 hover:bg-accent hover:-translate-y-0.5 transition-all duration-300"
                     >
                         <component :is="cert.icon" class="h-5 w-5 text-primary shrink-0" />
                         <div class="text-left">
@@ -65,29 +69,36 @@ const certifications = [
                     </p>
                 </div>
 
-                <div class="reveal-on-scroll grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                <!-- 2 hàng marquee chạy ngược chiều, dừng khi hover -->
+                <div class="reveal-on-scroll marquee-container marquee-mask space-y-4 overflow-hidden">
                     <div
-                        v-for="item in integrations"
-                        :key="item.name"
-                        class="group flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-center cursor-default transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary/30 hover:bg-accent"
+                        v-for="(row, rowIdx) in [rowA, rowB]"
+                        :key="rowIdx"
+                        class="overflow-hidden"
                     >
-                        <span class="text-2xl">{{ item.emoji }}</span>
-                        <span class="text-xs font-semibold text-foreground leading-tight">{{ item.name }}</span>
-                        <span class="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">
-                            {{ item.tag }}
-                        </span>
-                    </div>
-
-                    <!-- More coming soon -->
-                    <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border p-4 text-center">
-                        <span class="text-2xl">➕</span>
-                        <span class="text-xs font-medium text-muted-foreground">Và nhiều hơn...</span>
+                        <div class="animate-marquee gap-3 pr-3" :class="rowIdx === 1 ? 'marquee-reverse' : ''">
+                            <!-- render 2 lần để loop liền mạch -->
+                            <template v-for="copy in 2" :key="copy">
+                                <div
+                                    v-for="item in row"
+                                    :key="`${copy}-${item.name}`"
+                                    :aria-hidden="copy === 2"
+                                    class="group flex w-40 shrink-0 flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-center cursor-default transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary/30 hover:bg-accent"
+                                >
+                                    <span class="text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-6">{{ item.emoji }}</span>
+                                    <span class="text-xs font-semibold text-foreground leading-tight">{{ item.name }}</span>
+                                    <span class="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">
+                                        {{ item.tag }}
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </div>
 
-                <p class="mt-6 text-center text-sm text-muted-foreground">
+                <p class="mt-8 text-center text-sm text-muted-foreground">
                     Không tìm thấy phần mềm bạn đang dùng?
-                    <a href="#" class="text-primary hover:underline underline-offset-2 transition-colors">Yêu cầu tích hợp mới</a>
+                    <a href="/register" class="text-primary hover:underline underline-offset-2 transition-colors">Yêu cầu tích hợp mới</a>
                 </p>
             </div>
         </div>

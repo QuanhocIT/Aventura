@@ -8,10 +8,12 @@ import {
     RefreshCw, ArrowUpDown, Search
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -269,9 +271,9 @@ watch(() => props.autoSchedule, (newVal) => {
     isAutoSchedule.value = !!newVal;
 });
 
-const handleToggleAutoSchedule = () => {
+const handleToggleAutoSchedule = async () => {
     if (!isAutoSchedule.value) {
-        if (!confirm('Kích hoạt Chế độ xếp lịch tự động? AI sẽ tự động phân phối các ca trực tối ưu cho tất cả nhân sự đang hoạt động trong tuần này. Các lịch ca trực hiện tại của tuần này sẽ bị thay thế.')) {
+        if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Kích hoạt Chế độ xếp lịch tự động? AI sẽ tự động phân phối các ca trực tối ưu cho tất cả nhân sự đang hoạt động trong tuần này. Các lịch ca trực hiện tại của tuần này sẽ bị thay thế.', variant: 'default' }))) {
             return;
         }
     }
@@ -355,9 +357,9 @@ function submitLeaveRequest() {
     });
 }
 
-function startApproveLeave(leave: any) {
+async function startApproveLeave(leave: any) {
     if (leave.leave_type === 'resignation') {
-        if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn thôi việc này? Tài khoản nhân viên sẽ bị khóa và xóa mềm.')) {
+        if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn phê duyệt đơn thôi việc này? Tài khoản nhân viên sẽ bị khóa và xóa mềm.' }))) {
 return;
 }
 
@@ -371,7 +373,7 @@ return;
 
     isLoadingReplacements.value = true;
     axios.get(`/employees/leaves/${leave.id}/replacements`)
-        .then(res => {
+        .then(async res => {
             if (res.data.success && res.data.assignments && res.data.assignments.length > 0) {
                 replacementLeaveId.value = leave.id;
                 replacementLeaveData.value = res.data;
@@ -385,7 +387,7 @@ return;
                 });
                 showApproveReplacementModal.value = true;
             } else {
-                if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) {
+                if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?', variant: 'default' }))) {
 return;
 }
 
@@ -395,10 +397,10 @@ return;
                 });
             }
         })
-        .catch(err => {
+        .catch(async err => {
             console.error(err);
 
-            if (!confirm('Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?')) {
+            if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn phê duyệt đơn nghỉ này?', variant: 'default' }))) {
 return;
 }
 
@@ -495,6 +497,7 @@ const saveShiftsConfig = () => {
 const openAssignModal = (dayKey: string) => {
     if (availableEmployeesList.value.length === 0) {
         import('vue-sonner').then(m => m.toast.error('Chưa có nhân viên nào — vui lòng thêm nhân sự trước khi phân ca.'));
+
         return;
     }
 
@@ -504,7 +507,7 @@ const openAssignModal = (dayKey: string) => {
     showAssignModal.value = true;
 };
 
-const submitAssignment = () => {
+const submitAssignment = async () => {
     // 1. Check duplicate day assignment
     const alreadyScheduled = props.schedules?.some(s => s.employee_name === assignForm.value.employee_name && s.day === currentAssignDay.value);
 
@@ -536,7 +539,7 @@ const submitAssignment = () => {
     }
 
     if (warningMsg) {
-        if (!confirm(warningMsg + '\nBạn vẫn muốn tiếp tục xếp lịch ca trực này chứ?')) {
+        if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: warningMsg + '\nBạn vẫn muốn tiếp tục xếp lịch ca trực này chứ?', variant: 'default' }))) {
             return;
         }
     }
@@ -593,7 +596,10 @@ const getForecastForDay = (dateStr: string) => {
 
 const getDayStaffingStatus = (dateStr: string) => {
     const forecast = getForecastForDay(dateStr);
-    if (!forecast) return { status: 'optimal', text: 'Đủ nhân sự', className: 'bg-emerald-100 text-emerald-800' };
+
+    if (!forecast) {
+return { status: 'optimal', text: 'Đủ nhân sự', className: 'bg-emerald-100 text-emerald-800' };
+}
     
     const understaffedCount = forecast.shifts.filter((s: any) => s.status === 'understaffed').length;
     const overstaffedCount = forecast.shifts.filter((s: any) => s.status === 'overstaffed').length;
@@ -601,28 +607,45 @@ const getDayStaffingStatus = (dateStr: string) => {
     if (understaffedCount > 0) {
         return { status: 'understaffed', text: 'Thiếu nhân sự', className: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/50' };
     }
+
     if (overstaffedCount > 0) {
         return { status: 'overstaffed', text: 'Thừa nhân sự', className: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/50' };
     }
+
     return { status: 'optimal', text: 'Đủ nhân sự', className: 'bg-emerald-100 text-emerald-850 dark:bg-emerald-950/40 dark:text-emerald-350 border border-emerald-250/50' };
 };
 
 const getSelectedReplacementWarning = (assignmentId: number) => {
     const selectedId = selectedReplacements.value[assignmentId];
-    if (!selectedId || !replacementLeaveData.value) return '';
+
+    if (!selectedId || !replacementLeaveData.value) {
+return '';
+}
+
     const assignment = replacementLeaveData.value.assignments.find((a: any) => a.assignment_id === assignmentId);
-    if (!assignment) return '';
+
+    if (!assignment) {
+return '';
+}
+
     const cand = assignment.suggestions.find((c: any) => String(c.id) === selectedId);
-    if (!cand) return '';
+
+    if (!cand) {
+return '';
+}
+
     if (cand.has_overtime_violation && cand.has_rest_violation) {
         return '⚠️ Quá ca & Thiếu nghỉ: Nhân sự này đã làm đủ 6 ca/tuần và không đủ 11 tiếng nghỉ ngơi giữa các ca.';
     }
+
     if (cand.has_overtime_violation) {
         return '⚠️ Quá 6 ca/tuần: Phân ca này sẽ gây tăng ca (Overtime) vượt hạn mức.';
     }
+
     if (cand.has_rest_violation) {
         return '⚠️ Thiếu nghỉ 11h: Nhân sự không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc.';
     }
+
     return '';
 };
 
@@ -638,6 +661,7 @@ return;
 
     if (availableEmployeesList.value.length === 0) {
         import('vue-sonner').then(m => m.toast.error('Chưa có nhân viên nào — vui lòng thêm nhân sự trước khi phân ca.'));
+
         return;
     }
 
@@ -647,8 +671,8 @@ return;
     showAssignModal.value = true;
 };
 
-const copyLastWeekSchedules = () => {
-    if (confirm('Sao chép toàn bộ lịch xếp ca của tuần trước sang tuần này? Các lịch đã xếp trong tuần này sẽ bị thế chỗ.')) {
+const copyLastWeekSchedules = async () => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Sao chép toàn bộ lịch xếp ca của tuần trước sang tuần này? Các lịch đã xếp trong tuần này sẽ bị thế chỗ.', variant: 'default' }))) {
         router.post('/employees/schedules/copy-last-week', {}, {
             onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã sao chép lịch trực thành công!')),
             onError: (errs: any) => import('vue-sonner').then(m => m.toast.error(errs.error || 'Lỗi khi sao chép.'))
@@ -659,8 +683,8 @@ const copyLastWeekSchedules = () => {
 const showSwapRejectModal = ref<number | null>(null);
 const swapRejectReason = ref('');
 
-const approveSwap = (swapId: number) => {
-    if (confirm('Phê duyệt yêu cầu đổi ca trực này?')) {
+const approveSwap = async (swapId: number) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Phê duyệt yêu cầu đổi ca trực này?', variant: 'default' }))) {
         router.patch(`/schedules/swap/${swapId}/approve`, {}, {
             onSuccess: () => import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đổi ca thành công!'))
         });

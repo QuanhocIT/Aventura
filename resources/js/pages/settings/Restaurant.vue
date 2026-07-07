@@ -35,6 +35,7 @@ type RestaurantData = {
     qr_account_number: string | null;
     qr_account_name: string | null;
     qr_enabled: boolean;
+    reservation_deposit_amount: number;
 };
 
 defineProps<{
@@ -226,6 +227,25 @@ defineOptions({
                         />
                         <InputError :message="errors.tax_code" />
                         <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.</p>
+                    </div>
+
+                    <!-- Mức cọc giữ bàn -->
+                    <div class="grid gap-2">
+                        <Label for="reservation_deposit_amount" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tiền cọc giữ bàn (đ)</Label>
+                        <Input
+                            id="reservation_deposit_amount"
+                            name="reservation_deposit_amount"
+                            type="number"
+                            min="0"
+                            step="10000"
+                            :default-value="String(restaurant.reservation_deposit_amount ?? 0)"
+                            placeholder="0"
+                            class="w-full block font-mono rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                        />
+                        <InputError :message="errors.reservation_deposit_amount" />
+                        <p class="text-[10px] text-neutral-500 dark:text-neutral-400">
+                            Khách đặt bàn online sẽ được yêu cầu thanh toán cọc để giữ chỗ — bàn tự động xác nhận khi cọc được trả. Đặt 0 để tắt.
+                        </p>
                     </div>
 
                     <!-- Cấu hình Ngân hàng thụ hưởng nhận chuyển khoản QR -->

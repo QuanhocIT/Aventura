@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     BarChart3,
     Trophy,
@@ -23,10 +21,13 @@ import {
     Lock,
     ChefHat
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -143,8 +144,11 @@ const triggerRecalculate = () => {
 
 // --- Recalculating and Finalizing individual KPI ---
 const isFinalizing = ref<number | null>(null);
-const finalizeKpi = (kpiId: number) => {
-    if (!confirm('Bạn có chắc chắn muốn chốt duyệt bảng KPI này? Số tiền thưởng sẽ được chuyển thẳng vào bảng lương nháp kỳ này.')) return;
+const finalizeKpi = async (kpiId: number) => {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn chốt duyệt bảng KPI này? Số tiền thưởng sẽ được chuyển thẳng vào bảng lương nháp kỳ này.', variant: 'default' }))) {
+return;
+}
+
     isFinalizing.value = kpiId;
     router.post(route('kpis.finalize', kpiId), {}, {
         onSuccess: () => {
@@ -186,8 +190,8 @@ const submitReview = () => {
             isReviewModalOpen.value = false;
             reviewForm.reset();
         },
-        onError: (errs) => {
-            Object.values(errs).forEach(e => toast.error(e));
+        onError: (errs: any) => {
+            Object.values(errs).forEach(e => toast.error(String(e)));
         }
     });
 };
@@ -210,14 +214,17 @@ const editConfig = (config: KpiMetricConfig) => {
 };
 
 const updateConfig = () => {
-    if (!activeConfigEdit.value) return;
+    if (!activeConfigEdit.value) {
+return;
+}
+
     configForm.post(route('kpis.metrics.update', activeConfigEdit.value.id), {
         onSuccess: () => {
             toast.success('Đã cập nhật cấu hình chỉ tiêu KPI thành công!');
             activeConfigEdit.value = null;
         },
-        onError: (errs) => {
-            Object.values(errs).forEach(e => toast.error(e));
+        onError: (errs: any) => {
+            Object.values(errs).forEach(e => toast.error(String(e)));
         }
     });
 };
@@ -228,16 +235,34 @@ const formatVnd = (num: number) => {
 };
 
 const getRoleBadgeColor = (role: string | null) => {
-    if (role === 'waiter') return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-    if (role === 'kitchen') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-    if (role === 'cashier') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (role === 'waiter') {
+return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+}
+
+    if (role === 'kitchen') {
+return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+}
+
+    if (role === 'cashier') {
+return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+}
+
     return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
 };
 
 const getRoleText = (role: string | null) => {
-    if (role === 'waiter') return 'Phục vụ';
-    if (role === 'kitchen') return 'Bếp / Pha chế';
-    if (role === 'cashier') return 'Thu ngân';
+    if (role === 'waiter') {
+return 'Phục vụ';
+}
+
+    if (role === 'kitchen') {
+return 'Bếp / Pha chế';
+}
+
+    if (role === 'cashier') {
+return 'Thu ngân';
+}
+
     return 'Khác';
 };
 </script>

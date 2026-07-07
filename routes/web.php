@@ -149,6 +149,22 @@ Route::match(['get', 'post'], 'api/webhooks/payments/vnpay', [\App\Http\Controll
 Route::post('api/webhooks/payments/momo', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleMomo'])->name('webhooks.momo');
 Route::post('api/webhooks/payments/zalopay', [\App\Http\Controllers\OnlinePaymentWebhookController::class, 'handleZalopay'])->name('webhooks.zalopay');
 
+// Webhook nhận đơn từ nền tảng giao đồ ăn (GrabFood/ShopeeFood) — verify HMAC trong controller
+Route::post('api/webhooks/delivery/{provider}/{restaurantId}', [\App\Http\Controllers\DeliveryPlatformWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.delivery');
+
+// API cho app máy POS: ghép nối thiết bị + heartbeat
+Route::post('api/pos/pair', [\App\Http\Controllers\PosDeviceController::class, 'pair'])->middleware('throttle:10,1')->name('api.pos.pair');
+Route::post('api/pos/heartbeat', [\App\Http\Controllers\PosDeviceController::class, 'heartbeat'])->middleware('throttle:120,1')->name('api.pos.heartbeat');
+
+// REST API công khai v1 (chỉ đọc) — xác thực bằng header X-Api-Key
+Route::prefix('api/v1')->middleware(['auth.apikey', 'throttle:120,1'])->name('api.v1.')->group(function () {
+    Route::get('products', [\App\Http\Controllers\Api\V1\PublicApiController::class, 'products'])->name('products');
+    Route::get('orders', [\App\Http\Controllers\Api\V1\PublicApiController::class, 'orders'])->name('orders');
+    Route::get('reservations', [\App\Http\Controllers\Api\V1\PublicApiController::class, 'reservations'])->name('reservations');
+});
+
 // Chức năng QR-Ordering dành cho khách hàng tại bàn
 Route::middleware('throttle:60,1')->group(function () {
     Route::post('customer/order/call-staff/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'callStaff'])->name('customer.qr-order.call-staff');

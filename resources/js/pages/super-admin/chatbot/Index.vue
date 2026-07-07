@@ -5,13 +5,14 @@ import {
     Plus, RefreshCcw, ThumbsUp, Trash2, X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { PageHeader, DataTable, StatusBadge, EmptyState } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, DataTable, StatusBadge, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -62,6 +63,7 @@ const totalPages = computed(() => Math.ceil(props.items.length / itemsPerPage));
 const paginatedItems = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
     const end = start + itemsPerPage;
+
     return props.items.slice(start, end);
 });
 
@@ -69,7 +71,7 @@ const visiblePages = computed(() => {
     const pages: number[] = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage.value - 2);
-    let end = Math.min(totalPages.value, start + maxVisible - 1);
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
     
     if (end - start + 1 < maxVisible) {
         start = Math.max(1, end - maxVisible + 1);
@@ -78,6 +80,7 @@ const visiblePages = computed(() => {
     for (let i = start; i <= end; i++) {
         pages.push(i);
     }
+
     return pages;
 });
 
@@ -172,8 +175,8 @@ function submitForm() {
     }
 }
 
-function deleteItem(item: KnowledgeItem) {
-    if (!confirm(`Xóa câu hỏi: "${item.question}"?`)) {
+async function deleteItem(item: KnowledgeItem) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa câu hỏi: "${item.question}"?` }))) {
 return;
 }
 
@@ -232,14 +235,25 @@ const totalUnhelpful = computed(() => {
 const helpfulRate = computed(() => {
     const helpful = props.stats.total_helpful;
     const totalVotes = helpful + totalUnhelpful.value;
-    if (totalVotes === 0) return 0;
+
+    if (totalVotes === 0) {
+return 0;
+}
+
     return Math.round((helpful / totalVotes) * 100);
 });
 
 const qualityGrade = computed(() => {
     const rate = helpfulRate.value;
-    if (rate >= 80) return 'Xuất sắc';
-    if (rate >= 55) return 'Khá tốt';
+
+    if (rate >= 80) {
+return 'Xuất sắc';
+}
+
+    if (rate >= 55) {
+return 'Khá tốt';
+}
+
     return 'Cần cải thiện';
 });
 
@@ -261,6 +275,7 @@ const categoryStats = computed(() => {
     return props.categories.map(cat => {
         const count = counts[cat] || 0;
         const percent = totalItems > 0 ? Math.round((count / totalItems) * 100) : 0;
+
         return {
             value: cat,
             label: categoryLabel(cat),

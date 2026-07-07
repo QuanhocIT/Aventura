@@ -405,13 +405,13 @@ class OrderService
      */
     public function payOrder(Order $order, array $data, \App\Models\User $user, bool $queuePostPayment = false): void
     {
-        DB::transaction(function () use ($order, $data, $user, $queuePostPayment) {
+        $paid = DB::transaction(function () use ($order, $data, $user, $queuePostPayment) {
             // Khóa row + đọc lại trạng thái mới nhất trong transaction để tránh 2 webhook
             // trùng lặp (retry gateway) cùng lúc vượt qua check payment_status và xử lý 2 lần.
             $order = Order::where('id', $order->id)->lockForUpdate()->first();
 
             if (! $order || $order->payment_status === 'paid') {
-                return;
+                return false;
             }
 
             $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
@@ -507,7 +507,48 @@ class OrderService
             }
 
             AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);
+
+            return true;
         });
+
+        // Sau khi commit: bắn webhook developer + analytics server-side (GA4/FB CAPI).
+        // Bọc try/catch — lỗi tích hợp không được phép ảnh hưởng luồng thanh toán.
+        if ($paid) {
+            try {
+                $order->refresh();
+
+                // Đơn cọc giữ bàn được thanh toán → tự động xác nhận đặt bàn
+                if ($order->channel === 'reservation_deposit') {
+                    \App\Models\TableReservation::withoutGlobalScopes()
+                        ->where('deposit_order_id', $order->id)
+                        ->where('deposit_status', 'pending')
+                        ->update([
+                            'deposit_status' => 'paid',
+                            'status' => 'confirmed',
+                            'confirmed_at' => now(),
+                        ]);
+                }
+
+                app(\App\Services\Integrations\WebhookDispatchService::class)->dispatch(
+                    $order->restaurant_id,
+                    'order.paid',
+                    [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'total_amount' => (float) $order->total_amount,
+                        'payment_method' => $data['payment_method'] ?? null,
+                        'paid_at' => now()->toIso8601String(),
+                    ]
+                );
+
+                app(\App\Services\Integrations\TrackingService::class)->trackPurchase($order);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('payOrder: lỗi post-payment integrations', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

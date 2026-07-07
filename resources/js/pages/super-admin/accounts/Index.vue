@@ -8,22 +8,23 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import { PageHeader, StatCard, FilterBar, DataTable, StatusBadge, Pagination } from '@/components/super-admin';
+import type { Column } from '@/components/super-admin';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog, DialogContent, DialogFooter,
     DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
     DropdownMenuSeparator, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { PageHeader, StatCard, FilterBar, DataTable, StatusBadge, Pagination } from '@/components/super-admin';
-import type { Column } from '@/components/super-admin';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { confirmDialog } from '@/composables/useConfirm';
 import { useInitials } from '@/composables/useInitials';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -49,8 +50,14 @@ const { getInitials } = useInitials();
 const page = usePage();
 
 watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) toast.success(flash.success);
-    if (flash?.error) toast.error(flash.error);
+    if (flash?.success) {
+toast.success(flash.success);
+}
+
+    if (flash?.error) {
+toast.error(flash.error);
+}
+
     if (flash?.temp_password) {
         tempPassword.value = flash.temp_password;
         showTempPassword.value = true;
@@ -62,7 +69,9 @@ const roleFilter = ref(props.filters.role ?? '');
 const statusFilter = ref(props.filters.status ?? '');
 
 let timer: ReturnType<typeof setTimeout>;
-watch(search, () => { clearTimeout(timer); timer = setTimeout(applyFilter, 400); });
+watch(search, () => {
+ clearTimeout(timer); timer = setTimeout(applyFilter, 400); 
+});
 
 function applyFilter() {
     router.get('/super-admin/accounts', {
@@ -78,29 +87,44 @@ const copied = ref(false);
 function copyPassword() {
     navigator.clipboard.writeText(tempPassword.value);
     copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
+    setTimeout(() => {
+ copied.value = false; 
+}, 2000);
 }
 
 const processingReset = ref<number | null>(null);
-function resetPassword(account: { id: number; name: string }) {
-    if (!confirm(`Reset mật khẩu cho "${account.name}"?`)) return;
+async function resetPassword(account: { id: number; name: string }) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Reset mật khẩu cho "${account.name}"?`, variant: 'default' }))) {
+return;
+}
+
     processingReset.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/reset-password`, {}, {
-        onFinish: () => { processingReset.value = null; },
+        onFinish: () => {
+ processingReset.value = null; 
+},
     });
 }
 
 const processingDisable2FA = ref<number | null>(null);
-function disable2FA(account: { id: number; name: string }) {
-    if (!confirm(`Tắt xác thực 2FA cho "${account.name}"?`)) return;
+async function disable2FA(account: { id: number; name: string }) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Tắt xác thực 2FA cho "${account.name}"?`, variant: 'default' }))) {
+return;
+}
+
     processingDisable2FA.value = account.id;
     router.post(`/super-admin/accounts/${account.id}/disable-2fa`, {}, {
-        onFinish: () => { processingDisable2FA.value = null; },
+        onFinish: () => {
+ processingDisable2FA.value = null; 
+},
     });
 }
 
-function impersonateUser(account: any) {
-    if (!confirm(`Đăng nhập sắm vai dưới danh nghĩa "${account.name}"?`)) return;
+async function impersonateUser(account: any) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Đăng nhập sắm vai dưới danh nghĩa "${account.name}"?`, variant: 'default' }))) {
+return;
+}
+
     router.post(`/super-admin/impersonate/${account.id}`, {});
 }
 
@@ -113,9 +137,14 @@ function openStatusDialog(account: any) {
     showStatusDialog.value = true;
 }
 function submitStatus() {
-    if (!selectedAccount.value) return;
+    if (!selectedAccount.value) {
+return;
+}
+
     statusForm.patch(`/super-admin/accounts/${selectedAccount.value.id}/status`, {
-        onSuccess: () => { showStatusDialog.value = false; },
+        onSuccess: () => {
+ showStatusDialog.value = false; 
+},
     });
 }
 
@@ -144,7 +173,10 @@ function openRoleDialog(account: any) {
     showRoleDialog.value = true;
 }
 function submitRole() {
-    if (!roleTarget.value) return;
+    if (!roleTarget.value) {
+return;
+}
+
     roleForm.patch(`/super-admin/accounts/${roleTarget.value.id}/role`, {
         onSuccess: () => {
             showRoleDialog.value = false;
@@ -186,6 +218,7 @@ const rateVerified = computed(() => Math.round((totalVerifiedEmails.value / tota
 const securityAlerts = computed(() => {
     const alerts = [];
     const superAdminsWithout2FA = props.accounts.data.filter(a => !a.has_2fa && (a.roles.includes('super_admin') || a.roles.includes('system_admin')));
+
     if (superAdminsWithout2FA.length > 0) {
         alerts.push({
             type: 'critical',

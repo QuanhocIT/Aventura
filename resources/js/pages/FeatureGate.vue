@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Lock, Zap, Check, ArrowRight, ChevronRight, Crown, Star, Shield } from 'lucide-vue-next';
-import { FEATURE_LABELS } from '@/composables/useFeatureGate';
-import type { FeatureKey } from '@/composables/useFeatureGate';
+import { ref } from 'vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { FEATURE_LABELS } from '@/composables/useFeatureGate';
+import type { FeatureKey } from '@/composables/useFeatureGate';
 
 const props = defineProps<{
     feature: FeatureKey;
@@ -69,6 +69,10 @@ const PLANS = [
 const currentPlanIndex = PLANS.findIndex(p => p.name === props.plan_name);
 const requiredPlanIndex = PLANS.findIndex(p => p.name === featureInfo.required_plan);
 const requiredPlan = PLANS[requiredPlanIndex] ?? PLANS[2];
+
+function goBack() {
+    window.history.back();
+}
 </script>
 
 <template>
@@ -191,7 +195,7 @@ const requiredPlan = PLANS[requiredPlanIndex] ?? PLANS[2];
                     variant="outline" 
                     size="lg" 
                     class="rounded-xl px-8 py-6 border-border/80 hover:bg-muted/50 transition-colors" 
-                    @click="$router?.back?.() || window.history.back()"
+                    @click="goBack"
                 >
                     Quay lại
                 </Button>

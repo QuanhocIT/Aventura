@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
-import { toast } from 'vue-sonner';
 import {
     Receipt,
     PlusCircle,
@@ -26,10 +24,13 @@ import {
     FileUp,
     Check
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -175,6 +176,7 @@ function openEditExpenseModal(expense: OperatingExpense) {
 
 function handleExpenseFileChange(e: Event) {
     const target = e.target as HTMLInputElement;
+
     if (target.files && target.files.length > 0) {
         expenseForm.invoice = target.files[0];
     }
@@ -183,10 +185,13 @@ function handleExpenseFileChange(e: Event) {
 function saveExpense() {
     if (expenseForm.amount <= 0) {
         toast.error('Số tiền chi phí phải lớn hơn 0');
+
         return;
     }
+
     if (!expenseForm.expense_date) {
         toast.error('Vui lòng chọn ngày chi phí');
+
         return;
     }
 
@@ -206,7 +211,7 @@ function saveExpense() {
                 showExpenseModal.value = false;
                 toast.success('Đã cập nhật chi phí thành công!');
             },
-            onError: (err) => {
+            onError: (err: any) => {
                 toast.error(Object.values(err)[0] as string || 'Đã có lỗi xảy ra');
             }
         });
@@ -218,15 +223,15 @@ function saveExpense() {
                 expenseForm.reset();
                 toast.success('Đã ghi nhận chi phí vận hành mới!');
             },
-            onError: (err) => {
+            onError: (err: any) => {
                 toast.error(Object.values(err)[0] as string || 'Đã có lỗi xảy ra');
             }
         });
     }
 }
 
-function deleteExpense(expense: OperatingExpense) {
-    if (confirm('Bạn có chắc chắn muốn xóa khoản chi phí này không?')) {
+async function deleteExpense(expense: OperatingExpense) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa khoản chi phí này không?' }))) {
         router.delete(`/expenses/${expense.id}`, {
             onSuccess: () => toast.success('Đã xóa khoản chi phí thành công.'),
             onError: () => toast.error('Có lỗi xảy ra khi xóa.')
@@ -273,14 +278,19 @@ function openEditRecurringModal(rec: RecurringExpense) {
 function saveRecurring() {
     if (!recurringForm.name.trim()) {
         toast.error('Vui lòng nhập tên chi phí định kỳ');
+
         return;
     }
+
     if (recurringForm.amount <= 0) {
         toast.error('Số tiền phải lớn hơn 0');
+
         return;
     }
+
     if (!recurringForm.start_date) {
         toast.error('Vui lòng chọn ngày bắt đầu');
+
         return;
     }
 
@@ -290,7 +300,7 @@ function saveRecurring() {
                 showRecurringModal.value = false;
                 toast.success('Đã cập nhật chi phí định kỳ.');
             },
-            onError: (err) => {
+            onError: (err: any) => {
                 toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
             }
         });
@@ -301,7 +311,7 @@ function saveRecurring() {
                 recurringForm.reset();
                 toast.success('Đã thêm cấu hình chi phí định kỳ mới.');
             },
-            onError: (err) => {
+            onError: (err: any) => {
                 toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
             }
         });
@@ -317,8 +327,8 @@ function toggleRecurringStatus(rec: RecurringExpense) {
     });
 }
 
-function deleteRecurring(rec: RecurringExpense) {
-    if (confirm('Bạn có chắc chắn muốn xóa cấu hình chi phí định kỳ này? Lịch sử chi phí đã sinh ra vẫn được lưu giữ.')) {
+async function deleteRecurring(rec: RecurringExpense) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa cấu hình chi phí định kỳ này? Lịch sử chi phí đã sinh ra vẫn được lưu giữ.' }))) {
         router.delete(`/expenses/recurring/${rec.id}`, {
             onSuccess: () => toast.success('Đã xóa cấu hình chi phí định kỳ thành công.'),
             onError: () => toast.error('Có lỗi xảy ra khi xóa.')
@@ -335,22 +345,24 @@ const categoryForm = useForm({
 function saveCategory() {
     if (!categoryForm.name.trim()) {
         toast.error('Tên danh mục không được để trống');
+
         return;
     }
+
     categoryForm.post('/expenses/categories', {
         onSuccess: () => {
             showCategoryModal.value = false;
             categoryForm.reset();
             toast.success('Đã thêm danh mục chi phí tùy chỉnh mới!');
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
         }
     });
 }
 
-function deleteCategory(cat: Category) {
-    if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Các chi phí liên kết sẽ bị xóa hoặc gán thành "Chưa phân loại".`)) {
+async function deleteCategory(cat: Category) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Các chi phí liên kết sẽ bị xóa hoặc gán thành "Chưa phân loại".` }))) {
         router.delete(`/expenses/categories/${cat.id}`, {
             onSuccess: () => toast.success('Đã xóa danh mục thành công.'),
             onError: () => toast.error('Có lỗi xảy ra khi xóa.')
@@ -361,6 +373,7 @@ function deleteCategory(cat: Category) {
 // --- Chart Max Value Helper ---
 const chartMaxVal = computed(() => {
     const max = Math.max(...props.analytics.six_months_mom.map(m => m.amount), 0);
+
     return max || 1;
 });
 </script>

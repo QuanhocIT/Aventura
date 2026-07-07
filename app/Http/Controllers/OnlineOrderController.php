@@ -51,6 +51,7 @@ class OnlineOrderController extends Controller
             'categories' => $menu['categories'],
             'products' => $menu['products'],
             'gateways' => $gateways,
+            'tracking' => app(\App\Services\Integrations\TrackingService::class)->storefrontConfig($config->restaurant_id),
         ]);
     }
 

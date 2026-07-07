@@ -3,15 +3,16 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { Plus, Search, Eye, ShieldCheck, ShieldOff, Crown, UserCheck, Building2, CheckCircle, CreditCard, Ban, TrendingUp, AlertTriangle, Activity, Sparkles, ThumbsUp, ChevronRight, BarChart3, ShieldAlert, Store, User, Mail, Phone, MapPin, Hash, Tag, X, Check, Globe } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import AreaChart from '@/components/charts/AreaChart.vue';
+import { PageHeader, StatCard, FilterBar, DataTable, StatusBadge, Pagination, ProgressBar } from '@/components/super-admin';
+import type { Column } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, FilterBar, DataTable, StatusBadge, Pagination, ProgressBar } from '@/components/super-admin';
-import type { Column } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
-import AreaChart from '@/components/charts/AreaChart.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -93,12 +94,14 @@ function applyFilter() {
     }, { preserveState: true, replace: true });
 }
 
-function impersonateUser(ownerId: number | undefined) {
+async function impersonateUser(ownerId: number | undefined) {
     if (!ownerId) {
-        alert('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+        toast.error('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
+
         return;
     }
-    if (confirm('Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu này không?')) {
+
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn đăng nhập sắm vai dưới quyền của tài khoản chủ sở hữu này không?', variant: 'default' }))) {
         router.post(`/super-admin/impersonate/${ownerId}`);
     }
 }
@@ -108,7 +111,10 @@ function formatQuota(used: number, limit: number | null) {
 }
 
 function quotaPercent(used: number, limit: number | null) {
-    if (limit === null || limit === 0) return 0;
+    if (limit === null || limit === 0) {
+return 0;
+}
+
     return Math.round((used / limit) * 100);
 }
 
@@ -155,6 +161,7 @@ function submitCreate() {
         },
         onError: (errors: any) => {
             toast.error('Vui lòng điền đầy đủ và đúng định dạng các trường bắt buộc!');
+
             if (errors.owner_name || errors.owner_email) {
                 activeCreateTab.value = 'owner';
             } else {
@@ -174,9 +181,14 @@ function openStatus(r: any) {
     showStatus.value = true;
 }
 function submitStatus() {
-    if (!selectedRestaurant.value) return;
+    if (!selectedRestaurant.value) {
+return;
+}
+
     statusForm.patch(`/super-admin/restaurants/${selectedRestaurant.value.id}/status`, {
-        onSuccess: () => { showStatus.value = false; },
+        onSuccess: () => {
+ showStatus.value = false; 
+},
     });
 }
 </script>

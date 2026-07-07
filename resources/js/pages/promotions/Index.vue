@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -192,8 +193,8 @@ return;
     });
 };
 
-const confirmDeletePromotion = (p: Promotion) => {
-    if (!confirm(`Xóa chương trình khuyến mãi "${p.name}"? Hành động này không thể hoàn tác.`)) {
+const confirmDeletePromotion = async (p: Promotion) => {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa chương trình khuyến mãi "${p.name}"? Hành động này không thể hoàn tác.` }))) {
         return;
     }
 
@@ -254,7 +255,7 @@ const openQuickCombo = (rule: ComboRule) => {
 // Submit Quick Combo — tạo món Combo thật trong thực đơn
 const createQuickCombo = () => {
     if (!comboForm.item_a_id || !comboForm.item_b_id) {
-        alert('Không tìm thấy món ăn tương ứng trong thực đơn để tạo combo. Vui lòng kiểm tra lại tên món.');
+        toast.error('Không tìm thấy món ăn tương ứng trong thực đơn để tạo combo. Vui lòng kiểm tra lại tên món.');
 
         return;
     }

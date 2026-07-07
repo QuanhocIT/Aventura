@@ -16,9 +16,10 @@ import {
     FileText
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { PageHeader, TerminalCard, StatCard, LedIndicator, EmptyState } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader, TerminalCard, StatCard, LedIndicator, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -84,12 +85,12 @@ function toggleSelect(id: number) {
     }
 }
 
-function cleanupSelected() {
+async function cleanupSelected() {
     if (selectedIds.value.length === 0) {
 return;
 }
     
-    if (confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedIds.value.length} tệp đã chọn để giải phóng bộ nhớ? Thao tác này không thể hoàn tác.`)) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedIds.value.length} tệp đã chọn để giải phóng bộ nhớ? Thao tác này không thể hoàn tác.` }))) {
         processing.value = true;
         router.post('/super-admin/garbage-collector/cleanup', {
             ids: selectedIds.value
@@ -106,8 +107,8 @@ return;
     }
 }
 
-function cleanupAll() {
-    if (confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ tệp mồ côi trong hệ thống? Thao tác này sẽ xóa vĩnh viễn tất cả tệp không còn liên kết để giải phóng dung lượng.')) {
+async function cleanupAll() {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ tệp mồ côi trong hệ thống? Thao tác này sẽ xóa vĩnh viễn tất cả tệp không còn liên kết để giải phóng dung lượng.' }))) {
         processing.value = true;
         router.post('/super-admin/garbage-collector/cleanup', {
             all: true
@@ -124,8 +125,8 @@ function cleanupAll() {
     }
 }
 
-function deleteSingle(item: OrphanFile) {
-    if (confirm(`Xóa vĩnh viễn tệp "${item.file_name}"?`)) {
+async function deleteSingle(item: OrphanFile) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa vĩnh viễn tệp "${item.file_name}"?` }))) {
         processing.value = true;
         router.post('/super-admin/garbage-collector/cleanup', {
             ids: [item.id]
@@ -160,9 +161,11 @@ const storageAdvice = computed(() => {
     if (props.stats.total_count === 0) {
         return { status: 'perfect', label: 'Tối ưu', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', desc: 'Không phát hiện bất kỳ tệp mồ côi nào trên hệ thống lưu trữ.' };
     }
+
     if (props.stats.total_mb > 50) {
         return { status: 'warning', label: 'Cần giải phóng', color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', desc: `Phát hiện ${props.stats.total_count} tệp mồ côi chiếm ${props.stats.total_mb} MB dung lượng lãng phí.` };
     }
+
     return { status: 'caution', label: 'Khá tốt', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', desc: `Có ${props.stats.total_count} tệp mồ côi chiếm ít dung lượng (${props.stats.total_mb} MB).` };
 });
 
@@ -175,7 +178,10 @@ const otherFilesCount = computed(() => {
 });
 
 const imageRatio = computed(() => {
-    if (!props.orphans.data.length) return 0;
+    if (!props.orphans.data.length) {
+return 0;
+}
+
     return Math.round((imageFilesCount.value / props.orphans.data.length) * 100);
 });
 
@@ -183,6 +189,7 @@ const diskRecommendation = computed(() => {
     if (props.stats.default_disk === 'local') {
         return { status: 'caution', text: 'Storage đang lưu cục bộ. Hãy cân nhắc cấu hình Driver S3 trong production để tăng tính ổn định.' };
     }
+
     return { status: 'ok', text: `Đang lưu trên bộ lưu trữ đám mây (${props.stats.default_disk.toUpperCase()}).` };
 });
 
@@ -190,6 +197,7 @@ const fileCleanupRecommendation = computed(() => {
     if (props.stats.total_count > 0) {
         return { status: 'warning', text: 'Nên xóa định kỳ các tệp mồ côi để tránh làm đầy các bản sao lưu database & file hệ thống.' };
     }
+
     return { status: 'ok', text: 'Hệ thống lưu trữ sạch sẽ, không cần can thiệp dọn dẹp.' };
 });
 </script>

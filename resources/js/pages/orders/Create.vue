@@ -6,6 +6,7 @@ import {
     AlertCircle, Lightbulb, Check, ChevronRight, User, AlertTriangle
 } from 'lucide-vue-next';
 import { ref, computed, watch, onMounted } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -115,7 +116,7 @@ const removeFromCart = (productId: number) => {
 // Form submit helper
 const submitOrder = () => {
     if (cartItems.value.length === 0) {
-        alert('Giỏ hàng trống! Hãy chọn ít nhất một món ăn trước khi chuyển bếp.');
+        toast.error('Giỏ hàng trống! Hãy chọn ít nhất một món ăn trước khi chuyển bếp.');
 
         return;
     }
@@ -182,7 +183,7 @@ return;
     if (product) {
         addToCart(product);
     } else {
-        alert(`Món gợi ý "${recommendedName}" hiện không hoạt động hoặc không có trong menu.`);
+        toast.error(`Món gợi ý "${recommendedName}" hiện không hoạt động hoặc không có trong menu.`);
     }
 };
 

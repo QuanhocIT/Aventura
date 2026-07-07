@@ -7,13 +7,14 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import { PageHeader, StatCard, StatusBadge, Pagination, ProgressBar, EmptyState } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, StatusBadge, Pagination, ProgressBar, EmptyState } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -153,8 +154,8 @@ function toggleCoupon(coupon: Coupon) {
     });
 }
 
-function deleteCoupon(coupon: Coupon) {
-    if (!confirm(`Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`)) {
+async function deleteCoupon(coupon: Coupon) {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.` }))) {
 return;
 }
 
@@ -181,7 +182,10 @@ const couponUsageTrend = computed(() => {
 });
 
 const couponSuccessRate = computed(() => {
-    if (props.stats.total === 0) return 0;
+    if (props.stats.total === 0) {
+return 0;
+}
+
     return Math.round((props.stats.active / props.stats.total) * 100);
 });
 
@@ -195,21 +199,29 @@ const chartPoints = computed(() => {
     return data.map((d, index) => {
         const x = (index / (data.length - 1)) * (width - padding * 2) + padding;
         const y = height - (d.usages / maxVal) * (height - padding * 2) - padding;
+
         return { x, y, label: d.month, value: d.usages, discount: d.discount };
     });
 });
 
 const chartPath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     return chartPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 });
 
 const chartAreaPath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;
     const line = points.map(p => `L ${p.x} ${p.y}`).join(' ');
     const end = `L ${points[points.length - 1].x} 100 Z`;
+
     return `${start} ${line} ${end}`;
 });
 </script>

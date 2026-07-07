@@ -9,11 +9,11 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -45,6 +45,7 @@ const dogs = computed(() => bcgData.value.filter(p => p.quadrant === 'dog'));
 async function loadInsights() {
     if (insightsLoaded.value) {
         showInsights.value = !showInsights.value;
+
         return; 
     }
 
@@ -76,8 +77,12 @@ const rulesLoading = ref(false);
 const rulesLoaded = ref(false);
 
 async function loadBasketAnalysis() {
-    if (rulesLoaded.value) return;
+    if (rulesLoaded.value) {
+return;
+}
+
     rulesLoading.value = true;
+
     try {
         const res = await fetch('/api/promotions/basket-analysis');
         const data = await res.json();
@@ -116,6 +121,7 @@ const openComboModal = (rule: any) => {
     
     if (!prodA || !prodB) {
         toast.error('Không tìm thấy sản phẩm tương ứng trong thực đơn để tạo combo.');
+
         return;
     }
     
@@ -159,6 +165,7 @@ const getDotPosition = (p: any) => {
     const minMargin = Math.min(...bcgData.value.map(x => x.margin), 0);
     
     let x = 50;
+
     if (p.total_qty >= p.median_qty) {
         const range = maxQty - p.median_qty;
         x = 55 + (range > 0 ? ((p.total_qty - p.median_qty) / range) * 35 : 15);
@@ -168,6 +175,7 @@ const getDotPosition = (p: any) => {
     }
     
     let y = 50;
+
     if (p.margin >= p.median_margin) {
         const range = maxMargin - p.median_margin;
         y = 40 - (range > 0 ? ((p.margin - p.median_margin) / range) * 30 : 15);
@@ -224,6 +232,7 @@ const itemsPerPage = 10;
 const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage));
 const paginatedProducts = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return filteredProducts.value.slice(start, start + itemsPerPage);
 });
 
@@ -251,6 +260,7 @@ watch([selectedCategory, searchQuery], () => {
 // ── Category & Product Helpers ───────────────────────────────────────────────
 function getCategoryTheme(catName: string | null) {
     const name = (catName ?? '').toLowerCase();
+
     if (name.includes('đồ uống') || name.includes('uống') || name.includes('nước') || name.includes('bia') || name.includes('cà phê') || name.includes('sinh tố')) {
         return {
             icon: Coffee,
@@ -258,6 +268,7 @@ function getCategoryTheme(catName: string | null) {
             dot: 'bg-blue-500'
         };
     }
+
     if (name.includes('tráng miệng') || name.includes('bánh') || name.includes('chè') || name.includes('kem')) {
         return {
             icon: Dessert,
@@ -265,6 +276,7 @@ function getCategoryTheme(catName: string | null) {
             dot: 'bg-pink-500'
         };
     }
+
     if (name.includes('món chính') || name.includes('cơm') || name.includes('phở') || name.includes('bún') || name.includes('thịt') || name.includes('mỳ')) {
         return {
             icon: Beef,
@@ -272,6 +284,7 @@ function getCategoryTheme(catName: string | null) {
             dot: 'bg-orange-500'
         };
     }
+
     return {
         icon: UtensilsCrossed,
         bg: 'bg-slate-500/10 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400',
@@ -921,8 +934,8 @@ const toggleAvailability = (p: Product) => {
                                         <!-- Thumbnail image / SVG category themed placeholder -->
                                         <div class="size-12 rounded-xl border border-border overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs select-none">
                                             <img v-if="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
-                                            <div v-else :class="['h-full w-full flex flex-col items-center justify-center', getCategoryTheme(p.category?.name).bg]">
-                                                <component :is="getCategoryTheme(p.category?.name).icon" class="size-5" />
+                                            <div v-else :class="['h-full w-full flex flex-col items-center justify-center', getCategoryTheme(p.category?.name ?? null).bg]">
+                                                <component :is="getCategoryTheme(p.category?.name ?? null).icon" class="size-5" />
                                             </div>
                                         </div>
                                         

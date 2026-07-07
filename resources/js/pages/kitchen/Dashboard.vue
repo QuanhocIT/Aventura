@@ -12,12 +12,11 @@ import {
     UtensilsCrossed,
     MessageSquare,
     AlertTriangle,
-    Pause,
-    Ban,
     RotateCcw,
     Search
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +32,7 @@ interface PendingItem {
     creator_name: string;
     table_name: string;
     table_id: number | null;
+    prep_minutes: number;
 }
 
 interface CompletedItem {
@@ -59,6 +59,7 @@ const props = defineProps<{
     pendingItems: PendingItem[];
     completedItems: CompletedItem[];
     products: Product[];
+    kitchenStats: { done_today: number; avg_prep_minutes: number | null; slowest_prep_minutes: number | null };
 }>();
 
 // Tab selector state
@@ -99,7 +100,7 @@ return;
     const mins = parseInt(res);
 
     if (isNaN(mins) || mins <= 0) {
-        alert("Vui lòng nhập số phút hợp lệ!");
+        toast.error("Vui lòng nhập số phút hợp lệ!");
 
         return;
     }
@@ -117,7 +118,7 @@ return;
     const mins = parseInt(res);
 
     if (isNaN(mins) || mins <= 0) {
-        alert("Vui lòng nhập số phút hợp lệ!");
+        toast.error("Vui lòng nhập số phút hợp lệ!");
 
         return;
     }
@@ -249,10 +250,31 @@ return 0;
     return Math.max(0, Math.floor(diffMs / 60000));
 };
 
-// Check xem nhóm bàn có món nào trễ quá 10 phút không
-const hasOverdueItem = (items: PendingItem[]) => {
-    return items.some(item => getMinutesElapsed(item.sent_to_kitchen_at_raw) >= 10);
+/**
+ * Mức SLA của món theo thời gian chuẩn bị chuẩn (prep_minutes) riêng từng món:
+ * ok = trong chuẩn, warn = vượt chuẩn (vàng), late = vượt 150% chuẩn (đỏ).
+ */
+const slaLevel = (item: PendingItem): 'ok' | 'warn' | 'late' => {
+    const elapsed = getMinutesElapsed(item.sent_to_kitchen_at_raw);
+
+    if (elapsed >= item.prep_minutes * 1.5) {
+        return 'late';
+    }
+
+    if (elapsed >= item.prep_minutes) {
+        return 'warn';
+    }
+
+    return 'ok';
 };
+
+// Check xem nhóm bàn có món nào trễ vượt SLA không
+const hasOverdueItem = (items: PendingItem[]) => {
+    return items.some(item => slaLevel(item) === 'late');
+};
+
+// Số món đang vượt SLA trên toàn màn hình
+const lateCount = computed(() => props.pendingItems.filter(i => slaLevel(i) === 'late').length);
 
 // Hoàn thành chế biến món ăn ở bếp
 const handlePrepare = (itemId: number) => {
@@ -292,7 +314,7 @@ return;
 
     isManualRefreshing.value = true;
     router.reload({
-        only: ['pendingItems', 'completedItems', 'products'],
+        only: ['pendingItems', 'completedItems', 'products', 'kitchenStats'],
         onFinish: () => {
             isManualRefreshing.value = false;
         }
@@ -369,7 +391,7 @@ onMounted(() => {
             .listen('.kitchen.updated', (e: any) => {
                 console.log('Realtime update received via WebSocket:', e);
                 router.reload({
-                    only: ['pendingItems', 'completedItems'],
+                    only: ['pendingItems', 'completedItems', 'kitchenStats'],
                     preserveState: true,
                     preserveScroll: true
                 });
@@ -438,6 +460,38 @@ clearInterval(secCountdownInterval);
                     <RefreshCw class="size-3.5" :class="{ 'animate-spin': isManualRefreshing }" />
                     Làm mới (F5)
                 </Button>
+            </div>
+        </div>
+
+        <!-- ── THỐNG KÊ TỐC ĐỘ BẾP HÔM NAY ── -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3.5">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Đang chờ làm</p>
+                <p class="text-2xl font-black mt-1 tabular-nums text-indigo-600 dark:text-indigo-400">{{ props.pendingItems.length }}</p>
+            </div>
+            <div class="rounded-2xl border p-3.5 transition-colors"
+                :class="lateCount > 0
+                    ? 'border-red-300 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20'
+                    : 'border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-900'"
+            >
+                <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Vượt SLA</p>
+                <p class="text-2xl font-black mt-1 tabular-nums" :class="lateCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'">
+                    {{ lateCount }}
+                    <AlertTriangle v-if="lateCount > 0" class="inline size-4 animate-pulse -mt-1" />
+                </p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3.5">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Đã ra món hôm nay</p>
+                <p class="text-2xl font-black mt-1 tabular-nums text-emerald-600 dark:text-emerald-400">{{ props.kitchenStats.done_today }}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3.5">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TB chế biến</p>
+                <p class="text-2xl font-black mt-1 tabular-nums text-slate-800 dark:text-slate-100">
+                    {{ props.kitchenStats.avg_prep_minutes !== null ? `${props.kitchenStats.avg_prep_minutes}p` : '—' }}
+                </p>
+                <p v-if="props.kitchenStats.slowest_prep_minutes !== null" class="text-[10px] text-muted-foreground mt-0.5">
+                    Chậm nhất: {{ props.kitchenStats.slowest_prep_minutes }}p
+                </p>
             </div>
         </div>
 
@@ -523,16 +577,15 @@ clearInterval(secCountdownInterval);
                                 v-for="item in items" 
                                 :key="item.id" 
                                 class="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors"
-                                :class="{ 
-                                    'border-l-4 border-l-red-500 bg-red-500/5 dark:bg-red-950/10': getMinutesElapsed(item.sent_to_kitchen_at_raw) >= 10 
+                                :class="{
+                                    'border-l-4 border-l-red-500 bg-red-500/5 dark:bg-red-950/10': slaLevel(item) === 'late',
+                                    'border-l-4 border-l-amber-400 bg-amber-400/5 dark:bg-amber-950/10': slaLevel(item) === 'warn',
                                 }"
                             >
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2.5">
-                                        <Badge class="font-black text-xs px-2.5 py-0.5 rounded-lg"
-                                               :class="getMinutesElapsed(item.sent_to_kitchen_at_raw) >= 10 
-                                                    ? 'bg-red-500 text-white' 
-                                                    : 'bg-indigo-500 text-white'"
+                                        <Badge class="font-black text-xs px-2.5 py-0.5 rounded-lg text-white"
+                                               :class="slaLevel(item) === 'late' ? 'bg-red-500' : slaLevel(item) === 'warn' ? 'bg-amber-500' : 'bg-indigo-500'"
                                         >
                                             x{{ Math.round(item.quantity) }}
                                         </Badge>
@@ -553,15 +606,21 @@ clearInterval(secCountdownInterval);
                                             Gọi: {{ item.creator_name }}
                                         </span>
                                         
-                                        <!-- Cảnh báo thời gian chờ chế biến -->
-                                        <span v-if="getMinutesElapsed(item.sent_to_kitchen_at_raw) >= 10" 
+                                        <!-- Cảnh báo SLA theo thời gian chuẩn riêng của món -->
+                                        <span v-if="slaLevel(item) === 'late'"
                                               class="text-red-500 font-extrabold flex items-center gap-0.5 bg-red-500/10 px-1.5 py-0.5 rounded"
                                         >
                                             <AlertTriangle class="size-3 text-red-500 shrink-0" />
-                                            Chờ {{ getMinutesElapsed(item.sent_to_kitchen_at_raw) }} phút!
+                                            Chờ {{ getMinutesElapsed(item.sent_to_kitchen_at_raw) }}p / chuẩn {{ item.prep_minutes }}p!
+                                        </span>
+                                        <span v-else-if="slaLevel(item) === 'warn'"
+                                              class="text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-0.5 bg-amber-400/10 px-1.5 py-0.5 rounded"
+                                        >
+                                            <Clock class="size-3 shrink-0" />
+                                            Chờ {{ getMinutesElapsed(item.sent_to_kitchen_at_raw) }}p / chuẩn {{ item.prep_minutes }}p
                                         </span>
                                         <span v-else class="text-slate-500 font-medium">
-                                            Chờ {{ getMinutesElapsed(item.sent_to_kitchen_at_raw) }}p
+                                            Chờ {{ getMinutesElapsed(item.sent_to_kitchen_at_raw) }}p / {{ item.prep_minutes }}p
                                         </span>
                                     </div>
 
@@ -573,11 +632,13 @@ clearInterval(secCountdownInterval);
                                 </div>
 
                                 <!-- Nút hoàn thành chuẩn bị -->
-                                <Button 
-                                    class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all bg-indigo-600 hover:bg-indigo-700"
-                                    :class="getMinutesElapsed(item.sent_to_kitchen_at_raw) >= 10 
-                                        ? 'bg-red-600 hover:bg-red-700 animate-bounce' 
-                                        : 'bg-indigo-600 hover:bg-indigo-700'"
+                                <Button
+                                    class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                    :class="slaLevel(item) === 'late'
+                                        ? 'bg-red-600 hover:bg-red-700 animate-bounce'
+                                        : slaLevel(item) === 'warn'
+                                            ? 'bg-amber-500 hover:bg-amber-600'
+                                            : 'bg-indigo-600 hover:bg-indigo-700'"
                                     :disabled="isUpdating[item.id]"
                                     @click="handlePrepare(item.id)"
                                     title="Hoàn thành món"

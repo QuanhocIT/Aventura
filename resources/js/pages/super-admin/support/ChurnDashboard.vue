@@ -28,11 +28,11 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { PageHeader, StatCard, StatusBadge, ProgressBar, SectionCard } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PageHeader, StatCard, StatusBadge, ProgressBar, SectionCard } from '@/components/super-admin';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -179,9 +179,11 @@ const getScoreBadgeClass = (score: number) => {
     if (score >= 80) {
         return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
     }
+
     if (score >= 50) {
         return 'bg-amber-500/10 text-amber-600 border border-amber-500/20';
     }
+
     return 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse';
 };
 
@@ -190,9 +192,11 @@ const getRiskBadgeClass = (level: 'high' | 'medium' | 'low') => {
     if (level === 'low') {
         return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
     }
+
     if (level === 'medium') {
         return 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
     }
+
     return 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300';
 };
 
@@ -200,9 +204,11 @@ const getRiskLabel = (level: 'high' | 'medium' | 'low') => {
     if (level === 'low') {
         return 'Nguy cơ thấp';
     }
+
     if (level === 'medium') {
         return 'Nguy cơ TB';
     }
+
     return 'Nguy cơ cao (At-risk)';
 };
 
@@ -249,7 +255,10 @@ const closeDetails = () => {
 
 // CRM actions calling endpoints
 const saveNote = (restaurantId: number) => {
-    if (!newNote.value.trim()) return;
+    if (!newNote.value.trim()) {
+return;
+}
+
     isSavingNote.value = true;
     router.post(`/super-admin/restaurants/${restaurantId}/notes`, {
         note: newNote.value
@@ -260,6 +269,7 @@ const saveNote = (restaurantId: number) => {
             newNote.value = '';
             // Refresh detailed view payload
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -276,6 +286,7 @@ const deleteNote = (restaurantId: number, noteId: number) => {
         onSuccess: () => {
             toast.success('Đã xóa ghi chú nội bộ.');
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -284,7 +295,10 @@ const deleteNote = (restaurantId: number, noteId: number) => {
 };
 
 const addTag = (restaurantId: number) => {
-    if (!newTagName.value.trim()) return;
+    if (!newTagName.value.trim()) {
+return;
+}
+
     isSavingTag.value = true;
     router.post(`/super-admin/restaurants/${restaurantId}/tags`, {
         name: newTagName.value,
@@ -295,6 +309,7 @@ const addTag = (restaurantId: number) => {
             toast.success('Đã gắn nhãn thành công!');
             newTagName.value = '';
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -311,6 +326,7 @@ const deleteTag = (restaurantId: number, tagId: number) => {
         onSuccess: () => {
             toast.success('Đã gỡ nhãn.');
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -321,8 +337,10 @@ const deleteTag = (restaurantId: number, tagId: number) => {
 const saveFollowup = (restaurantId: number) => {
     if (!followupNote.value.trim() || !remindAt.value || !assignedTo.value) {
         toast.error('Vui lòng nhập đầy đủ thông tin lịch hẹn.');
+
         return;
     }
+
     isSavingFollowup.value = true;
     router.post(`/super-admin/restaurants/${restaurantId}/followups`, {
         note: followupNote.value,
@@ -336,6 +354,7 @@ const saveFollowup = (restaurantId: number) => {
             remindAt.value = '';
             assignedTo.value = '';
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -352,6 +371,7 @@ const completeFollowup = (restaurantId: number, followupId: number) => {
         onSuccess: () => {
             toast.success('Đã đánh dấu hoàn thành cuộc hẹn!');
             const updated = props.restaurants.data.find(r => r.id === restaurantId);
+
             if (updated) {
                 selectedDetails.value = updated;
             }
@@ -371,6 +391,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
             desc: 'Khách hàng đang ở mức rủi ro cao nhất. Khuyến nghị Admin liên hệ trực tiếp bằng điện thoại ngay hôm nay để lắng nghe khó khăn của họ.'
         });
     }
+
     if (b.days_since_login >= 7) {
         recs.push({
             type: 'warning',
@@ -378,6 +399,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
             desc: `Đã ${b.days_since_login} ngày hệ thống không phát sinh lượt đăng nhập quản trị. Gửi tài liệu hướng dẫn nhanh các tính năng hoặc chủ động gọi điện tư vấn cài đặt.`
         });
     }
+
     if (b.drop_percentage >= 30) {
         recs.push({
             type: 'warning',
@@ -385,6 +407,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
             desc: `Số đơn hàng giảm mạnh ${b.drop_percentage}% so với trung bình các tuần trước. Khuyến nghị gửi coupon ưu đãi 30% gia hạn và kích cầu kinh doanh.`
         });
     }
+
     if (b.unresolved_tickets > 0) {
         recs.push({
             type: 'info',
@@ -392,6 +415,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
             desc: `Có ${b.unresolved_tickets} khiếu nại kỹ thuật chưa giải quyết xong. Ưu tiên nhân sự Dev/Support xử lý triệt để trong ngày hôm nay để nâng cao sự hài lòng.`
         });
     }
+
     if (recs.length === 0) {
         recs.push({
             type: 'success',
@@ -399,13 +423,17 @@ const getRecommendations = (restaurant: RestaurantData) => {
             desc: 'Các chỉ số sức khỏe của nhà hàng đang ở mức xuất sắc. Nên đề xuất nâng cấp gói dịch vụ hoặc gia hạn gói năm để tối ưu chi phí.'
         });
     }
+
     return recs;
 };
 
 // SVG-based donut charts computation
 const donutSlices = computed(() => {
     const total = props.stats.high_risk + props.stats.medium_risk + props.stats.low_risk;
-    if (total === 0) return [];
+
+    if (total === 0) {
+return [];
+}
     
     const highPct = (props.stats.high_risk / total) * 100;
     const medPct = (props.stats.medium_risk / total) * 100;
@@ -460,10 +488,15 @@ const healthScoreDistribution = computed(() => {
     let bandD = 0; // 81 - 100
     
     props.restaurants.data.forEach(r => {
-        if (r.health_score <= 30) bandA++;
-        else if (r.health_score <= 50) bandB++;
-        else if (r.health_score <= 80) bandC++;
-        else bandD++;
+        if (r.health_score <= 30) {
+bandA++;
+} else if (r.health_score <= 50) {
+bandB++;
+} else if (r.health_score <= 80) {
+bandC++;
+} else {
+bandD++;
+}
     });
 
     const maxVal = Math.max(bandA, bandB, bandC, bandD, 1);
@@ -904,7 +937,7 @@ const healthScoreDistribution = computed(() => {
                 <!-- Navigation Tabs inside Modal -->
                 <div class="flex border-b border-border/40 mt-4 shrink-0">
                     <button 
-                        v-for="tab in ['health', 'crm', 'followup']" 
+                        v-for="tab in (['health', 'crm', 'followup'] as const)"
                         :key="tab"
                         @click="activeTab = tab"
                         class="flex-1 pb-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer text-center"
@@ -1246,11 +1279,11 @@ const healthScoreDistribution = computed(() => {
                     </button>
                     <button
                         type="button"
-                        @click="sendOutreachEmail(selectedDetails.id); closeDetails()"
-                        :disabled="triggeringEmailId === selectedDetails.id"
+                        @click="sendOutreachEmail(selectedDetails!.id); closeDetails()"
+                        :disabled="triggeringEmailId === selectedDetails?.id"
                         class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white hover:bg-blue-700 cursor-pointer transition-all disabled:opacity-50 shadow-md"
                     >
-                        <Mail :class="['size-3.5', { 'animate-spin': triggeringEmailId === selectedDetails.id }]" />
+                        <Mail :class="['size-3.5', { 'animate-spin': triggeringEmailId === selectedDetails?.id }]" />
                         Gửi email tri ân chăm sóc
                     </button>
                 </div>

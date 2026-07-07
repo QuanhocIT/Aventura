@@ -8,10 +8,12 @@ import {
     Search, Mail, Phone, MapPin, User, Users, Truck, Info, ClipboardList, Building
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { confirmDialog } from '@/composables/useConfirm';
 
 const props = defineProps<{
     suppliers: any[];
@@ -112,6 +114,7 @@ const selectedCockpitIds = ref<number[]>([]);
 
 const fetchCockpitData = async () => {
     loadingCockpit.value = true;
+
     try {
         const res = await fetch(route('suppliers.replenish-cockpit'));
         const data = await res.json();
@@ -129,6 +132,7 @@ const fetchCockpitData = async () => {
 
 const toggleSelectAllCockpit = () => {
     const validRecs = cockpitRecommendations.value.filter(r => r.optimal_supplier);
+
     if (selectedCockpitIds.value.length === validRecs.length) {
         selectedCockpitIds.value = [];
     } else {
@@ -136,8 +140,10 @@ const toggleSelectAllCockpit = () => {
     }
 };
 
-const submitBulkDraftPo = () => {
-    if (selectedCockpitIds.value.length === 0) return;
+const submitBulkDraftPo = async () => {
+    if (selectedCockpitIds.value.length === 0) {
+return;
+}
 
     const itemsToSend = cockpitRecommendations.value
         .filter(r => selectedCockpitIds.value.includes(r.ingredient_id))
@@ -149,12 +155,14 @@ const submitBulkDraftPo = () => {
         }));
 
     const missingSupplier = itemsToSend.some(it => !it.supplier_id);
+
     if (missingSupplier) {
-        alert("Không thể tạo đơn PO cho các mặt hàng chưa xác định nhà cung cấp.");
+        toast.error("Không thể tạo đơn PO cho các mặt hàng chưa xác định nhà cung cấp.");
+
         return;
     }
 
-    if (confirm(`Bạn có chắc chắn muốn tự động tạo PO nháp cho ${itemsToSend.length} mặt hàng đã chọn?`)) {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn tự động tạo PO nháp cho ${itemsToSend.length} mặt hàng đã chọn?`, variant: 'default' }))) {
         router.post(route('suppliers.draft-po-bulk'), {
             items: itemsToSend
         }, {
@@ -173,6 +181,7 @@ const loadingSlaDashboard = ref(false);
 const fetchSlaDashboard = async () => {
     loadingSlaDashboard.value = true;
     selectedSupplier.value = null;
+
     try {
         const res = await fetch(route('suppliers.sla-dashboard'));
         slaDashboardData.value = await res.json();
@@ -187,9 +196,18 @@ const getSupplierGrade = (onTime: number, accuracy: number, rating: number) => {
     const normalizedRating = (rating / 5.0) * 100;
     const score = (onTime * 0.4) + (accuracy * 0.4) + (normalizedRating * 0.2);
     
-    if (score >= 90) return { label: 'Hạng A (Xuất sắc)', color: 'bg-emerald-500 text-white' };
-    if (score >= 75) return { label: 'Hạng B (Tốt)', color: 'bg-blue-500 text-white' };
-    if (score >= 55) return { label: 'Hạng C (Trung bình)', color: 'bg-amber-500 text-white' };
+    if (score >= 90) {
+return { label: 'Hạng A (Xuất sắc)', color: 'bg-emerald-500 text-white' };
+}
+
+    if (score >= 75) {
+return { label: 'Hạng B (Tốt)', color: 'bg-blue-500 text-white' };
+}
+
+    if (score >= 55) {
+return { label: 'Hạng C (Trung bình)', color: 'bg-amber-500 text-white' };
+}
+
     return { label: 'Hạng D (Kém)', color: 'bg-rose-500 text-white' };
 };
 
@@ -256,14 +274,14 @@ const saveSupplier = () => {
     }
 };
 
-const deleteSupplier = (supplier: any) => {
-    if (confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}"?`)) {
+const deleteSupplier = async (supplier: any) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}"?` }))) {
         router.delete(route('suppliers.destroy', supplier.id));
     }
 };
 
-const triggerAutoReplenish = () => {
-    if (confirm('Bạn có chắc chắn muốn kích hoạt AI quét kho và tự động đề xuất PO nháp?')) {
+const triggerAutoReplenish = async () => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn kích hoạt AI quét kho và tự động đề xuất PO nháp?', variant: 'default' }))) {
         router.post(route('suppliers.auto-replenish'), {}, {
             onSuccess: () => {
                 activeTab.value = 'pos';
@@ -305,14 +323,14 @@ const approvePo = (po: any) => {
     router.post(route('suppliers.orders.approve', po.id));
 };
 
-const releaseEscrow = (po: any) => {
-    if (confirm(`Bạn có chắc chắn muốn giải ngân thủ công số tiền ${Number(po.total_amount).toLocaleString('vi-VN')}đ cho nhà cung cấp?`)) {
+const releaseEscrow = async (po: any) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn giải ngân thủ công số tiền ${Number(po.total_amount).toLocaleString('vi-VN')}đ cho nhà cung cấp?`, variant: 'default' }))) {
         router.post(route('suppliers.orders.release-escrow', po.id));
     }
 };
 
-const refundEscrow = (po: any) => {
-    if (confirm(`Bạn có chắc chắn muốn hoàn trả số tiền ký quỹ ${Number(po.total_amount).toLocaleString('vi-VN')}đ về tài khoản của nhà hàng?`)) {
+const refundEscrow = async (po: any) => {
+    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn hoàn trả số tiền ký quỹ ${Number(po.total_amount).toLocaleString('vi-VN')}đ về tài khoản của nhà hàng?`, variant: 'default' }))) {
         router.post(route('suppliers.orders.refund-escrow', po.id));
     }
 };
@@ -471,7 +489,7 @@ return;
                         formItem.invoice_price = matched.unit_price;
                     }
                 });
-                alert(`AI OCR: Đã quét hóa đơn số thành công! Khớp tự động ${parsedItems.length} nguyên vật liệu với độ tin cậy ${Math.round(data.confidence * 100)}%.`);
+                toast.success(`AI OCR: Đã quét hóa đơn số thành công! Khớp tự động ${parsedItems.length} nguyên vật liệu với độ tin cậy ${Math.round(data.confidence * 100)}%.`);
             }
         }
     } catch (err) {
@@ -518,8 +536,8 @@ const fetchTransfers = async () => {
     }
 };
 
-const executeTransfer = (rec: any) => {
-    if (!confirm(`Bạn có chắc chắn muốn thực hiện lệnh luân chuyển kho nội bộ: chuyển ${rec.suggested_quantity} ${rec.unit_symbol} "${rec.ingredient_name}" từ chi nhánh "${rec.from_branch_name}" sang "${rec.to_branch_name}"?`)) {
+const executeTransfer = async (rec: any) => {
+    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn thực hiện lệnh luân chuyển kho nội bộ: chuyển ${rec.suggested_quantity} ${rec.unit_symbol} "${rec.ingredient_name}" từ chi nhánh "${rec.from_branch_name}" sang "${rec.to_branch_name}"?`, variant: 'default' }))) {
         return;
     }
     
@@ -775,7 +793,7 @@ return null;
                         <div class="flex gap-3">
                             <!-- Initials Avatar with custom gradient based on status -->
                             <div :class="['w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm text-white shadow-md shadow-black/10', sup.status === 'active' ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 shadow-emerald-500/10' : 'bg-gradient-to-tr from-rose-500 to-orange-400 shadow-rose-500/10']">
-                                {{ (sup.name || 'NCC').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() }}
+                                {{ (sup.name || 'NCC').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() }}
                             </div>
                             <div class="space-y-1">
                                 <CardTitle class="text-sm font-extrabold tracking-tight group-hover:text-emerald-400 transition-colors duration-300">{{ sup.name }}</CardTitle>
@@ -1430,7 +1448,7 @@ return null;
                         <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Giao đúng hạn</p>
                         <p class="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">
                             {{ slaDashboardData.suppliers?.length > 0 
-                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.on_time_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1) 
+                                ? (slaDashboardData.suppliers.reduce((s: number, sup: any) => s + Number(sup.on_time_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1)
                                 : '—' }}%
                         </p>
                     </Card>
@@ -1438,7 +1456,7 @@ return null;
                         <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Độ chính xác</p>
                         <p class="text-2xl font-extrabold text-teal-600 dark:text-teal-400 mt-1">
                             {{ slaDashboardData.suppliers?.length > 0 
-                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.accuracy_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1) 
+                                ? (slaDashboardData.suppliers.reduce((s: number, sup: any) => s + Number(sup.accuracy_rate || 0), 0) / slaDashboardData.suppliers.length).toFixed(1)
                                 : '—' }}%
                         </p>
                     </Card>
@@ -1446,7 +1464,7 @@ return null;
                         <p class="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">TB Đánh giá sao</p>
                         <p class="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
                             {{ slaDashboardData.suppliers?.length > 0 
-                                ? (slaDashboardData.suppliers.reduce((s, sup) => s + Number(sup.average_rating || 0), 0) / slaDashboardData.suppliers.length).toFixed(2) 
+                                ? (slaDashboardData.suppliers.reduce((s: number, sup: any) => s + Number(sup.average_rating || 0), 0) / slaDashboardData.suppliers.length).toFixed(2)
                                 : '—' }} ★
                         </p>
                     </Card>
