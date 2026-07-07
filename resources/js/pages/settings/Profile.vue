@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Form, Head, Link, usePage, useForm } from '@inertiajs/vue3';
-import { User as UserIcon, Mail, ShieldCheck, Lock, Check, Copy, Gift, History, Landmark, Users, Coins, CreditCard, Wallet, ChevronRight } from 'lucide-vue-next';
+import { Form, Head, Link, usePage, useForm, router } from '@inertiajs/vue3';
+import { User as UserIcon, Mail, ShieldCheck, Lock, Check, Copy, Gift, History, Landmark, Users, Coins, CreditCard, Wallet, ChevronRight, KeyRound } from 'lucide-vue-next';
 import { computed, ref, onUnmounted } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
@@ -131,6 +131,49 @@ const referralsActiveSubTab = ref<'withdrawals' | 'referrals' | 'commissions'>('
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+};
+
+// PIN Code State
+const pinForm = ref({
+    pin_code: '',
+    pin_code_confirmation: '',
+});
+const pinErrors = ref<any>({});
+const pinFormProcessing = ref(false);
+
+const updatePin = () => {
+    pinErrors.value = {};
+    if (!/^\d{4,6}$/.test(pinForm.value.pin_code)) {
+        pinForm.value.pin_code = '';
+        pinForm.value.pin_code_confirmation = '';
+        pinErrors.value.pin_code = 'Mã PIN phải gồm từ 4 đến 6 chữ số.';
+        return;
+    }
+    if (pinForm.value.pin_code !== pinForm.value.pin_code_confirmation) {
+        pinForm.value.pin_code_confirmation = '';
+        pinErrors.value.pin_code_confirmation = 'Mã PIN xác nhận không khớp.';
+        return;
+    }
+
+    pinFormProcessing.value = true;
+    router.put('/settings/pin', {
+        pin_code: pinForm.value.pin_code,
+        pin_code_confirmation: pinForm.value.pin_code_confirmation,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            pinForm.value.pin_code = '';
+            pinForm.value.pin_code_confirmation = '';
+            import('vue-sonner').then(m => m.toast.success('Đã cập nhật mã PIN phê duyệt thành công!'));
+        },
+        onError: (errs: any) => {
+            pinErrors.value = errs;
+            import('vue-sonner').then(m => m.toast.error('Có lỗi xảy ra khi lưu mã PIN.'));
+        },
+        onFinish: () => {
+            pinFormProcessing.value = false;
+        }
+    });
 };
 </script>
 
@@ -376,6 +419,64 @@ const formatCurrency = (value: number) => {
                 :requiresConfirmation="requiresConfirmation"
                 :twoFactorEnabled="twoFactorEnabled"
             />
+
+            <!-- PIN Code settings card for Owner/Manager approval -->
+            <Card v-if="user?.roles?.some((r: any) => ['owner', 'manager'].includes(r.name))" class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md">
+                <CardHeader class="flex flex-row items-center gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5 px-6 pt-6">
+                    <div class="p-2.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-xl shrink-0">
+                        <KeyRound class="w-5 h-5" />
+                    </div>
+                    <div class="space-y-0.5">
+                        <CardTitle class="text-lg font-black text-neutral-900 dark:text-neutral-50">Mã PIN Phê Duyệt POS (Bypass PIN)</CardTitle>
+                        <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400">Thiết lập mã PIN 4-6 số để phê duyệt nhanh các thao tác hủy đơn/sửa giá/hoàn tiền trên POS</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-6">
+                    <form @submit.prevent="updatePin" class="space-y-6">
+                        <div class="grid gap-2">
+                            <Label for="pin_code" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Mã PIN mới (4 - 6 số)</Label>
+                            <Input
+                                id="pin_code"
+                                type="password"
+                                pattern="[0-9]*"
+                                inputmode="numeric"
+                                maxlength="6"
+                                v-model="pinForm.pin_code"
+                                class="mt-1 block w-full rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                placeholder="Nhập mã PIN gồm 4 đến 6 chữ số"
+                                required
+                            />
+                            <p v-if="pinErrors.pin_code" class="text-xs text-red-600 mt-1">{{ pinErrors.pin_code }}</p>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label for="pin_code_confirmation" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Xác nhận mã PIN mới</Label>
+                            <Input
+                                id="pin_code_confirmation"
+                                type="password"
+                                pattern="[0-9]*"
+                                inputmode="numeric"
+                                maxlength="6"
+                                v-model="pinForm.pin_code_confirmation"
+                                class="mt-1 block w-full rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                placeholder="Xác nhận mã PIN mới"
+                                required
+                            />
+                            <p v-if="pinErrors.pin_code_confirmation" class="text-xs text-red-600 mt-1">{{ pinErrors.pin_code_confirmation }}</p>
+                        </div>
+
+                        <div class="flex items-center gap-4 pt-2">
+                            <Button
+                                type="submit"
+                                :disabled="pinFormProcessing"
+                                class="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-950 dark:hover:bg-neutral-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                                {{ pinFormProcessing ? 'Đang lưu...' : 'Lưu mã PIN' }}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
 
         <!-- TAB: Referrals -->

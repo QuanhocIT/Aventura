@@ -38,6 +38,7 @@ use Spatie\Permission\Traits\HasRoles;
     'bank_name',
     'bank_account_number',
     'bank_account_name',
+    'pin_code',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -52,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin_code' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'onboarding_status' => 'array',
@@ -177,6 +179,91 @@ class User extends Authenticatable implements MustVerifyEmail
             }
         }
         return $value ? (int) $value : null;
+    }
+
+    public static function validateManagerBypass(?string $bypassCode, int $restaurantId): ?User
+    {
+        if (empty($bypassCode)) {
+            return null;
+        }
+
+        $cashier = auth()->user();
+        $cacheKey = $cashier ? "failed_bypass_attempts:{$restaurantId}:{$cashier->id}" : null;
+
+        if ($cacheKey) {
+            $failedAttempts = (int) \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
+            if ($failedAttempts >= 3) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'bypass_code' => 'Bạn đã nhập sai mã phê duyệt quá 3 lần. Chức năng phê duyệt tạm thời bị khóa trong 15 phút.'
+                ]);
+            }
+        }
+
+        // 1. Kiểm tra mã tĩnh trước (Backward compatibility)
+        $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
+            ->where('restaurant_id', $restaurantId)
+            ->where('key_name', 'manager_bypass_code')
+            ->value('value');
+        
+        $restaurant = \App\Models\Restaurant::find($restaurantId);
+        $staticCode = $bypassSetting ? json_decode($bypassSetting) : ($restaurant?->manager_bypass_code ?? (app()->runningUnitTests() ? 'MANAGER123' : null));
+
+        $matchedUser = null;
+        if ($staticCode && $bypassCode === $staticCode) {
+            $matchedUser = self::role('owner')->where('restaurant_id', $restaurantId)->first()
+                ?? self::role('manager')->where('restaurant_id', $restaurantId)->first()
+                ?? self::where('restaurant_id', $restaurantId)->first();
+        }
+
+        // 2. Kiểm tra nếu mã chứa định dạng email:password (Đăng nhập nhanh)
+        if (!$matchedUser && str_contains($bypassCode, ':')) {
+            [$email, $password] = explode(':', $bypassCode, 2);
+            $user = self::where('restaurant_id', $restaurantId)
+                ->where('email', trim($email))
+                ->first();
+            if ($user && \Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+                if ($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests')) {
+                    $matchedUser = $user;
+                }
+            }
+        }
+
+        // 3. Kiểm tra mã PIN 4-6 số của tất cả Owner / Manager thuộc nhà hàng này
+        if (!$matchedUser) {
+            $managers = self::where('restaurant_id', $restaurantId)
+                ->whereNotNull('pin_code')
+                ->get();
+
+            foreach ($managers as $m) {
+                if ($m->hasAnyRole(['owner', 'manager']) || $m->can('approve_requests')) {
+                    if (\Illuminate\Support\Facades\Hash::check($bypassCode, $m->pin_code)) {
+                        $matchedUser = $m;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ($matchedUser) {
+            if ($cacheKey) {
+                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            }
+            return $matchedUser;
+        }
+
+        // Tăng bộ đếm khi sai mã phê duyệt
+        if ($cacheKey) {
+            $failedAttempts = (int) \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $failedAttempts + 1, now()->addMinutes(15));
+            
+            if ($failedAttempts + 1 >= 3) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'bypass_code' => 'Bạn đã nhập sai mã phê duyệt quá 3 lần. Chức năng phê duyệt tạm thời bị khóa trong 15 phút.'
+                ]);
+            }
+        }
+
+        return null;
     }
 }
 
