@@ -59,7 +59,15 @@ class StaffQROrderController extends Controller
         abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
 
         $order = DB::transaction(function () use ($temporaryOrder, $user) {
+            // Lock temporaryOrder to prevent double confirm
+            $temporaryOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
+
+            if (!in_array($temporaryOrder->status, ['waiting_verification', 'escalated'])) {
+                throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
+            }
+
             $customerId = null;
+            $customer = null;
             if ($temporaryOrder->customer_phone) {
                 $customer = \App\Models\Customer::firstOrCreate(
                     [
@@ -72,6 +80,15 @@ class StaffQROrderController extends Controller
                     ]
                 );
                 $customerId = $customer->id;
+                // Lock customer
+                $customer = \App\Models\Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
+            }
+
+            // Kiểm tra điểm loyalty trước
+            if ($temporaryOrder->redeem_points > 0) {
+                if (!$customer || $customer->loyalty_points < $temporaryOrder->redeem_points) {
+                    throw new \Exception('Khách hàng không đủ điểm tích lũy để thực hiện quy đổi.');
+                }
             }
 
             // Chuẩn bị payload cho OrderService
@@ -93,6 +110,20 @@ class StaffQROrderController extends Controller
             $order->update([
                 'channel' => 'qr',
             ]);
+
+            // Trừ điểm loyalty chính thức nếu có
+            if ($temporaryOrder->redeem_points > 0 && $customer) {
+                $discountValue = app(\App\Services\LoyaltyService::class)->redeemPoints($customer, $temporaryOrder->redeem_points, $order);
+                if ($discountValue > 0) {
+                    $newDiscount = $order->discount_amount + $discountValue;
+                    $newTotal = max(0.0, $order->subtotal - $newDiscount);
+                    $order->update([
+                        'discount_amount' => $newDiscount,
+                        'total_amount' => $newTotal,
+                        'note' => ($order->note ? $order->note . ' ' : '') . "[Quy đổi {$temporaryOrder->redeem_points} điểm: -" . number_format($discountValue) . "đ]",
+                    ]);
+                }
+            }
 
             // Cập nhật trạng thái đơn đệm thành confirmed
             $temporaryOrder->update([
@@ -137,27 +168,42 @@ class StaffQROrderController extends Controller
     {
         $user = $request->user();
         abort_if($temporaryOrder->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
         ]);
 
-        $temporaryOrder->update([
-            'status'               => 'cancelled',
-            'cancelled_by'         => $user->id,
-            'cancellation_reason'  => $data['reason'],
-        ]);
+        try {
+            DB::transaction(function () use ($temporaryOrder, $user, $data) {
+                // Lock the temporary order row
+                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
 
-        // Ghi nhật ký kiểm toán với JSON log chi tiết
-        AuditLog::log('temporary_order_cancelled', 'updated', $temporaryOrder, [
-            'status' => 'waiting_verification',
-        ], [
-            'status'              => 'cancelled',
-            'cancelled_by'        => $user->name,
-            'cancellation_reason' => $data['reason'],
-            'cart_data'           => $temporaryOrder->cart_data,
-        ]);
+                if (!in_array($lockedOrder->status, ['waiting_verification', 'escalated'])) {
+                    throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
+                }
+
+                $lockedOrder->update([
+                    'status'               => 'cancelled',
+                    'cancelled_by'         => $user->id,
+                    'cancellation_reason'  => $data['reason'],
+                ]);
+
+                // Ghi nhật ký kiểm toán với JSON log chi tiết
+                AuditLog::log('temporary_order_cancelled', 'updated', $lockedOrder, [
+                    'status' => 'waiting_verification',
+                ], [
+                    'status'              => 'cancelled',
+                    'cancelled_by'        => $user->name,
+                    'cancellation_reason' => $data['reason'],
+                    'cart_data'           => $lockedOrder->cart_data,
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
 
         // Phát tín hiệu Realtime cập nhật trạng thái cho Khách hàng
         event(new TemporaryOrderUpdated($temporaryOrder));

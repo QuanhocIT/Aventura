@@ -28,31 +28,37 @@ class BillingService
     {
         $transactionCode = $this->extractTransactionCode($payload);
 
-        $webhook = PaymentWebhook::query()->firstOrCreate(
-            ['provider' => $provider, 'transaction_code' => $transactionCode, 'signature' => $signature],
-            [
-                'event_type' => Arr::get($payload, 'event_type') ?? Arr::get($payload, 'eventType'),
-                'status' => 'received',
-                'headers' => $headers,
-                'payload' => $payload,
-            ]
-        );
+        return DB::transaction(function () use ($payload, $headers, $signature, $provider, $transactionCode) {
+            // 1. Tạo hoặc lấy PaymentWebhook trong transaction
+            $webhook = PaymentWebhook::query()->firstOrCreate(
+                ['provider' => $provider, 'transaction_code' => $transactionCode, 'signature' => $signature],
+                [
+                    'event_type' => Arr::get($payload, 'event_type') ?? Arr::get($payload, 'eventType'),
+                    'status' => 'received',
+                    'headers' => $headers,
+                    'payload' => $payload,
+                ]
+            );
 
-        if ($webhook->processed_at) {
-            return ['ok' => true, 'message' => 'Webhook already processed', 'duplicate' => true];
-        }
+            // Khóa bản ghi webhook để tránh race condition khi hai request chạy song song
+            $webhook = PaymentWebhook::where('id', $webhook->id)->lockForUpdate()->firstOrFail();
 
-        $restaurant = Restaurant::query()
-            ->whereHas('subscriptions', fn ($q) => $q->where('transaction_code', $transactionCode))
-            ->first();
+            if ($webhook->processed_at || $webhook->status === 'processed') {
+                return ['ok' => true, 'message' => 'Webhook already processed', 'duplicate' => true];
+            }
 
-        if (! $restaurant) {
-            $webhook->update(['status' => 'orphaned', 'processed_at' => now(), 'error_message' => 'Transaction code not found']);
+            // 2. Tìm Restaurant liên quan
+            $restaurant = Restaurant::query()
+                ->whereHas('subscriptions', fn ($q) => $q->where('transaction_code', $transactionCode))
+                ->first();
 
-            return ['ok' => false, 'message' => 'Transaction code not found'];
-        }
+            if (! $restaurant) {
+                $webhook->update(['status' => 'orphaned', 'processed_at' => now(), 'error_message' => 'Transaction code not found']);
 
-        return DB::transaction(function () use ($payload, $restaurant, $webhook, $transactionCode) {
+                return ['ok' => false, 'message' => 'Transaction code not found'];
+            }
+
+            // 3. Khóa subscription để cập nhật
             $subscription = $restaurant->subscriptions()
                 ->where('transaction_code', $transactionCode)
                 ->latest('id')

@@ -288,16 +288,26 @@ class QROrderController extends Controller
         $customerId = null;
         $customer = null;
         if (!empty($data['customer_phone'])) {
-            $customer = \App\Models\Customer::firstOrCreate(
-                [
-                    'restaurant_id' => $restaurantId,
-                    'phone' => $data['customer_phone']
-                ],
-                [
-                    'full_name' => $data['customer_name'] ?: 'Khách gọi món QR',
-                    'branch_id' => $table->branch_id,
-                ]
-            );
+            try {
+                $customer = \App\Models\Customer::firstOrCreate(
+                    [
+                        'restaurant_id' => $restaurantId,
+                        'phone' => $data['customer_phone']
+                    ],
+                    [
+                        'full_name' => $data['customer_name'] ?: 'Khách gọi món QR',
+                        'branch_id' => $table->branch_id,
+                    ]
+                );
+            } catch (\Illuminate\Database\QueryException $e) {
+                // In case of concurrent creation, retrieve the existing record
+                $customer = \App\Models\Customer::where('restaurant_id', $restaurantId)
+                    ->where('phone', $data['customer_phone'])
+                    ->first();
+                if (!$customer) {
+                    throw $e;
+                }
+            }
             $customerId = $customer->id;
 
             if ($data['customer_name'] && ($customer->full_name === 'Khách gọi món QR' || empty($customer->full_name))) {
@@ -306,13 +316,13 @@ class QROrderController extends Controller
         }
 
         // Apply loyalty points discount (1 point = 100đ)
-        $redeemPoints = $data['redeem_points'] ?? 0;
+        $redeemPoints = (int) ($data['redeem_points'] ?? 0);
         $pointsDiscount = 0.0;
+        $actualRedeemPoints = 0;
         if ($customer && $redeemPoints > 0) {
-            if ($customer->loyalty_points >= $redeemPoints) {
-                $customer->decrement('loyalty_points', $redeemPoints);
-                $pointsDiscount = $redeemPoints * 100.0;
-            }
+            // Chỉ cho phép quy đổi tối đa số điểm khách đang có (pre-check)
+            $actualRedeemPoints = min($redeemPoints, $customer->loyalty_points);
+            $pointsDiscount = $actualRedeemPoints * 100.0;
         }
 
         $finalAmount = max(0.0, $totalAmount - $pointsDiscount);
@@ -327,7 +337,8 @@ class QROrderController extends Controller
             'status' => 'waiting_verification',
             'cart_data' => $cartData,
             'total_amount' => $finalAmount,
-            'notes' => $pointsDiscount > 0 ? "Sử dụng {$redeemPoints} điểm tích lũy giảm {$pointsDiscount}đ" : null,
+            'redeem_points' => $actualRedeemPoints,
+            'notes' => $pointsDiscount > 0 ? "Sử dụng {$actualRedeemPoints} điểm tích lũy giảm {$pointsDiscount}đ" : null,
         ]);
 
         // Ghi nhận hành vi gửi đơn hàng và liên kết lịch sử

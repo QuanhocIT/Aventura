@@ -63,31 +63,40 @@ class CheckoutController extends Controller
             $cycle = 'monthly';
         }
 
-        // Check for existing pending subscription for this plan & cycle to avoid duplicates
-        $existing = $restaurant->subscriptions()
-            ->where('plan_id', $plan->id)
-            ->where('billing_cycle', $cycle)
-            ->where('status', 'expired')
-            ->whereJsonContains('meta->pending_payment', true)
-            ->latest()
-            ->first();
+        $lockKey = "checkout_lock:{$restaurant->id}";
+        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 10);
 
-        if ($existing) {
-            return redirect()->route('billing.pay', ['code' => $existing->transaction_code]);
+        if (!$lock->get()) {
+            return redirect('/dashboard')->with('error', 'Yêu cầu thanh toán của bạn đang được xử lý. Vui lòng chờ trong giây lát.');
         }
 
         try {
+            // Check for existing pending subscription for this plan & cycle to avoid duplicates
+            $existing = $restaurant->subscriptions()
+                ->where('plan_id', $plan->id)
+                ->where('billing_cycle', $cycle)
+                ->where('status', 'expired')
+                ->whereJsonContains('meta->pending_payment', true)
+                ->latest()
+                ->first();
+
+            if ($existing) {
+                return redirect()->route('billing.pay', ['code' => $existing->transaction_code]);
+            }
+
             $activeSubscription = $restaurant->activeSubscription;
             if ($activeSubscription && $activeSubscription->status === 'active' && $activeSubscription->ended_at?->isFuture()) {
                 $this->billing->recordProrationCredit($activeSubscription);
             }
 
             $checkout = $this->checkout->createCheckout($restaurant, $plan, 'self_serve_checkout', $cycle);
+
+            return redirect()->route('billing.pay', ['code' => $checkout['transaction_code']]);
         } catch (\Throwable $e) {
             return redirect('/dashboard')->with('error', $e->getMessage());
+        } finally {
+            $lock->release();
         }
-
-        return redirect()->route('billing.pay', ['code' => $checkout['transaction_code']]);
     }
 
 
