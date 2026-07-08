@@ -85,6 +85,51 @@ class AppServiceProvider extends ServiceProvider
             return optional($user)->hasAnyRole(['owner', 'manager']);
         });
 
+        // WAF Rule: Listen to failed login attempts to block IP
+        Event::listen(\Illuminate\Auth\Events\Failed::class, function (\Illuminate\Auth\Events\Failed $event) {
+            $ip = request()->ip();
+            $key = "waf:failed_attempts:{$ip}";
+
+            $maxAttempts = (int) (\App\Models\SystemSetting::get('waf_login_max_attempts') ?? config('firewall.waf.login.max_attempts', 5));
+            $decaySeconds = (int) (\App\Models\SystemSetting::get('waf_login_decay_seconds') ?? config('firewall.waf.login.decay_seconds', 10));
+            $blockMinutes = (int) (\App\Models\SystemSetting::get('waf_login_block_minutes') ?? config('firewall.waf.login.block_minutes', 30));
+
+            $now = time();
+            $attempts = \Illuminate\Support\Facades\Cache::get($key, []);
+
+            // Filter out attempts outside the decay time window
+            $attempts = array_filter($attempts, function ($timestamp) use ($now, $decaySeconds) {
+                return ($now - $timestamp) <= $decaySeconds;
+            });
+
+            $attempts[] = $now;
+
+            if (count($attempts) >= $maxAttempts) {
+                // Block the IP
+                \Illuminate\Support\Facades\Cache::put("waf:blocked:{$ip}", true, $blockMinutes * 60);
+
+                // Add to blocked list in cache for Admin UI
+                $blockedList = \Illuminate\Support\Facades\Cache::get('waf:blocked_list', []);
+                // Filter out expired ones
+                $blockedList = array_filter($blockedList, function ($expiry) {
+                    return $expiry > time();
+                });
+                $blockedList[$ip] = time() + ($blockMinutes * 60);
+                \Illuminate\Support\Facades\Cache::put('waf:blocked_list', $blockedList, 86400 * 30);
+
+                // Log security warning
+                \Illuminate\Support\Facades\Log::warning("WAF Blocked IP {$ip} due to {$maxAttempts} failed login attempts within {$decaySeconds}s.");
+
+                // Send Telegram Alert
+                \App\Services\SecurityAlertService::sendWafBlockAlert($ip, $maxAttempts, $decaySeconds, $blockMinutes);
+
+                // Clear attempts history
+                \Illuminate\Support\Facades\Cache::forget($key);
+            } else {
+                \Illuminate\Support\Facades\Cache::put($key, $attempts, $decaySeconds);
+            }
+        });
+
         $this->configureDefaults();
         $this->loadDynamicSettings();
         $this->configureRateLimiters();

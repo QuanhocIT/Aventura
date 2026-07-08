@@ -142,6 +142,7 @@ const superAdminNav = computed<NavItem[]>(() => {
         // System — superadmin.system.manage
         { title: 'Tài khoản',        href: '/super-admin/accounts',    icon: Users, perm: 'superadmin.system.manage' },
         { title: 'Audit Log',        href: '/super-admin/audit-logs',  icon: FileSearch2, perm: 'superadmin.system.manage' },
+        { title: 'Quản lý Tường lửa', href: '/super-admin/firewall',   icon: ShieldCheck, perm: 'superadmin.system.manage' },
         { title: 'Cấu hình hệ thống', href: '/super-admin/settings', icon: Settings, perm: 'superadmin.system.manage' },
         { title: 'Giám sát Dịch vụ', href: '/super-admin/service-monitor', icon: Activity, perm: 'superadmin.system.manage' },
         { title: 'Lịch bảo trì hệ thống', href: '/super-admin/maintenance-schedules', icon: CalendarDays, perm: 'superadmin.system.manage' },

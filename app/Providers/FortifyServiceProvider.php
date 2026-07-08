@@ -33,6 +33,35 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->singleton(\Laravel\Fortify\Contracts\TwoFactorLoginResponse::class, \App\Http\Responses\CustomTwoFactorLoginResponse::class);
 
         Fortify::authenticateUsing(function (Request $request) {
+            $ip = $request->ip();
+            $decay = config('firewall.waf.login.decay_seconds', 10);
+            $failedAttempts = \Illuminate\Support\Facades\Cache::get("waf:failed_attempts:{$ip}", []);
+            $failedAttemptsCount = count(array_filter(
+                $failedAttempts,
+                fn($timestamp) => (time() - $timestamp) <= $decay
+            ));
+
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+
+            if ($failedAttemptsCount >= 3) {
+                if ($turnstileSiteKey) {
+                    $token = $request->input('cf-turnstile-response');
+                    if (!$token || !$this->verifyTurnstile($token)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'email' => ['Vui lòng hoàn thành xác minh bảo mật Cloudflare Turnstile.'],
+                        ]);
+                    }
+                } else {
+                    $captchaAnswer = $request->input('captcha_answer');
+                    $expected = session('captcha_answer');
+                    if ($captchaAnswer === null || (int)$captchaAnswer !== $expected) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'email' => ['Câu trả lời xác minh bảo mật không chính xác.'],
+                        ]);
+                    }
+                }
+            }
+
             $users = \App\Models\User::where('email', $request->email)->get();
 
             $matchedUsers = $users->filter(function ($u) use ($request) {
@@ -85,11 +114,43 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureViews(): void
     {
         Fortify::loginView(function (Request $request) {
+            $ip = $request->ip();
+            $decay = config('firewall.waf.login.decay_seconds', 10);
+            $failedAttempts = \Illuminate\Support\Facades\Cache::get("waf:failed_attempts:{$ip}", []);
+            $failedAttemptsCount = count(array_filter(
+                $failedAttempts,
+                fn($timestamp) => (time() - $timestamp) <= $decay
+            ));
+
+            $captchaQuestion = null;
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+
+            if ($failedAttemptsCount >= 3 && !$turnstileSiteKey) {
+                $num1 = rand(1, 10);
+                $num2 = rand(1, 10);
+                $operator = rand(0, 1) ? '+' : '-';
+                if ($operator === '-') {
+                    if ($num1 < $num2) {
+                        $temp = $num1;
+                        $num1 = $num2;
+                        $num2 = $temp;
+                    }
+                    $answer = $num1 - $num2;
+                } else {
+                    $answer = $num1 + $num2;
+                }
+                session(['captcha_answer' => $answer]);
+                $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+            }
+
             return Inertia::render('auth/Login', [
                 'canResetPassword' => Features::enabled(Features::resetPasswords()),
                 'canRegister'      => Features::enabled(Features::registration()),
                 'status'           => $request->session()->get('status') ?? $request->query('status'),
                 'plans'            => $this->activePlans(),
+                'failedAttemptsCount' => $failedAttemptsCount,
+                'turnstileSiteKey' => $turnstileSiteKey,
+                'captchaQuestion'  => $captchaQuestion,
             ]);
         });
 
@@ -150,5 +211,28 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
             return Limit::perMinute(5)->by($throttleKey);
         });
+    }
+
+    /**
+     * Verify Cloudflare Turnstile token.
+     */
+    private function verifyTurnstile(string $token): bool
+    {
+        $secret = env('TURNSTILE_SECRET_KEY') ?: \App\Models\SystemSetting::get('turnstile_secret_key');
+        if (!$secret) {
+            return false;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
+                'secret'   => $secret,
+                'response' => $token,
+                'remoteip' => request()->ip(),
+            ]);
+
+            return $response->json('success') === true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }
