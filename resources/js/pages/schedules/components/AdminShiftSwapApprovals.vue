@@ -14,8 +14,11 @@ const props = defineProps<{
 const isRejectingSwap = ref(false);
 const activeRejectSwapId = ref<number | null>(null);
 const rejectNotes = ref('');
+const isProcessing = ref(false);
 
 const approveSwap = (swapId: number) => {
+    if (isProcessing.value) return;
+    isProcessing.value = true;
     router.patch(`/schedules/swap/${swapId}/approve`, {}, {
         onSuccess: () => {
             import('vue-sonner').then(m => m.toast.success('Đã phê duyệt đổi ca thành công!'));
@@ -23,6 +26,9 @@ const approveSwap = (swapId: number) => {
         onError: (errors: any) => {
             const errorMsg = errors.error || 'Có lỗi xảy ra khi phê duyệt.';
             import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isProcessing.value = false;
         }
     });
 };
@@ -34,9 +40,10 @@ const openRejectSwapModal = (swapId: number) => {
 };
 
 const submitRejectSwap = () => {
-    if (!activeRejectSwapId.value) {
-return;
-}
+    if (!activeRejectSwapId.value || isProcessing.value) {
+        return;
+    }
+    isProcessing.value = true;
 
     router.patch(`/schedules/swap/${activeRejectSwapId.value}/reject`, {
         notes: rejectNotes.value
@@ -48,6 +55,9 @@ return;
         onError: (errors: any) => {
             const errorMsg = errors.error || 'Có lỗi xảy ra khi từ chối.';
             import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isProcessing.value = false;
         }
     });
 };
@@ -101,14 +111,16 @@ return;
                                 <td class="p-3.5 text-right flex items-center justify-end gap-1.5">
                                     <button 
                                         @click="approveSwap(sw.id)"
-                                        class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 shadow-xs"
+                                        :disabled="isProcessing"
+                                        class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                                         title="Duyệt yêu cầu đổi ca"
                                     >
-                                        Phê duyệt
+                                        {{ isProcessing ? 'Đang duyệt...' : 'Phê duyệt' }}
                                     </button>
                                     <button 
                                         @click="openRejectSwapModal(sw.id)"
-                                        class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition active:scale-95"
+                                        :disabled="isProcessing"
+                                        class="inline-flex cursor-pointer items-center justify-center rounded px-2.5 py-1 text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                         title="Từ chối yêu cầu đổi ca"
                                     >
                                         Từ chối
@@ -165,9 +177,9 @@ return;
                             size="sm" 
                             @click="submitRejectSwap" 
                             class="bg-rose-650 hover:bg-rose-755 text-white font-bold cursor-pointer"
-                            :disabled="!rejectNotes"
+                            :disabled="!rejectNotes || isProcessing"
                         >
-                            Xác nhận từ chối
+                            {{ isProcessing ? 'Đang xử lý...' : 'Xác nhận từ chối' }}
                         </Button>
                     </div>
                 </CardContent>

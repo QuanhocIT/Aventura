@@ -269,4 +269,83 @@ class InventoryService
             'quantity_required' => $qtyRequired,
         ]);
     }
+
+    /**
+     * Hoàn kho nguyên vật liệu khi hủy/refund đơn hàng.
+     */
+    public function restoreStockForOrder(Order $order): void
+    {
+        $order->load(['items.product.recipes.ingredient.unit']);
+
+        $ingredientIds = [];
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if ($product && $product->track_inventory) {
+                foreach ($product->recipes as $recipe) {
+                    $ingredientIds[] = $recipe->ingredient_id;
+                }
+            }
+        }
+        $ingredientIds = array_unique($ingredientIds);
+
+        $lockedInventories = collect();
+        if (!empty($ingredientIds)) {
+            $lockedInventories = Inventory::where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->whereIn('ingredient_id', $ingredientIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('ingredient_id');
+        }
+
+        $systemUser = \App\Models\User::where('restaurant_id', $order->restaurant_id)->first() ?? \App\Models\User::first();
+        $userId = $systemUser ? $systemUser->id : 1;
+
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if ($product && $product->track_inventory) {
+                foreach ($product->recipes as $recipe) {
+                    $recipeQuantity = (float) $recipe->quantity;
+                    $itemQuantity = (float) $item->quantity;
+                    $wasteRate = (float) $recipe->waste_rate;
+
+                    $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
+
+                    $inventory = $lockedInventories->get($recipe->ingredient_id);
+
+                    if ($inventory) {
+                        $oldQty = (float) $inventory->quantity_on_hand;
+                        $oldTheoretical = (float) $inventory->theoretical_quantity;
+
+                        $inventory->update([
+                            'quantity_on_hand' => $oldQty + $totalUsed,
+                            'theoretical_quantity' => $oldTheoretical + $totalUsed,
+                        ]);
+
+                        InventoryTransaction::create([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $recipe->ingredient_id,
+                            'inventory_id' => $inventory->id,
+                            'order_id' => $order->id,
+                            'performed_by' => $userId,
+                            'type' => 'adjustment',
+                            'direction' => 'in',
+                            'quantity' => $totalUsed,
+                            'unit_cost' => $recipe->ingredient->average_cost ?? 0,
+                            'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
+                            'notes' => "Hoàn kho nguyên vật liệu cho đơn hàng {$order->order_number} (Món: {$product->name})",
+                            'occurred_at' => now(),
+                        ]);
+
+                        InventoryReservation::where('order_id', $order->id)
+                            ->where('ingredient_id', $recipe->ingredient_id)
+                            ->where('status', 'committed')
+                            ->update(['status' => 'released']);
+                    }
+                }
+            }
+        }
+        event(new \App\Events\Customer\ProductStockUpdated($order->restaurant_id));
+    }
 }

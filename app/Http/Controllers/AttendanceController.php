@@ -105,8 +105,24 @@ class AttendanceController extends Controller
         // Tìm ca được xếp có hiệu lực hiện tại
         $sa = null;
         $now = now();
+        $isLateAndViolating = false;
+        $lateMinutes = 0;
+        $alreadyCheckedIn = false;
 
-        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, $employee, $now) {
+        $photo = $request->input('check_in_photo');
+        $photoPath = null;
+        if ($photo && preg_match('/^data:image\/(\w+);base64,/', $photo, $matches)) {
+            $type = strtolower($matches[1]);
+            $data = substr($photo, strpos($photo, ',') + 1);
+            $data = base64_decode($data);
+            if ($data !== false) {
+                $filename = 'checkin_' . $employee->id . '_' . time() . '_' . Str::random(5) . '.' . $type;
+                $photoPath = 'checkins/' . $filename;
+                Storage::disk('public')->put($photoPath, $data);
+            }
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, &$alreadyCheckedIn, &$isLateAndViolating, &$lateMinutes, $employee, $now, $restaurant, $photoPath) {
             $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'scheduled')
                 ->lockForUpdate()
@@ -136,70 +152,59 @@ class AttendanceController extends Controller
                     break;
                 }
             }
+
+            if (!$sa) {
+                $alreadyCheckedIn = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('status', 'checked_in')
+                    ->where('scheduled_date', now()->toDateString())
+                    ->exists();
+                return;
+            }
+
+            if ($sa->check_in_at !== null || $sa->status === 'checked_in') {
+                $alreadyCheckedIn = true;
+                return;
+            }
+
+            $shift = $sa->shift;
+            $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+            $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
+            
+            $isLate = $now->greaterThan($start);
+            $lateMinutes = $isLate ? $now->diffInMinutes($start) : 0;
+            $gracePeriod = $restaurant->grace_period_minutes ?? 0;
+            $isLateAndViolating = $isLate && $lateMinutes > $gracePeriod;
+
+            if ($isLateAndViolating) {
+                \App\Models\ViolationReport::create([
+                    'restaurant_id'  => $sa->restaurant_id,
+                    'branch_id'      => $sa->branch_id,
+                    'employee_id'    => $sa->employee_id,
+                    'reported_by'    => $employee->id,
+                    'violation_type' => 'Đi trễ / Vấn đề vào ca',
+                    'severity'       => 'low',
+                    'description'    => "Đi trễ tự động: Check-in lúc " . $now->format('H:i') . " (Trễ " . $lateMinutes . " phút, ca bắt đầu lúc " . $start->format('H:i') . ", thời gian ân hạn " . $gracePeriod . " phút)",
+                    'penalty_amount' => 0,
+                    'occurred_at'    => $now,
+                    'status'         => 'open',
+                    'is_anonymous'   => false,
+                ]);
+            }
+
+            $sa->update([
+                'check_in_at' => $now,
+                'status' => 'checked_in',
+                'check_in_photo_path' => $photoPath,
+            ]);
         });
 
-        if (!$sa) {
-            // Idempotent guard: nếu nhân viên đã check-in ca đang active trong cùng thời điểm
-            $alreadyCheckedIn = ScheduleAssignment::where('employee_id', $employee->id)
-                ->where('status', 'checked_in')
-                ->where('scheduled_date', now()->toDateString())
-                ->exists();
-
-            if ($alreadyCheckedIn) {
-                return back()->with('success', 'Bạn đã CHECK-IN thành công trước đó.');
-            }
-
-            return back()->withErrors(['email' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.']);
-        }
-
-        $photo = $request->input('check_in_photo');
-        $photoPath = null;
-        if ($photo && preg_match('/^data:image\/(\w+);base64,/', $photo, $matches)) {
-            $type = strtolower($matches[1]);
-            $data = substr($photo, strpos($photo, ',') + 1);
-            $data = base64_decode($data);
-            if ($data !== false) {
-                $filename = 'checkin_' . $employee->id . '_' . time() . '_' . Str::random(5) . '.' . $type;
-                $photoPath = 'checkins/' . $filename;
-                Storage::disk('public')->put($photoPath, $data);
-            }
-        }
-
-        $now = now();
-        $shift = $sa->shift;
-        $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
-        $start = Carbon::parse($dateStr . ' ' . $shift->start_time);
-        
-        $isLate = $now->greaterThan($start);
-        $lateMinutes = $isLate ? $now->diffInMinutes($start) : 0;
-        $gracePeriod = $restaurant->grace_period_minutes ?? 0;
-        $isLateAndViolating = $isLate && $lateMinutes > $gracePeriod;
-
-        if ($isLateAndViolating) {
-            \App\Models\ViolationReport::create([
-                'restaurant_id'  => $sa->restaurant_id,
-                'branch_id'      => $sa->branch_id,
-                'employee_id'    => $sa->employee_id,
-                'reported_by'    => $employee->id,
-                'violation_type' => 'Đi trễ / Vấn đề vào ca',
-                'severity'       => 'low',
-                'description'    => "Đi trễ tự động: Check-in lúc " . $now->format('H:i') . " (Trễ " . $lateMinutes . " phút, ca bắt đầu lúc " . $start->format('H:i') . ", thời gian ân hạn " . $gracePeriod . " phút)",
-                'penalty_amount' => 0,
-                'occurred_at'    => $now,
-                'status'         => 'open',
-                'is_anonymous'   => false,
-            ]);
-        }
-
-        if ($sa->check_in_at !== null || $sa->status === 'checked_in') {
+        if ($alreadyCheckedIn) {
             return back()->with('success', 'Bạn đã CHECK-IN thành công trước đó.');
         }
 
-        $sa->update([
-            'check_in_at' => $now,
-            'status' => 'checked_in',
-            'check_in_photo_path' => $photoPath,
-        ]);
+        if (!$sa) {
+            return back()->withErrors(['email' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.']);
+        }
 
         // Flush cached shift-access so middleware reflects the new status immediately
         $employee->flushShiftAccessCache();
@@ -265,62 +270,77 @@ class AttendanceController extends Controller
         }
 
         $sa = null;
-        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, $employee) {
+        $now = now();
+        $isEarlyAndViolating = false;
+        $earlyMinutes = 0;
+        $alreadyCheckedOut = false;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use (&$sa, &$alreadyCheckedOut, &$isEarlyAndViolating, &$earlyMinutes, $employee, $now) {
             $sa = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'checked_in')
                 ->lockForUpdate()
                 ->with('shift')
                 ->first();
+
+            if (!$sa) {
+                // Check if already checked out today
+                $alreadyCheckedOut = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('status', 'completed')
+                    ->where('scheduled_date', now()->toDateString())
+                    ->exists();
+                return;
+            }
+
+            if ($sa->check_out_at !== null || $sa->status === 'completed') {
+                $alreadyCheckedOut = true;
+                return;
+            }
+
+            $shift = $sa->shift;
+            if ($shift) {
+                $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+                
+                if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                } else {
+                    $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
+                }
+
+                $isEarly = $now->lessThan($end);
+                $earlyMinutes = $isEarly ? $now->diffInMinutes($end) : 0;
+                // Cho phép về sớm tối đa 5 phút không bị phạt
+                $isEarlyAndViolating = $isEarly && $earlyMinutes > 5;
+                
+                if ($isEarlyAndViolating) {
+                    \App\Models\ViolationReport::create([
+                        'restaurant_id'  => $sa->restaurant_id,
+                        'branch_id'      => $sa->branch_id,
+                        'employee_id'    => $sa->employee_id,
+                        'reported_by'    => $employee->id,
+                        'violation_type' => 'Về sớm / Vấn đề ra ca',
+                        'severity'       => 'low',
+                        'description'    => "Về sớm tự động: Check-out lúc " . $now->format('H:i') . " (Về sớm " . $earlyMinutes . " phút, ca kết thúc lúc " . $end->format('H:i') . ")",
+                        'penalty_amount' => 0,
+                        'occurred_at'    => $now,
+                        'status'         => 'open',
+                        'is_anonymous'   => false,
+                    ]);
+                }
+            }
+
+            $sa->update([
+                'check_out_at' => $now,
+                'status' => 'completed',
+            ]);
         });
+
+        if ($alreadyCheckedOut) {
+            return back()->with('success', 'Bạn đã CHECK-OUT thành công trước đó.');
+        }
 
         if (!$sa) {
             return back()->withErrors(['email' => 'Không tìm thấy ca trực nào đang hoạt động để check-out.']);
         }
-
-        $now = now();
-        $shift = $sa->shift;
-        $isEarlyAndViolating = false;
-        $earlyMinutes = 0;
-        
-        if ($shift) {
-            $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
-            
-            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
-            } else {
-                $end = Carbon::parse($dateStr . ' ' . $shift->end_time);
-            }
-
-            $isEarly = $now->lessThan($end);
-            $earlyMinutes = $isEarly ? $now->diffInMinutes($end) : 0;
-            // Cho phép về sớm tối đa 5 phút không bị phạt
-            $isEarlyAndViolating = $isEarly && $earlyMinutes > 5;
-            
-            if ($isEarlyAndViolating) {
-                \App\Models\ViolationReport::create([
-                    'restaurant_id'  => $sa->restaurant_id,
-                    'branch_id'      => $sa->branch_id,
-                    'employee_id'    => $sa->employee_id,
-                    'reported_by'    => $employee->id,
-                    'violation_type' => 'Về sớm / Vấn đề ra ca',
-                    'severity'       => 'low',
-                    'description'    => "Về sớm tự động: Check-out lúc " . $now->format('H:i') . " (Về sớm " . $earlyMinutes . " phút, ca kết thúc lúc " . $end->format('H:i') . ")",
-                    'penalty_amount' => 0,
-                    'occurred_at'    => $now,
-                    'status'         => 'open',
-                    'is_anonymous'   => false,
-                ]);
-            }
-        }
-
-        if ($sa->check_out_at !== null || $sa->status === 'completed') {
-            return back()->with('success', 'Bạn đã CHECK-OUT thành công trước đó.');
-        }
-
-        $sa->update([
-            'check_out_at' => $now,
-            'status' => 'completed',
-        ]);
 
         // Flush cached shift-access so middleware reflects the checkout immediately
         $employee->flushShiftAccessCache();
@@ -350,18 +370,20 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
-        $sa->update([
-            'check_in_at' => now(),
-            'status' => 'checked_in',
-            'approved_by' => $request->user()->id,
-            'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
+            $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            
+            $sa->update([
+                'check_in_at' => now(),
+                'status' => 'checked_in',
+                'approved_by' => $request->user()->id,
+                'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
+            ]);
 
-        if ($request->boolean('apply_violation')) {
-            $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca');
-        }
+            if ($request->boolean('apply_violation')) {
+                $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca');
+            }
+        });
 
         return back()->with('success', 'Đã ghi nhận Check-in hộ thành công cho nhân viên.');
     }
@@ -381,18 +403,20 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
-        $sa->update([
-            'check_out_at' => now(),
-            'status' => 'completed',
-            'approved_by' => $request->user()->id,
-            'notes' => $data['notes'] ?? 'Check-out hộ bởi Quản lý/Chủ nhà hàng',
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
+            $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            
+            $sa->update([
+                'check_out_at' => now(),
+                'status' => 'completed',
+                'approved_by' => $request->user()->id,
+                'notes' => $data['notes'] ?? 'Check-out hộ bởi Quản lý/Chủ nhà hàng',
+            ]);
 
-        if ($request->boolean('apply_violation')) {
-            $this->createAutoViolation($request, $sa, 'Về sớm / Vấn đề ra ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-out hộ kèm vi phạm ra ca');
-        }
+            if ($request->boolean('apply_violation')) {
+                $this->createAutoViolation($request, $sa, 'Về sớm / Vấn đề ra ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-out hộ kèm vi phạm ra ca');
+            }
+        });
 
         return back()->with('success', 'Đã ghi nhận Check-out hộ thành công cho nhân viên.');
     }
@@ -412,17 +436,19 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
-        
-        $sa->update([
-            'status' => 'absent',
-            'approved_by' => $request->user()->id,
-            'notes' => $data['notes'] ?? 'Vắng mặt không lý do',
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
+            $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            
+            $sa->update([
+                'status' => 'absent',
+                'approved_by' => $request->user()->id,
+                'notes' => $data['notes'] ?? 'Vắng mặt không lý do',
+            ]);
 
-        if ($request->boolean('apply_violation')) {
-            $this->createAutoViolation($request, $sa, 'Vắng mặt', $data['violation_notes'] ?? $data['notes'] ?? 'Báo vắng trực không lý do');
-        }
+            if ($request->boolean('apply_violation')) {
+                $this->createAutoViolation($request, $sa, 'Vắng mặt', $data['violation_notes'] ?? $data['notes'] ?? 'Báo vắng trực không lý do');
+            }
+        });
 
         return back()->with('success', 'Đã ghi nhận báo vắng thành công cho nhân viên.');
     }

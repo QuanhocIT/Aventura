@@ -897,13 +897,24 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($swap->status === 'accepted', 422);
 
-        $swap->update([
-            'status' => 'rejected',
-            'approved_by' => $user->id,
-            'notes' => $request->input('notes', 'Từ chối bởi Quản lý/Chủ nhà hàng')
-        ]);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $user, $request) {
+                $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+                
+                if ($lockedSwap->status !== 'accepted') {
+                    throw new \Exception('Yêu cầu đổi ca này đã được xử lý trước đó.');
+                }
+
+                $lockedSwap->update([
+                    'status' => 'rejected',
+                    'approved_by' => $user->id,
+                    'notes' => $request->input('notes', 'Từ chối bởi Quản lý/Chủ nhà hàng')
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         $requesterUser = $swap->requesterAssignment?->employee?->user;
         $receiverUser = $swap->receiverAssignment?->employee?->user;

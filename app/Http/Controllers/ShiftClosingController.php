@@ -302,100 +302,89 @@ class ShiftClosingController extends Controller
             $branchId = $employee->branch_id;
         }
 
-        // Kiểm tra nhanh trước khi vào lock để tiết kiệm tài nguyên
-        $quickCheck = ShiftClosing::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('branch_id', $branchId)
-            ->where('shift_id', $data['shift_id'])
-            ->whereDate('closing_date', $data['closing_date'])
-            ->exists();
-
-        if ($quickCheck) {
-            return back()->withErrors(['shift_id' => 'Ca này đã được chốt cho ngày đã chọn.']);
-        }
-
-        // Tự động thanh toán các đơn chưa thanh toán tại bàn nếu là ca cuối & bật chế độ auto-pay
+        $status = $request->boolean('submit') ? 'submitted' : 'draft';
+        $notes = $data['notes'];
         $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id']);
         $autoPayEnabled = $this->isAutoPayEnabled($restaurantId);
 
-        if ($isLastShift && $autoPayEnabled) {
-            $shift = WorkShift::withoutGlobalScopes()->findOrFail($data['shift_id']);
-            $closingDate = Carbon::parse($data['closing_date']);
-            [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, &$notes) {
+                // Kiểm tra lại trong transaction với lock để tránh race condition
+                $existsInLock = ShiftClosing::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $branchId)
+                    ->where('shift_id', $data['shift_id'])
+                    ->whereDate('closing_date', $data['closing_date'])
+                    ->lockForUpdate()
+                    ->exists();
 
-            $unpaidOrders = Order::withoutGlobalScopes()
-                ->where('restaurant_id', $restaurantId)
-                ->whereNotNull('table_id')
-                ->where('payment_status', 'unpaid')
-                ->whereIn('status', ['pending', 'confirmed', 'preparing'])
-                ->get();
-
-            // Lưu snapshot trước khi auto-pay
-            $this->saveBeforeAutoPaySnapshot($restaurantId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
-
-            foreach ($unpaidOrders as $order) {
-                $this->processAutoPay($order, $user->id, $endDt);
-            }
-        }
-
-        $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date'], $branchId);
-
-        $cashDifference = (float) $data['actual_cash'] - $calculated['expected_cash'];
-        $status = $request->boolean('submit') ? 'submitted' : 'draft';
-
-        $notes = $data['notes'];
-        if ($calculated['split_penalty_total'] > 0) {
-            $notes = trim(($notes ?? '') . "\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -" . number_format($calculated['split_penalty_total']) . "đ");
-        }
-
-        // Bọc việc tạo phiếu chốt ca và cập nhật cash register trong cùng một transaction
-        // để đảm bảo Atomicity và tránh race condition tạo 2 phiếu cho cùng 1 ca.
-        \Illuminate\Support\Facades\DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $calculated, $cashDifference, $status, $notes) {
-            // Kiểm tra lại trong transaction với lock để tránh race condition
-            $existsInLock = ShiftClosing::withoutGlobalScopes()
-                ->where('restaurant_id', $restaurantId)
-                ->where('branch_id', $branchId)
-                ->where('shift_id', $data['shift_id'])
-                ->whereDate('closing_date', $data['closing_date'])
-                ->lockForUpdate()
-                ->exists();
-
-            if ($existsInLock) {
-                // Nếu có race condition, transaction này sẽ không tạo bản ghi trùng
-                return;
-            }
-
-            ShiftClosing::create([
-                'restaurant_id'        => $restaurantId,
-                'branch_id'            => $branchId,
-                'shift_id'             => $data['shift_id'],
-                'closing_date'         => $data['closing_date'],
-                'cashier_user_id'      => $user->id,
-                'expected_cash'        => $calculated['expected_cash'],
-                'actual_cash'          => $data['actual_cash'],
-                'cash_difference'      => $cashDifference,
-                'transfer_amount'      => $calculated['transfer_amount'],
-                'other_expense_amount' => $data['other_expense_amount'] ?? 0,
-                'notes'                => $notes,
-                'status'               => $status,
-                'closed_at'            => now(),
-                'cash_register_id'     => $calculated['register_id'],
-            ]);
-
-            if ($calculated['register_id'] && $status === 'submitted') {
-                $register = \App\Models\CashRegister::find($calculated['register_id']);
-                if ($register) {
-                    $register->update([
-                        'status'                    => 'closed',
-                        'closed_by'                 => $user->id,
-                        'closed_at'                 => now(),
-                        'closing_balance'           => $data['actual_cash'],
-                        'expected_closing_balance'  => $calculated['expected_cash'],
-                        'difference'                => $cashDifference,
-                    ]);
+                if ($existsInLock) {
+                    throw new \Exception('Ca này đã được chốt cho ngày đã chọn.');
                 }
-            }
-        });
+
+                // Tự động thanh toán các đơn chưa thanh toán tại bàn nếu là ca cuối & bật chế độ auto-pay
+                if ($isLastShift && $autoPayEnabled) {
+                    $shift = WorkShift::withoutGlobalScopes()->findOrFail($data['shift_id']);
+                    $closingDate = Carbon::parse($data['closing_date']);
+                    [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+
+                    $unpaidOrders = Order::withoutGlobalScopes()
+                        ->where('restaurant_id', $restaurantId)
+                        ->whereNotNull('table_id')
+                        ->where('payment_status', 'unpaid')
+                        ->whereIn('status', ['pending', 'confirmed', 'preparing'])
+                        ->lockForUpdate()
+                        ->get();
+
+                    // Lưu snapshot trước khi auto-pay
+                    $this->saveBeforeAutoPaySnapshot($restaurantId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
+
+                    foreach ($unpaidOrders as $order) {
+                        $this->processAutoPay($order, $user->id, $endDt);
+                    }
+                }
+
+                $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date'], $branchId);
+                $cashDifference = (float) $data['actual_cash'] - $calculated['expected_cash'];
+
+                if ($calculated['split_penalty_total'] > 0) {
+                    $notes = trim(($notes ?? '') . "\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -" . number_format($calculated['split_penalty_total']) . "đ");
+                }
+
+                ShiftClosing::create([
+                    'restaurant_id'        => $restaurantId,
+                    'branch_id'            => $branchId,
+                    'shift_id'             => $data['shift_id'],
+                    'closing_date'         => $data['closing_date'],
+                    'cashier_user_id'      => $user->id,
+                    'expected_cash'        => $calculated['expected_cash'],
+                    'actual_cash'          => $data['actual_cash'],
+                    'cash_difference'      => $cashDifference,
+                    'transfer_amount'      => $calculated['transfer_amount'],
+                    'other_expense_amount' => $data['other_expense_amount'] ?? 0,
+                    'notes'                => $notes,
+                    'status'               => $status,
+                    'closed_at'            => now(),
+                    'cash_register_id'     => $calculated['register_id'],
+                ]);
+
+                if ($calculated['register_id'] && $status === 'submitted') {
+                    $register = \App\Models\CashRegister::find($calculated['register_id']);
+                    if ($register) {
+                        $register->update([
+                            'status'                    => 'closed',
+                            'closed_by'                 => $user->id,
+                            'closed_at'                 => now(),
+                            'closing_balance'           => $data['actual_cash'],
+                            'expected_closing_balance'  => $calculated['expected_cash'],
+                            'difference'                => $cashDifference,
+                        ]);
+                    }
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['shift_id' => $e->getMessage()]);
+        }
 
         $message = $status === 'submitted'
             ? 'Đã nộp phiếu chốt ca, chờ manager xét duyệt.'

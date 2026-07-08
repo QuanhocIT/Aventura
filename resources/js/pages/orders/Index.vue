@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
     ShoppingCart, CheckCircle2, Clock, XCircle, ChefHat,
     CalendarDays, RefreshCw, AlertCircle,
-    Bot, Sparkles, Trash2, Check, X, Utensils
+    Bot, Sparkles, Trash2, Check, X, Utensils, Loader2
 } from 'lucide-vue-next';
 import { computed, ref, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
@@ -260,6 +260,9 @@ const showCancelModal = ref(false);
 const cancelOrderId = ref<number | null>(null);
 const cancelReason = ref('');
 
+const confirmingOrders = ref<Record<number, boolean>>({});
+const isCancellingQr = ref(false);
+
 const fetchPendingQr = async () => {
     isLoadingQr.value = true;
 
@@ -297,6 +300,9 @@ const selectTab = (tab: string) => {
 };
 
 const confirmTempOrder = async (orderId: number) => {
+    if (confirmingOrders.value[orderId]) return;
+    confirmingOrders.value[orderId] = true;
+
     try {
         const response = await axios.post(`/api/temporary-orders/${orderId}/confirm`);
 
@@ -313,6 +319,8 @@ const confirmTempOrder = async (orderId: number) => {
         }
     } catch (err: any) {
         toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận đơn.');
+    } finally {
+        confirmingOrders.value[orderId] = false;
     }
 };
 
@@ -323,9 +331,10 @@ const openCancelModal = (orderId: number) => {
 };
 
 const submitCancel = async () => {
-    if (!cancelOrderId.value || !cancelReason.value.trim()) {
-return;
-}
+    if (!cancelOrderId.value || !cancelReason.value.trim() || isCancellingQr.value) {
+        return;
+    }
+    isCancellingQr.value = true;
 
     try {
         const response = await axios.post(`/api/temporary-orders/${cancelOrderId.value}/cancel`, {
@@ -339,6 +348,8 @@ return;
         }
     } catch {
         toast.error('Có lỗi xảy ra khi hủy yêu cầu.');
+    } finally {
+        isCancellingQr.value = false;
     }
 };
 
@@ -648,17 +659,21 @@ onMounted(() => {
                                 <Button
                                     variant="outline"
                                     size="sm"
+                                    :disabled="confirmingOrders[o.id] || isCancellingQr"
                                     @click="openCancelModal(o.id)"
-                                    class="border-red-500/30 text-red-655 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-700 h-9 rounded-xl flex items-center gap-1.5 cursor-pointer"
+                                    class="border-red-500/30 text-red-655 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-700 h-9 rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                                 >
                                     <Trash2 class="size-4" /> Từ chối
                                 </Button>
                                 <Button
                                     size="sm"
+                                    :disabled="confirmingOrders[o.id] || isCancellingQr"
                                     @click="confirmTempOrder(o.id)"
-                                    class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold h-9 rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+                                    class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold h-9 rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer disabled:opacity-50"
                                 >
-                                    <Check class="size-4" /> Xác nhận & Đẩy Bếp
+                                    <Loader2 v-if="confirmingOrders[o.id]" class="size-4 animate-spin" />
+                                    <Check v-else class="size-4" /> 
+                                    {{ confirmingOrders[o.id] ? 'Đang xác nhận...' : 'Xác nhận & Đẩy Bếp' }}
                                 </Button>
                             </div>
                         </div>
@@ -798,10 +813,11 @@ onMounted(() => {
                     </button>
                     <button 
                         @click="submitCancel"
-                        :disabled="!cancelReason.trim()"
-                        class="flex-1 h-9 bg-red-500 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-lg text-xs font-bold cursor-pointer"
+                        :disabled="!cancelReason.trim() || isCancellingQr"
+                        class="flex-1 h-9 bg-red-500 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                        Từ chối đặt món
+                        <Loader2 v-if="isCancellingQr" class="size-3.5 animate-spin" />
+                        {{ isCancellingQr ? 'Đang từ chối...' : 'Từ chối đặt món' }}
                     </button>
                 </footer>
             </div>

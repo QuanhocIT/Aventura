@@ -201,47 +201,57 @@ class DebtController extends Controller
         $method = $request->input('payment_method');
         $notes = $request->input('notes');
 
-        DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user) {
-            $newPaidAmount = (float)$payable->paid_amount + $payAmount;
-            $status = $newPaidAmount >= (float)$payable->amount ? 'paid' : 'partially_paid';
+        try {
+            DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user) {
+                $lockedPayable = AccountPayable::where('id', $payable->id)->lockForUpdate()->firstOrFail();
+                $rem = (float)$lockedPayable->amount - (float)$lockedPayable->paid_amount;
+                if ($payAmount > $rem) {
+                    throw new \Exception('Số tiền trả nợ vượt quá số dư nợ còn lại (' . number_format($rem) . 'đ).');
+                }
 
-            $payable->update([
-                'paid_amount' => $newPaidAmount,
-                'status' => $status,
-                'notes' => $notes ? ($payable->notes ? $payable->notes . "\n" : '') . "[" . now()->format('d/m/Y') . "] Trả nợ: " . number_format($payAmount) . "đ. Ghi chú: " . $notes : $payable->notes,
-            ]);
+                $newPaidAmount = (float)$lockedPayable->paid_amount + $payAmount;
+                $status = $newPaidAmount >= (float)$lockedPayable->amount ? 'paid' : 'partially_paid';
 
-            // Update PurchaseOrder payment status if fully paid
-            if ($status === 'paid' && $payable->purchase_order_id) {
-                PurchaseOrder::where('id', $payable->purchase_order_id)->update([
-                    'payment_status' => 'paid',
+                $lockedPayable->update([
+                    'paid_amount' => $newPaidAmount,
+                    'status' => $status,
+                    'notes' => $notes ? ($lockedPayable->notes ? $lockedPayable->notes . "\n" : '') . "[" . now()->format('d/m/Y') . "] Trả nợ: " . number_format($payAmount) . "đ. Ghi chú: " . $notes : $lockedPayable->notes,
                 ]);
-            }
 
-            // Record cash transaction if cash register is open and payment method is cash
-            if ($method === 'cash') {
-                $register = CashRegister::where('restaurant_id', $payable->restaurant_id)
-                    ->where('branch_id', $user->branch_id)
-                    ->where('status', 'open')
-                    ->first();
-
-                if ($register) {
-                    CashTransaction::create([
-                        'restaurant_id' => $payable->restaurant_id,
-                        'branch_id' => $user->branch_id,
-                        'cash_register_id' => $register->id,
-                        'type' => 'out',
-                        'amount' => $payAmount,
-                        'source' => 'expense',
-                        'reference_id' => $payable->id,
-                        'reference_type' => AccountPayable::class,
-                        'notes' => "Thanh toán công nợ nhà cung cấp cho PO #{$payable->purchaseOrder?->po_number}. Ghi chú: {$notes}",
-                        'created_by' => $user->id,
-                        'occurred_at' => now(),
+                // Update PurchaseOrder payment status if fully paid
+                if ($status === 'paid' && $lockedPayable->purchase_order_id) {
+                    PurchaseOrder::where('id', $lockedPayable->purchase_order_id)->update([
+                        'payment_status' => 'paid',
                     ]);
                 }
-            }
-        });
+
+                // Record cash transaction if cash register is open and payment method is cash
+                if ($method === 'cash') {
+                    $register = CashRegister::where('restaurant_id', $lockedPayable->restaurant_id)
+                        ->where('branch_id', $user->branch_id)
+                        ->where('status', 'open')
+                        ->first();
+
+                    if ($register) {
+                        CashTransaction::create([
+                            'restaurant_id' => $lockedPayable->restaurant_id,
+                            'branch_id' => $user->branch_id,
+                            'cash_register_id' => $register->id,
+                            'type' => 'out',
+                            'amount' => $payAmount,
+                            'source' => 'expense',
+                            'reference_id' => $lockedPayable->id,
+                            'reference_type' => AccountPayable::class,
+                            'notes' => "Thanh toán công nợ nhà cung cấp cho PO #{$lockedPayable->purchaseOrder?->po_number}. Ghi chú: {$notes}",
+                            'created_by' => $user->id,
+                            'occurred_at' => now(),
+                        ]);
+                    }
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['amount' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã ghi nhận thanh toán nợ nhà cung cấp thành công.');
     }
@@ -266,54 +276,62 @@ class DebtController extends Controller
         $method = $request->input('payment_method');
         $notes = $request->input('notes');
 
-        DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user) {
-            // Khóa bản ghi AccountReceivable
-            $receivable = AccountReceivable::where('id', $receivable->id)->lockForUpdate()->firstOrFail();
+        try {
+            DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user) {
+                // Khóa bản ghi AccountReceivable
+                $lockedReceivable = AccountReceivable::where('id', $receivable->id)->lockForUpdate()->firstOrFail();
+                $rem = (float)$lockedReceivable->amount - (float)$lockedReceivable->received_amount;
+                if ($collectAmount > $rem) {
+                    throw new \Exception('Số tiền thu nợ vượt quá số dư nợ còn lại (' . number_format($rem) . 'đ).');
+                }
 
-            $newReceivedAmount = (float)$receivable->received_amount + $collectAmount;
-            $status = $newReceivedAmount >= (float)$receivable->amount ? 'paid' : 'partially_paid';
+                $newReceivedAmount = (float)$lockedReceivable->received_amount + $collectAmount;
+                $status = $newReceivedAmount >= (float)$lockedReceivable->amount ? 'paid' : 'partially_paid';
 
-            $receivable->update([
-                'received_amount' => $newReceivedAmount,
-                'status' => $status,
-                'notes' => $notes ? ($receivable->notes ? $receivable->notes . "\n" : '') . "[" . now()->format('d/m/Y') . "] Thu nợ: " . number_format($collectAmount) . "đ. Ghi chú: " . $notes : $receivable->notes,
-            ]);
-
-            // Khóa và cập nhật dư nợ của khách hàng
-            $customer = Customer::where('id', $receivable->customer_id)->lockForUpdate()->firstOrFail();
-            $customer->decrement('current_debt', $collectAmount);
-
-            // Update Order payment status if fully paid
-            if ($status === 'paid' && $receivable->order_id) {
-                Order::where('id', $receivable->order_id)->update([
-                    'payment_status' => 'paid',
+                $lockedReceivable->update([
+                    'received_amount' => $newReceivedAmount,
+                    'status' => $status,
+                    'notes' => $notes ? ($lockedReceivable->notes ? $lockedReceivable->notes . "\n" : '') . "[" . now()->format('d/m/Y') . "] Thu nợ: " . number_format($collectAmount) . "đ. Ghi chú: " . $notes : $lockedReceivable->notes,
                 ]);
-            }
 
-            // Record cash transaction if cash register is open and payment method is cash
-            if ($method === 'cash') {
-                $register = CashRegister::where('restaurant_id', $receivable->restaurant_id)
-                    ->where('branch_id', $user->branch_id)
-                    ->where('status', 'open')
-                    ->first();
+                // Khóa và cập nhật dư nợ của khách hàng
+                $customer = Customer::where('id', $lockedReceivable->customer_id)->lockForUpdate()->firstOrFail();
+                $customer->decrement('current_debt', $collectAmount);
 
-                if ($register) {
-                    CashTransaction::create([
-                        'restaurant_id' => $receivable->restaurant_id,
-                        'branch_id' => $user->branch_id,
-                        'cash_register_id' => $register->id,
-                        'type' => 'in',
-                        'amount' => $collectAmount,
-                        'source' => 'order',
-                        'reference_id' => $receivable->id,
-                        'reference_type' => AccountReceivable::class,
-                        'notes' => "Thu hồi công nợ khách hàng cho đơn hàng #{$receivable->order?->order_number}. Ghi chú: {$notes}",
-                        'created_by' => $user->id,
-                        'occurred_at' => now(),
+                // Update Order payment status if fully paid
+                if ($status === 'paid' && $lockedReceivable->order_id) {
+                    Order::where('id', $lockedReceivable->order_id)->update([
+                        'payment_status' => 'paid',
                     ]);
                 }
-            }
-        });
+
+                // Record cash transaction if cash register is open and payment method is cash
+                if ($method === 'cash') {
+                    $register = CashRegister::where('restaurant_id', $lockedReceivable->restaurant_id)
+                        ->where('branch_id', $user->branch_id)
+                        ->where('status', 'open')
+                        ->first();
+
+                    if ($register) {
+                        CashTransaction::create([
+                            'restaurant_id' => $lockedReceivable->restaurant_id,
+                            'branch_id' => $user->branch_id,
+                            'cash_register_id' => $register->id,
+                            'type' => 'in',
+                            'amount' => $collectAmount,
+                            'source' => 'order',
+                            'reference_id' => $lockedReceivable->id,
+                            'reference_type' => AccountReceivable::class,
+                            'notes' => "Thu hồi công nợ khách hàng cho đơn hàng #{$lockedReceivable->order?->order_number}. Ghi chú: {$notes}",
+                            'created_by' => $user->id,
+                            'occurred_at' => now(),
+                        ]);
+                    }
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['amount' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã ghi nhận thu hồi nợ của khách hàng thành công.');
     }

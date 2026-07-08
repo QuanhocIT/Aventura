@@ -97,18 +97,29 @@ class ShiftSwapController extends Controller
         }
 
         abort_if($swap->restaurant_id !== $employee->restaurant_id, 403);
-        abort_unless($swap->status === 'pending', 422);
 
-        // Verify that the current employee is the receiver of the swap
-        $recAssignment = $swap->receiverAssignment;
-        if (!$recAssignment || $recAssignment->employee_id !== $employee->id) {
-            return back()->withErrors(['error' => 'Bạn không phải là người nhận của yêu cầu đổi ca này.']);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $employee) {
+                $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+                
+                if ($lockedSwap->status !== 'pending') {
+                    throw new \Exception('Yêu cầu đổi ca này đã được xử lý trước đó.');
+                }
+
+                // Verify that the current employee is the receiver of the swap
+                $recAssignment = $lockedSwap->receiverAssignment;
+                if (!$recAssignment || $recAssignment->employee_id !== $employee->id) {
+                    throw new \Exception('Bạn không phải là người nhận của yêu cầu đổi ca này.');
+                }
+
+                $lockedSwap->update([
+                    'status' => 'accepted',
+                    'notes'  => $lockedSwap->notes . "\n[Chấp nhận bởi " . $employee->full_name . "]",
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
         }
-
-        $swap->update([
-            'status' => 'accepted',
-            'notes'  => $swap->notes . "\n[Chấp nhận bởi " . $employee->full_name . "]",
-        ]);
 
         $requesterUser = $swap->requesterAssignment?->employee?->user;
         if ($requesterUser) {
@@ -158,10 +169,22 @@ class ShiftSwapController extends Controller
             return back()->withErrors(['error' => 'Bạn không có quyền thực hiện thao tác này.']);
         }
 
-        $swap->update([
-            'status' => 'cancelled',
-            'notes'  => $swap->notes . "\n[Bị hủy bởi " . $employee->full_name . "]",
-        ]);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($swap, $employee) {
+                $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+                
+                if (!in_array($lockedSwap->status, ['pending', 'accepted'])) {
+                    throw new \Exception('Không thể hủy yêu cầu đổi ca ở trạng thái hiện tại.');
+                }
+
+                $lockedSwap->update([
+                    'status' => 'cancelled',
+                    'notes'  => $lockedSwap->notes . "\n[Bị hủy bởi " . $employee->full_name . "]",
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         $isRequester = $reqAssignment && $reqAssignment->employee_id === $employee->id;
         $otherUser = $isRequester 

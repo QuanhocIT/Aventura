@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { RefreshCw } from 'lucide-vue-next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,11 @@ const props = defineProps<{
     pendingSwapRequests?: any[];
 }>();
 
+const isProcessing = ref(false);
+
 const acceptSwapRequest = (swapId: number) => {
+    if (isProcessing.value) return;
+    isProcessing.value = true;
     router.post(`/schedules/swap/${swapId}/accept`, {}, {
         onSuccess: () => {
             import('vue-sonner').then(m => m.toast.success('Đồng ý đổi ca thành công! Đang chờ Quản lý duyệt.'));
@@ -15,11 +20,16 @@ const acceptSwapRequest = (swapId: number) => {
         onError: (errors: any) => {
             const errorMsg = errors.error || 'Có lỗi xảy ra khi đồng ý đổi ca.';
             import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isProcessing.value = false;
         }
     });
 };
 
 const cancelSwapRequest = (swapId: number) => {
+    if (isProcessing.value) return;
+    isProcessing.value = true;
     router.post(`/schedules/swap/${swapId}/cancel`, {}, {
         onSuccess: () => {
             import('vue-sonner').then(m => m.toast.success('Đã hủy/từ chối yêu cầu đổi ca thành công!'));
@@ -27,6 +37,9 @@ const cancelSwapRequest = (swapId: number) => {
         onError: (errors: any) => {
             const errorMsg = errors.error || 'Có lỗi xảy ra khi xử lý hủy ca.';
             import('vue-sonner').then(m => m.toast.error(errorMsg));
+        },
+        onFinish: () => {
+            isProcessing.value = false;
         }
     });
 };
@@ -92,25 +105,28 @@ const cancelSwapRequest = (swapId: number) => {
                                 v-if="!swap.is_requester"
                                 type="button"
                                 @click="acceptSwapRequest(swap.id)"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                :disabled="isProcessing"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Đồng ý
+                                {{ isProcessing ? 'Đang xử lý...' : 'Đồng ý' }}
                             </button>
                             <button 
                                 type="button"
                                 @click="cancelSwapRequest(swap.id)"
-                                class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                :disabled="isProcessing"
+                                class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {{ swap.is_requester ? 'Hủy' : 'Từ chối' }}
+                                {{ swap.is_requester ? (isProcessing ? 'Đang hủy...' : 'Hủy') : (isProcessing ? 'Đang từ chối...' : 'Từ chối') }}
                             </button>
                         </template>
                         <template v-else-if="swap.status === 'accepted'">
                             <button 
                                 type="button"
                                 @click="cancelSwapRequest(swap.id)"
-                                class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all"
+                                :disabled="isProcessing"
+                                class="bg-rose-600 hover:bg-rose-700 text-white font-bold h-7 px-3 text-[10px] rounded-lg cursor-pointer select-none active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Hủy
+                                {{ isProcessing ? 'Đang hủy...' : 'Hủy' }}
                             </button>
                         </template>
                     </div>

@@ -148,16 +148,26 @@ class TableReservationController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('create_orders'), 403);
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($reservation->status === 'confirmed', 422, 'Chỉ có thể dẫn khách vào bàn khi đặt đã được xác nhận.');
 
-        $reservation->update([
-            'status'    => 'seated',
-            'seated_at' => now(),
-        ]);
+        try {
+            DB::transaction(function () use ($reservation) {
+                $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
+                if ($lockedReservation->status !== 'confirmed') {
+                    throw new \Exception('Chỉ có thể dẫn khách vào bàn khi đặt đã được xác nhận.');
+                }
 
-        // Cập nhật trạng thái bàn thành 'occupied' nếu có assign bàn
-        if ($reservation->table_id) {
-            RestaurantTable::where('id', $reservation->table_id)->update(['status' => 'occupied']);
+                $lockedReservation->update([
+                    'status'    => 'seated',
+                    'seated_at' => now(),
+                ]);
+
+                // Cập nhật trạng thái bàn thành 'occupied' nếu có assign bàn
+                if ($lockedReservation->table_id) {
+                    RestaurantTable::where('id', $lockedReservation->table_id)->update(['status' => 'occupied']);
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
         }
 
         return back()->with('success', "Đã dẫn khách {$reservation->guest_name} vào bàn.");
@@ -171,17 +181,27 @@ class TableReservationController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('approve_requests'), 403);
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless(in_array($reservation->status, ['pending', 'confirmed']), 422, 'Không thể hủy đặt bàn này.');
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:5', 'max:255'],
         ]);
 
-        $reservation->update([
-            'status'               => 'cancelled',
-            'cancellation_reason'  => $data['reason'],
-            'cancelled_at'         => now(),
-        ]);
+        try {
+            DB::transaction(function () use ($reservation, $data) {
+                $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
+                if (!in_array($lockedReservation->status, ['pending', 'confirmed'])) {
+                    throw new \Exception('Không thể hủy đặt bàn này.');
+                }
+
+                $lockedReservation->update([
+                    'status'               => 'cancelled',
+                    'cancellation_reason'  => $data['reason'],
+                    'cancelled_at'         => now(),
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         return back()->with('success', "Đã hủy đặt bàn của khách {$reservation->guest_name}.");
     }
@@ -194,12 +214,22 @@ class TableReservationController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('approve_requests'), 403);
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($reservation->status === 'confirmed', 422, 'Chỉ đánh dấu no-show cho đặt bàn đã xác nhận.');
 
-        $reservation->update([
-            'status'       => 'no_show',
-            'cancelled_at' => now(),
-        ]);
+        try {
+            DB::transaction(function () use ($reservation) {
+                $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
+                if ($lockedReservation->status !== 'confirmed') {
+                    throw new \Exception('Chỉ đánh dấu no-show cho đặt bàn đã xác nhận.');
+                }
+
+                $lockedReservation->update([
+                    'status'       => 'no_show',
+                    'cancelled_at' => now(),
+                ]);
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         return back()->with('success', "Đã đánh dấu không đến cho đặt bàn của {$reservation->guest_name}.");
     }

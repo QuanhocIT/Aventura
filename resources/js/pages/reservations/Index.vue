@@ -12,6 +12,7 @@ import {
     Filter,
     UserCheck,
     Ban,
+    Loader2,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import Heading from '@/components/Heading.vue';
@@ -37,6 +38,7 @@ const statusFilter = ref(props.filters.status);
 const selected     = ref<any | null>(null);
 const showConfirmModal = ref(false);
 const showCancelModal  = ref(false);
+const isProcessing = ref(false);
 
 const confirmForm = useForm({ table_id: null as number | null, internal_notes: '' });
 const cancelForm  = useForm({ reason: '' });
@@ -87,17 +89,21 @@ function openConfirmModal(r: any) {
 function submitConfirm() {
     confirmForm.post(`/reservations/${selected.value.id}/confirm`, {
         onSuccess: () => {
- showConfirmModal.value = false; 
-},
+            showConfirmModal.value = false; 
+        },
     });
 }
 
 async function seat(r: any) {
+    if (isProcessing.value) return;
     if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xác nhận dẫn khách ${r.guest_name} vào bàn?`, variant: 'default' }))) {
-return;
-}
+        return;
+    }
 
-    router.post(`/reservations/${r.id}/seat`);
+    isProcessing.value = true;
+    router.post(`/reservations/${r.id}/seat`, {}, {
+        onFinish: () => { isProcessing.value = false; }
+    });
 }
 
 function openCancelModal(r: any) {
@@ -109,17 +115,21 @@ function openCancelModal(r: any) {
 function submitCancel() {
     cancelForm.post(`/reservations/${selected.value.id}/cancel`, {
         onSuccess: () => {
- showCancelModal.value = false; 
-},
+            showCancelModal.value = false; 
+        },
     });
 }
 
 async function noShow(r: any) {
+    if (isProcessing.value) return;
     if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Đánh dấu khách ${r.guest_name} không đến?`, variant: 'default' }))) {
-return;
-}
+        return;
+    }
 
-    router.post(`/reservations/${r.id}/no-show`);
+    isProcessing.value = true;
+    router.post(`/reservations/${r.id}/no-show`, {}, {
+        onFinish: () => { isProcessing.value = false; }
+    });
 }
 </script>
 
@@ -238,6 +248,7 @@ return;
                                 v-if="r.status === 'pending'"
                                 size="sm"
                                 variant="outline"
+                                :disabled="isProcessing"
                                 class="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                                 @click="openConfirmModal(r)"
                             >
@@ -250,10 +261,12 @@ return;
                                 v-if="r.status === 'confirmed'"
                                 size="sm"
                                 variant="outline"
+                                :disabled="isProcessing"
                                 class="border-sky-300 text-sky-700 hover:bg-sky-50"
                                 @click="seat(r)"
                             >
-                                <UserCheck class="size-3.5 mr-1" />
+                                <Loader2 v-if="isProcessing" class="size-3.5 mr-1 animate-spin" />
+                                <UserCheck v-else class="size-3.5 mr-1" />
                                 Vào bàn
                             </Button>
 
@@ -262,10 +275,12 @@ return;
                                 v-if="r.status === 'confirmed'"
                                 size="sm"
                                 variant="outline"
+                                :disabled="isProcessing"
                                 class="border-gray-300 text-gray-600 hover:bg-gray-50"
                                 @click="noShow(r)"
                             >
-                                <AlertTriangle class="size-3.5 mr-1" />
+                                <Loader2 v-if="isProcessing" class="size-3.5 mr-1 animate-spin" />
+                                <AlertTriangle v-else class="size-3.5 mr-1" />
                                 Không đến
                             </Button>
 
@@ -274,6 +289,7 @@ return;
                                 v-if="['pending', 'confirmed'].includes(r.status)"
                                 size="sm"
                                 variant="ghost"
+                                :disabled="isProcessing"
                                 class="text-rose-600 hover:bg-rose-50"
                                 @click="openCancelModal(r)"
                             >
@@ -324,8 +340,9 @@ return;
 
                 <div class="mt-5 flex gap-3">
                     <Button class="flex-1" @click="submitConfirm" :disabled="confirmForm.processing">
-                        <CheckCircle2 class="size-4 mr-1.5" />
-                        Xác nhận đặt bàn
+                        <Loader2 v-if="confirmForm.processing" class="size-4 mr-1.5 animate-spin" />
+                        <CheckCircle2 v-else class="size-4 mr-1.5" />
+                        {{ confirmForm.processing ? 'Đang xử lý...' : 'Xác nhận đặt bàn' }}
                     </Button>
                     <Button variant="outline" @click="showConfirmModal = false">Đóng</Button>
                 </div>
@@ -355,8 +372,9 @@ return;
 
                 <div class="mt-5 flex gap-3">
                     <Button variant="destructive" class="flex-1" @click="submitCancel" :disabled="cancelForm.processing">
-                        <XCircle class="size-4 mr-1.5" />
-                        Xác nhận hủy
+                        <Loader2 v-if="cancelForm.processing" class="size-4 mr-1.5 animate-spin" />
+                        <XCircle v-else class="size-4 mr-1.5" />
+                        {{ cancelForm.processing ? 'Đang xử lý...' : 'Xác nhận hủy' }}
                     </Button>
                     <Button variant="outline" @click="showCancelModal = false">Đóng</Button>
                 </div>
