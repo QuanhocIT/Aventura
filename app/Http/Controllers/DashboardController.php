@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\ViolationReport;
 use App\Services\ForecastService;
+use App\Services\OrderStatsCacheService;
 use App\Services\QuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,8 @@ class DashboardController extends Controller
 {
     public function __construct(
         private ForecastService $forecast,
-        private QuotaService $quotaService
+        private QuotaService $quotaService,
+        private OrderStatsCacheService $orderStatsCache,
     ) {}
 
     public function index(Request $request): mixed
@@ -106,13 +108,14 @@ class DashboardController extends Controller
             $todaySummary = $todaySummaryQuery->first();
             $yesterdaySummary = $yesterdaySummaryQuery->first();
 
-            $ordersToday = Order::where('restaurant_id', $rid)
-                ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId));
+            // ── Live order counts (cached 5 phút, invalidate khi có đơn mới) ────────
+            // Thay vì 3 COUNT query riêng lẻ mỗi lần load dashboard, dùng 1 query
+            // tổng hợp được cache → giảm tải DB khi nhiều nhà hàng online đồng thời.
+            $todayLiveStats = $this->orderStatsCache->getTodayStats($rid, $branchId);
 
-            $totalToday     = (clone $ordersToday)->count();
-            $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
-            $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
+            $totalToday     = $todayLiveStats['total'];
+            $completedToday = $todayLiveStats['completed'];
+            $cancelledToday = $todayLiveStats['cancelled'];
 
             // ── Xu hướng so hôm qua ─────────────────────────────────────────
             $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);

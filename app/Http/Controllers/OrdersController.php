@@ -496,7 +496,9 @@ class OrdersController extends Controller
             return back()->with('success', 'Ghi nợ đơn hàng thành công!');
         }
 
-        $this->orderService->payOrder($order, $data, $user);
+        // P1: Luôn queue các tác vụ nặng sau thanh toán (inventory deduction,
+        // loyalty points, RFM recalculation) để response về POS ngay lập tức.
+        $this->orderService->payOrder($order, $data, $user, queuePostPayment: true);
 
         if ($request->wantsJson()) {
             return response()->json([

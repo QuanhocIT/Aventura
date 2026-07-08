@@ -98,9 +98,26 @@ class Order extends Model
 
     protected static function booted(): void
     {
-        $clearCache = fn ($order) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$order->restaurant_id}_tables");
-        static::saved($clearCache);
-        static::deleted($clearCache);
+        // Xóa cache danh sách bàn khi đơn thay đổi
+        $clearTableCache = fn ($order) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$order->restaurant_id}_tables");
+        static::saved($clearTableCache);
+        static::deleted($clearTableCache);
+
+        // Invalidate live order stats cache + cập nhật intraday summary
+        $invalidateStatsCache = function ($order) {
+            /** @var \App\Services\OrderStatsCacheService $cacheService */
+            $cacheService = app(\App\Services\OrderStatsCacheService::class);
+            $cacheService->invalidate($order->restaurant_id, $order->branch_id ?? null);
+
+            // Dispatch intraday summary job cho nhà hàng này sau khi transaction commit
+            // withoutDelay() + afterCommit() đảm bảo job không chạy trước khi dữ liệu được ghi
+            \App\Jobs\UpdateIntradaySummaryJob::dispatch($order->restaurant_id)
+                ->afterCommit()
+                ->onQueue('low');
+        };
+
+        static::saved($invalidateStatsCache);
+        static::deleted($invalidateStatsCache);
     }
 
     protected static function newFactory(): Factory

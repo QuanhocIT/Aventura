@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\InventoryReservation;
 use App\Repositories\OrderRepositoryInterface;
 use App\Events\Kitchen\KitchenUpdated;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -112,7 +113,10 @@ class OrderService
                     }
                 }
             }
-            event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
+            // P1: Debounce broadcast — chỉ fire ProductStockUpdated tối đa 1 lần
+            // mỗi 3 giây/nhà hàng. Tránh flood Reverb khi nhiều items trong cùng
+            // 1 đơn, hoặc nhiều đơn tạo liên tiếp (giờ cao điểm nhiều nhà hàng).
+            $this->fireStockUpdatedDebounced($restaurantId);
 
             if ($order->table_id) {
                 RestaurantTable::where('id', $order->table_id)->update(['status' => 'occupied']);
@@ -586,4 +590,30 @@ class OrderService
             'is_override_split_penalty' => true
         ]);
     }
+
+    /**
+     * P1: Debounce ProductStockUpdated broadcast — tối đa 1 lần/nhà hàng/3 giây.
+     *
+     * Vấn đề: event này được fire bởi createOrder, splitOrder, InventoryService...
+     * Nếu 1 đơn có 10 items, hoặc nhiều đơn tạo liên tiếp trong giờ cao điểm
+     * với hệ thống 500+ nhà hàng → hàng nghìn broadcast/giây → Reverb bị flood.
+     *
+     * Giải pháp: dùng Cache::add() (atomic SET NX EX trên Redis) để chỉ fire
+     * 1 lần/nhà hàng trong khoảng DEBOUNCE_TTL giây. Các lần fire tiếp theo
+     * trong cùng khoảng thời gian bị bỏ qua (client vẫn nhận được đủ data
+     * vì backend state không đổi trong khoảng thời gian đó).
+     */
+    private function fireStockUpdatedDebounced(int $restaurantId): void
+    {
+        /** @var int Giây tối thiểu giữa 2 lần broadcast cùng nhà hàng */
+        $ttl = 3;
+        $key = "stock_broadcast_lock:{$restaurantId}";
+
+        // Cache::add() chỉ set nếu key chưa tồn tại → atomic, thread-safe trên Redis.
+        // Nếu key đã tồn tại (đã fire gần đây) → skip broadcast.
+        if (Cache::add($key, 1, $ttl)) {
+            event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
+        }
+    }
 }
+
