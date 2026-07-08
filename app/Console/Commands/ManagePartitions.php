@@ -14,7 +14,7 @@ class ManagePartitions extends Command
 
     protected $description = 'Đảm bảo các bảng partition (orders_archive, order_items_archive, audit_logs) luôn có sẵn partition cho các tháng tới; tùy chọn dọn dẹp partition audit_logs quá hạn retention';
 
-    private const PARTITIONED_TABLES = ['orders_archive', 'order_items_archive', 'audit_logs'];
+    private const PARTITIONED_TABLES = ['orders', 'orders_archive', 'order_items_archive', 'audit_logs'];
 
     public function handle(): int
     {

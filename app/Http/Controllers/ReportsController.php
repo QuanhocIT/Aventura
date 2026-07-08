@@ -10,6 +10,7 @@ use App\Services\MenuInsightService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -160,46 +161,55 @@ class ReportsController extends Controller
                 : 0.0,
         ];
 
-        // ── Peak hours (aggregate từ orders trong kỳ) ─────────────────────────
+        // ── Peak hours (P1: cache 10 phút cho query analytics nặng) ────────────────
+        // Query này JOIN orders + GROUP BY HOUR có thể scan hàng triệu rows khi
+        // mặt dùng lưu lượng lớn. Cache theo restaurant + period + date.
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
         $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
+        $peakCacheKey = "reports_peak:{$restaurantId}:{$period}:" . today()->toDateString();
 
-        $peakRows = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
-            ->selectRaw("{$hourExpr} as hour, SUM(total_amount) as revenue, COUNT(*) as order_count")
-            ->groupBy(DB::raw($hourExpr))
-            ->orderBy('hour')
-            ->get();
+        $peakHours = Cache::remember($peakCacheKey, 600, function () use ($restaurantId, $startDate, $endDate, $isSqlite, $hourExpr) {
+            $peakRows = DB::table('orders_unified')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereBetween('completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+                ->selectRaw("{$hourExpr} as hour, SUM(total_amount) as revenue, COUNT(*) as order_count")
+                ->groupBy(DB::raw($hourExpr))
+                ->orderBy('hour')
+                ->get();
 
-        $maxPeakRevenue = $peakRows->max('revenue') ?: 1;
+            $maxPeakRevenue = $peakRows->max('revenue') ?: 1;
 
-        $peakHours = $peakRows->map(fn ($r) => [
-            'hour'        => (int) $r->hour,
-            'label'       => sprintf('%02d:00', $r->hour),
-            'revenue'     => (float) $r->revenue,
-            'order_count' => (int) $r->order_count,
-            'width_pct'   => round((float) $r->revenue / $maxPeakRevenue * 100, 1),
-        ])->values();
+            return $peakRows->map(fn ($r) => [
+                'hour'        => (int) $r->hour,
+                'label'       => sprintf('%02d:00', $r->hour),
+                'revenue'     => (float) $r->revenue,
+                'order_count' => (int) $r->order_count,
+                'width_pct'   => round((float) $r->revenue / $maxPeakRevenue * 100, 1),
+            ])->values();
+        });
 
-        // ── Top 10 products ───────────────────────────────────────────────────
-        $topProducts = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
-            ->where('orders.restaurant_id', $restaurantId)
-            ->where('orders.status', 'completed')
-            ->whereBetween('orders.completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
-            ->select('products.name', DB::raw('SUM(order_items.quantity) as total_qty'), DB::raw('SUM(order_items.line_total) as total_revenue'))
-            ->groupBy('products.id', 'products.name')
-            ->orderByDesc('total_revenue')
-            ->limit(10)
-            ->get()
-            ->map(fn ($r) => [
-                'name'          => $r->name,
-                'total_qty'     => (int) $r->total_qty,
-                'total_revenue' => (float) $r->total_revenue,
-            ]);
+        // ── Top 10 products (P1: cache 10 phút) ────────────────────────────────
+        $topProductsCacheKey = "reports_top_products:{$restaurantId}:{$period}:" . today()->toDateString();
+
+        $topProducts = Cache::remember($topProductsCacheKey, 600, function () use ($restaurantId, $startDate, $endDate) {
+            return DB::table('order_items_unified')
+                ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+                ->join('products', 'order_items_unified.product_id', '=', 'products.id')
+                ->where('orders.restaurant_id', $restaurantId)
+                ->where('orders.status', 'completed')
+                ->whereBetween('orders.completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+                ->select('products.name', DB::raw('SUM(order_items.quantity) as total_qty'), DB::raw('SUM(order_items.line_total) as total_revenue'))
+                ->groupBy('products.id', 'products.name')
+                ->orderByDesc('total_revenue')
+                ->limit(10)
+                ->get()
+                ->map(fn ($r) => [
+                    'name'          => $r->name,
+                    'total_qty'     => (int) $r->total_qty,
+                    'total_revenue' => (float) $r->total_revenue,
+                ])->values();
+        });
 
         // ── Today summary ─────────────────────────────────────────────────────
         $todayRecord = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
@@ -374,3 +384,4 @@ class ReportsController extends Controller
         ]);
     }
 }
+
