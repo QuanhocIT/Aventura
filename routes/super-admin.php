@@ -192,6 +192,13 @@ Route::prefix('super-admin')
             Route::post('settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::post('settings/test-email', [SystemSettingController::class, 'testEmail'])->name('settings.test-email');
 
+            // Firewall & WAF Management
+            Route::get('firewall', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'index'])->name('firewall.index');
+            Route::delete('firewall/blocked/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'unblock'])->name('firewall.unblock');
+            Route::post('firewall/whitelist', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'whitelist'])->name('firewall.whitelist');
+            Route::delete('firewall/whitelist/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'removeWhitelist'])->name('firewall.whitelist.remove');
+            Route::post('firewall/settings', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'updateSettings'])->name('firewall.settings');
+
             Route::get('service-monitor', [ServiceMonitorController::class, 'index'])->name('service-monitor.index');
             Route::post('service-monitor/ping', [ServiceMonitorController::class, 'pingAll'])->name('service-monitor.ping');
             Route::post('service-monitor/{service}/toggle-maintenance', [ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
