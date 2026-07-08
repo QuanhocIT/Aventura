@@ -23,6 +23,9 @@ const props = defineProps<{
     queryTableId: number | null;
     restaurantName: string;
     staffList?: Staff[];
+    turnstileSiteKey?: string;
+    captchaQuestion?: string;
+    captchaToken?: string;
 }>();
 
 // --- STATE ---
@@ -32,6 +35,8 @@ const content = ref('');
 const isAnonymous = ref(true);
 const submittedByName = ref('');
 const submittedByPhone = ref('');
+const turnstileToken = ref('');
+const captchaAnswer = ref('');
 
 const itemsRating = ref<Record<number, { rating: number; comment: string }>>({});
 const staffRating = ref<Record<number, { rating: number; comment: string }>>({});
@@ -54,6 +59,38 @@ onMounted(() => {
         props.staffList.forEach(s => {
             staffRating.value[s.employee_id] = { rating: 5, comment: '' };
         });
+    }
+
+    if (props.turnstileSiteKey) {
+        // @ts-ignore
+        if (!window.turnstile) {
+            const script = document.createElement('script');
+            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallbackFeedback';
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+
+            // @ts-ignore
+            window.onloadTurnstileCallbackFeedback = () => {
+                // @ts-ignore
+                window.turnstile.render('#turnstile-container-feedback', {
+                    sitekey: props.turnstileSiteKey,
+                    callback: (token: string) => {
+                        turnstileToken.value = token;
+                    },
+                });
+            };
+        } else {
+            setTimeout(() => {
+                // @ts-ignore
+                window.turnstile.render('#turnstile-container-feedback', {
+                    sitekey: props.turnstileSiteKey,
+                    callback: (token: string) => {
+                        turnstileToken.value = token;
+                    },
+                });
+            }, 100);
+        }
     }
 });
 
@@ -89,6 +126,9 @@ const handleSubmit = async () => {
             is_anonymous: isAnonymous.value,
             submitted_by_name: isAnonymous.value ? null : submittedByName.value,
             submitted_by_phone: isAnonymous.value ? null : submittedByPhone.value,
+            'cf-turnstile-response': turnstileToken.value,
+            captcha_answer: captchaAnswer.value,
+            captcha_token: props.captchaToken,
             order_id: props.orderContext?.order_id ?? null,
             table_id: props.queryTableId ?? null,
             restaurant_id: props.orderContext?.restaurant_id ?? props.queryRestaurantId ?? null,
@@ -279,7 +319,7 @@ const ratingTexts: Record<number, string> = {
                                 v-model="itemsRating[item.product_id].comment"
                                 type="text" 
                                 placeholder="Góp ý về món ăn này (ví dụ: ngon, mặn, nguội...)" 
-                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                         </div>
                     </div>
@@ -329,7 +369,7 @@ const ratingTexts: Record<number, string> = {
                                 v-model="staffRating[staff.employee_id].comment"
                                 type="text" 
                                 placeholder="Góp ý về nhân viên này (ví dụ: nhiệt tình, chậm chạp...)" 
-                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-905 text-xxs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                         </div>
                     </div>
@@ -387,7 +427,7 @@ const ratingTexts: Record<number, string> = {
                                 type="text"
                                 v-model="submittedByName"
                                 placeholder="Nhập tên của quý khách (tùy chọn)"
-                                class="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 px-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                class="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-905 px-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                         </div>
                         <div class="flex flex-col gap-1">
@@ -399,13 +439,38 @@ const ratingTexts: Record<number, string> = {
                                 type="tel"
                                 v-model="submittedByPhone"
                                 placeholder="Nhập SĐT để nhận mã giảm giá tri ân"
-                                class="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 px-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                class="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-905 px-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                         </div>
                         <div class="flex items-center gap-1.5 text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-normal">
                             <ShieldCheck class="size-3 text-emerald-500 shrink-0" />
                             <span>Thông tin của quý khách được bảo mật tuyệt đối, chỉ phục vụ gửi đền bù.</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- CAPTCHA / Turnstile security verification block -->
+                <div v-if="turnstileSiteKey || captchaQuestion" class="grid gap-2 border-t pt-4 my-1">
+                    <Label class="text-xs font-bold text-slate-650 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg class="size-3.5 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Xác minh bảo mật:
+                    </Label>
+                    
+                    <!-- Cloudflare Turnstile -->
+                    <div v-if="turnstileSiteKey">
+                        <div id="turnstile-container-feedback" class="my-1.5 flex justify-center"></div>
+                        <input type="hidden" name="cf-turnstile-response" :value="turnstileToken" />
+                    </div>
+
+                    <!-- Math CAPTCHA -->
+                    <div v-else-if="captchaQuestion" class="grid gap-2">
+                        <span class="text-xs text-muted-foreground font-semibold leading-normal">
+                            Vui lòng nhập kết quả của phép tính: <strong class="text-primary font-mono text-sm px-1.5 py-0.5 bg-primary/10 rounded border border-primary/20">{{ captchaQuestion }}</strong>
+                        </span>
+                        <input type="hidden" name="captcha_token" :value="captchaToken" />
+                        <input id="captcha_answer" type="number" v-model="captchaAnswer" required
+                            placeholder="Nhập kết quả"
+                            class="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-905 text-xs text-slate-700 dark:text-slate-350 focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     </div>
                 </div>
 

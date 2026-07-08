@@ -11,9 +11,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Concerns\VerifiesTurnstile;
+use App\Concerns\GeneratesSignedCaptcha;
 
 class OnlineOrderController extends Controller
 {
+    use VerifiesTurnstile, GeneratesSignedCaptcha;
     public function __construct(
         private OnlineOrderService $orderService,
         private PaymentGatewayService $paymentService,
@@ -28,6 +31,27 @@ class OnlineOrderController extends Controller
         $restaurant = Restaurant::find($config->restaurant_id);
         $menu = $this->orderService->getPublicMenu($restaurant);
         $gateways = $this->paymentService->getAvailableGateways($config->restaurant_id);
+
+        $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+        $captchaQuestion = null;
+        $captchaToken = null;
+        if (!$turnstileSiteKey) {
+            $num1 = rand(1, 10);
+            $num2 = rand(1, 10);
+            $operator = rand(0, 1) ? '+' : '-';
+            if ($operator === '-') {
+                if ($num1 < $num2) {
+                    $temp = $num1;
+                    $num1 = $num2;
+                    $num2 = $temp;
+                }
+                $answer = $num1 - $num2;
+            } else {
+                $answer = $num1 + $num2;
+            }
+            $captchaToken = $this->generateCaptchaToken((string)$answer);
+            $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+        }
 
         return Inertia::render('online-order/Storefront', [
             'restaurant' => [
@@ -52,6 +76,9 @@ class OnlineOrderController extends Controller
             'products' => $menu['products'],
             'gateways' => $gateways,
             'tracking' => app(\App\Services\Integrations\TrackingService::class)->storefrontConfig($config->restaurant_id),
+            'turnstileSiteKey' => $turnstileSiteKey,
+            'captchaQuestion' => $captchaQuestion,
+            'captchaToken' => $captchaToken,
         ]);
     }
 
@@ -85,6 +112,28 @@ class OnlineOrderController extends Controller
 
     public function checkout(Request $request, string $slug): JsonResponse
     {
+        if (!app()->runningUnitTests()) {
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+            if ($turnstileSiteKey) {
+                $token = $request->input('cf-turnstile-response');
+                if (!$token || !$this->verifyTurnstile($token)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vui lòng hoàn thành xác minh bảo mật Cloudflare Turnstile.'
+                    ], 422);
+                }
+            } else {
+                $captchaAnswer = $request->input('captcha_answer');
+                $captchaToken = $request->input('captcha_token');
+                if (!$this->verifyCaptchaToken($captchaToken, $captchaAnswer)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Câu trả lời xác minh bảo mật không chính xác hoặc đã hết hạn.'
+                    ], 422);
+                }
+            }
+        }
+
         $config = OnlineStoreConfig::withoutGlobalScopes()->where('slug', $slug)->where('is_active', true)->firstOrFail();
 
         $data = $request->validate([

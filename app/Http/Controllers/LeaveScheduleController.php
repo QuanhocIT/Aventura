@@ -252,13 +252,53 @@ class LeaveScheduleController extends Controller
             if ($endProposed->lte($startExist)) {
                 $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
                 if ($restHours < 11.0) {
-                    return back()->withErrors(['shift_name' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc."]);
+                    $hasRestViolation = true;
                 }
             } elseif ($endExist->lte($startProposed)) {
                 $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
                 if ($restHours < 11.0) {
-                    return back()->withErrors(['shift_name' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc."]);
+                    $hasRestViolation = true;
                 }
+            }
+        }
+
+        if ($hasRestViolation) {
+            $bypassCode = $request->input('bypass_code');
+            $bypassReason = $request->input('bypass_reason');
+            $hasBypass = false;
+
+            if ($bypassCode) {
+                try {
+                    $approvingUser = \App\Models\User::validateManagerBypass($bypassCode, $user->restaurant_id);
+                    if ($approvingUser && !empty($bypassReason)) {
+                        $hasBypass = true;
+
+                        \App\Models\AuditLog::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'user_id' => $user->id,
+                            'event' => 'updated',
+                            'action' => 'schedule_rest_rule_bypass',
+                            'ip_address' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'old_values' => [
+                                'employee_id' => $employee->id,
+                                'scheduled_date' => $scheduledDate,
+                                'shift_id' => $shift->id,
+                            ],
+                            'new_values' => [
+                                'bypass_code_used' => true,
+                                'bypass_approver_id' => $approvingUser->id,
+                                'bypass_reason' => $bypassReason,
+                            ],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    return back()->withErrors(['bypass_code' => $e->getMessage()]);
+                }
+            }
+
+            if (!$hasBypass) {
+                return back()->withErrors(['shift_name' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc. Vui lòng nhập mã phê duyệt và lý do để ghi đè đặc cách."]);
             }
         }
 
@@ -386,6 +426,8 @@ class LeaveScheduleController extends Controller
                 })
                 ->get();
 
+            $hasQuotaViolation = false;
+            $violationDate = '';
             for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
                 $dateStr = $date->toDateString();
 
@@ -396,7 +438,49 @@ class LeaveScheduleController extends Controller
                 })->count();
 
                 if (($onLeaveCount + 1) / $totalRoleEmployees > 0.30) {
-                    return back()->withErrors(['start_date' => "Vượt quá giới hạn nghỉ phép đồng thời của bộ phận vào ngày {$date->format('d/m/Y')} (Tối đa 30% nhân sự bộ phận được nghỉ)."]);
+                    $hasQuotaViolation = true;
+                    $violationDate = $date->format('d/m/Y');
+                    break;
+                }
+            }
+
+            if ($hasQuotaViolation) {
+                $bypassCode = $request->input('bypass_code');
+                $bypassReason = $request->input('bypass_reason');
+                $hasBypass = false;
+
+                if ($bypassCode) {
+                    try {
+                        $approvingUser = \App\Models\User::validateManagerBypass($bypassCode, $user->restaurant_id);
+                        if ($approvingUser && !empty($bypassReason)) {
+                            $hasBypass = true;
+
+                            \App\Models\AuditLog::create([
+                                'restaurant_id' => $user->restaurant_id,
+                                'user_id' => $user->id,
+                                'event' => 'created',
+                                'action' => 'leave_quota_bypass',
+                                'ip_address' => $request->ip(),
+                                'user_agent' => $request->userAgent(),
+                                'old_values' => [
+                                    'employee_id' => $employee->id,
+                                    'start_date' => $data['start_date'],
+                                    'end_date' => $data['end_date'],
+                                ],
+                                'new_values' => [
+                                    'bypass_code_used' => true,
+                                    'bypass_approver_id' => $approvingUser->id,
+                                    'bypass_reason' => $bypassReason,
+                                ],
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        return back()->withErrors(['bypass_code' => $e->getMessage()]);
+                    }
+                }
+
+                if (!$hasBypass) {
+                    return back()->withErrors(['start_date' => "Vượt quá giới hạn nghỉ phép đồng thời của bộ phận vào ngày {$violationDate} (Tối đa 30% nhân sự bộ phận được nghỉ). Vui lòng nhập mã phê duyệt và lý do để ghi đè đặc cách."]);
                 }
             }
         }

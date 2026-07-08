@@ -17,6 +17,8 @@ use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
 {
+    use \App\Concerns\GeneratesSignedCaptcha;
+
     public function register(): void
     {
         $this->app->bind(\Laravel\Fortify\Http\Requests\TwoFactorLoginRequest::class, \App\Http\Requests\CustomTwoFactorLoginRequest::class);
@@ -53,10 +55,10 @@ class FortifyServiceProvider extends ServiceProvider
                     }
                 } else {
                     $captchaAnswer = $request->input('captcha_answer');
-                    $expected = session('captcha_answer');
-                    if ($captchaAnswer === null || (int)$captchaAnswer !== $expected) {
+                    $captchaToken = $request->input('captcha_token');
+                    if (!$this->verifyCaptchaToken($captchaToken, $captchaAnswer)) {
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'email' => ['Câu trả lời xác minh bảo mật không chính xác.'],
+                            'email' => ['Câu trả lời xác minh bảo mật không chính xác hoặc đã hết hạn.'],
                         ]);
                     }
                 }
@@ -123,6 +125,7 @@ class FortifyServiceProvider extends ServiceProvider
             ));
 
             $captchaQuestion = null;
+            $captchaToken = null;
             $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
 
             if ($failedAttemptsCount >= 3 && !$turnstileSiteKey) {
@@ -139,7 +142,7 @@ class FortifyServiceProvider extends ServiceProvider
                 } else {
                     $answer = $num1 + $num2;
                 }
-                session(['captcha_answer' => $answer]);
+                $captchaToken = $this->generateCaptchaToken((string)$answer);
                 $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
             }
 
@@ -151,6 +154,7 @@ class FortifyServiceProvider extends ServiceProvider
                 'failedAttemptsCount' => $failedAttemptsCount,
                 'turnstileSiteKey' => $turnstileSiteKey,
                 'captchaQuestion'  => $captchaQuestion,
+                'captchaToken'     => $captchaToken,
             ]);
         });
 
@@ -160,18 +164,68 @@ class FortifyServiceProvider extends ServiceProvider
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]));
 
-        Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/ForgotPassword', [
-            'status' => $request->session()->get('status'),
-        ]));
+        Fortify::requestPasswordResetLinkView(function (Request $request) {
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+            $captchaQuestion = null;
+            $captchaToken = null;
+            if (!$turnstileSiteKey) {
+                $num1 = rand(1, 10);
+                $num2 = rand(1, 10);
+                $operator = rand(0, 1) ? '+' : '-';
+                if ($operator === '-') {
+                    if ($num1 < $num2) {
+                        $temp = $num1;
+                        $num1 = $num2;
+                        $num2 = $temp;
+                    }
+                    $answer = $num1 - $num2;
+                } else {
+                    $answer = $num1 + $num2;
+                }
+                $captchaToken = $this->generateCaptchaToken((string)$answer);
+                $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+            }
+            return Inertia::render('auth/ForgotPassword', [
+                'status' => $request->session()->get('status'),
+                'turnstileSiteKey' => $turnstileSiteKey,
+                'captchaQuestion'  => $captchaQuestion,
+                'captchaToken'     => $captchaToken,
+            ]);
+        });
 
         Fortify::verifyEmailView(fn (Request $request) => Inertia::render('auth/VerifyEmail', [
             'status' => $request->session()->get('status'),
         ]));
 
-        Fortify::registerView(fn () => Inertia::render('auth/Register', [
-            'passwordRules' => Password::defaults()->toPasswordRulesString(),
-            'plans'         => $this->activePlans(),
-        ]));
+        Fortify::registerView(function (Request $request) {
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+            $captchaQuestion = null;
+            $captchaToken = null;
+            if (!$turnstileSiteKey) {
+                $num1 = rand(1, 10);
+                $num2 = rand(1, 10);
+                $operator = rand(0, 1) ? '+' : '-';
+                if ($operator === '-') {
+                    if ($num1 < $num2) {
+                        $temp = $num1;
+                        $num1 = $num2;
+                        $num2 = $temp;
+                    }
+                    $answer = $num1 - $num2;
+                } else {
+                    $answer = $num1 + $num2;
+                }
+                $captchaToken = $this->generateCaptchaToken((string)$answer);
+                $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+            }
+            return Inertia::render('auth/Register', [
+                'passwordRules' => Password::defaults()->toPasswordRulesString(),
+                'plans'         => $this->activePlans(),
+                'turnstileSiteKey' => $turnstileSiteKey,
+                'captchaQuestion'  => $captchaQuestion,
+                'captchaToken'     => $captchaToken,
+            ]);
+        });
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));
         Fortify::confirmPasswordView(fn () => Inertia::render('auth/ConfirmPassword'));

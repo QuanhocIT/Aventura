@@ -437,52 +437,53 @@ class SupplierController extends Controller
                         'status' => 'unpaid',
                     ]);
                 }
+            }
 
-                foreach ($purchaseOrder->items as $item) {
-                    $inventory = Inventory::firstOrCreate(
-                        [
-                            'restaurant_id' => $purchaseOrder->restaurant_id,
-                            'branch_id' => $purchaseOrder->branch_id,
-                            'ingredient_id' => $item->ingredient_id
-                        ],
-                        [
-                            'quantity_on_hand' => 0,
-                            'theoretical_quantity' => 0,
-                            'last_cost' => 0
-                        ]
-                    );
-
-                    $oldQty = (float) $inventory->quantity_on_hand;
-                    $addedQty = (float) $item->quantity_received;
-
-                    $inventory->update([
-                        'quantity_on_hand' => $oldQty + $addedQty,
-                        'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
-                        'last_cost' => $item->invoice_price_per_unit,
-                    ]);
-
-                    // Create purchase transaction
-                    InventoryTransaction::create([
+            // Always update physical inventory and log transactions for what was received
+            foreach ($purchaseOrder->items as $item) {
+                $inventory = Inventory::firstOrCreate(
+                    [
                         'restaurant_id' => $purchaseOrder->restaurant_id,
                         'branch_id' => $purchaseOrder->branch_id,
-                        'ingredient_id' => $item->ingredient_id,
-                        'inventory_id' => $inventory->id,
-                        'performed_by' => $user->id,
-                        'supplier_id' => $purchaseOrder->supplier_id,
-                        'type' => 'purchase',
-                        'direction' => 'in',
-                        'quantity' => $addedQty,
-                        'unit_cost' => $item->invoice_price_per_unit,
-                        'total_cost' => $addedQty * $item->invoice_price_per_unit,
-                        'invoice_file_url' => $invoiceUrl,
-                        'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}",
-                        'occurred_at' => now(),
-                    ]);
-                }
+                        'ingredient_id' => $item->ingredient_id
+                    ],
+                    [
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => 0
+                    ]
+                );
 
-                // Broadcast update
-                event(new PurchaseOrderUpdated($purchaseOrder));
+                $oldQty = (float) $inventory->quantity_on_hand;
+                $addedQty = (float) $item->quantity_received;
+
+                $inventory->update([
+                    'quantity_on_hand' => $oldQty + $addedQty,
+                    'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
+                    'last_cost' => $item->invoice_price_per_unit,
+                ]);
+
+                // Create purchase transaction
+                InventoryTransaction::create([
+                    'restaurant_id' => $purchaseOrder->restaurant_id,
+                    'branch_id' => $purchaseOrder->branch_id,
+                    'ingredient_id' => $item->ingredient_id,
+                    'inventory_id' => $inventory->id,
+                    'performed_by' => $user->id,
+                    'supplier_id' => $purchaseOrder->supplier_id,
+                    'type' => 'purchase',
+                    'direction' => 'in',
+                    'quantity' => $addedQty,
+                    'unit_cost' => $item->invoice_price_per_unit,
+                    'total_cost' => $addedQty * $item->invoice_price_per_unit,
+                    'invoice_file_url' => $invoiceUrl,
+                    'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}" . ($hasDiscrepancy ? " (Đóng băng tài chính do chênh lệch)" : ""),
+                    'occurred_at' => now(),
+                ]);
             }
+
+            // Broadcast update
+            event(new PurchaseOrderUpdated($purchaseOrder));
         });
 
         if ($hasDiscrepancy) {

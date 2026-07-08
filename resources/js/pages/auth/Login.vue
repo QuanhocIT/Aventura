@@ -29,6 +29,7 @@ const props = defineProps<{
     failedAttemptsCount: number;
     turnstileSiteKey?: string;
     captchaQuestion?: string;
+    captchaToken?: string;
 }>();
 
 const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -169,6 +170,7 @@ return 20;
                                 <span class="text-xs text-muted-foreground font-semibold leading-normal">
                                     Vui lòng nhập kết quả của phép tính: <strong class="text-primary font-mono text-sm px-1.5 py-0.5 bg-primary/10 rounded border border-primary/20">{{ captchaQuestion }}</strong>
                                 </span>
+                                <input type="hidden" name="captcha_token" :value="captchaToken" />
                                 <Input id="captcha_answer" type="number" name="captcha_answer" required
                                     placeholder="Nhập kết quả"
                                     class="rounded-xl border-zinc-200 dark:border-zinc-800 transition-all duration-300 focus-visible:ring-primary/20 focus-visible:border-primary shadow-sm text-xs h-9 font-semibold" />

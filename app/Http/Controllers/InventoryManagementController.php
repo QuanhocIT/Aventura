@@ -634,4 +634,81 @@ class InventoryManagementController extends Controller
         return back()->with('success', 'Đã ghi nhận hao hụt nguyên liệu.');
     }
 
+    /**
+     * Cập nhật nhanh số lượng thực tế kiểm kho (Fast Reconciliation).
+     */
+    public function reconcile(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $data = $request->validate([
+            'reconcile_items' => ['required', 'array'],
+            'reconcile_items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
+            'reconcile_items.*.physical_qty' => ['required', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $user = $request->user();
+
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($user, $data) {
+                foreach ($data['reconcile_items'] as $item) {
+                    $ingredientId = $item['ingredient_id'];
+                    $physicalQty = (float) $item['physical_qty'];
+
+                    // Lock ingredient and inventory
+                    $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
+                    $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                        ->where('ingredient_id', $ingredientId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$inventory) {
+                        $inventory = Inventory::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'ingredient_id' => $ingredientId,
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => 0,
+                        ]);
+                        $inventory = Inventory::where('id', $inventory->id)->lockForUpdate()->firstOrFail();
+                    }
+
+                    $currentQty = (float) $inventory->quantity_on_hand;
+                    $discrepancy = $physicalQty - $currentQty;
+
+                    if ($discrepancy != 0) {
+                        $direction = $discrepancy > 0 ? 'in' : 'out';
+                        $absQty = abs($discrepancy);
+
+                        InventoryTransaction::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'ingredient_id' => $ingredientId,
+                            'inventory_id'  => $inventory->id,
+                            'performed_by'  => $user->id,
+                            'type'          => 'stocktake',
+                            'direction'     => $direction,
+                            'quantity'      => $absQty,
+                            'unit_cost'     => (float) $ingredient->average_cost,
+                            'total_cost'    => $absQty * (float) $ingredient->average_cost,
+                            'notes'         => $data['notes'] ?? 'Kiểm kho nhanh định kỳ',
+                            'occurred_at'   => now(),
+                        ]);
+                    }
+
+                    $inventory->update([
+                        'quantity_on_hand' => $physicalQty,
+                        'theoretical_quantity' => $physicalQty,
+                        'last_counted_at' => now(),
+                        'updated_by' => $user->id,
+                    ]);
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['reconcile_items' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Đã hoàn thành kiểm kho và đối chiếu lệch.');
+    }
+
 }

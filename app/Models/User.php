@@ -188,7 +188,8 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         $cashier = auth()->user();
-        $cacheKey = $cashier ? "failed_bypass_attempts:{$restaurantId}:{$cashier->id}" : null;
+        $ip = request()->ip();
+        $cacheKey = "failed_bypass_attempts:{$restaurantId}:" . ($cashier ? $cashier->id : "ip:{$ip}");
 
         if ($cacheKey) {
             $failedAttempts = (int) \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
@@ -217,19 +218,35 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // 2. Kiểm tra nếu mã chứa định dạng email:password (Đăng nhập nhanh)
         if (!$matchedUser && str_contains($bypassCode, ':')) {
-            [$email, $password] = explode(':', $bypassCode, 2);
-            $user = self::where('restaurant_id', $restaurantId)
-                ->where('email', trim($email))
-                ->first();
-            if ($user && \Illuminate\Support\Facades\Hash::check($password, $user->password)) {
-                if ($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests')) {
-                    $matchedUser = $user;
+            $parts = explode(':', $bypassCode, 2);
+            // Check if format is user_id:pin (direct fast PIN match)
+            if (is_numeric($parts[0]) && preg_match('/^\d{4,6}$/', $parts[1])) {
+                $userId = (int) $parts[0];
+                $pin = $parts[1];
+                $user = self::where('restaurant_id', $restaurantId)
+                    ->where('id', $userId)
+                    ->first();
+                if ($user && ($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests'))) {
+                    if ($user->pin_code && \Illuminate\Support\Facades\Hash::check($pin, $user->pin_code)) {
+                        $matchedUser = $user;
+                    }
+                }
+            } else {
+                // Email:password fast login fallback
+                [$email, $password] = $parts;
+                $user = self::where('restaurant_id', $restaurantId)
+                    ->where('email', trim($email))
+                    ->first();
+                if ($user && \Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+                    if ($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests')) {
+                        $matchedUser = $user;
+                    }
                 }
             }
         }
 
-        // 3. Kiểm tra mã PIN 4-6 số của tất cả Owner / Manager thuộc nhà hàng này
-        if (!$matchedUser) {
+        // 3. Kiểm tra mã PIN 4-6 số của tất cả Owner / Manager thuộc nhà hàng này (Chỉ chạy khi là chuỗi số 4-6 ký tự)
+        if (!$matchedUser && preg_match('/^\d{4,6}$/', $bypassCode)) {
             $managers = self::where('restaurant_id', $restaurantId)
                 ->whereNotNull('pin_code')
                 ->get();

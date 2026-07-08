@@ -24,14 +24,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (DB::connection()->getDriverName() !== 'mysql') {
-            // SQLite không hỗ trợ tốt UNION view — bỏ qua
-            return;
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+
+        if ($isSqlite) {
+            DB::statement('DROP VIEW IF EXISTS orders_unified');
         }
 
         // ── orders_unified ───────────────────────────────────────────────────
         DB::statement("
-            CREATE OR REPLACE VIEW orders_unified AS
+            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW orders_unified AS
             SELECT
                 id, restaurant_id, branch_id, table_id, customer_id,
                 created_by, cashier_user_id, order_number, channel, status,
@@ -60,9 +61,13 @@ return new class extends Migration
             FROM orders_archive
         ");
 
+        if ($isSqlite) {
+            DB::statement('DROP VIEW IF EXISTS order_items_unified');
+        }
+
         // ── order_items_unified ──────────────────────────────────────────────
         DB::statement("
-            CREATE OR REPLACE VIEW order_items_unified AS
+            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW order_items_unified AS
             SELECT
                 id, restaurant_id, order_id, product_id, quantity,
                 unit_price, discount_amount, line_total, status,

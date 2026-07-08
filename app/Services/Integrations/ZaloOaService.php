@@ -7,6 +7,7 @@ use App\Models\RestaurantIntegration;
 use App\Services\CircuitBreaker;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Gửi tin nhắn chăm sóc khách hàng qua Zalo Official Account (Open API v3).
@@ -77,7 +78,25 @@ class ZaloOaService
             return false;
         }
 
-        return $this->sendMessage($order->restaurant_id, $zaloUserId, $text);
+        $rateLimitKey = "zalo_oa_send:{$order->restaurant_id}:{$zaloUserId}";
+        $sent = RateLimiter::attempt(
+            $rateLimitKey,
+            1, // Max attempts
+            function () use ($order, $zaloUserId, $text) {
+                return $this->sendMessage($order->restaurant_id, $zaloUserId, $text);
+            },
+            60 // Decay seconds
+        );
+
+        if (! $sent) {
+            Log::channel('daily')->warning('[ZALO-OA:RATELIMIT] Throttled message to recipient', [
+                'recipient' => $zaloUserId,
+                'order' => $order->order_number,
+            ]);
+            return false;
+        }
+
+        return true;
     }
 
     /** Kiểm tra kết nối OA — dùng cho nút "Kiểm tra" trên trang Tích hợp. */

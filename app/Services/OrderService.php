@@ -39,6 +39,117 @@ class OrderService
                 ->get()
                 ->keyBy('id');
 
+            // Conflict Resolution: Check if table already has an active order (pending/preparing/ready/served)
+            if (!empty($data['table_id'])) {
+                $existingActiveOrder = Order::where('restaurant_id', $restaurantId)
+                    ->where('table_id', $data['table_id'])
+                    ->whereIn('status', ['pending', 'preparing', 'ready', 'served'])
+                    ->first();
+
+                if ($existingActiveOrder) {
+                    foreach ($data['items'] as $itemData) {
+                        $product = $products->get($itemData['product_id'])
+                            ?? abort(422, 'Sản phẩm không tìm thấy: ' . $itemData['product_id']);
+
+                        $lineTotal = (float) $product->price * (float) $itemData['quantity'];
+
+                        // Check if item already exists in the active order
+                        $existingItem = null;
+                        if (!empty($itemData['client_item_id'])) {
+                            $existingItem = OrderItem::where('order_id', $existingActiveOrder->id)
+                                ->where('client_item_id', $itemData['client_item_id'])
+                                ->first();
+                        }
+
+                        if ($existingItem) {
+                            // Idempotent check: if client_item_id is matched, this is a duplicate sync of the same item.
+                            // We only update if status is pending and quantity increased.
+                            if ($existingItem->status === 'pending') {
+                                $diff = (float) $itemData['quantity'] - $existingItem->quantity;
+                                if ($diff > 0) {
+                                    $existingItem->increment('quantity', $diff);
+                                    $existingItem->increment('line_total', (float) $product->price * $diff);
+
+                                    // Reserve inventory (holding stock) for the diff
+                                    if ($product->track_inventory) {
+                                        foreach ($product->recipes as $recipe) {
+                                            $totalUsed = ($recipe->quantity * $diff) * (1 + ($recipe->waste_rate / 100));
+                                            InventoryReservation::create([
+                                                'restaurant_id' => $restaurantId,
+                                                'order_id' => $existingActiveOrder->id,
+                                                'ingredient_id' => $recipe->ingredient_id,
+                                                'reserved_quantity' => $totalUsed,
+                                                'status' => 'holding',
+                                                'expires_at' => now()->addHours(4),
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+
+                        // Fallback to old behavior for backward compatibility
+                        $existingItem = OrderItem::where('order_id', $existingActiveOrder->id)
+                            ->where('product_id', $product->id)
+                            ->where('status', 'pending')
+                            ->first();
+
+                        if ($existingItem) {
+                            $existingItem->increment('quantity', (float) $itemData['quantity']);
+                            $existingItem->increment('line_total', $lineTotal);
+                        } else {
+                            OrderItem::create([
+                                'restaurant_id' => $restaurantId,
+                                'order_id' => $existingActiveOrder->id,
+                                'product_id' => $product->id,
+                                'quantity' => (float) $itemData['quantity'],
+                                'unit_price' => (float) $product->price,
+                                'discount_amount' => 0,
+                                'line_total' => $lineTotal,
+                                'status' => 'pending',
+                                'notes' => ($itemData['notes'] ?? '') . ' (Offline Sync)',
+                                'client_item_id' => $itemData['client_item_id'] ?? null,
+                            ]);
+                        }
+
+                        // Reserve inventory (holding stock)
+                        if ($product->track_inventory) {
+                            foreach ($product->recipes as $recipe) {
+                                $totalUsed = ($recipe->quantity * $itemData['quantity']) * (1 + ($recipe->waste_rate / 100));
+                                InventoryReservation::create([
+                                    'restaurant_id' => $restaurantId,
+                                    'order_id' => $existingActiveOrder->id,
+                                    'ingredient_id' => $recipe->ingredient_id,
+                                    'reserved_quantity' => $totalUsed,
+                                    'status' => 'holding',
+                                    'expires_at' => now()->addHours(4),
+                                ]);
+                            }
+                        }
+                    }
+
+                    // Recalculate totals
+                    $newSubtotal = OrderItem::where('order_id', $existingActiveOrder->id)->sum('line_total');
+                    $existingActiveOrder->update([
+                        'subtotal' => $newSubtotal,
+                        'total_amount' => max(0.00, $newSubtotal - $existingActiveOrder->discount_amount),
+                        'note' => ($existingActiveOrder->note ? $existingActiveOrder->note . ' ' : '') . '[Gộp đơn trùng bàn do đồng bộ Offline]',
+                    ]);
+
+                    // P1: Debounce broadcast
+                    $this->fireStockUpdatedDebounced($restaurantId);
+
+                    AuditLog::log('order_merged', 'updated', $existingActiveOrder, null, [
+                        'merged_items_count' => count($data['items'])
+                    ]);
+
+                    event(new KitchenUpdated($restaurantId));
+
+                    return $existingActiveOrder;
+                }
+            }
+
             $subtotal = 0;
             $itemsToCreate = [];
 
@@ -58,6 +169,7 @@ class OrderService
                     'line_total' => $lineTotal,
                     'status' => 'pending',
                     'notes' => $itemData['notes'] ?? null,
+                    'client_item_id' => $itemData['client_item_id'] ?? null,
                 ];
             }
 
@@ -302,6 +414,27 @@ class OrderService
             ];
 
             if (isset($data['items'])) {
+                $payloadItemIds = collect($data['items'])->pluck('id')->filter()->toArray();
+                
+                // Mark omitted items as cancelled and release reservations
+                $cancelledItems = OrderItem::where('order_id', $order->id)
+                    ->whereNotIn('id', $payloadItemIds)
+                    ->get();
+                
+                foreach ($cancelledItems as $cItem) {
+                    $cItem->update(['status' => 'cancelled']);
+                    
+                    $product = Product::with('recipes')->find($cItem->product_id);
+                    if ($product && $product->track_inventory) {
+                        foreach ($product->recipes as $recipe) {
+                            InventoryReservation::where('order_id', $order->id)
+                                ->where('ingredient_id', $recipe->ingredient_id)
+                                ->where('status', 'holding')
+                                ->update(['status' => 'released']);
+                        }
+                    }
+                }
+
                 foreach ($data['items'] as $itemData) {
                     if (!empty($itemData['id'])) {
                         $item = OrderItem::where('order_id', $order->id)
@@ -336,7 +469,7 @@ class OrderService
                 }
             }
 
-            $subtotal = $order->items()->sum('line_total');
+            $subtotal = $order->items()->where('status', '!=', 'cancelled')->sum('line_total');
             $discount = isset($data['discount_amount']) ? (float) $data['discount_amount'] : $order->discount_amount;
 
             // Apply loyalty discount if customer is attached and discount is not manually specified

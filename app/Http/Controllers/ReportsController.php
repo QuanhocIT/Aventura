@@ -194,12 +194,12 @@ class ReportsController extends Controller
 
         $topProducts = Cache::remember($topProductsCacheKey, 600, function () use ($restaurantId, $startDate, $endDate) {
             return DB::table('order_items_unified')
-                ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+                ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
                 ->join('products', 'order_items_unified.product_id', '=', 'products.id')
-                ->where('orders.restaurant_id', $restaurantId)
-                ->where('orders.status', 'completed')
-                ->whereBetween('orders.completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
-                ->select('products.name', DB::raw('SUM(order_items.quantity) as total_qty'), DB::raw('SUM(order_items.line_total) as total_revenue'))
+                ->where('orders_unified.restaurant_id', $restaurantId)
+                ->where('orders_unified.status', 'completed')
+                ->whereBetween('orders_unified.completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+                ->select('products.name', DB::raw('SUM(order_items_unified.quantity) as total_qty'), DB::raw('SUM(order_items_unified.line_total) as total_revenue'))
                 ->groupBy('products.id', 'products.name')
                 ->orderByDesc('total_revenue')
                 ->limit(10)
@@ -381,6 +381,67 @@ class ReportsController extends Controller
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=bao-cao-{$period}.csv",
+        ]);
+    }
+
+    /**
+     * Báo cáo đối soát chéo lượng món ăn bếp chế biến (KDS) vs lượng món đã thanh toán ở POS.
+     */
+    public function crossReconciliation(Request $request): Response
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $period = $request->input('period', '7days');
+
+        $endDate   = today();
+        $startDate = match ($period) {
+            '30days' => today()->subDays(29),
+            'month'  => today()->startOfMonth(),
+            default  => today()->subDays(6),
+        };
+
+        $reconciliation = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->where('order_items.restaurant_id', $restaurantId)
+            ->whereBetween('order_items.created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->select(
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.price as product_price',
+                'products.cost_price as cost_price',
+                DB::raw('SUM(CASE WHEN order_items.prepared_at IS NOT NULL OR order_items.served_at IS NOT NULL THEN order_items.quantity ELSE 0 END) as cooked_qty'),
+                DB::raw('SUM(CASE WHEN orders.status = "completed" AND orders.payment_status = "paid" AND order_items.status != "cancelled" THEN order_items.quantity ELSE 0 END) as billed_qty')
+            )
+            ->groupBy('products.id', 'products.name', 'products.price', 'products.cost_price')
+            ->get()
+            ->map(function ($row) {
+                $row->cooked_qty = (float) $row->cooked_qty;
+                $row->billed_qty = (float) $row->billed_qty;
+                $row->discrepancy = max(0.0, $row->cooked_qty - $row->billed_qty);
+                $row->potential_loss_cost = $row->discrepancy * (float) ($row->cost_price ?: ($row->product_price * 0.4));
+                $row->potential_loss_retail = $row->discrepancy * (float) $row->product_price;
+                return $row;
+            })
+            ->filter(fn ($row) => $row->cooked_qty > 0 || $row->billed_qty > 0)
+            ->values();
+
+        $totals = [
+            'total_cooked' => $reconciliation->sum('cooked_qty'),
+            'total_billed' => $reconciliation->sum('billed_qty'),
+            'total_discrepancy' => $reconciliation->sum('discrepancy'),
+            'total_loss_cost' => $reconciliation->sum('potential_loss_cost'),
+            'total_loss_retail' => $reconciliation->sum('potential_loss_retail'),
+        ];
+
+        return Inertia::render('reports/Reconciliation', [
+            'reconciliation' => $reconciliation,
+            'totals' => $totals,
+            'period' => $period,
+            'dateRange' => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
         ]);
     }
 }

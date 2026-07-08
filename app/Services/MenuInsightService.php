@@ -259,21 +259,21 @@ class MenuInsightService
 
         // Orders trước midpoint = original price, sau midpoint = test price
         $ordersOriginal = DB::table('order_items_unified')
-            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
-            ->where('orders.restaurant_id', $test->restaurant_id)
-            ->where('orders.status', 'completed')
-            ->where('order_items.product_id', $test->product_id)
-            ->whereBetween('orders.completed_at', [$startAt, $midpoint])
-            ->selectRaw('COUNT(*) as count, SUM(order_items.line_total) as revenue')
+            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->where('orders_unified.restaurant_id', $test->restaurant_id)
+            ->where('orders_unified.status', 'completed')
+            ->where('order_items_unified.product_id', $test->product_id)
+            ->whereBetween('orders_unified.completed_at', [$startAt, $midpoint])
+            ->selectRaw('COUNT(*) as count, SUM(order_items_unified.line_total) as revenue')
             ->first();
 
         $ordersTest = DB::table('order_items_unified')
-            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
-            ->where('orders.restaurant_id', $test->restaurant_id)
-            ->where('orders.status', 'completed')
-            ->where('order_items.product_id', $test->product_id)
-            ->whereBetween('orders.completed_at', [$midpoint, $endAt])
-            ->selectRaw('COUNT(*) as count, SUM(order_items.line_total) as revenue')
+            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->where('orders_unified.restaurant_id', $test->restaurant_id)
+            ->where('orders_unified.status', 'completed')
+            ->where('order_items_unified.product_id', $test->product_id)
+            ->whereBetween('orders_unified.completed_at', [$midpoint, $endAt])
+            ->selectRaw('COUNT(*) as count, SUM(order_items_unified.line_total) as revenue')
             ->first();
 
         $origCount = (int) ($ordersOriginal?->count ?? 0);
@@ -330,18 +330,18 @@ class MenuInsightService
         $to = now()->subDays($offsetDays);
 
         return DB::table('order_items_unified')
-            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
             ->join('products', 'order_items_unified.product_id', '=', 'products.id')
-            ->where('orders.restaurant_id', $restaurantId)
-            ->where('orders.status', 'completed')
-            ->whereBetween('orders.completed_at', [$from, $to])
+            ->where('orders_unified.restaurant_id', $restaurantId)
+            ->where('orders_unified.status', 'completed')
+            ->whereBetween('orders_unified.completed_at', [$from, $to])
             ->select(
                 'products.id as product_id',
                 'products.name',
                 'products.price',
                 'products.cost_price',
-                DB::raw('SUM(order_items.quantity) as total_qty'),
-                DB::raw('SUM(order_items.line_total) as total_revenue')
+                DB::raw('SUM(order_items_unified.quantity) as total_qty'),
+                DB::raw('SUM(order_items_unified.line_total) as total_revenue')
             )
             ->groupBy('products.id', 'products.name', 'products.price', 'products.cost_price')
             ->orderByDesc('total_revenue')

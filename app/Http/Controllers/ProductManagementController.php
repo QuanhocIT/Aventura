@@ -87,7 +87,7 @@ class ProductManagementController extends Controller
 
         $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
-            'category_id' => ['required', 'exists:product_categories,id'],
+            'category_id' => ['required', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'description' => ['required', 'string', 'min:5'],
@@ -131,7 +131,7 @@ class ProductManagementController extends Controller
         $data = $request->validate([
             'name'         => ['sometimes', 'string', 'max:255'],
             'price'        => ['sometimes', 'numeric', 'min:0'],
-            'category_id'  => ['nullable', 'exists:product_categories,id'],
+            'category_id'  => ['nullable', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'description'  => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
             'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],

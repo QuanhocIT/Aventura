@@ -11,6 +11,13 @@ use App\Http\Controllers\NewsController;
 // Chatbot API — public (rate limited)
 use Illuminate\Support\Facades\Route;
 
+use Laravel\Fortify\Http\Controllers\PasswordResetLinkController;
+use App\Http\Middleware\ValidateForgotPasswordCaptcha;
+
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
+    ->middleware(['web', 'guest', ValidateForgotPasswordCaptcha::class])
+    ->name('password.email');
+
 Route::middleware('throttle:30,1')->group(function () {
     Route::post('api/chatbot/message', [ChatbotController::class, 'message'])->name('chatbot.message');
     Route::get('api/chatbot/suggestions', [ChatbotController::class, 'suggestions'])->name('chatbot.suggestions');

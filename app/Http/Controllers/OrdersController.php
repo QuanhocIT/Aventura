@@ -83,6 +83,7 @@ class OrdersController extends Controller
              'items.*.product_id' => ['required', "exists:products,id,restaurant_id,{$rid}"],
              'items.*.quantity'   => ['required', 'numeric', 'min:0.01'],
              'items.*.notes'      => ['nullable', 'string', 'max:255'],
+             'items.*.client_item_id' => ['nullable', 'string', 'max:100'],
              'guests_count'       => ['nullable', 'integer', 'min:1'],
              // Delivery-specific fields
              'delivery_customer_name' => ['required_if:channel,delivery', 'nullable', 'string', 'max:255'],
@@ -314,22 +315,42 @@ class OrdersController extends Controller
             }
         }
 
-        // Order Locking: Cannot delete existing items or decrease quantity of existing items once they have been created (saved to DB)
+        // Order Locking: Allow deleting or decreasing quantity of items if they are still 'pending' or 'sent'.
+        // If they are 'preparing', 'ready', or 'served', require a manager bypass.
         if (isset($data['items'])) {
             $payloadItemIds = collect($data['items'])->pluck('id')->filter()->toArray();
             $dbItems = $order->items()->where('status', '!=', 'cancelled')->get();
+            
+            $needsBypass = false;
+            $bypassReasons = [];
 
             foreach ($dbItems as $dbItem) {
-                // If an existing item is missing from the payload, it means it is deleted
-                if (!in_array($dbItem->id, $payloadItemIds)) {
-                    return back()->withErrors(['items' => 'Món ăn đã được tạo và gửi thông báo. Bạn không thể xóa món ăn khỏi đơn.']);
-                }
-
-                // If quantity is decreased
+                $isDeleted = !in_array($dbItem->id, $payloadItemIds);
                 $payloadItem = collect($data['items'])->firstWhere('id', $dbItem->id);
-                if ($payloadItem && (float) $payloadItem['quantity'] < (float) $dbItem->quantity) {
-                    return back()->withErrors(['items' => 'Món ăn đã được tạo và gửi thông báo. Bạn không thể giảm số lượng món ăn.']);
+                $isDecreased = $payloadItem && (float) $payloadItem['quantity'] < (float) $dbItem->quantity;
+
+                if ($isDeleted || $isDecreased) {
+                    // Check if the item is already being cooked or served
+                    if (in_array($dbItem->status, ['preparing', 'ready', 'served'])) {
+                        $needsBypass = true;
+                        $bypassReasons[] = ($isDeleted ? "Xóa món" : "Giảm số lượng") . " {$dbItem->product->name} (Trạng thái: {$dbItem->status})";
+                    }
                 }
+            }
+
+            if ($needsBypass) {
+                $approvingUser = \App\Models\User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+                if (!$approvingUser) {
+                    return back()->withErrors(['items' => 'Thay đổi hoặc xóa món ăn đã chế biến yêu cầu mã phê duyệt của quản lý hoặc chưa cấu hình mã phê duyệt. Chi tiết: ' . implode(', ', $bypassReasons)]);
+                }
+                
+                // Log the bypass action
+                \App\Models\AuditLog::log('order_item_lock_bypass', 'updated', $order, null, [
+                    'reasons' => $bypassReasons,
+                    'bypass_code_used' => true,
+                    'approved_by_user_id' => $approvingUser->id,
+                    'approved_by_user_name' => $approvingUser->name
+                ]);
             }
         }
 

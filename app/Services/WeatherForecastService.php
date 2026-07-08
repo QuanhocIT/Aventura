@@ -29,17 +29,17 @@ class WeatherForecastService
         // 2. Lấy dữ liệu bán hàng thực tế 30 ngày qua
         $startDate = now()->subDays(30);
         $sales = DB::table('order_items_unified')
-            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
             ->join('products', 'order_items_unified.product_id', '=', 'products.id')
             ->join('product_categories', 'products.category_id', '=', 'product_categories.id')
-            ->where('orders.restaurant_id', $restaurantId)
-            ->where('orders.status', 'completed')
-            ->where('orders.created_at', '>=', $startDate)
+            ->where('orders_unified.restaurant_id', $restaurantId)
+            ->where('orders_unified.status', 'completed')
+            ->where('orders_unified.created_at', '>=', $startDate)
             ->select(
                 'products.id as product_id',
                 'products.name as product_name',
                 'product_categories.name as category_name',
-                DB::raw('SUM(order_items.quantity) as total_qty')
+                DB::raw('SUM(order_items_unified.quantity) as total_qty')
             )
             ->groupBy('products.id', 'products.name', 'product_categories.name')
             ->get();

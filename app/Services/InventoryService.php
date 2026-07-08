@@ -32,6 +32,7 @@ class InventoryService
             }
         }
         $ingredientIds = array_unique($ingredientIds);
+        sort($ingredientIds);
 
         $lockedInventories = collect();
         if (!empty($ingredientIds)) {

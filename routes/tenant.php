@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/recipes', [InventoryManagementController::class, 'storeRecipe'])->name('inventory.recipes.store');
     Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [InventoryManagementController::class, 'storeWaste'])->name('inventory.waste.store');
+    Route::post('inventory/reconcile', [InventoryManagementController::class, 'reconcile'])->name('inventory.reconcile');
 
     Route::get('employees', [EmployeeManagementController::class, 'employeesPage'])->name('employees.index');
     Route::post('employees', [EmployeeManagementController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
@@ -307,6 +308,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
     Route::get('reports/export-pdf', [\App\Http\Controllers\ReportsController::class, 'exportPdf'])->name('reports.export-pdf');
     Route::get('reports/export-csv', [\App\Http\Controllers\ReportsController::class, 'exportCsv'])->name('reports.export-csv');
+    Route::get('reports/reconciliation', [\App\Http\Controllers\ReportsController::class, 'crossReconciliation'])->name('reports.reconciliation');
 
     // Expenses / OPEX Tracker
     Route::prefix('expenses')->name('expenses.')->group(function () {

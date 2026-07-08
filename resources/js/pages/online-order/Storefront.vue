@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Minus, MapPin, Plus, ShoppingCart, Store, Truck, X, Loader2, CheckCircle2 } from 'lucide-vue-next';
+import { Minus, MapPin, Plus, ShoppingCart, Store, Truck, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fireConfetti } from '@/composables/useConfetti';
 import { useOfflineQueue } from '@/composables/useOfflineQueue';
 import { useTracking } from '@/composables/useTracking';
@@ -24,10 +25,50 @@ const props = defineProps<{
     products: Record<number, { id: number; name: string; description: string | null; price: number; image_url: string | null; category_id: number }[]>;
     gateways: { key: string; name: string }[];
     tracking?: { ga_measurement_id?: string | null; fb_pixel_id?: string | null };
+    turnstileSiteKey?: string;
+    captchaQuestion?: string;
+    captchaToken?: string;
 }>();
 
 const analytics = useTracking(props.tracking ?? {});
-onMounted(() => analytics.init());
+const turnstileToken = ref('');
+const captchaAnswer = ref('');
+
+onMounted(() => {
+    analytics.init();
+
+    if (props.turnstileSiteKey) {
+        // @ts-ignore
+        if (!window.turnstile) {
+            const script = document.createElement('script');
+            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallbackStorefront';
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+
+            // @ts-ignore
+            window.onloadTurnstileCallbackStorefront = () => {
+                // @ts-ignore
+                window.turnstile.render('#turnstile-container-storefront', {
+                    sitekey: props.turnstileSiteKey,
+                    callback: (token: string) => {
+                        turnstileToken.value = token;
+                    },
+                });
+            };
+        } else {
+            setTimeout(() => {
+                // @ts-ignore
+                window.turnstile.render('#turnstile-container-storefront', {
+                    sitekey: props.turnstileSiteKey,
+                    callback: (token: string) => {
+                        turnstileToken.value = token;
+                    },
+                });
+            }, 100);
+        }
+    }
+});
 
 const activeCategory = ref<number | null>(props.categories[0]?.id ?? null);
 const cart = ref<Record<number, { id: number; name: string; price: number; quantity: number; notes: string }>>({});
@@ -47,6 +88,85 @@ const scheduledAt = ref('');
 const submitting = ref(false);
 const orderResult = ref<{ order_number: string; payment_url: string | null; track_url: string } | null>(null);
 const calculatingFee = ref(false);
+
+const showOfflinePrintDialog = ref(false);
+const offlineOrderDetails = ref<any>(null);
+
+function printOfflineReceipt() {
+    if (!offlineOrderDetails.value) return;
+
+    const order = offlineOrderDetails.value;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        toast.error('Trình chặn Pop-up đã ngăn chặn việc in ấn. Vui lòng cho phép pop-up cho trang web này.');
+        return;
+    }
+
+    const itemsHtml = order.items.map((i: any) => `
+        <tr style="border-bottom: 1px dashed #ccc;">
+            <td style="padding: 6px 0;">${i.quantity}x ${i.name}</td>
+            <td style="padding: 6px 0; text-align: right;">${(i.price * i.quantity).toLocaleString()}đ</td>
+        </tr>
+    `).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>VÉ CHẾ BIẾN BẾP (OFFLINE FALLBACK)</title>
+                <style>
+                    body { font-family: monospace; padding: 10px; max-width: 300px; margin: 0 auto; font-size: 13px; color: #000; }
+                    .header { text-align: center; margin-bottom: 15px; }
+                    .header h2 { margin: 0 0 5px 0; font-size: 16px; }
+                    .header p { margin: 0; font-size: 11px; }
+                    .info { margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 8px; }
+                    .info p { margin: 3px 0; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                    .total { text-align: right; font-weight: bold; font-size: 14px; margin-top: 10px; border-top: 2px dashed #000; padding-top: 8px; }
+                    .notes { margin-top: 10px; padding: 6px; border: 1px solid #000; font-size: 11px; }
+                    .footer { text-align: center; margin-top: 20px; font-size: 11px; border-top: 1px solid #000; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>VÉ CHẾ BIẾN BẾP</h2>
+                    <p>(Chế độ Offline Dự phòng)</p>
+                </div>
+                <div class="info">
+                    <p><strong>Mã đơn tạm:</strong> ${order.order_number}</p>
+                    <p><strong>Khách hàng:</strong> ${order.customer_name || 'Khách vãng lai'}</p>
+                    <p><strong>Số điện thoại:</strong> ${order.phone || 'N/A'}</p>
+                    <p><strong>Hình thức:</strong> ${order.channel === 'delivery' ? 'Giao hàng' : 'Mang về'}</p>
+                    <p><strong>Thời gian:</strong> ${order.created_at}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr style="border-bottom: 2px dashed #000;">
+                            <th style="text-align: left; padding-bottom: 4px;">Món ăn</th>
+                            <th style="text-align: right; padding-bottom: 4px;">Tạm tính</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <div class="total">
+                    TỔNG CỘNG: ${order.total.toLocaleString()}đ
+                </div>
+                ${order.note ? `<div class="notes"><strong>Ghi chú:</strong> ${order.note}</div>` : ''}
+                <div class="footer">
+                    Vui lòng đưa vé này cho bếp chế biến thủ công. Đơn hàng sẽ được tự động đồng bộ khi có kết nối internet trở lại.
+                </div>
+                <' + 'script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 500);
+                    };
+                <' + '/script>
+            <' + '/body>
+        <' + '/html>
+    `);
+    printWindow.document.close();
+}
 
 const cartItems = computed(() => Object.values(cart.value));
 const cartCount = computed(() => cartItems.value.reduce((sum, i) => sum + i.quantity, 0));
@@ -150,12 +270,26 @@ async function submitOrder() {
             payment_method: paymentMethod.value,
             note: note.value,
             scheduled_at: scheduledAt.value || null,
+            'cf-turnstile-response': turnstileToken.value,
+            captcha_answer: captchaAnswer.value,
+            captcha_token: props.captchaToken,
         });
 
         if (result.queued) {
+            offlineOrderDetails.value = {
+                order_number: 'OFFLINE-' + Math.floor(100000 + Math.random() * 900000),
+                customer_name: customerName.value,
+                phone: phone.value,
+                channel: channel.value,
+                items: cartItems.value.map(i => ({ product_id: i.id, name: i.name, quantity: i.quantity, notes: i.notes, price: i.price })),
+                total: total.value,
+                note: note.value,
+                created_at: new Date().toLocaleString(),
+            };
             cart.value = {};
             showCart.value = false;
             showCheckout.value = false;
+            showOfflinePrintDialog.value = true;
             toast.warning('Mất kết nối mạng — đơn đã được lưu và sẽ tự động gửi ngay khi có mạng trở lại.');
 
             return;
@@ -395,6 +529,31 @@ async function submitOrder() {
                         <Input v-model="note" placeholder="Ghi chú thêm cho nhà hàng..." />
                     </div>
 
+                    <!-- CAPTCHA / Turnstile security verification block -->
+                    <div v-if="turnstileSiteKey || captchaQuestion" class="grid gap-2 border-t pt-3 my-1">
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <svg class="size-3.5 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Xác minh bảo mật
+                        </Label>
+                        
+                        <!-- Cloudflare Turnstile -->
+                        <div v-if="turnstileSiteKey">
+                            <div id="turnstile-container-storefront" class="my-1.5 flex justify-center"></div>
+                            <input type="hidden" name="cf-turnstile-response" :value="turnstileToken" />
+                        </div>
+
+                        <!-- Math CAPTCHA -->
+                        <div v-else-if="captchaQuestion" class="grid gap-2">
+                            <span class="text-xs text-muted-foreground font-semibold leading-normal">
+                                Vui lòng nhập kết quả của phép tính: <strong class="text-primary font-mono text-sm px-1.5 py-0.5 bg-primary/10 rounded border border-primary/20">{{ captchaQuestion }}</strong>
+                            </span>
+                            <input type="hidden" name="captcha_token" :value="captchaToken" />
+                            <Input id="captcha_answer" type="number" v-model="captchaAnswer" required
+                                placeholder="Nhập kết quả"
+                                class="rounded-xl border-zinc-200 dark:border-zinc-800 transition-all duration-300 focus-visible:ring-primary/20 focus-visible:border-primary shadow-sm text-xs h-9 font-semibold" />
+                        </div>
+                    </div>
+
                     <!-- Summary -->
                     <div class="border-t pt-3 space-y-1 text-sm">
                         <div class="flex justify-between"><span>Tạm tính</span><span>{{ subtotal.toLocaleString() }}đ</span></div>
@@ -417,5 +576,52 @@ async function submitOrder() {
                 </div>
             </div>
         </div>
+
+        <!-- Dialog In Offline Dự Phòng (LAN Fallback) -->
+        <Dialog v-model:open="showOfflinePrintDialog">
+            <DialogContent class="max-w-md w-full rounded-2xl">
+                <DialogHeader>
+                    <DialogTitle class="flex items-center gap-2 text-rose-600 dark:text-rose-500">
+                        <AlertTriangle class="size-5 shrink-0" />
+                        Chế độ Offline - In vé Bếp
+                    </DialogTitle>
+                    <DialogDescription class="text-xs">
+                        Đang mất kết nối mạng. Đơn hàng của bạn đã được ghi nhận ngoại tuyến và sẽ tự động gửi khi có mạng trở lại. Vui lòng in vé bếp để bếp thực hiện chế biến thủ công.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div v-if="offlineOrderDetails" class="bg-slate-50 dark:bg-slate-900 border rounded-xl p-4 space-y-3 font-mono text-xs text-slate-800 dark:text-slate-200">
+                    <div class="border-b border-dashed pb-2 space-y-1">
+                        <div><strong>Đơn hàng:</strong> {{ offlineOrderDetails.order_number }}</div>
+                        <div><strong>Hình thức:</strong> {{ offlineOrderDetails.channel === 'delivery' ? 'Giao hàng' : 'Mang về' }}</div>
+                        <div><strong>Khách:</strong> {{ offlineOrderDetails.customer_name }} ({{ offlineOrderDetails.phone }})</div>
+                        <div><strong>Giờ đặt:</strong> {{ offlineOrderDetails.created_at }}</div>
+                    </div>
+                    <div class="space-y-1 max-h-40 overflow-y-auto">
+                        <div v-for="i in offlineOrderDetails.items" :key="i.product_id" class="flex justify-between">
+                            <span>{{ i.quantity }}x {{ i.name }}</span>
+                            <span>{{ (i.price * i.quantity).toLocaleString() }}đ</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-dashed pt-2 flex justify-between font-bold text-sm">
+                        <span>TỔNG CỘNG:</span>
+                        <span>{{ offlineOrderDetails.total.toLocaleString() }}đ</span>
+                    </div>
+                    <div v-if="offlineOrderDetails.note" class="text-[11px] text-muted-foreground pt-1 italic">
+                        * Ghi chú: {{ offlineOrderDetails.note }}
+                    </div>
+                </div>
+
+                <DialogFooter class="flex gap-2 sm:justify-end">
+                    <Button variant="outline" @click="showOfflinePrintDialog = false" class="text-xs">
+                        Đóng
+                    </Button>
+                    <Button @click="printOfflineReceipt" class="gap-2 text-xs">
+                        <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                        In vé Bếp (LAN / Trực tiếp)
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>

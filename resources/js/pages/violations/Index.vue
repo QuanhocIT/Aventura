@@ -554,7 +554,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
                                 placeholder="Hãy cung cấp các dữ kiện cụ thể: thời gian xảy ra, nguyên vật liệu hoặc số tiền nghi ngờ bị bòn rút, hành động cụ thể và bằng chứng đi kèm..."
                                 rows="4"
                                 required
-                                class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 px-3.5 py-2.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+                                class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
                             ></textarea>
                         </div>
 

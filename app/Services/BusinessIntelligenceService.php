@@ -10,17 +10,39 @@ class BusinessIntelligenceService
     public function getRevenueTrend(int $restaurantId, int $months = 12): array
     {
         return Cache::remember("bi_revenue_trend:{$restaurantId}:{$months}", 300, function () use ($restaurantId, $months) {
-            $data = DB::table('orders_unified')
+            $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+            $monthFormat = $isSqlite ? "strftime('%Y-%m', completed_at)" : "DATE_FORMAT(completed_at, '%Y-%m')";
+
+            $q1 = DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subMonths($months))
+                ->select(
+                    DB::raw("{$monthFormat} as month"),
+                    DB::raw('1 as order_count'),
+                    'total_amount'
+                );
+
+            $q2 = DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subMonths($months))
                 ->select(
-                    DB::raw("DATE_FORMAT(completed_at, '%Y-%m') as month"),
-                    DB::raw('COUNT(*) as orders'),
+                    DB::raw("{$monthFormat} as month"),
+                    DB::raw('1 as order_count'),
+                    'total_amount'
+                );
+
+            $data = DB::query()
+                ->fromSub($q1->unionAll($q2), 'unified')
+                ->select(
+                    'month',
+                    DB::raw('SUM(order_count) as orders'),
                     DB::raw('SUM(total_amount) as revenue'),
                     DB::raw('AVG(total_amount) as avg_order')
                 )
-                ->groupBy(DB::raw("DATE_FORMAT(completed_at, '%Y-%m')"))
+                ->groupBy('month')
                 ->orderBy('month')
                 ->get();
 
@@ -47,7 +69,13 @@ class BusinessIntelligenceService
     public function getUnitEconomics(int $restaurantId, int $days = 30): array
     {
         return Cache::remember("bi_unit_economics:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
-            $totalRevenue = (float) DB::table('orders_unified')
+            $totalRevenue = (float) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->sum('total_amount') +
+                (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
@@ -75,17 +103,41 @@ class BusinessIntelligenceService
                 ->count();
 
             $avgOrdersPerCustomer = $totalCustomers > 0
-                ? (float) DB::table('orders_unified')
+                ? (float) (DB::table('orders')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
-                    ->count() / $totalCustomers
+                    ->whereNull('deleted_at')
+                    ->count() +
+                    DB::table('orders_archive')
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('status', 'completed')
+                    ->count()) / $totalCustomers
                 : 0;
 
-            $avgOrderValue = (float) DB::table('orders_unified')
+            $sum1 = (float) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->sum('total_amount');
+            $sum2 = (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
-                ->avg('total_amount') ?? 0;
+                ->sum('total_amount');
+            $count1 = (int) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->count();
+            $count2 = (int) DB::table('orders_archive')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->count();
+
+            $avgOrderValue = ($count1 + $count2) > 0 ? ($sum1 + $sum2) / ($count1 + $count2) : 0;
 
             $ltv = round($avgOrderValue * $avgOrdersPerCustomer);
             $cac = $newCustomers > 0 ? round($totalCost / $newCustomers) : 0;
@@ -112,46 +164,88 @@ class BusinessIntelligenceService
     public function getCohortAnalysis(int $restaurantId): array
     {
         return Cache::remember("bi_cohort_analysis:{$restaurantId}", 300, function () use ($restaurantId) {
+            $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+            $startDate = now()->subMonths(6)->startOfMonth();
+
+            // 1. Get cohort sizes (total customers registered per month)
+            $cohortFormat = $isSqlite ? "strftime('%Y-%m', created_at)" : "DATE_FORMAT(created_at, '%Y-%m')";
             $cohorts = DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
-                ->where('created_at', '>=', now()->subMonths(6))
-                ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%m') as cohort_month"), DB::raw('COUNT(*) as count'))
-                ->groupBy(DB::raw("DATE_FORMAT(created_at, '%Y-%m')"))
+                ->where('created_at', '>=', $startDate)
+                ->select(DB::raw("{$cohortFormat} as cohort_month"), DB::raw('COUNT(*) as count'))
+                ->groupBy('cohort_month')
                 ->orderBy('cohort_month')
-                ->get();
+                ->get()
+                ->keyBy('cohort_month');
 
+            // 2. Query returning customers in a single query
+            $monthDiffRaw = $isSqlite 
+                ? "((strftime('%Y', o.completed_at) - strftime('%Y', c.created_at)) * 12 + (strftime('%m', o.completed_at) - strftime('%m', c.created_at)))"
+                : "TIMESTAMPDIFF(MONTH, c.created_at, o.completed_at)";
+
+            $cohortRaw = $isSqlite ? "strftime('%Y-%m', c.created_at)" : "DATE_FORMAT(c.created_at, '%Y-%m')";
+
+            $q1 = DB::table('customers as c')
+                ->join('orders as o', 'c.id', '=', 'o.customer_id')
+                ->where('c.restaurant_id', $restaurantId)
+                ->where('o.status', 'completed')
+                ->whereNull('o.deleted_at')
+                ->where('c.created_at', '>=', $startDate)
+                ->whereRaw("{$monthDiffRaw} BETWEEN 0 AND 5")
+                ->select(
+                    DB::raw("{$cohortRaw} as cohort_month"),
+                    DB::raw("{$monthDiffRaw} as diff_month"),
+                    'c.id as customer_id'
+                );
+
+            $q2 = DB::table('customers as c')
+                ->join('orders_archive as o', 'c.id', '=', 'o.customer_id')
+                ->where('c.restaurant_id', $restaurantId)
+                ->where('o.status', 'completed')
+                ->where('c.created_at', '>=', $startDate)
+                ->whereRaw("{$monthDiffRaw} BETWEEN 0 AND 5")
+                ->select(
+                    DB::raw("{$cohortRaw} as cohort_month"),
+                    DB::raw("{$monthDiffRaw} as diff_month"),
+                    'c.id as customer_id'
+                );
+
+            $retentionData = DB::query()
+                ->fromSub($q1->unionAll($q2), 'unified')
+                ->select(
+                    'cohort_month',
+                    'diff_month',
+                    DB::raw('COUNT(DISTINCT customer_id) as returning_count')
+                )
+                ->groupBy('cohort_month', 'diff_month')
+                ->get()
+                ->groupBy('cohort_month');
+
+            // 3. Assemble response
             $result = [];
-            foreach ($cohorts as $cohort) {
-                $customerIds = DB::table('customers')
-                    ->where('restaurant_id', $restaurantId)
-                    ->whereRaw("DATE_FORMAT(created_at, '%Y-%m') = ?", [$cohort->cohort_month])
-                    ->pluck('id');
-
+            foreach ($cohorts as $cohortMonth => $cohort) {
+                $cohortSize = (int)$cohort->count;
                 $retention = [];
+                
+                $monthData = $retentionData->get($cohortMonth, collect())->keyBy('diff_month');
+
                 for ($m = 0; $m <= 5; $m++) {
-                    $from = \Carbon\Carbon::createFromFormat('Y-m', $cohort->cohort_month)->addMonths($m)->startOfMonth();
-                    $to = $from->copy()->endOfMonth();
+                    $cohortDate = \Carbon\Carbon::createFromFormat('Y-m', $cohortMonth)->addMonths($m)->startOfMonth();
+                    if ($cohortDate->isFuture()) {
+                        break;
+                    }
 
-                    if ($from->isFuture()) break;
-
-                    $returning = DB::table('orders_unified')
-                        ->where('restaurant_id', $restaurantId)
-                        ->where('status', 'completed')
-                        ->whereIn('customer_id', $customerIds)
-                        ->whereBetween('completed_at', [$from, $to])
-                        ->distinct('customer_id')
-                        ->count('customer_id');
-
+                    $returning = (int)($monthData->get($m)?->returning_count ?? 0);
                     $retention[] = [
                         'month' => $m,
                         'returning' => $returning,
-                        'rate' => $cohort->count > 0 ? round(($returning / $cohort->count) * 100, 1) : 0,
+                        'rate' => $cohortSize > 0 ? round(($returning / $cohortSize) * 100, 1) : 0,
                     ];
                 }
 
                 $result[] = [
-                    'cohort' => $cohort->cohort_month,
-                    'size' => (int) $cohort->count,
+                    'cohort' => $cohortMonth,
+                    'size' => $cohortSize,
                     'retention' => $retention,
                 ];
             }
@@ -163,7 +257,13 @@ class BusinessIntelligenceService
     public function getBreakEvenAnalysis(int $restaurantId, int $days = 30): array
     {
         return Cache::remember("bi_break_even:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
-            $revenue = (float) DB::table('orders_unified')
+            $revenue = (float) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->sum('total_amount') +
+                (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
@@ -181,7 +281,13 @@ class BusinessIntelligenceService
                 ->where('expense_date', '>=', now()->subDays($days))
                 ->sum('amount');
 
-            $ordersCount = (int) DB::table('orders_unified')
+            $ordersCount = (int) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->count() +
+                (int) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))

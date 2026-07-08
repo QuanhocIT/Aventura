@@ -134,9 +134,9 @@ class TrainingController extends Controller
     public function enrollEmployee(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'course_id' => ['required', 'exists:training_courses,id'],
+            'course_id' => ['required', "exists:training_courses,id,restaurant_id,{$request->user()->restaurant_id}"],
             'employee_ids' => ['required', 'array', 'min:1'],
-            'employee_ids.*' => ['exists:employees,id'],
+            'employee_ids.*' => ["exists:employees,id,restaurant_id,{$request->user()->restaurant_id}"],
         ]);
 
         $enrolled = 0;
@@ -162,7 +162,7 @@ class TrainingController extends Controller
     public function completeLesson(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'enrollment_id' => ['required', 'exists:training_enrollments,id'],
+            'enrollment_id' => ['required', "exists:training_enrollments,id,restaurant_id,{$request->user()->restaurant_id}"],
             'lesson_id' => ['required', 'exists:training_lessons,id'],
         ]);
 

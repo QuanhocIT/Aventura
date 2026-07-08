@@ -100,7 +100,7 @@ class ViolationReportController extends Controller
         $branchId = $user->branch_id;
 
         $data = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
+            'employee_id' => ['required', "exists:employees,id,restaurant_id,{$restaurantId}"],
             'violation_type' => ['required', 'string', 'max:100'],
             'description' => ['required', 'string', 'max:2000'],
             'is_anonymous' => ['required', 'boolean'],

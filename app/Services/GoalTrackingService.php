@@ -72,13 +72,25 @@ class GoalTrackingService
         $to = min($goal->end_date, now());
 
         return match ($goal->metric) {
-            'revenue' => (float) DB::table('orders_unified')
+            'revenue' => (float) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->whereBetween('completed_at', [$from, $to])
+                ->sum('total_amount') +
+                (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereBetween('completed_at', [$from, $to])
                 ->sum('total_amount'),
 
-            'orders' => (float) DB::table('orders_unified')
+            'orders' => (float) DB::table('orders')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->whereBetween('completed_at', [$from, $to])
+                ->count() +
+                (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereBetween('completed_at', [$from, $to])

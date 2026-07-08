@@ -15,9 +15,12 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\DB;
+use App\Concerns\VerifiesTurnstile;
+use App\Concerns\GeneratesSignedCaptcha;
 
 class FeedbackController extends Controller
 {
+    use VerifiesTurnstile, GeneratesSignedCaptcha;
     /**
      * Hiển thị danh sách phản hồi và các phân tích đối chiếu (Chỉ dành cho Owner & Manager).
      */
@@ -251,12 +254,36 @@ class FeedbackController extends Controller
         // Tải danh sách nhân sự trực trong ca hiện tại
         $staffList = $restaurantId ? $this->resolveCurrentShiftStaff($restaurantId) : [];
 
+        $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+        $captchaQuestion = null;
+        $captchaToken = null;
+        if (!$turnstileSiteKey) {
+            $num1 = rand(1, 10);
+            $num2 = rand(1, 10);
+            $operator = rand(0, 1) ? '+' : '-';
+            if ($operator === '-') {
+                if ($num1 < $num2) {
+                    $temp = $num1;
+                    $num1 = $num2;
+                    $num2 = $temp;
+                }
+                $answer = $num1 - $num2;
+            } else {
+                $answer = $num1 + $num2;
+            }
+            $captchaToken = $this->generateCaptchaToken((string)$answer);
+            $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+        }
+
         return Inertia::render('feedback/PublicCreate', [
             'orderContext' => $orderContext,
             'queryRestaurantId' => $restaurantId ? (int) $restaurantId : null,
             'queryTableId' => $tableId ? (int) $tableId : null,
             'restaurantName' => $restaurantName,
             'staffList' => $staffList,
+            'turnstileSiteKey' => $turnstileSiteKey,
+            'captchaQuestion' => $captchaQuestion,
+            'captchaToken' => $captchaToken,
         ]);
     }
 
@@ -265,6 +292,28 @@ class FeedbackController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if (!app()->runningUnitTests()) {
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: \App\Models\SystemSetting::get('turnstile_site_key');
+            if ($turnstileSiteKey) {
+                $token = $request->input('cf-turnstile-response');
+                if (!$token || !$this->verifyTurnstile($token)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vui lòng hoàn thành xác minh bảo mật Cloudflare Turnstile.'
+                    ], 422);
+                }
+            } else {
+                $captchaAnswer = $request->input('captcha_answer');
+                $captchaToken = $request->input('captcha_token');
+                if (!$this->verifyCaptchaToken($captchaToken, $captchaAnswer)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Câu trả lời xác minh bảo mật không chính xác hoặc đã hết hạn.'
+                    ], 422);
+                }
+            }
+        }
+
         $data = $request->validate([
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'content' => ['nullable', 'string', 'max:1000'],

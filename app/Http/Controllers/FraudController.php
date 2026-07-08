@@ -79,8 +79,11 @@ class FraudController extends Controller
     {
         abort_unless($request->user()->can('report_violations'), 403);
 
+        $user         = $request->user();
+        $restaurantId = $user->restaurant_id;
+
         $data = $request->validate([
-            'employee_id'     => ['required', 'integer', 'exists:employees,id'],
+            'employee_id'     => ['required', 'integer', "exists:employees,id,restaurant_id,{$restaurantId}"],
             'violation_type'  => ['required', 'string', 'max:100'],
             'severity'        => ['required', 'in:low,medium,high,critical'],
             'description'     => ['required', 'string', 'max:2000'],
@@ -88,9 +91,6 @@ class FraudController extends Controller
             'occurred_at'     => ['required', 'date'],
             'apply_deduction' => ['nullable', 'boolean'],
         ]);
-
-        $user         = $request->user();
-        $restaurantId = $user->restaurant_id;
 
         // Always create ViolationReport directly (recording a fact — no approval needed)
         $violation = ViolationReport::create([
