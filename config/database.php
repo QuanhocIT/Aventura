@@ -44,29 +44,51 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        // ── P3: Read Replica Configuration ─────────────────────────────────────
+        // Để kích hoạt read replica:
+        //   1. Set DB_READ_HOST=<replica_ip> trong .env
+        //   2. Set DB_WRITE_HOST=<master_ip> trong .env (hoặc để trống = DB_HOST)
+        //   3. `sticky=true` đảm bảo các query TRONG CÙNG REQUEST đọc từ master
+        //      sau khi đã write → tránh read-your-own-writes lag trên replica.
+        //
+        // Đối với các query analytics nặng cần chắc chắn đọc từ replica,
+        // dùng: DB::connection()->getReadPdo() hoặc ->useReadPdo()
+        //
+        // Nếu cần force query lên master (cho data nhạy cảm như payment):
+        //   DB::table('orders')->useWritePdo()->where(...)
         'mysql' => [
             'driver' => 'mysql',
-            'url' => env('DB_URL'),
+            'url'    => env('DB_URL'),
+
+            // ── Read replica (đặt DB_READ_HOST để kích hoạt) ──────────────────
             'read' => [
-                'host' => [env('DB_READ_HOST', env('DB_HOST', '127.0.0.1'))],
+                'host'     => [env('DB_READ_HOST') ?: env('DB_HOST', '127.0.0.1')],
+                'username' => env('DB_READ_USERNAME') ?: env('DB_USERNAME', 'root'),
+                'password' => env('DB_READ_PASSWORD') ?? env('DB_PASSWORD', ''),
             ],
+
+            // ── Write master ───────────────────────────────────────────────────
             'write' => [
-                'host' => [env('DB_WRITE_HOST', env('DB_HOST', '127.0.0.1'))],
+                'host'     => [env('DB_WRITE_HOST') ?: env('DB_HOST', '127.0.0.1')],
+                'username' => env('DB_USERNAME', 'root'),
+                'password' => env('DB_PASSWORD', ''),
             ],
-            'sticky' => true,
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+
+            // Sau khi write trong request, các read kế tiếp dùng connection write
+            // để tránh replication lag gây ra inconsistency (read-your-own-writes).
+            'sticky'    => true,
+
+            'port'        => env('DB_PORT', '3306'),
+            'database'    => env('DB_DATABASE', 'laravel'),
             'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
+            'charset'     => env('DB_CHARSET', 'utf8mb4'),
+            'collation'   => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix'      => '',
             'prefix_indexes' => true,
-            'strict' => true,
-            'timezone' => env('DB_TIMEZONE', '+07:00'),
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
+            'strict'      => true,
+            'timezone'    => env('DB_TIMEZONE', '+07:00'),
+            'engine'      => null,
+            'options'     => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
