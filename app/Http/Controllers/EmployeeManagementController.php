@@ -149,7 +149,7 @@ class EmployeeManagementController extends Controller
         $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
         $hourExpr = $isSqlite ? "strftime('%H', completed_at)" : "HOUR(completed_at)";
 
-        $peakHours = \Illuminate\Support\Facades\DB::table('orders')
+        $peakHours = \Illuminate\Support\Facades\DB::table('orders_unified')
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'completed')
             ->where('completed_at', '>=', now()->subDays(30))
@@ -905,3 +905,4 @@ class EmployeeManagementController extends Controller
     }
 
 }
+

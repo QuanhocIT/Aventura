@@ -18,7 +18,7 @@ class WasteAnalyticsService
                 ->where('occurred_at', '>=', now()->subDays($days))
                 ->sum('total_cost');
 
-            $totalRevenue = (float) DB::table('orders')
+            $totalRevenue = (float) DB::table('orders_unified')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
@@ -204,3 +204,4 @@ class WasteAnalyticsService
         };
     }
 }
+

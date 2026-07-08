@@ -118,7 +118,7 @@ class ScheduleController extends Controller
             $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
             $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
 
-            $peakHours = \Illuminate\Support\Facades\DB::table('orders')
+            $peakHours = \Illuminate\Support\Facades\DB::table('orders_unified')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays(30))
@@ -1332,3 +1332,4 @@ class ScheduleController extends Controller
         ]);
     }
 }
+

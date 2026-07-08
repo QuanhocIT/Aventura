@@ -28,9 +28,9 @@ class WeatherForecastService
 
         // 2. Lấy dữ liệu bán hàng thực tế 30 ngày qua
         $startDate = now()->subDays(30);
-        $sales = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
+        $sales = DB::table('order_items_unified')
+            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->join('products', 'order_items_unified.product_id', '=', 'products.id')
             ->join('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->where('orders.restaurant_id', $restaurantId)
             ->where('orders.status', 'completed')
@@ -323,3 +323,4 @@ class WeatherForecastService
         return $results;
     }
 }
+

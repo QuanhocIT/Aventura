@@ -118,7 +118,7 @@ class CustomerController extends Controller
         // ── Retention stats ──────────────────────────────────────────────────
         // Khách quay lại: có ít nhất 2 đơn hàng trong 30 ngày qua
         $cutoff   = now()->subDays(30);
-        $returning = \Illuminate\Support\Facades\DB::table('orders')
+        $returning = \Illuminate\Support\Facades\DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
@@ -129,7 +129,7 @@ class CustomerController extends Controller
             ->count();
 
         $newCustomers30 = Customer::where('created_at', '>=', $cutoff)->count();
-        $totalOrdering  = \Illuminate\Support\Facades\DB::table('orders')
+        $totalOrdering  = \Illuminate\Support\Facades\DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
@@ -298,3 +298,4 @@ class CustomerController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
+

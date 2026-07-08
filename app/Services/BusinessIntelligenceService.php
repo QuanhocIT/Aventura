@@ -9,43 +9,45 @@ class BusinessIntelligenceService
 {
     public function getRevenueTrend(int $restaurantId, int $months = 12): array
     {
-        $data = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', now()->subMonths($months))
-            ->select(
-                DB::raw("DATE_FORMAT(completed_at, '%Y-%m') as month"),
-                DB::raw('COUNT(*) as orders'),
-                DB::raw('SUM(total_amount) as revenue'),
-                DB::raw('AVG(total_amount) as avg_order')
-            )
-            ->groupBy(DB::raw("DATE_FORMAT(completed_at, '%Y-%m')"))
-            ->orderBy('month')
-            ->get();
+        return Cache::remember("bi_revenue_trend:{$restaurantId}:{$months}", 300, function () use ($restaurantId, $months) {
+            $data = DB::table('orders_unified')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->where('completed_at', '>=', now()->subMonths($months))
+                ->select(
+                    DB::raw("DATE_FORMAT(completed_at, '%Y-%m') as month"),
+                    DB::raw('COUNT(*) as orders'),
+                    DB::raw('SUM(total_amount) as revenue'),
+                    DB::raw('AVG(total_amount) as avg_order')
+                )
+                ->groupBy(DB::raw("DATE_FORMAT(completed_at, '%Y-%m')"))
+                ->orderBy('month')
+                ->get();
 
-        $result = $data->map(fn ($r) => [
-            'month' => $r->month,
-            'revenue' => (float) $r->revenue,
-            'orders' => (int) $r->orders,
-            'avg_order' => round((float) $r->avg_order),
-        ])->all();
+            $result = $data->map(fn ($r) => [
+                'month' => $r->month,
+                'revenue' => (float) $r->revenue,
+                'orders' => (int) $r->orders,
+                'avg_order' => round((float) $r->avg_order),
+            ])->all();
 
-        // YoY comparison
-        foreach ($result as $i => &$item) {
-            $prevYear = date('Y-m', strtotime($item['month'] . '-01 -12 months'));
-            $prev = collect($result)->firstWhere('month', $prevYear);
-            $item['yoy_growth'] = $prev && $prev['revenue'] > 0
-                ? round((($item['revenue'] - $prev['revenue']) / $prev['revenue']) * 100, 1)
-                : null;
-        }
+            // YoY comparison
+            foreach ($result as $i => &$item) {
+                $prevYear = date('Y-m', strtotime($item['month'] . '-01 -12 months'));
+                $prev = collect($result)->firstWhere('month', $prevYear);
+                $item['yoy_growth'] = $prev && $prev['revenue'] > 0
+                    ? round((($item['revenue'] - $prev['revenue']) / $prev['revenue']) * 100, 1)
+                    : null;
+            }
 
-        return $result;
+            return $result;
+        });
     }
 
     public function getUnitEconomics(int $restaurantId, int $days = 30): array
     {
         return Cache::remember("bi_unit_economics:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
-            $totalRevenue = (float) DB::table('orders')
+            $totalRevenue = (float) DB::table('orders_unified')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
@@ -73,13 +75,13 @@ class BusinessIntelligenceService
                 ->count();
 
             $avgOrdersPerCustomer = $totalCustomers > 0
-                ? (float) DB::table('orders')
+                ? (float) DB::table('orders_unified')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->count() / $totalCustomers
                 : 0;
 
-            $avgOrderValue = (float) DB::table('orders')
+            $avgOrderValue = (float) DB::table('orders_unified')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
@@ -109,101 +111,105 @@ class BusinessIntelligenceService
 
     public function getCohortAnalysis(int $restaurantId): array
     {
-        $cohorts = DB::table('customers')
-            ->where('restaurant_id', $restaurantId)
-            ->where('created_at', '>=', now()->subMonths(6))
-            ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%m') as cohort_month"), DB::raw('COUNT(*) as count'))
-            ->groupBy(DB::raw("DATE_FORMAT(created_at, '%Y-%m')"))
-            ->orderBy('cohort_month')
-            ->get();
-
-        $result = [];
-        foreach ($cohorts as $cohort) {
-            $customerIds = DB::table('customers')
+        return Cache::remember("bi_cohort_analysis:{$restaurantId}", 300, function () use ($restaurantId) {
+            $cohorts = DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
-                ->whereRaw("DATE_FORMAT(created_at, '%Y-%m') = ?", [$cohort->cohort_month])
-                ->pluck('id');
+                ->where('created_at', '>=', now()->subMonths(6))
+                ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%m') as cohort_month"), DB::raw('COUNT(*) as count'))
+                ->groupBy(DB::raw("DATE_FORMAT(created_at, '%Y-%m')"))
+                ->orderBy('cohort_month')
+                ->get();
 
-            $retention = [];
-            for ($m = 0; $m <= 5; $m++) {
-                $from = \Carbon\Carbon::createFromFormat('Y-m', $cohort->cohort_month)->addMonths($m)->startOfMonth();
-                $to = $from->copy()->endOfMonth();
-
-                if ($from->isFuture()) break;
-
-                $returning = DB::table('orders')
+            $result = [];
+            foreach ($cohorts as $cohort) {
+                $customerIds = DB::table('customers')
                     ->where('restaurant_id', $restaurantId)
-                    ->where('status', 'completed')
-                    ->whereIn('customer_id', $customerIds)
-                    ->whereBetween('completed_at', [$from, $to])
-                    ->distinct('customer_id')
-                    ->count('customer_id');
+                    ->whereRaw("DATE_FORMAT(created_at, '%Y-%m') = ?", [$cohort->cohort_month])
+                    ->pluck('id');
 
-                $retention[] = [
-                    'month' => $m,
-                    'returning' => $returning,
-                    'rate' => $cohort->count > 0 ? round(($returning / $cohort->count) * 100, 1) : 0,
+                $retention = [];
+                for ($m = 0; $m <= 5; $m++) {
+                    $from = \Carbon\Carbon::createFromFormat('Y-m', $cohort->cohort_month)->addMonths($m)->startOfMonth();
+                    $to = $from->copy()->endOfMonth();
+
+                    if ($from->isFuture()) break;
+
+                    $returning = DB::table('orders_unified')
+                        ->where('restaurant_id', $restaurantId)
+                        ->where('status', 'completed')
+                        ->whereIn('customer_id', $customerIds)
+                        ->whereBetween('completed_at', [$from, $to])
+                        ->distinct('customer_id')
+                        ->count('customer_id');
+
+                    $retention[] = [
+                        'month' => $m,
+                        'returning' => $returning,
+                        'rate' => $cohort->count > 0 ? round(($returning / $cohort->count) * 100, 1) : 0,
+                    ];
+                }
+
+                $result[] = [
+                    'cohort' => $cohort->cohort_month,
+                    'size' => (int) $cohort->count,
+                    'retention' => $retention,
                 ];
             }
 
-            $result[] = [
-                'cohort' => $cohort->cohort_month,
-                'size' => (int) $cohort->count,
-                'retention' => $retention,
-            ];
-        }
-
-        return $result;
+            return $result;
+        });
     }
 
     public function getBreakEvenAnalysis(int $restaurantId, int $days = 30): array
     {
-        $revenue = (float) DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', now()->subDays($days))
-            ->sum('total_amount');
+        return Cache::remember("bi_break_even:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
+            $revenue = (float) DB::table('orders_unified')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->sum('total_amount');
 
-        $variableCost = (float) DB::table('inventory_transactions')
-            ->where('restaurant_id', $restaurantId)
-            ->whereIn('type', ['purchase', 'usage'])
-            ->where('occurred_at', '>=', now()->subDays($days))
-            ->sum('total_cost');
+            $variableCost = (float) DB::table('inventory_transactions')
+                ->where('restaurant_id', $restaurantId)
+                ->whereIn('type', ['purchase', 'usage'])
+                ->where('occurred_at', '>=', now()->subDays($days))
+                ->sum('total_cost');
 
-        $fixedCost = (float) DB::table('operating_expenses')
-            ->where('restaurant_id', $restaurantId)
-            ->whereNotNull('recurring_expense_id')
-            ->where('expense_date', '>=', now()->subDays($days))
-            ->sum('amount');
+            $fixedCost = (float) DB::table('operating_expenses')
+                ->where('restaurant_id', $restaurantId)
+                ->whereNotNull('recurring_expense_id')
+                ->where('expense_date', '>=', now()->subDays($days))
+                ->sum('amount');
 
-        $ordersCount = (int) DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', now()->subDays($days))
-            ->count();
+            $ordersCount = (int) DB::table('orders_unified')
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->where('completed_at', '>=', now()->subDays($days))
+                ->count();
 
-        $avgOrderValue = $ordersCount > 0 ? $revenue / $ordersCount : 0;
-        $variableCostPerOrder = $ordersCount > 0 ? $variableCost / $ordersCount : 0;
-        $contributionMargin = $avgOrderValue - $variableCostPerOrder;
-        $breakEvenOrders = $contributionMargin > 0 ? (int) ceil($fixedCost / $contributionMargin) : 0;
-        $breakEvenRevenue = $breakEvenOrders * $avgOrderValue;
+            $avgOrderValue = $ordersCount > 0 ? $revenue / $ordersCount : 0;
+            $variableCostPerOrder = $ordersCount > 0 ? $variableCost / $ordersCount : 0;
+            $contributionMargin = $avgOrderValue - $variableCostPerOrder;
+            $breakEvenOrders = $contributionMargin > 0 ? (int) ceil($fixedCost / $contributionMargin) : 0;
+            $breakEvenRevenue = $breakEvenOrders * $avgOrderValue;
 
-        $dailyOrders = $days > 0 ? round($ordersCount / $days, 1) : 0;
-        $breakEvenDays = $dailyOrders > 0 ? (int) ceil($breakEvenOrders / $dailyOrders) : 0;
+            $dailyOrders = $days > 0 ? round($ordersCount / $days, 1) : 0;
+            $breakEvenDays = $dailyOrders > 0 ? (int) ceil($breakEvenOrders / $dailyOrders) : 0;
 
-        return [
-            'revenue' => $revenue,
-            'variable_cost' => $variableCost,
-            'fixed_cost' => $fixedCost,
-            'total_orders' => $ordersCount,
-            'avg_order_value' => round($avgOrderValue),
-            'variable_cost_per_order' => round($variableCostPerOrder),
-            'contribution_margin' => round($contributionMargin),
-            'break_even_orders' => $breakEvenOrders,
-            'break_even_revenue' => round($breakEvenRevenue),
-            'break_even_days' => $breakEvenDays,
-            'is_profitable' => $ordersCount >= $breakEvenOrders,
-        ];
+            return [
+                'revenue' => $revenue,
+                'variable_cost' => $variableCost,
+                'fixed_cost' => $fixedCost,
+                'total_orders' => $ordersCount,
+                'avg_order_value' => round($avgOrderValue),
+                'variable_cost_per_order' => round($variableCostPerOrder),
+                'contribution_margin' => round($contributionMargin),
+                'break_even_orders' => $breakEvenOrders,
+                'break_even_revenue' => round($breakEvenRevenue),
+                'break_even_days' => $breakEvenDays,
+                'is_profitable' => $ordersCount >= $breakEvenOrders,
+            ];
+        });
     }
 
     public function getBenchmark(int $restaurantId, int $days = 30): array
@@ -231,3 +237,4 @@ class BusinessIntelligenceService
         return $benchmarks;
     }
 }
+

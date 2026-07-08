@@ -258,8 +258,8 @@ class MenuInsightService
         $midpoint = $startAt->copy()->addSeconds($startAt->diffInSeconds($endAt) / 2);
 
         // Orders trước midpoint = original price, sau midpoint = test price
-        $ordersOriginal = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+        $ordersOriginal = DB::table('order_items_unified')
+            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
             ->where('orders.restaurant_id', $test->restaurant_id)
             ->where('orders.status', 'completed')
             ->where('order_items.product_id', $test->product_id)
@@ -267,8 +267,8 @@ class MenuInsightService
             ->selectRaw('COUNT(*) as count, SUM(order_items.line_total) as revenue')
             ->first();
 
-        $ordersTest = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+        $ordersTest = DB::table('order_items_unified')
+            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
             ->where('orders.restaurant_id', $test->restaurant_id)
             ->where('orders.status', 'completed')
             ->where('order_items.product_id', $test->product_id)
@@ -329,9 +329,9 @@ class MenuInsightService
         $from = now()->subDays($days + $offsetDays);
         $to = now()->subDays($offsetDays);
 
-        return DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
+        return DB::table('order_items_unified')
+            ->join('orders', 'order_items_unified.order_id', '=', 'orders_unified.id')
+            ->join('products', 'order_items_unified.product_id', '=', 'products.id')
             ->where('orders.restaurant_id', $restaurantId)
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$from, $to])
@@ -348,3 +348,4 @@ class MenuInsightService
             ->get();
     }
 }
+
