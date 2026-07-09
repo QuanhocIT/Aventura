@@ -6,6 +6,7 @@ use App\Models\Restaurant;
 use App\Services\DailyReportService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -19,9 +20,20 @@ use Illuminate\Support\Facades\Log;
  * Có thể dispatch cho 1 restaurant cụ thể (sau khi order completed) hoặc
  * toàn bộ nhà hàng active (batch job).
  */
-class UpdateIntradaySummaryJob implements ShouldQueue
+class UpdateIntradaySummaryJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /** Số giây duy nhất khóa được giữ (TTL) */
+    public int $uniqueFor = 600; // 10 phút
+
+    /**
+     * ID duy nhất của job dựa trên restaurantId.
+     */
+    public function uniqueId(): string
+    {
+        return (string) ($this->restaurantId ?? 'all');
+    }
 
     /** Số lần retry tối đa */
     public int $tries = 3;
