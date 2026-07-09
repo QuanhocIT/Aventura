@@ -118,14 +118,16 @@ class ScheduleController extends Controller
             $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
             $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
 
-            $peakHours = \Illuminate\Support\Facades\DB::table('orders_unified')
-                ->where('restaurant_id', $restaurantId)
-                ->where('status', 'completed')
-                ->where('completed_at', '>=', now()->subDays(30))
-                ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
-                ->groupBy(\Illuminate\Support\Facades\DB::raw($hourExpr))
-                ->orderByDesc('revenue')
-                ->get();
+            $peakHours = \Illuminate\Support\Facades\Cache::remember("schedule_peak_hours:{$restaurantId}", 3600, function () use ($restaurantId, $hourExpr) {
+                return \Illuminate\Support\Facades\DB::table('orders_unified')
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('status', 'completed')
+                    ->where('completed_at', '>=', now()->subDays(30))
+                    ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
+                    ->groupBy(\Illuminate\Support\Facades\DB::raw($hourExpr))
+                    ->orderByDesc('revenue')
+                    ->get();
+            });
 
             $totalRevenuePeak = $peakHours->sum('revenue');
             $staffingTips = [];
