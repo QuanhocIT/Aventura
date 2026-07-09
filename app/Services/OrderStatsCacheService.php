@@ -48,6 +48,26 @@ class OrderStatsCacheService
         if ($branchId) {
             Cache::forget($this->buildKey($restaurantId, $branchId));
         }
+
+        // Xóa cache các biểu đồ/thông tin Dashboard để giữ tính real-time
+        $date = today()->toDateString();
+        $branchesToClear = [null];
+        if ($branchId) {
+            $branchesToClear[] = $branchId;
+        }
+
+        foreach ($branchesToClear as $bId) {
+            $suffix = $bId ? ":{$bId}" : "";
+            Cache::forget("dashboard:revenue_chart:{$restaurantId}{$suffix}:{$date}:0");
+            Cache::forget("dashboard:revenue_chart:{$restaurantId}{$suffix}:{$date}:1");
+            Cache::forget("dashboard:channel_chart:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:top_products:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:peak_hours:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:forecast:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:shift_revenue:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:owner_summary:{$restaurantId}{$suffix}:{$date}");
+            Cache::forget("dashboard:cash_flow:{$restaurantId}{$suffix}:{$date}");
+        }
     }
 
     /**

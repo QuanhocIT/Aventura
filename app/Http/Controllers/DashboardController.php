@@ -662,123 +662,143 @@ class DashboardController extends Controller
 
     private function getRevenueChartData(int $rid, ?int $branchId = null, bool $hasAiForecasting = false): array
     {
-        $sevenDaysAgo = now()->subDays(6)->startOfDay();
-        $dailyStats = Order::where('restaurant_id', $rid)
-            ->where('status', 'completed')
-            ->where('created_at', '>=', $sevenDaysAgo)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
-            ->groupBy('date')
-            ->get()
-            ->keyBy('date');
+        $key = "dashboard:revenue_chart:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString() . ":" . ($hasAiForecasting ? '1' : '0');
 
-        $revenueChartData = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $targetDate = now()->subDays($i);
-            $dateStr    = $targetDate->format('Y-m-d');
-            $label      = $targetDate->format('d/m');
-            $dayStat    = $dailyStats->get($dateStr);
-            $revenueChartData[] = [
-                'date'        => $label,
-                'revenue'     => $dayStat ? (float) $dayStat->revenue : 0,
-                'orders'      => $dayStat ? (int) $dayStat->count : 0,
-                'is_forecast' => false,
-            ];
-        }
+        return Cache::remember($key, 300, function () use ($rid, $branchId, $hasAiForecasting) {
+            $sevenDaysAgo = now()->subDays(6)->startOfDay();
+            $dailyStats = Order::where('restaurant_id', $rid)
+                ->where('status', 'completed')
+                ->where('created_at', '>=', $sevenDaysAgo)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->selectRaw("DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as count")
+                ->groupBy('date')
+                ->get()
+                ->keyBy('date');
 
-        if ($hasAiForecasting) {
-            $forecast7 = $this->forecast->forecast7Days($rid, $branchId);
-            foreach ($forecast7 as $f) {
-                $revenueChartData[] = $f;
+            $revenueChartData = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $targetDate = now()->subDays($i);
+                $dateStr    = $targetDate->format('Y-m-d');
+                $label      = $targetDate->format('d/m');
+                $dayStat    = $dailyStats->get($dateStr);
+                $revenueChartData[] = [
+                    'date'        => $label,
+                    'revenue'     => $dayStat ? (float) $dayStat->revenue : 0,
+                    'orders'      => $dayStat ? (int) $dayStat->count : 0,
+                    'is_forecast' => false,
+                ];
             }
-        }
 
-        return $revenueChartData;
+            if ($hasAiForecasting) {
+                $forecast7 = $this->forecast->forecast7Days($rid, $branchId);
+                foreach ($forecast7 as $f) {
+                    $revenueChartData[] = $f;
+                }
+            }
+
+            return $revenueChartData;
+        });
     }
 
     private function getChannelChartData(int $rid, ?int $branchId = null): array
     {
-        $sevenDaysAgo = now()->subDays(6)->startOfDay();
-        $channelStats = Order::where('restaurant_id', $rid)
-            ->where('created_at', '>=', $sevenDaysAgo)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->selectRaw("channel, COUNT(*) as count")
-            ->groupBy('channel')
-            ->get();
+        $key = "dashboard:channel_chart:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
 
-        $channelNames = [
-            'dine_in'  => 'Tại bàn',
-            'takeaway' => 'Mang về',
-            'delivery' => 'Giao hàng',
-            'qr'       => 'Mã QR',
-        ];
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            $sevenDaysAgo = now()->subDays(6)->startOfDay();
+            $channelStats = Order::where('restaurant_id', $rid)
+                ->where('created_at', '>=', $sevenDaysAgo)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->selectRaw("channel, COUNT(*) as count")
+                ->groupBy('channel')
+                ->get();
 
-        $channelChartData = [];
-        $totalChannelsCount = $channelStats->sum('count');
-        foreach ($channelStats as $cs) {
-            $channelChartData[] = [
-                'channel'    => $cs->channel,
-                'label'      => $channelNames[$cs->channel] ?? $cs->channel,
-                'count'      => (int) $cs->count,
-                'percentage' => $totalChannelsCount > 0
-                    ? round(($cs->count / $totalChannelsCount) * 100, 1) : 0,
+            $channelNames = [
+                'dine_in'  => 'Tại bàn',
+                'takeaway' => 'Mang về',
+                'delivery' => 'Giao hàng',
+                'qr'       => 'Mã QR',
             ];
-        }
 
-        return $channelChartData;
+            $channelChartData = [];
+            $totalChannelsCount = $channelStats->sum('count');
+            foreach ($channelStats as $cs) {
+                $channelChartData[] = [
+                    'channel'    => $cs->channel,
+                    'label'      => $channelNames[$cs->channel] ?? $cs->channel,
+                    'count'      => (int) $cs->count,
+                    'percentage' => $totalChannelsCount > 0
+                        ? round(($cs->count / $totalChannelsCount) * 100, 1) : 0,
+                ];
+            }
+
+            return $channelChartData;
+        });
     }
 
     private function getTopProductsChartData(int $rid, ?int $branchId = null): array
     {
-        return \App\Models\OrderItem::query()
-            ->join('orders',   'order_items.order_id',   '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
-            ->where('orders.restaurant_id', $rid)
-            ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
-            ->where('orders.status', 'completed')
-            ->where('orders.created_at', '>=', now()->subDays(30))
-            ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.quantity * order_items.unit_price) as total_revenue')
-            ->groupBy('products.id', 'products.name')
-            ->orderByDesc('total_qty')
-            ->take(5)
-            ->get()
-            ->map(fn ($item) => [
-                'name'     => $item->name,
-                'quantity' => (int)   $item->total_qty,
-                'revenue'  => (float) $item->total_revenue,
-            ])
-            ->all();
+        $key = "dashboard:top_products:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
+
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            return \App\Models\OrderItem::query()
+                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+                ->join('products', 'order_items.product_id', '=', 'products.id')
+                ->where('orders.restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
+                ->where('orders.status', 'completed')
+                ->where('orders.created_at', '>=', now()->subDays(30))
+                ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.quantity * order_items.unit_price) as total_revenue')
+                ->groupBy('products.id', 'products.name')
+                ->orderByDesc('total_qty')
+                ->take(5)
+                ->get()
+                ->map(fn ($item) => [
+                    'name'     => $item->name,
+                    'quantity' => (int)   $item->total_qty,
+                    'revenue'  => (float) $item->total_revenue,
+                ])
+                ->all();
+        });
     }
 
     private function getPeakHoursChartData(int $rid, ?int $branchId = null): array
     {
-        $thirtyDaysAgo = now()->subDays(30)->startOfDay();
-        $hourlyStats = Order::where('restaurant_id', $rid)
-            ->where('status', 'completed')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->selectRaw(\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite' ? "CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count" : "HOUR(created_at) as hour, COUNT(*) as count")
-            ->groupBy('hour')
-            ->orderBy('hour')
-            ->get()
-            ->keyBy('hour');
+        $key = "dashboard:peak_hours:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
 
-        $peakHoursData = [];
-        for ($h = 6; $h <= 23; $h++) {
-            $stat = $hourlyStats->get($h);
-            $peakHoursData[] = [
-                'hour'  => $h,
-                'label' => sprintf('%02dh', $h),
-                'count' => $stat ? (int) $stat->count : 0,
-            ];
-        }
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            $thirtyDaysAgo = now()->subDays(30)->startOfDay();
+            $hourlyStats = Order::where('restaurant_id', $rid)
+                ->where('status', 'completed')
+                ->where('created_at', '>=', $thirtyDaysAgo)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->selectRaw(\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite' ? "CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count" : "HOUR(created_at) as hour, COUNT(*) as count")
+                ->groupBy('hour')
+                ->orderBy('hour')
+                ->get()
+                ->keyBy('hour');
 
-        return $peakHoursData;
+            $peakHoursData = [];
+            for ($h = 6; $h <= 23; $h++) {
+                $stat = $hourlyStats->get($h);
+                $peakHoursData[] = [
+                    'hour'  => $h,
+                    'label' => sprintf('%02dh', $h),
+                    'count' => $stat ? (int) $stat->count : 0,
+                ];
+            }
+
+            return $peakHoursData;
+        });
     }
 
     private function getForecastData(int $rid, ?int $branchId = null): ?array
     {
-        return $this->forecast->forecastTomorrow($rid, $branchId);
+        $key = "dashboard:forecast:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
+
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            return $this->forecast->forecastTomorrow($rid, $branchId);
+        });
     }
 
     private function getHealthScore(int $rid, ?int $branchId = null): int
@@ -796,42 +816,46 @@ class DashboardController extends Controller
 
     private function getShiftRevenue(int $rid, ?int $branchId = null): array
     {
-        $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
-            ->where('status', 'active')
-            ->orderBy('start_time')
-            ->get();
+        $key = "dashboard:shift_revenue:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
 
-        $sevenDaysAgo = now()->subDays(6)->startOfDay();
-        $orders = Order::where('restaurant_id', $rid)
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', $sevenDaysAgo)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->select('total_amount', 'completed_at')
-            ->get();
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            $shifts = \App\Models\WorkShift::where('restaurant_id', $rid)
+                ->where('status', 'active')
+                ->orderBy('start_time')
+                ->get();
 
-        $shiftRevenue = [];
-        foreach ($shifts as $shift) {
-            $row = ['shift_name' => $shift->name, 'days' => []];
-            for ($d = 6; $d >= 0; $d--) {
-                $day   = now()->subDays($d);
-                $start = $day->copy()->setTimeFromTimeString($shift->start_time);
-                $end   = $shift->is_overnight
-                    ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
-                    : $day->copy()->setTimeFromTimeString($shift->end_time);
+            $sevenDaysAgo = now()->subDays(6)->startOfDay();
+            $orders = Order::where('restaurant_id', $rid)
+                ->where('status', 'completed')
+                ->where('completed_at', '>=', $sevenDaysAgo)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->select('total_amount', 'completed_at')
+                ->get();
 
-                $rev = $orders->filter(function ($order) use ($start, $end) {
-                    return $order->completed_at >= $start && $order->completed_at <= $end;
-                })->sum('total_amount');
+            $shiftRevenue = [];
+            foreach ($shifts as $shift) {
+                $row = ['shift_name' => $shift->name, 'days' => []];
+                for ($d = 6; $d >= 0; $d--) {
+                    $day   = now()->subDays($d);
+                    $start = $day->copy()->setTimeFromTimeString($shift->start_time);
+                    $end   = $shift->is_overnight
+                        ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
+                        : $day->copy()->setTimeFromTimeString($shift->end_time);
 
-                $row['days'][] = [
-                    'date'    => $day->format('d/m'),
-                    'revenue' => (float) $rev,
-                ];
+                    $rev = $orders->filter(function ($order) use ($start, $end) {
+                        return $order->completed_at >= $start && $order->completed_at <= $end;
+                    })->sum('total_amount');
+
+                    $row['days'][] = [
+                        'date'    => $day->format('d/m'),
+                        'revenue' => (float) $rev,
+                    ];
+                }
+                $shiftRevenue[] = $row;
             }
-            $shiftRevenue[] = $row;
-        }
 
-        return $shiftRevenue;
+            return $shiftRevenue;
+        });
     }
 
     /**
@@ -985,107 +1009,115 @@ class DashboardController extends Controller
 
     private function getOwnerSummary(int $rid, ?int $branchId = null): array
     {
-        $topTodayProducts = \App\Models\OrderItem::query()
-            ->join('orders',   'order_items.order_id',   '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
-            ->where('orders.restaurant_id', $rid)
-            ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
-            ->where('orders.status', 'completed')
-            ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
-            ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
-            ->groupBy('products.id', 'products.name')
-            ->orderByDesc('total_qty')
-            ->take(3)
-            ->get()
-            ->map(fn ($r) => [
-                'name'    => $r->name,
-                'qty'     => (int)   $r->total_qty,
-                'revenue' => (float) $r->total_revenue,
-            ])
-            ->all();
+        $key = "dashboard:owner_summary:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
 
-        $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
-            ->where('restaurant_id', $rid)
-            ->where('scheduled_date', today())
-            ->whereIn('status', ['checked_in', 'scheduled'])
-            ->when($branchId, function ($q) use ($branchId) {
-                $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
-            })
-            ->get()
-            ->map(fn ($a) => [
-                'name'   => $a->employee?->full_name ?? '—',
-                'shift'  => $a->shift?->name ?? '—',
-                'status' => $a->status,
-            ])
-            ->all();
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            $topTodayProducts = \App\Models\OrderItem::query()
+                ->join('orders',   'order_items.order_id',   '=', 'orders.id')
+                ->join('products', 'order_items.product_id', '=', 'products.id')
+                ->where('orders.restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('orders.branch_id', $branchId))
+                ->where('orders.status', 'completed')
+                ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
+                ->selectRaw('products.name, SUM(order_items.quantity) as total_qty, SUM(order_items.line_total) as total_revenue')
+                ->groupBy('products.id', 'products.name')
+                ->orderByDesc('total_qty')
+                ->take(3)
+                ->get()
+                ->map(fn ($r) => [
+                    'name'    => $r->name,
+                    'qty'     => (int)   $r->total_qty,
+                    'revenue' => (float) $r->total_revenue,
+                ])
+                ->all();
 
-        $pendingOrders = Order::where('restaurant_id', $rid)
-            ->where('status', 'pending')
-            ->where('created_at', '<', now()->subMinutes(20))
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->count();
+            $activeShifts = \App\Models\ScheduleAssignment::with(['employee', 'shift'])
+                ->where('restaurant_id', $rid)
+                ->where('scheduled_date', today())
+                ->whereIn('status', ['checked_in', 'scheduled'])
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+                })
+                ->get()
+                ->map(fn ($a) => [
+                    'name'   => $a->employee?->full_name ?? '—',
+                    'shift'  => $a->shift?->name ?? '—',
+                    'status' => $a->status,
+                ])
+                ->all();
 
-        return [
-            'top_products_today' => $topTodayProducts,
-            'active_shifts'      => $activeShifts,
-            'pending_over_20min' => $pendingOrders,
-            'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->where('summary_type', 'daily')
+            $pendingOrders = Order::where('restaurant_id', $rid)
+                ->where('status', 'pending')
+                ->where('created_at', '<', now()->subMinutes(20))
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
-                ->whereBetween('summary_date', [today()->startOfWeek(), today()])
-                ->sum('net_revenue'),
-            'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
-                ->where('summary_type', 'daily')
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
-                ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
-                ->sum('net_revenue'),
-        ];
+                ->count();
+
+            return [
+                'top_products_today' => $topTodayProducts,
+                'active_shifts'      => $activeShifts,
+                'pending_over_20min' => $pendingOrders,
+                'revenue_this_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                    ->where('summary_type', 'daily')
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
+                    ->whereBetween('summary_date', [today()->startOfWeek(), today()])
+                    ->sum('net_revenue'),
+                'revenue_last_week'  => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
+                    ->where('summary_type', 'daily')
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->when(!$branchId, fn($q) => $q->whereNull('branch_id'))
+                    ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
+                    ->sum('net_revenue'),
+            ];
+        });
     }
 
     private function getCashFlowSummary(int $rid, ?int $branchId = null): array
     {
-        $activeRegister = \App\Models\CashRegister::where('restaurant_id', $rid)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->where('status', 'open')
-            ->first();
+        $key = "dashboard:cash_flow:{$rid}" . ($branchId ? ":{$branchId}" : "") . ":" . today()->toDateString();
 
-        $currentCash = 0.0;
-        if ($activeRegister) {
-            $in = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'in')->sum('amount');
-            $out = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'out')->sum('amount');
-            $currentCash = (float) $activeRegister->opening_balance + $in - $out;
-        }
+        return Cache::remember($key, 300, function () use ($rid, $branchId) {
+            $activeRegister = \App\Models\CashRegister::where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where('status', 'open')
+                ->first();
 
-        $sevenDaysAgo = now()->subDays(6)->startOfDay();
-        $recentTransactions = \App\Models\CashTransaction::where('restaurant_id', $rid)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->where('occurred_at', '>=', $sevenDaysAgo)
-            ->selectRaw("DATE(occurred_at) as date, type, SUM(amount) as total")
-            ->groupBy('date', 'type')
-            ->get();
+            $currentCash = 0.0;
+            if ($activeRegister) {
+                $in = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'in')->sum('amount');
+                $out = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'out')->sum('amount');
+                $currentCash = (float) $activeRegister->opening_balance + $in - $out;
+            }
 
-        $chart = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
-            $dateStr = $date->toDateString();
-            $label = $date->format('d/m');
-            $in = (float) $recentTransactions->where('date', $dateStr)->where('type', 'in')->sum('total');
-            $out = (float) $recentTransactions->where('date', $dateStr)->where('type', 'out')->sum('total');
-            $chart[] = [
-                'date' => $label,
-                'in' => $in,
-                'out' => $out
+            $sevenDaysAgo = now()->subDays(6)->startOfDay();
+            $recentTransactions = \App\Models\CashTransaction::where('restaurant_id', $rid)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where('occurred_at', '>=', $sevenDaysAgo)
+                ->selectRaw("DATE(occurred_at) as date, type, SUM(amount) as total")
+                ->groupBy('date', 'type')
+                ->get();
+
+            $chart = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $date = now()->subDays($i);
+                $dateStr = $date->toDateString();
+                $label = $date->format('d/m');
+                $in = (float) $recentTransactions->where('date', $dateStr)->where('type', 'in')->sum('total');
+                $out = (float) $recentTransactions->where('date', $dateStr)->where('type', 'out')->sum('total');
+                $chart[] = [
+                    'date' => $label,
+                    'in' => $in,
+                    'out' => $out
+                ];
+            }
+
+            return [
+                'active_register_status' => $activeRegister ? 'open' : 'closed',
+                'current_cash' => $currentCash,
+                'seven_days_in' => (float) $recentTransactions->where('type', 'in')->sum('total'),
+                'seven_days_out' => (float) $recentTransactions->where('type', 'out')->sum('total'),
+                'chart' => $chart,
             ];
-        }
-
-        return [
-            'active_register_status' => $activeRegister ? 'open' : 'closed',
-            'current_cash' => $currentCash,
-            'seven_days_in' => (float) $recentTransactions->where('type', 'in')->sum('total'),
-            'seven_days_out' => (float) $recentTransactions->where('type', 'out')->sum('total'),
-            'chart' => $chart,
-        ];
+        });
     }
 }
