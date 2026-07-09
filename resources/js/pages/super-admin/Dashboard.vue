@@ -33,9 +33,28 @@ import AreaChart from '@/components/charts/AreaChart.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/AppLayout.vue';
 import Echo from '@/lib/echo';
@@ -113,8 +132,20 @@ const props = defineProps<{
         created_at: string;
     }>;
     planDistribution: Array<{ name: string; code: string; count: number }>;
-    cohortAnalysis: Array<{ cohort: string; month: string; total: number; m1: number | null; m3: number | null; m6: number | null }>;
-    revenueBreakdown: Array<{ label: string; month: string; by_plan: Record<string, number>; total: number }>;
+    cohortAnalysis: Array<{
+        cohort: string;
+        month: string;
+        total: number;
+        m1: number | null;
+        m3: number | null;
+        m6: number | null;
+    }>;
+    revenueBreakdown: Array<{
+        label: string;
+        month: string;
+        by_plan: Record<string, number>;
+        total: number;
+    }>;
     revenueRetention: {
         period_label: string;
         previous_label: string;
@@ -125,14 +156,56 @@ const props = defineProps<{
         nrr: number | null;
         grr: number | null;
     };
-    planPerformance: Array<{ plan_code: string; plan_name: string; tenant_count: number; orders_30d: number; avg_orders_per_tenant_per_day: number; active_tenant_ratio: number }>;
-    dashboardAlerts: Array<{ source: string; severity: 'critical' | 'warning'; metric_key: string; title: string; message: string; triggered_at: string | null }>;
-    reportSubscription: { is_active: boolean; frequency: 'weekly' | 'monthly'; last_sent_at: string | null };
+    planPerformance: Array<{
+        plan_code: string;
+        plan_name: string;
+        tenant_count: number;
+        orders_30d: number;
+        avg_orders_per_tenant_per_day: number;
+        active_tenant_ratio: number;
+    }>;
+    dashboardAlerts: Array<{
+        source: string;
+        severity: 'critical' | 'warning';
+        metric_key: string;
+        title: string;
+        message: string;
+        triggered_at: string | null;
+    }>;
+    reportSubscription: {
+        is_active: boolean;
+        frequency: 'weekly' | 'monthly';
+        last_sent_at: string | null;
+    };
     aiInsights: {
-        churn_risks: Array<{ restaurant_id: number; name: string; risk_score: number; risk_level: string; reasons: string[]; actions: string[] }>;
-        health_scores: Array<{ restaurant_id: number; name: string; score: number; level: string; order_count_30d: number }>;
-        segments: { active_pro: number; trial_active: number; free_inactive: number; at_risk: number; churned: number; new: number };
-        mrr_forecast: Array<{ month: string; predicted_mrr: number; trend: string }>;
+        churn_risks: Array<{
+            restaurant_id: number;
+            name: string;
+            risk_score: number;
+            risk_level: string;
+            reasons: string[];
+            actions: string[];
+        }>;
+        health_scores: Array<{
+            restaurant_id: number;
+            name: string;
+            score: number;
+            level: string;
+            order_count_30d: number;
+        }>;
+        segments: {
+            active_pro: number;
+            trial_active: number;
+            free_inactive: number;
+            at_risk: number;
+            churned: number;
+            new: number;
+        };
+        mrr_forecast: Array<{
+            month: string;
+            predicted_mrr: number;
+            trend: string;
+        }>;
         overall_health: { score: number; label: string; color: string };
     };
     supportOverview: {
@@ -159,9 +232,7 @@ const props = defineProps<{
     }>;
 }>();
 
-
 const selectedKpiIdx = ref(0);
-
 
 // --- F2: Cập nhật real-time qua Reverb/Echo — làm mới các chỉ số thay đổi nhanh
 // (ticket mở, cảnh báo ngưỡng...) mà không cần tải lại trang ---
@@ -195,10 +266,12 @@ function scheduleRealtimeRefresh() {
 
 onMounted(() => {
     if (Echo) {
-        Echo.channel('superadmin.dashboard')
-            .listen('.superadmin.dashboard.updated', () => {
+        Echo.channel('superadmin.dashboard').listen(
+            '.superadmin.dashboard.updated',
+            () => {
                 scheduleRealtimeRefresh();
-            });
+            },
+        );
     }
 });
 
@@ -233,9 +306,15 @@ const DASHBOARD_SECTIONS_STORAGE_KEY = 'superadmin-dashboard-visible-sections';
 const DASHBOARD_SECTIONS: Array<{ key: string; label: string }> = [
     { key: 'growth_chart', label: 'Biểu đồ tăng trưởng & Sức khỏe SaaS' },
     { key: 'kpi_console', label: 'KPI Console & Chỉ số chi tiết' },
-    { key: 'ai_insights', label: 'AI Insights (Churn risk, Health score, Dự báo)' },
+    {
+        key: 'ai_insights',
+        label: 'AI Insights (Churn risk, Health score, Dự báo)',
+    },
     { key: 'resource_usage', label: 'Top tài nguyên (đơn hàng & lưu trữ)' },
-    { key: 'recent_restaurants', label: 'Nhà hàng gần đây & Tín hiệu hệ thống' },
+    {
+        key: 'recent_restaurants',
+        label: 'Nhà hàng gần đây & Tín hiệu hệ thống',
+    },
     { key: 'revenue_plan', label: 'Doanh thu & Hiệu suất theo gói' },
     { key: 'cohort_heatmap', label: 'Phân tích Cohort giữ chân tenant' },
 ];
@@ -249,16 +328,26 @@ onMounted(() => {
         const saved = localStorage.getItem(DASHBOARD_SECTIONS_STORAGE_KEY);
 
         if (saved) {
-            visibleSections.value = { ...visibleSections.value, ...JSON.parse(saved) };
+            visibleSections.value = {
+                ...visibleSections.value,
+                ...JSON.parse(saved),
+            };
         }
     } catch {
         // bỏ qua dữ liệu localStorage hỏng — giữ trạng thái mặc định (hiện tất cả)
     }
 });
 
-watch(visibleSections, (value) => {
-    localStorage.setItem(DASHBOARD_SECTIONS_STORAGE_KEY, JSON.stringify(value));
-}, { deep: true });
+watch(
+    visibleSections,
+    (value) => {
+        localStorage.setItem(
+            DASHBOARD_SECTIONS_STORAGE_KEY,
+            JSON.stringify(value),
+        );
+    },
+    { deep: true },
+);
 
 function isSectionVisible(key: string): boolean {
     return visibleSections.value[key] !== false;
@@ -268,10 +357,16 @@ function toggleSectionVisibility(key: string, value: boolean) {
     visibleSections.value = { ...visibleSections.value, [key]: value };
 }
 
-const hiddenSectionsCount = computed(() => DASHBOARD_SECTIONS.filter((s) => !isSectionVisible(s.key)).length);
+const hiddenSectionsCount = computed(
+    () => DASHBOARD_SECTIONS.filter((s) => !isSectionVisible(s.key)).length,
+);
 
 // --- Bộ lọc khoảng thời gian cho biểu đồ tăng trưởng tenant (B2) + so sánh kỳ trước (B3) ---
-const RANGE_LABELS: Record<string, string> = { '3m': '3 tháng', '6m': '6 tháng', '12m': '12 tháng' };
+const RANGE_LABELS: Record<string, string> = {
+    '3m': '3 tháng',
+    '6m': '6 tháng',
+    '12m': '12 tháng',
+};
 const selectedRange = ref(props.filters.range);
 const compareEnabled = ref(props.filters.compare);
 
@@ -279,20 +374,24 @@ const compareEnabled = ref(props.filters.compare);
 const isNavigating = ref(false);
 
 function applyGrowthFilters() {
-    router.get('/super-admin/dashboard', {
-        range: selectedRange.value,
-        compare: compareEnabled.value ? '1' : undefined,
-    }, {
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        onStart: () => {
- isNavigating.value = true; 
-},
-        onFinish: () => {
- isNavigating.value = false; 
-},
-    });
+    router.get(
+        '/super-admin/dashboard',
+        {
+            range: selectedRange.value,
+            compare: compareEnabled.value ? '1' : undefined,
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            onStart: () => {
+                isNavigating.value = true;
+            },
+            onFinish: () => {
+                isNavigating.value = false;
+            },
+        },
+    );
 }
 
 function exportDashboardCsv() {
@@ -310,16 +409,20 @@ const reportSubSaving = ref(false);
 
 function saveReportSubscription() {
     reportSubSaving.value = true;
-    router.post('/super-admin/dashboard/report-subscription', {
-        is_active: reportSubActive.value,
-        frequency: reportSubFrequency.value,
-    }, {
-        preserveState: true,
-        preserveScroll: true,
-        onFinish: () => {
- reportSubSaving.value = false; 
-},
-    });
+    router.post(
+        '/super-admin/dashboard/report-subscription',
+        {
+            is_active: reportSubActive.value,
+            frequency: reportSubFrequency.value,
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => {
+                reportSubSaving.value = false;
+            },
+        },
+    );
 }
 
 function toggleReportSubscription(value: boolean) {
@@ -327,7 +430,8 @@ function toggleReportSubscription(value: boolean) {
     saveReportSubscription();
 }
 
-const trendWord = (trend: string) => (trend === 'up' ? 'tăng' : trend === 'down' ? 'giảm' : 'đi ngang');
+const trendWord = (trend: string) =>
+    trend === 'up' ? 'tăng' : trend === 'down' ? 'giảm' : 'đi ngang';
 
 /**
  * Sinh nhận định/đề xuất cho từng bước của KPI Console dựa trên dữ liệu thật
@@ -340,67 +444,103 @@ const aiNotes = computed(() => {
     const forecast = props.aiInsights?.mrr_forecast ?? [];
     const health = props.aiInsights?.overall_health;
     const monitoring = props.supportOverview.monitoring;
-    const suspendedRatio = props.stats.total_restaurants > 0
-        ? Math.round((props.stats.suspended / props.stats.total_restaurants) * 100)
-        : 0;
-    const proRatio = props.stats.total_restaurants > 0
-        ? Math.round((props.stats.pro_plan / props.stats.total_restaurants) * 100)
-        : 0;
-    const density = props.stats.total_restaurants > 0
-        ? props.stats.total_users / props.stats.total_restaurants
-        : 0;
-    const arpu = props.saasMetrics.paid_tenants > 0
-        ? Math.round(props.saasMetrics.mrr / props.saasMetrics.paid_tenants)
-        : 0;
+    const suspendedRatio =
+        props.stats.total_restaurants > 0
+            ? Math.round(
+                  (props.stats.suspended / props.stats.total_restaurants) * 100,
+              )
+            : 0;
+    const proRatio =
+        props.stats.total_restaurants > 0
+            ? Math.round(
+                  (props.stats.pro_plan / props.stats.total_restaurants) * 100,
+              )
+            : 0;
+    const density =
+        props.stats.total_restaurants > 0
+            ? props.stats.total_users / props.stats.total_restaurants
+            : 0;
+    const arpu =
+        props.saasMetrics.paid_tenants > 0
+            ? Math.round(props.saasMetrics.mrr / props.saasMetrics.paid_tenants)
+            : 0;
 
     const notes: string[] = [];
 
     // 1. Tenant Analytics
     if (suspendedRatio > 10) {
-        notes.push(`⚠️ ${suspendedRatio}% nhà hàng (${props.stats.suspended}/${props.stats.total_restaurants}) đang ở trạng thái tạm khóa. Nên rà soát nguyên nhân (thanh toán quá hạn, vi phạm chính sách...) và chủ động liên hệ để kích hoạt lại trước khi họ rời bỏ hệ thống.`);
+        notes.push(
+            `⚠️ ${suspendedRatio}% nhà hàng (${props.stats.suspended}/${props.stats.total_restaurants}) đang ở trạng thái tạm khóa. Nên rà soát nguyên nhân (thanh toán quá hạn, vi phạm chính sách...) và chủ động liên hệ để kích hoạt lại trước khi họ rời bỏ hệ thống.`,
+        );
     } else {
-        notes.push(`💡 ${props.statChanges.total_restaurants.label}. Hệ thống hiện có ${props.stats.active}/${props.stats.total_restaurants} nhà hàng đang hoạt động ổn định — nên duy trì các kênh thu hút đối tác mới để giữ đà này.`);
+        notes.push(
+            `💡 ${props.statChanges.total_restaurants.label}. Hệ thống hiện có ${props.stats.active}/${props.stats.total_restaurants} nhà hàng đang hoạt động ổn định — nên duy trì các kênh thu hút đối tác mới để giữ đà này.`,
+        );
     }
 
     // 2. System Operation
     if (monitoring.failed_jobs > 0 || monitoring.api_error_rate > 5) {
-        notes.push(`⚠️ Phát hiện ${monitoring.failed_jobs} job lỗi và tỉ lệ lỗi API ${monitoring.api_error_rate}%. Nên vào "DevOps & Support" kiểm tra ngay để tránh ảnh hưởng tới trải nghiệm của ${props.stats.active} nhà hàng đang hoạt động.`);
+        notes.push(
+            `⚠️ Phát hiện ${monitoring.failed_jobs} job lỗi và tỉ lệ lỗi API ${monitoring.api_error_rate}%. Nên vào "DevOps & Support" kiểm tra ngay để tránh ảnh hưởng tới trải nghiệm của ${props.stats.active} nhà hàng đang hoạt động.`,
+        );
     } else if (monitoring.slow_queries > 0) {
-        notes.push(`💡 Hệ thống ổn định nhưng có ${monitoring.slow_queries} truy vấn chậm. Với ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua, nên tối ưu các truy vấn này sớm để giữ tốc độ phản hồi khi tải tăng.`);
+        notes.push(
+            `💡 Hệ thống ổn định nhưng có ${monitoring.slow_queries} truy vấn chậm. Với ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua, nên tối ưu các truy vấn này sớm để giữ tốc độ phản hồi khi tải tăng.`,
+        );
     } else {
-        notes.push(`💡 Hệ thống đang vận hành ổn định: không có job lỗi, tỉ lệ lỗi API ${monitoring.api_error_rate}%. Đã ghi nhận ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua — tiếp tục theo dõi định kỳ tại DevOps & Support.`);
+        notes.push(
+            `💡 Hệ thống đang vận hành ổn định: không có job lỗi, tỉ lệ lỗi API ${monitoring.api_error_rate}%. Đã ghi nhận ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua — tiếp tục theo dõi định kỳ tại DevOps & Support.`,
+        );
     }
 
     // 3. Pro Plan Subscriptions
     if ((segments?.free_inactive ?? 0) > 0) {
-        notes.push(`💡 Có ${segments?.free_inactive} nhà hàng đang dùng gói Free nhưng ít hoạt động. Nên gửi chiến dịch giới thiệu tính năng Pro (QR Order, AI Forecast tồn kho...) kèm ưu đãi dùng thử để thúc đẩy chuyển đổi.`);
+        notes.push(
+            `💡 Có ${segments?.free_inactive} nhà hàng đang dùng gói Free nhưng ít hoạt động. Nên gửi chiến dịch giới thiệu tính năng Pro (QR Order, AI Forecast tồn kho...) kèm ưu đãi dùng thử để thúc đẩy chuyển đổi.`,
+        );
     } else if ((segments?.trial_active ?? 0) > 0) {
-        notes.push(`💡 Đang có ${segments?.trial_active} nhà hàng trong giai đoạn dùng thử (Trial). Nên chủ động liên hệ chăm sóc để tăng tỉ lệ chuyển đổi sang gói trả phí trước khi hết hạn.`);
+        notes.push(
+            `💡 Đang có ${segments?.trial_active} nhà hàng trong giai đoạn dùng thử (Trial). Nên chủ động liên hệ chăm sóc để tăng tỉ lệ chuyển đổi sang gói trả phí trước khi hết hạn.`,
+        );
     } else {
-        notes.push(`💡 Gói Pro hiện chiếm ${proRatio}% tổng số đối tác (${props.stats.pro_plan}/${props.stats.total_restaurants}, tương đương ${props.saasMetrics.paid_tenants} thuê bao trả phí). Tiếp tục giữ chất lượng trải nghiệm Pro để mở rộng nhóm khách hàng này.`);
+        notes.push(
+            `💡 Gói Pro hiện chiếm ${proRatio}% tổng số đối tác (${props.stats.pro_plan}/${props.stats.total_restaurants}, tương đương ${props.saasMetrics.paid_tenants} thuê bao trả phí). Tiếp tục giữ chất lượng trải nghiệm Pro để mở rộng nhóm khách hàng này.`,
+        );
     }
 
     // 4. Team Size Dynamics
     if (density > 0 && density < 2) {
-        notes.push(`💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng — khá thấp, cho thấy phần lớn là quán quy mô nhỏ. Nên quảng bá các module tự động hoá (Chấm công, Tính lương, Quản lý ca) để giảm tải vận hành thủ công cho nhóm đối tác này.`);
+        notes.push(
+            `💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng — khá thấp, cho thấy phần lớn là quán quy mô nhỏ. Nên quảng bá các module tự động hoá (Chấm công, Tính lương, Quản lý ca) để giảm tải vận hành thủ công cho nhóm đối tác này.`,
+        );
     } else {
-        notes.push(`💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng. ${props.statChanges.total_users.label} — nên tiếp tục theo dõi để đảm bảo hạ tầng đáp ứng khi số tài khoản tăng thêm.`);
+        notes.push(
+            `💡 Mật độ nhân sự bình quân ~${density.toFixed(1)} người/nhà hàng. ${props.statChanges.total_users.label} — nên tiếp tục theo dõi để đảm bảo hạ tầng đáp ứng khi số tài khoản tăng thêm.`,
+        );
     }
 
     // 5. MRR Financial Stream
     if (props.saasMetrics.churn_rate > 5 || churnRisks.length > 0) {
-        notes.push(`⚠️ Tỉ lệ rời bỏ đang ở mức ${props.saasMetrics.churn_rate}%, với ${churnRisks.length} nhà hàng được đánh giá có nguy cơ rời bỏ cao. Nên ưu tiên chăm sóc nhóm này (xem mục "Nguy cơ rời bỏ" bên dưới) trước khi mất doanh thu định kỳ.`);
+        notes.push(
+            `⚠️ Tỉ lệ rời bỏ đang ở mức ${props.saasMetrics.churn_rate}%, với ${churnRisks.length} nhà hàng được đánh giá có nguy cơ rời bỏ cao. Nên ưu tiên chăm sóc nhóm này (xem mục "Nguy cơ rời bỏ" bên dưới) trước khi mất doanh thu định kỳ.`,
+        );
     } else {
-        notes.push(`💡 Churn rate ở mức ${props.saasMetrics.churn_rate}% — tín hiệu tích cực. ARPU hiện đạt ${formatCurrency(arpu)}/nhà hàng Pro. Có thể cân nhắc xây dựng gói cao cấp hơn (Enterprise) để nâng ARPU mà vẫn giữ tỉ lệ giữ chân tốt.`);
+        notes.push(
+            `💡 Churn rate ở mức ${props.saasMetrics.churn_rate}% — tín hiệu tích cực. ARPU hiện đạt ${formatCurrency(arpu)}/nhà hàng Pro. Có thể cân nhắc xây dựng gói cao cấp hơn (Enterprise) để nâng ARPU mà vẫn giữ tỉ lệ giữ chân tốt.`,
+        );
     }
 
     // 6. ARR Forecast
     const next = forecast[0];
 
     if (next) {
-        notes.push(`💡 Dự báo tháng tới: MRR ước tính ${trendWord(next.trend)} về mức ${formatCurrency(next.predicted_mrr)}. Điểm sức khoẻ tổng thể hệ thống hiện ở mức ${health?.score ?? '-'}/100 (${health?.label ?? 'chưa đủ dữ liệu'}) — nên theo dõi sát các tenant rủi ro để giữ đà tăng trưởng ARR.`);
+        notes.push(
+            `💡 Dự báo tháng tới: MRR ước tính ${trendWord(next.trend)} về mức ${formatCurrency(next.predicted_mrr)}. Điểm sức khoẻ tổng thể hệ thống hiện ở mức ${health?.score ?? '-'}/100 (${health?.label ?? 'chưa đủ dữ liệu'}) — nên theo dõi sát các tenant rủi ro để giữ đà tăng trưởng ARR.`,
+        );
     } else {
-        notes.push(`💡 Chưa có đủ dữ liệu để dự báo MRR các tháng tới. ARR hiện được ước tính trên chu kỳ 12 tháng dựa theo MRR hiện tại (${formatCurrency(props.saasMetrics.arr)}).`);
+        notes.push(
+            `💡 Chưa có đủ dữ liệu để dự báo MRR các tháng tới. ARR hiện được ước tính trên chu kỳ 12 tháng dựa theo MRR hiện tại (${formatCurrency(props.saasMetrics.arr)}).`,
+        );
     }
 
     return notes;
@@ -413,12 +553,22 @@ const kpiDetails = computed(() => [
         metric1_label: 'Tổng số lượng nhà hàng',
         metric1_value: props.stats.total_restaurants + ' đối tác',
         metric2_label: 'Gia tăng tháng này',
-        metric2_value: '+' + (props.tenantGrowth.length > 0 ? (props.tenantGrowth[props.tenantGrowth.length - 1]?.new_tenants ?? 0) : 0) + ' đăng ký mới',
+        metric2_value:
+            '+' +
+            (props.tenantGrowth.length > 0
+                ? (props.tenantGrowth[props.tenantGrowth.length - 1]
+                      ?.new_tenants ?? 0)
+                : 0) +
+            ' đăng ký mới',
         metric3_label: 'Tốc độ phát triển',
         metric3_value: props.statChanges.total_restaurants.label,
-        tables: ['Hoạt động: ' + props.stats.active, 'Tạm khóa: ' + props.stats.suspended, 'Hết hạn: ' + props.stats.expired],
+        tables: [
+            'Hoạt động: ' + props.stats.active,
+            'Tạm khóa: ' + props.stats.suspended,
+            'Hết hạn: ' + props.stats.expired,
+        ],
         note: aiNotes.value[0],
-        color: 'text-sky-400 border-sky-500/30 shadow-sky-500/10'
+        color: 'text-sky-400 border-sky-500/30 shadow-sky-500/10',
     },
     {
         step: 'Trạng thái Hoạt động Hệ thống (System Operation)',
@@ -426,16 +576,25 @@ const kpiDetails = computed(() => [
         metric1_label: 'Nhà hàng đang active',
         metric1_value: props.stats.active + ' đang online',
         metric2_label: 'Tỷ lệ hoạt động thực tế',
-        metric2_value: Math.round((props.stats.active / Math.max(1, props.stats.total_restaurants)) * 100) + '% tổng hệ thống',
+        metric2_value:
+            Math.round(
+                (props.stats.active /
+                    Math.max(1, props.stats.total_restaurants)) *
+                    100,
+            ) + '% tổng hệ thống',
         metric3_label: 'Mật độ tải trung bình',
-        metric3_value: props.resourceInsights.totals.orders_last_30_days + ' đơn hàng / 30 ngày',
+        metric3_value:
+            props.resourceInsights.totals.orders_last_30_days +
+            ' đơn hàng / 30 ngày',
         tables: [
             'Job lỗi: ' + props.supportOverview.monitoring.failed_jobs,
             'Job đang chờ: ' + props.supportOverview.monitoring.pending_jobs,
-            'Tỉ lệ lỗi API: ' + props.supportOverview.monitoring.api_error_rate + '%',
+            'Tỉ lệ lỗi API: ' +
+                props.supportOverview.monitoring.api_error_rate +
+                '%',
         ],
         note: aiNotes.value[1],
-        color: 'text-emerald-400 border-emerald-500/30 shadow-emerald-500/10'
+        color: 'text-emerald-400 border-emerald-500/30 shadow-emerald-500/10',
     },
     {
         step: 'Chuyển đổi Gói Dịch Vụ (Pro Plan Subscriptions)',
@@ -443,18 +602,27 @@ const kpiDetails = computed(() => [
         metric1_label: 'Tổng số lượng gói Pro',
         metric1_value: props.stats.pro_plan + ' nhà hàng',
         metric2_label: 'Tỷ lệ Pro / Tổng số',
-        metric2_value: Math.round((props.stats.pro_plan / Math.max(1, props.stats.total_restaurants)) * 100) + '% tổng số nhà hàng',
+        metric2_value:
+            Math.round(
+                (props.stats.pro_plan /
+                    Math.max(1, props.stats.total_restaurants)) *
+                    100,
+            ) + '% tổng số nhà hàng',
         metric3_label: 'Lượt nâng cấp thành công',
-        metric3_value: props.saasMetrics.paid_tenants + ' tài khoản trả phí thực tế',
+        metric3_value:
+            props.saasMetrics.paid_tenants + ' tài khoản trả phí thực tế',
         tables: [
             'Gói Pro: ' + props.stats.pro_plan,
-            'Dùng thử (Trial): ' + (props.aiInsights?.segments?.trial_active ?? 0),
+            'Dùng thử (Trial): ' +
+                (props.aiInsights?.segments?.trial_active ?? 0),
             ...(props.planPerformance[0]
-                ? [`Hiệu suất gói ${props.planPerformance[0].plan_name}: ${props.planPerformance[0].avg_orders_per_tenant_per_day} đơn/ngày/tenant · ${props.planPerformance[0].active_tenant_ratio}% đang hoạt động`]
+                ? [
+                      `Hiệu suất gói ${props.planPerformance[0].plan_name}: ${props.planPerformance[0].avg_orders_per_tenant_per_day} đơn/ngày/tenant · ${props.planPerformance[0].active_tenant_ratio}% đang hoạt động`,
+                  ]
                 : []),
         ],
         note: aiNotes.value[2],
-        color: 'text-violet-400 border-violet-500/30 shadow-violet-500/10'
+        color: 'text-violet-400 border-violet-500/30 shadow-violet-500/10',
     },
     {
         step: 'Mật độ Nhân sự & Tài khoản (Team Size Dynamics)',
@@ -462,12 +630,21 @@ const kpiDetails = computed(() => [
         metric1_label: 'Tổng tài khoản người dùng',
         metric1_value: props.stats.total_users + ' người dùng',
         metric2_label: 'Mật độ nhân sự trung bình',
-        metric2_value: (props.stats.total_users / Math.max(1, props.stats.total_restaurants)).toFixed(1) + ' nhân sự / nhà hàng',
+        metric2_value:
+            (
+                props.stats.total_users /
+                Math.max(1, props.stats.total_restaurants)
+            ).toFixed(1) + ' nhân sự / nhà hàng',
         metric3_label: 'Gia tăng tài khoản',
         metric3_value: props.statChanges.total_users.label,
-        tables: ['Super Admin: 1', 'Tenant Owners: ' + props.stats.total_restaurants, 'Nhân viên: ' + (props.stats.total_users - props.stats.total_restaurants - 1)],
+        tables: [
+            'Super Admin: 1',
+            'Tenant Owners: ' + props.stats.total_restaurants,
+            'Nhân viên: ' +
+                (props.stats.total_users - props.stats.total_restaurants - 1),
+        ],
         note: aiNotes.value[3],
-        color: 'text-amber-400 border-emerald-500/30 shadow-emerald-500/10'
+        color: 'text-amber-400 border-emerald-500/30 shadow-emerald-500/10',
     },
     {
         step: 'Theo dõi Doanh thu định kỳ (MRR Financial Stream)',
@@ -477,14 +654,22 @@ const kpiDetails = computed(() => [
         metric2_label: 'Tỷ lệ rời bỏ (Churn Rate)',
         metric2_value: props.saasMetrics.churn_rate + '% Churn Rate',
         metric3_label: 'Mức chi tiêu bình quân (ARPU)',
-        metric3_value: formatCurrency(props.saasMetrics.paid_tenants > 0 ? Math.round(props.saasMetrics.mrr / props.saasMetrics.paid_tenants) : 0) + ' / nhà hàng Pro',
+        metric3_value:
+            formatCurrency(
+                props.saasMetrics.paid_tenants > 0
+                    ? Math.round(
+                          props.saasMetrics.mrr /
+                              props.saasMetrics.paid_tenants,
+                      )
+                    : 0,
+            ) + ' / nhà hàng Pro',
         tables: [
             'MRR Pro: ' + formatCurrency(props.saasMetrics.mrr),
             'Paid Subscriptions: ' + props.saasMetrics.active_subscriptions,
             `NRR/GRR (${props.revenueRetention.previous_label} → ${props.revenueRetention.period_label}): ${props.revenueRetention.nrr ?? '—'}% / ${props.revenueRetention.grr ?? '—'}%`,
         ],
         note: aiNotes.value[4],
-        color: 'text-cyan-400 border-cyan-500/30 shadow-cyan-500/10'
+        color: 'text-cyan-400 border-cyan-500/30 shadow-cyan-500/10',
     },
     {
         step: 'Dự báo Tài chính dài hạn (ARR Forecast Projections)',
@@ -497,7 +682,10 @@ const kpiDetails = computed(() => [
         metric3_value: 'Dự tính trên chu kỳ 12 tháng kế tiếp',
         tables: [
             ...((props.aiInsights?.mrr_forecast ?? []).length > 0
-                ? props.aiInsights.mrr_forecast.map((f) => `${f.month}: ${formatCurrency(f.predicted_mrr)} (${trendWord(f.trend)})`)
+                ? props.aiInsights.mrr_forecast.map(
+                      (f) =>
+                          `${f.month}: ${formatCurrency(f.predicted_mrr)} (${trendWord(f.trend)})`,
+                  )
                 : ['Chưa có dữ liệu dự báo MRR']),
             props.cohortAnalysis.length
                 ? `Cohort ${props.cohortAnalysis[props.cohortAnalysis.length - 1].month}: giữ chân M+1 đạt ${props.cohortAnalysis[props.cohortAnalysis.length - 1].m1 ?? '—'}%`
@@ -505,7 +693,7 @@ const kpiDetails = computed(() => [
             `Cảnh báo đang hoạt động: ${props.dashboardAlerts.length} (${props.dashboardAlerts.filter((a) => a.severity === 'critical').length} nghiêm trọng)`,
         ],
         note: aiNotes.value[5],
-        color: 'text-indigo-400 border-indigo-500/30 shadow-indigo-500/10'
+        color: 'text-indigo-400 border-indigo-500/30 shadow-indigo-500/10',
     },
     {
         step: 'Trình Kiểm định & Hậu mãi (Retention & Flagged Validator)',
@@ -518,11 +706,13 @@ const kpiDetails = computed(() => [
         metric3_value: 'Mặc định 7 ngày',
         tables: ['Gắn cờ hoạt động: ' + (props.stats.flagged_inactive ?? 0)],
         note: '💡 Phát hiện cửa hàng không có hoạt động đơn hàng, bếp hay doanh thu trong nhiều ngày liên tục dù vẫn còn hạn gói dịch vụ. Hãy nhấp vào xem danh sách bị gắn cờ và liên hệ để kích hoạt lại/hỗ trợ đối tác sớm nhất.',
-        color: 'text-rose-400 border-rose-500/30 shadow-rose-500/10'
-    }
+        color: 'text-rose-400 border-rose-500/30 shadow-rose-500/10',
+    },
 ]);
 
-const activeKpi = computed(() => kpiDetails.value[selectedKpiIdx.value] ?? kpiDetails.value[0]);
+const activeKpi = computed(
+    () => kpiDetails.value[selectedKpiIdx.value] ?? kpiDetails.value[0],
+);
 
 const expandedRiskId = ref<number | null>(null);
 
@@ -540,8 +730,10 @@ const isRiskExpanded = (id: number, index: number) => {
 
 const statusColor: Record<string, string> = {
     active: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/50',
-    suspended: 'bg-amber-100/80 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/50',
-    expired: 'bg-rose-100/80 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/50',
+    suspended:
+        'bg-amber-100/80 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/50',
+    expired:
+        'bg-rose-100/80 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/50',
 };
 
 const statusLabel: Record<string, string> = {
@@ -550,7 +742,11 @@ const statusLabel: Record<string, string> = {
     expired: 'Hết hạn',
 };
 
-const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+    }).format(value);
 const formatBytes = (bytes: number) => {
     if (bytes >= 1024 ** 3) {
         return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -568,13 +764,62 @@ const formatBytes = (bytes: number) => {
 };
 
 const statCards = computed(() => [
-    { label: 'Tổng nhà hàng', value: props.stats.total_restaurants, icon: Building2, color: 'text-sky-500 bg-sky-500/10 border-sky-500/20', change: props.statChanges.total_restaurants.label, trend: props.statChanges.total_restaurants.trend },
-    { label: 'Đang hoạt động', value: props.stats.active, icon: CheckCircle2, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', change: 'Đang vận hành liên tục', trend: 'up' },
-    { label: 'Gói Pro cao cấp', value: props.stats.pro_plan, icon: Crown, color: 'text-violet-500 bg-violet-500/10 border-violet-500/20', change: props.statChanges.pro_plan.label, trend: props.statChanges.pro_plan.trend },
-    { label: 'Tổng người dùng', value: props.stats.total_users, icon: Users, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', change: props.statChanges.total_users.label, trend: props.statChanges.total_users.trend },
-    { label: 'Doanh thu MRR', value: formatCurrency(props.saasMetrics.mrr), icon: TrendingUp, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20', change: props.statChanges.mrr.label, trend: props.statChanges.mrr.trend },
-    { label: 'Ước tính ARR', value: formatCurrency(props.saasMetrics.arr), icon: Gauge, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20', change: 'Dự tính trên chu kỳ 12 tháng', trend: 'neutral' },
-    { label: 'Cần hậu mãi (Flagged)', value: props.stats.flagged_inactive ?? 0, icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', change: 'Không hoạt động lâu ngày', trend: 'down' },
+    {
+        label: 'Tổng nhà hàng',
+        value: props.stats.total_restaurants,
+        icon: Building2,
+        color: 'text-sky-500 bg-sky-500/10 border-sky-500/20',
+        change: props.statChanges.total_restaurants.label,
+        trend: props.statChanges.total_restaurants.trend,
+    },
+    {
+        label: 'Đang hoạt động',
+        value: props.stats.active,
+        icon: CheckCircle2,
+        color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+        change: 'Đang vận hành liên tục',
+        trend: 'up',
+    },
+    {
+        label: 'Gói Pro cao cấp',
+        value: props.stats.pro_plan,
+        icon: Crown,
+        color: 'text-violet-500 bg-violet-500/10 border-violet-500/20',
+        change: props.statChanges.pro_plan.label,
+        trend: props.statChanges.pro_plan.trend,
+    },
+    {
+        label: 'Tổng người dùng',
+        value: props.stats.total_users,
+        icon: Users,
+        color: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+        change: props.statChanges.total_users.label,
+        trend: props.statChanges.total_users.trend,
+    },
+    {
+        label: 'Doanh thu MRR',
+        value: formatCurrency(props.saasMetrics.mrr),
+        icon: TrendingUp,
+        color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20',
+        change: props.statChanges.mrr.label,
+        trend: props.statChanges.mrr.trend,
+    },
+    {
+        label: 'Ước tính ARR',
+        value: formatCurrency(props.saasMetrics.arr),
+        icon: Gauge,
+        color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20',
+        change: 'Dự tính trên chu kỳ 12 tháng',
+        trend: 'neutral',
+    },
+    {
+        label: 'Cần hậu mãi (Flagged)',
+        value: props.stats.flagged_inactive ?? 0,
+        icon: AlertTriangle,
+        color: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
+        change: 'Không hoạt động lâu ngày',
+        trend: 'down',
+    },
 ]);
 
 const riskColor: Record<string, string> = {
@@ -599,15 +844,56 @@ const segmentCards = computed(() => {
     const s = props.aiInsights?.segments ?? {};
 
     return [
-        { key: 'active_pro', label: 'Pro đang hoạt động', value: s.active_pro ?? 0, color: 'text-violet-400', gradient: 'from-violet-600/20 to-violet-900/30', border: 'border-violet-500/20 hover:border-violet-500/40', icon: '👑' },
-        { key: 'trial_active', label: 'Đang dùng thử (Trial)', value: s.trial_active ?? 0, color: 'text-sky-400', gradient: 'from-sky-600/20 to-sky-900/30', border: 'border-sky-500/20 hover:border-sky-500/40', icon: '⚡' },
-        { key: 'free_inactive', label: 'Free – Ít hoạt động', value: s.free_inactive ?? 0, color: 'text-amber-400', gradient: 'from-amber-600/20 to-amber-900/30', border: 'border-amber-500/20 hover:border-amber-500/40', icon: '💤' },
-        { key: 'at_risk', label: 'Nguy cơ rời bỏ', value: s.at_risk ?? 0, color: 'text-rose-400', gradient: 'from-rose-600/20 to-rose-900/30', border: 'border-rose-500/20 hover:border-rose-500/40', icon: '⚠️' },
+        {
+            key: 'active_pro',
+            label: 'Pro đang hoạt động',
+            value: s.active_pro ?? 0,
+            color: 'text-violet-400',
+            gradient: 'from-violet-600/20 to-violet-900/30',
+            border: 'border-violet-500/20 hover:border-violet-500/40',
+            icon: '👑',
+        },
+        {
+            key: 'trial_active',
+            label: 'Đang dùng thử (Trial)',
+            value: s.trial_active ?? 0,
+            color: 'text-sky-400',
+            gradient: 'from-sky-600/20 to-sky-900/30',
+            border: 'border-sky-500/20 hover:border-sky-500/40',
+            icon: '⚡',
+        },
+        {
+            key: 'free_inactive',
+            label: 'Free – Ít hoạt động',
+            value: s.free_inactive ?? 0,
+            color: 'text-amber-400',
+            gradient: 'from-amber-600/20 to-amber-900/30',
+            border: 'border-amber-500/20 hover:border-amber-500/40',
+            icon: '💤',
+        },
+        {
+            key: 'at_risk',
+            label: 'Nguy cơ rời bỏ',
+            value: s.at_risk ?? 0,
+            color: 'text-rose-400',
+            gradient: 'from-rose-600/20 to-rose-900/30',
+            border: 'border-rose-500/20 hover:border-rose-500/40',
+            icon: '⚠️',
+        },
     ];
 });
 
 // --- Drill-down theo segment (B4): bấm vào card mở Dialog liệt kê nhà hàng thuộc nhóm ---
-type SegmentRestaurant = { id: number; name: string; code: string; status: string; plan_code: string; owner_name: string; owner_email: string; subscription_ends_at: string };
+type SegmentRestaurant = {
+    id: number;
+    name: string;
+    code: string;
+    status: string;
+    plan_code: string;
+    owner_name: string;
+    owner_email: string;
+    subscription_ends_at: string;
+};
 const selectedSegment = ref<{ key: string; label: string } | null>(null);
 const isLoadingSegmentRestaurants = ref(false);
 const segmentRestaurantsList = ref<SegmentRestaurant[]>([]);
@@ -618,7 +904,9 @@ async function showSegmentRestaurants(seg: { key: string; label: string }) {
     segmentRestaurantsList.value = [];
 
     try {
-        const response = await fetch(`/super-admin/dashboard/segments/${seg.key}`);
+        const response = await fetch(
+            `/super-admin/dashboard/segments/${seg.key}`,
+        );
         const data = await response.json();
         segmentRestaurantsList.value = data.restaurants ?? [];
     } catch (e) {
@@ -629,18 +917,36 @@ async function showSegmentRestaurants(seg: { key: string; label: string }) {
 }
 
 const donutSlices = computed(() => {
-    const total = props.planDistribution.reduce((sum, p) => sum + p.count, 0) || 1;
+    const total =
+        props.planDistribution.reduce((sum, p) => sum + p.count, 0) || 1;
     let accumulatedPercentage = 0;
-    
-    const colors: Record<string, { stroke: string; text: string; bg: string }> = {
-        free: { stroke: 'stroke-sky-500', text: 'text-sky-500', bg: 'bg-sky-500/10' },
-        pro: { stroke: 'stroke-violet-500', text: 'text-violet-500', bg: 'bg-violet-500/10' },
-        max: { stroke: 'stroke-amber-500', text: 'text-amber-500', bg: 'bg-amber-500/10' },
-        ultra: { stroke: 'stroke-emerald-500', text: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    };
-    
+
+    const colors: Record<string, { stroke: string; text: string; bg: string }> =
+        {
+            free: {
+                stroke: 'stroke-sky-500',
+                text: 'text-sky-500',
+                bg: 'bg-sky-500/10',
+            },
+            pro: {
+                stroke: 'stroke-violet-500',
+                text: 'text-violet-500',
+                bg: 'bg-violet-500/10',
+            },
+            max: {
+                stroke: 'stroke-amber-500',
+                text: 'text-amber-500',
+                bg: 'bg-amber-500/10',
+            },
+            ultra: {
+                stroke: 'stroke-emerald-500',
+                text: 'text-emerald-500',
+                bg: 'bg-emerald-500/10',
+            },
+        };
+
     return props.planDistribution
-        .filter(p => p.count > 0)
+        .filter((p) => p.count > 0)
         .map((plan) => {
             const percentage = (plan.count / total) * 100;
             const slice = {
@@ -650,7 +956,11 @@ const donutSlices = computed(() => {
                 percentage: Math.round(percentage),
                 dasharray: `${percentage.toFixed(2)} 100`,
                 dashoffset: `-${accumulatedPercentage.toFixed(2)}`,
-                color: colors[plan.code?.toLowerCase()] ?? { stroke: 'stroke-slate-500', text: 'text-slate-500', bg: 'bg-slate-500/10' }
+                color: colors[plan.code?.toLowerCase()] ?? {
+                    stroke: 'stroke-slate-500',
+                    text: 'text-slate-500',
+                    bg: 'bg-slate-500/10',
+                },
             };
             accumulatedPercentage += percentage;
 
@@ -660,86 +970,176 @@ const donutSlices = computed(() => {
 
 const overallHealthStyle = computed(() => {
     const color = props.aiInsights?.overall_health?.color ?? 'gray';
-    const map: Record<string, { ring: string; text: string; bg: string; glow: string }> = {
-        green: { ring: 'stroke-emerald-500', text: 'text-emerald-400 dark:text-emerald-300', bg: 'from-emerald-600/10 to-emerald-900/20 border-emerald-500/30', glow: 'shadow-emerald-500/20' },
-        yellow: { ring: 'stroke-amber-400', text: 'text-amber-400 dark:text-amber-300', bg: 'from-amber-600/10 to-amber-900/20 border-amber-500/30', glow: 'shadow-amber-500/20' },
-        red: { ring: 'stroke-rose-500', text: 'text-rose-400 dark:text-rose-300', bg: 'from-rose-600/10 to-rose-900/20 border-rose-500/30', glow: 'shadow-rose-500/20' },
-        gray: { ring: 'stroke-slate-500', text: 'text-slate-400 dark:text-slate-300', bg: 'from-slate-600/10 to-slate-900/20 border-slate-500/30', glow: 'shadow-slate-500/20' },
+    const map: Record<
+        string,
+        { ring: string; text: string; bg: string; glow: string }
+    > = {
+        green: {
+            ring: 'stroke-emerald-500',
+            text: 'text-emerald-400 dark:text-emerald-300',
+            bg: 'from-emerald-600/10 to-emerald-900/20 border-emerald-500/30',
+            glow: 'shadow-emerald-500/20',
+        },
+        yellow: {
+            ring: 'stroke-amber-400',
+            text: 'text-amber-400 dark:text-amber-300',
+            bg: 'from-amber-600/10 to-amber-900/20 border-amber-500/30',
+            glow: 'shadow-amber-500/20',
+        },
+        red: {
+            ring: 'stroke-rose-500',
+            text: 'text-rose-400 dark:text-rose-300',
+            bg: 'from-rose-600/10 to-rose-900/20 border-rose-500/30',
+            glow: 'shadow-rose-500/20',
+        },
+        gray: {
+            ring: 'stroke-slate-500',
+            text: 'text-slate-400 dark:text-slate-300',
+            bg: 'from-slate-600/10 to-slate-900/20 border-slate-500/30',
+            glow: 'shadow-slate-500/20',
+        },
     };
 
     return map[color] ?? map.gray;
 });
 
-const maxForecastMrr = computed(() => Math.max(...(props.aiInsights?.mrr_forecast ?? []).map((f) => f.predicted_mrr), 1));
+const maxForecastMrr = computed(() =>
+    Math.max(
+        ...(props.aiInsights?.mrr_forecast ?? []).map((f) => f.predicted_mrr),
+        1,
+    ),
+);
 
 const hasAiData = computed(() => {
     const ai = props.aiInsights;
 
-    return ai && ai.overall_health != null && (ai.churn_risks?.length > 0 || ai.health_scores?.length > 0 || Object.keys(ai.segments ?? {}).length > 0);
+    return (
+        ai &&
+        ai.overall_health != null &&
+        (ai.churn_risks?.length > 0 ||
+            ai.health_scores?.length > 0 ||
+            Object.keys(ai.segments ?? {}).length > 0)
+    );
 });
 
 // --- Dữ liệu cho AreaChart dùng chung (thay cho các computed vẽ SVG lặp lại trước đây) ---
-const growthSeries = computed(() => props.tenantGrowth.map((point) => ({
-    label: point.label,
-    value: point.new_tenants,
-    rate: point.conversion_rate,
-})));
+const growthSeries = computed(() =>
+    props.tenantGrowth.map((point) => ({
+        label: point.label,
+        value: point.new_tenants,
+        rate: point.conversion_rate,
+    })),
+);
 
 // Đường so sánh "kỳ trước" (B3) — chỉ có dữ liệu khi bật compareEnabled, gắn nhãn riêng
 // để tooltip phân biệt rõ với kỳ hiện tại dù cùng vị trí trên trục thời gian.
-const compareSeries = computed(() => props.tenantGrowthCompare?.map((point) => ({
-    label: `${point.label} (kỳ trước)`,
-    value: point.new_tenants,
-    rate: point.conversion_rate,
-})) ?? undefined);
+const compareSeries = computed(
+    () =>
+        props.tenantGrowthCompare?.map((point) => ({
+            label: `${point.label} (kỳ trước)`,
+            value: point.new_tenants,
+            rate: point.conversion_rate,
+        })) ?? undefined,
+);
 
-const freeToProSeries = computed(() => props.tenantGrowth.map((point) => ({
-    label: point.label,
-    value: point.free_to_pro,
-})));
+const freeToProSeries = computed(() =>
+    props.tenantGrowth.map((point) => ({
+        label: point.label,
+        value: point.free_to_pro,
+    })),
+);
 
 // Calculate percentages for Top Tenants Progress Bars
-const topOrdersMax = computed(() => Math.max(...props.resourceInsights.top_order_restaurants.map(i => i.orders_count ?? 1), 1));
-const topStorageMax = computed(() => Math.max(...props.resourceInsights.top_storage_restaurants.map(i => i.storage_bytes ?? 1), 1));
+const topOrdersMax = computed(() =>
+    Math.max(
+        ...props.resourceInsights.top_order_restaurants.map(
+            (i) => i.orders_count ?? 1,
+        ),
+        1,
+    ),
+);
+const topStorageMax = computed(() =>
+    Math.max(
+        ...props.resourceInsights.top_storage_restaurants.map(
+            (i) => i.storage_bytes ?? 1,
+        ),
+        1,
+    ),
+);
 
 // --- Bảng màu theo plan_code, dùng chung cho biểu đồ Revenue Breakdown (D2) & bảng hiệu suất gói (D5) ---
-const PLAN_COLORS: Record<string, { bar: string; text: string; dot: string }> = {
-    free: { bar: 'bg-sky-500', text: 'text-sky-500', dot: 'bg-sky-500' },
-    pro: { bar: 'bg-violet-500', text: 'text-violet-500', dot: 'bg-violet-500' },
-    max: { bar: 'bg-amber-500', text: 'text-amber-500', dot: 'bg-amber-500' },
-    ultra: { bar: 'bg-emerald-500', text: 'text-emerald-500', dot: 'bg-emerald-500' },
-};
-const planColor = (code: string) => PLAN_COLORS[code?.toLowerCase()] ?? { bar: 'bg-slate-500', text: 'text-slate-500', dot: 'bg-slate-500' };
+const PLAN_COLORS: Record<string, { bar: string; text: string; dot: string }> =
+    {
+        free: { bar: 'bg-sky-500', text: 'text-sky-500', dot: 'bg-sky-500' },
+        pro: {
+            bar: 'bg-violet-500',
+            text: 'text-violet-500',
+            dot: 'bg-violet-500',
+        },
+        max: {
+            bar: 'bg-amber-500',
+            text: 'text-amber-500',
+            dot: 'bg-amber-500',
+        },
+        ultra: {
+            bar: 'bg-emerald-500',
+            text: 'text-emerald-500',
+            dot: 'bg-emerald-500',
+        },
+    };
+const planColor = (code: string) =>
+    PLAN_COLORS[code?.toLowerCase()] ?? {
+        bar: 'bg-slate-500',
+        text: 'text-slate-500',
+        dot: 'bg-slate-500',
+    };
 
 // --- D4: Banner cảnh báo ngưỡng — gộp cảnh báo SaaS tính trực tiếp + SystemAlert đang mở ---
-const alertSeverityStyle: Record<string, { card: string; badge: string; icon: string }> = {
-    critical: { card: 'border-rose-500/20 bg-rose-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(244,63,94,0.03)] hover:border-rose-500/40 transition-all', badge: 'text-rose-500 bg-rose-500/10 border-rose-500/20 font-black', icon: 'text-rose-500 animate-pulse' },
-    warning: { card: 'border-amber-500/20 bg-amber-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.03)] hover:border-amber-500/40 transition-all', badge: 'text-amber-500 bg-amber-500/10 border-amber-500/20 font-black', icon: 'text-amber-500' },
+const alertSeverityStyle: Record<
+    string,
+    { card: string; badge: string; icon: string }
+> = {
+    critical: {
+        card: 'border-rose-500/20 bg-rose-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(244,63,94,0.03)] hover:border-rose-500/40 transition-all',
+        badge: 'text-rose-500 bg-rose-500/10 border-rose-500/20 font-black',
+        icon: 'text-rose-500 animate-pulse',
+    },
+    warning: {
+        card: 'border-amber-500/20 bg-amber-500/[0.03] backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.03)] hover:border-amber-500/40 transition-all',
+        badge: 'text-amber-500 bg-amber-500/10 border-amber-500/20 font-black',
+        icon: 'text-amber-500',
+    },
 };
 
 // --- D2: Doanh thu theo gói (stacked bar ngang theo tháng) ---
 const revenueBreakdownPlanCodes = computed(() => {
     const codes = new Set<string>();
-    props.revenueBreakdown.forEach((point) => Object.keys(point.by_plan).forEach((code) => codes.add(code)));
+    props.revenueBreakdown.forEach((point) =>
+        Object.keys(point.by_plan).forEach((code) => codes.add(code)),
+    );
 
     return Array.from(codes);
 });
-const revenueBreakdownMax = computed(() => Math.max(...props.revenueBreakdown.map((p) => p.total), 1));
-const planDisplayName = (code: string) => props.planDistribution.find((p) => p.code?.toLowerCase() === code)?.name ?? code.toUpperCase();
+const revenueBreakdownMax = computed(() =>
+    Math.max(...props.revenueBreakdown.map((p) => p.total), 1),
+);
+const planDisplayName = (code: string) =>
+    props.planDistribution.find((p) => p.code?.toLowerCase() === code)?.name ??
+    code.toUpperCase();
 
 // --- D1: Heatmap cohort — màu nền theo % giữ chân ---
 function cohortCellStyle(value: number | null): string {
     if (value === null) {
-return 'bg-muted/30 text-muted-foreground';
-}
+        return 'bg-muted/30 text-muted-foreground';
+    }
 
     if (value >= 70) {
-return 'bg-emerald-500/80 text-white';
-}
+        return 'bg-emerald-500/80 text-white';
+    }
 
     if (value >= 40) {
-return 'bg-amber-500/70 text-white';
-}
+        return 'bg-amber-500/70 text-white';
+    }
 
     return 'bg-rose-500/70 text-white';
 }
@@ -748,32 +1148,55 @@ return 'bg-amber-500/70 text-white';
 <template>
     <Head title="Super Admin Analytics" />
 
-    <div :class="['flex flex-col gap-5 px-6 py-5 mx-auto w-full', { 'compact-mode': compactMode }]">
+    <div
+        :class="[
+            'mx-auto flex w-full flex-col gap-5 px-6 py-5',
+            { 'compact-mode': compactMode },
+        ]"
+    >
         <!-- Header -->
-        <div class="flex flex-wrap items-center justify-between gap-4 border-b pb-5 border-border/60">
+        <div
+            class="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-5"
+        >
             <div>
-                <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                <h1
+                    class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-2xl font-bold tracking-tight text-transparent dark:from-white dark:to-slate-300"
+                >
                     Dashboard Phân Tích SaaS
                 </h1>
-                <p class="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                    <Activity class="size-4 text-primary animate-pulse" /> Trung tâm dữ liệu vĩ mô và hỗ trợ giám sát toàn hệ thống
+                <p
+                    class="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground"
+                >
+                    <Activity class="size-4 animate-pulse text-primary" /> Trung
+                    tâm dữ liệu vĩ mô và hỗ trợ giám sát toàn hệ thống
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <!-- Group 1: Configuration controls -->
-                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
+                <div
+                    class="flex items-center rounded-xl border border-border/60 bg-muted/40 p-1 shadow-xs"
+                >
                     <DropdownMenu>
                         <DropdownMenuTrigger as-child>
-                            <button type="button"
-                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
-                                <LayoutGrid class="size-3.5" /> <span>Khối</span>
-                                <Badge v-if="hiddenSectionsCount > 0" variant="secondary" class="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[8px] font-bold">
+                            <button
+                                type="button"
+                                class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                            >
+                                <LayoutGrid class="size-3.5" />
+                                <span>Khối</span>
+                                <Badge
+                                    v-if="hiddenSectionsCount > 0"
+                                    variant="secondary"
+                                    class="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[8px] font-bold"
+                                >
                                     {{ hiddenSectionsCount }}
                                 </Badge>
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" class="w-72">
-                            <DropdownMenuLabel class="text-xs">Hiển thị / Ẩn khối phân tích</DropdownMenuLabel>
+                            <DropdownMenuLabel class="text-xs"
+                                >Hiển thị / Ẩn khối phân tích</DropdownMenuLabel
+                            >
                             <DropdownMenuSeparator />
                             <DropdownMenuCheckboxItem
                                 v-for="section in DASHBOARD_SECTIONS"
@@ -781,46 +1204,93 @@ return 'bg-amber-500/70 text-white';
                                 :model-value="isSectionVisible(section.key)"
                                 class="text-xs"
                                 @select="(e: Event) => e.preventDefault()"
-                                @update:model-value="(v: boolean) => toggleSectionVisibility(section.key, v)">
+                                @update:model-value="
+                                    (v: boolean) =>
+                                        toggleSectionVisibility(section.key, v)
+                                "
+                            >
                                 {{ section.label }}
                             </DropdownMenuCheckboxItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <button type="button" @click="toggleCompactMode"
-                        :title="compactMode ? 'Chuyển về chế độ xem đầy đủ' : 'Chuyển sang chế độ xem thu gọn'"
-                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
-                        <component :is="compactMode ? Maximize2 : Minimize2" class="size-3.5" /> <span>{{ compactMode ? 'Đầy đủ' : 'Thu gọn' }}</span>
+                    <button
+                        type="button"
+                        @click="toggleCompactMode"
+                        :title="
+                            compactMode
+                                ? 'Chuyển về chế độ xem đầy đủ'
+                                : 'Chuyển sang chế độ xem thu gọn'
+                        "
+                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <component
+                            :is="compactMode ? Maximize2 : Minimize2"
+                            class="size-3.5"
+                        />
+                        <span>{{ compactMode ? 'Đầy đủ' : 'Thu gọn' }}</span>
                     </button>
                 </div>
 
                 <!-- Group 2: Management shortcuts -->
-                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
-                    <Link href="/super-admin/restaurants" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
-                        <Building2 class="size-3.5 text-muted-foreground" /> <span>Tenants</span>
+                <div
+                    class="flex items-center rounded-xl border border-border/60 bg-muted/40 p-1 shadow-xs"
+                >
+                    <Link
+                        href="/super-admin/restaurants"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <Building2 class="size-3.5 text-muted-foreground" />
+                        <span>Tenants</span>
                     </Link>
-                    <Link href="/super-admin/support" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
-                        <Siren class="size-3.5 text-muted-foreground" /> <span>Support</span>
+                    <Link
+                        href="/super-admin/support"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <Siren class="size-3.5 text-muted-foreground" />
+                        <span>Support</span>
                     </Link>
-                    <Link href="/super-admin/accounts" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
-                        <ShieldCheck class="size-3.5 text-muted-foreground" /> <span>Accounts</span>
+                    <Link
+                        href="/super-admin/accounts"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <ShieldCheck class="size-3.5 text-muted-foreground" />
+                        <span>Accounts</span>
                     </Link>
-                    <Link href="/super-admin/referrals" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all">
-                        <Crown class="size-3.5 text-muted-foreground" /> <span>Hoa hồng</span>
+                    <Link
+                        href="/super-admin/referrals"
+                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <Crown class="size-3.5 text-muted-foreground" />
+                        <span>Hoa hồng</span>
                     </Link>
                 </div>
 
                 <!-- Group 3: Reporting & Logs -->
-                <div class="flex items-center bg-muted/40 border border-border/60 p-1 rounded-xl shadow-xs">
-                    <button type="button" @click="exportDashboardCsv"
-                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
-                        <Download class="size-3.5 text-sky-500" /> <span>CSV</span>
+                <div
+                    class="flex items-center rounded-xl border border-border/60 bg-muted/40 p-1 shadow-xs"
+                >
+                    <button
+                        type="button"
+                        @click="exportDashboardCsv"
+                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <Download class="size-3.5 text-sky-500" />
+                        <span>CSV</span>
                     </button>
-                    <button type="button" @click="openPrintableReport"
-                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold hover:bg-background/80 transition-all cursor-pointer">
-                        <Printer class="size-3.5 text-emerald-500" /> <span>PDF</span>
+                    <button
+                        type="button"
+                        @click="openPrintableReport"
+                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
+                    >
+                        <Printer class="size-3.5 text-emerald-500" />
+                        <span>PDF</span>
                     </button>
-                    <Link href="/super-admin/audit-logs" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[11px] font-bold text-primary-foreground hover:bg-primary/95 transition-all shadow-md">
-                        <FileText class="size-3.5 text-white" /> <span>Audit Log</span>
+                    <Link
+                        href="/super-admin/audit-logs"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[11px] font-bold text-primary-foreground shadow-md transition-all hover:bg-primary/95"
+                    >
+                        <FileText class="size-3.5 text-white" />
+                        <span>Audit Log</span>
                     </Link>
                 </div>
             </div>
@@ -828,41 +1298,101 @@ return 'bg-amber-500/70 text-white';
 
         <!-- D4: Banner cảnh báo ngưỡng SaaS + SystemAlert đang mở -->
         <div v-if="dashboardAlerts.length" class="grid gap-2.5 sm:grid-cols-2">
-            <div v-for="(alert, idx) in dashboardAlerts" :key="`${alert.source}-${alert.metric_key}-${idx}`"
-                :class="['flex items-start gap-3 rounded-2xl border px-4 py-3', alertSeverityStyle[alert.severity]?.card ?? alertSeverityStyle.warning.card]">
-                <Siren :class="['size-4.5 shrink-0 mt-0.5', alertSeverityStyle[alert.severity]?.icon ?? alertSeverityStyle.warning.icon]" />
+            <div
+                v-for="(alert, idx) in dashboardAlerts"
+                :key="`${alert.source}-${alert.metric_key}-${idx}`"
+                :class="[
+                    'flex items-start gap-3 rounded-2xl border px-4 py-3',
+                    alertSeverityStyle[alert.severity]?.card ??
+                        alertSeverityStyle.warning.card,
+                ]"
+            >
+                <Siren
+                    :class="[
+                        'mt-0.5 size-4.5 shrink-0',
+                        alertSeverityStyle[alert.severity]?.icon ??
+                            alertSeverityStyle.warning.icon,
+                    ]"
+                />
                 <div class="min-w-0 space-y-0.5">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <p class="text-xs font-black text-slate-800 dark:text-slate-100">{{ alert.title }}</p>
-                        <span :class="['rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider', alertSeverityStyle[alert.severity]?.badge ?? alertSeverityStyle.warning.badge]">
-                            {{ alert.source === 'system' ? 'Hệ thống' : 'SaaS' }}
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p
+                            class="text-xs font-black text-slate-800 dark:text-slate-100"
+                        >
+                            {{ alert.title }}
+                        </p>
+                        <span
+                            :class="[
+                                'rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider uppercase',
+                                alertSeverityStyle[alert.severity]?.badge ??
+                                    alertSeverityStyle.warning.badge,
+                            ]"
+                        >
+                            {{
+                                alert.source === 'system' ? 'Hệ thống' : 'SaaS'
+                            }}
                         </span>
-                        <span v-if="alert.triggered_at" class="text-[10px] font-semibold text-muted-foreground font-mono">{{ alert.triggered_at }}</span>
+                        <span
+                            v-if="alert.triggered_at"
+                            class="font-mono text-[10px] font-semibold text-muted-foreground"
+                            >{{ alert.triggered_at }}</span
+                        >
                     </div>
-                    <p class="text-[11px] text-muted-foreground font-medium leading-relaxed">{{ alert.message }}</p>
+                    <p
+                        class="text-[11px] leading-relaxed font-medium text-muted-foreground"
+                    >
+                        {{ alert.message }}
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- Cảnh báo sớm Churn (At-risk Alerts) -->
-        <div v-if="churnRiskAlerts && churnRiskAlerts.length" class="bg-rose-500/[0.03] backdrop-blur-md border border-rose-500/20 rounded-2xl p-4.5 space-y-3.5 shadow-[0_0_20px_rgba(244,63,94,0.02)]">
-            <div class="flex items-center justify-between border-b border-rose-500/10 pb-2.5">
+        <div
+            v-if="churnRiskAlerts && churnRiskAlerts.length"
+            class="space-y-3.5 rounded-2xl border border-rose-500/20 bg-rose-500/[0.03] p-4.5 shadow-[0_0_20px_rgba(244,63,94,0.02)] backdrop-blur-md"
+        >
+            <div
+                class="flex items-center justify-between border-b border-rose-500/10 pb-2.5"
+            >
                 <div class="flex items-center gap-2 text-rose-500">
                     <AlertTriangle class="size-4.5 animate-bounce" />
-                    <h3 class="font-black text-xs uppercase tracking-widest">Hệ thống Giám sát Rời bỏ (Early Churn Monitor)</h3>
+                    <h3 class="text-xs font-black tracking-widest uppercase">
+                        Hệ thống Giám sát Rời bỏ (Early Churn Monitor)
+                    </h3>
                 </div>
-                <Link href="/super-admin/churn-prediction" class="text-[10px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 hover:underline">
+                <Link
+                    href="/super-admin/churn-prediction"
+                    class="text-[10px] font-black tracking-wider text-rose-500 uppercase hover:text-rose-600 hover:underline"
+                >
                     Xử lý &amp; Xem tất cả &rarr;
                 </Link>
             </div>
             <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                <div v-for="risk in churnRiskAlerts" :key="risk.id" class="bg-card/45 backdrop-blur-md border border-rose-500/20 hover:border-rose-500/40 hover:shadow-[0_0_15px_rgba(244,63,94,0.05)] rounded-xl p-3.5 transition-all duration-300 space-y-2">
+                <div
+                    v-for="risk in churnRiskAlerts"
+                    :key="risk.id"
+                    class="space-y-2 rounded-xl border border-rose-500/20 bg-card/45 p-3.5 backdrop-blur-md transition-all duration-300 hover:border-rose-500/40 hover:shadow-[0_0_15px_rgba(244,63,94,0.05)]"
+                >
                     <div class="flex items-center justify-between gap-2">
-                        <span class="font-black text-xs text-slate-800 dark:text-slate-100 truncate">{{ risk.name }}</span>
-                        <Badge variant="destructive" class="text-[9px] px-2 py-0.5 font-black bg-rose-600 text-white shadow-sm shadow-rose-600/10 leading-none">RỦI RO: {{ risk.health_score }}%</Badge>
+                        <span
+                            class="truncate text-xs font-black text-slate-800 dark:text-slate-100"
+                            >{{ risk.name }}</span
+                        >
+                        <Badge
+                            variant="destructive"
+                            class="bg-rose-600 px-2 py-0.5 text-[9px] leading-none font-black text-white shadow-sm shadow-rose-600/10"
+                            >RỦI RO: {{ risk.health_score }}%</Badge
+                        >
                     </div>
-                    <p class="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-semibold">{{ risk.churn_risk_reason }}</p>
-                    <div class="flex items-center justify-between text-[9px] text-muted-foreground pt-2 border-t border-dashed border-border/40 font-bold">
+                    <p
+                        class="line-clamp-2 text-[10px] leading-relaxed font-semibold text-muted-foreground"
+                    >
+                        {{ risk.churn_risk_reason }}
+                    </p>
+                    <div
+                        class="flex items-center justify-between border-t border-dashed border-border/40 pt-2 text-[9px] font-bold text-muted-foreground"
+                    >
                         <span class="truncate">Lh: {{ risk.owner_name }}</span>
                         <span class="font-mono">{{ risk.owner_phone }}</span>
                     </div>
@@ -871,22 +1401,43 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- C2: Bật/tắt báo cáo định kỳ qua email -->
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md px-4 py-3.5 shadow-[var(--shadow-premium)] hover:border-border/60 transition-all">
+        <div
+            class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card/45 px-4 py-3.5 shadow-[var(--shadow-premium)] backdrop-blur-md transition-all hover:border-border/60"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-white shadow-md shadow-sky-500/10">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-white shadow-md shadow-sky-500/10"
+                >
                     <FileText class="size-4.5" />
                 </div>
                 <div>
-                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">Báo cáo định kỳ qua email</p>
-                    <p class="text-[11px] text-muted-foreground font-medium">
-                        Nhận tóm tắt KPI &amp; cảnh báo tự động vào email của bạn
-                        <span v-if="reportSubscription.last_sent_at" class="text-primary"> · Lần gửi gần nhất: {{ reportSubscription.last_sent_at }}</span>
+                    <p
+                        class="text-xs font-bold text-slate-800 dark:text-slate-100"
+                    >
+                        Báo cáo định kỳ qua email
+                    </p>
+                    <p class="text-[11px] font-medium text-muted-foreground">
+                        Nhận tóm tắt KPI &amp; cảnh báo tự động vào email của
+                        bạn
+                        <span
+                            v-if="reportSubscription.last_sent_at"
+                            class="text-primary"
+                        >
+                            · Lần gửi gần nhất:
+                            {{ reportSubscription.last_sent_at }}</span
+                        >
                     </p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <Select v-model="reportSubFrequency" :disabled="!reportSubActive || reportSubSaving" @update:modelValue="saveReportSubscription">
-                    <SelectTrigger class="h-8 w-[110px] text-xs bg-background/50 border-border/60">
+                <Select
+                    v-model="reportSubFrequency"
+                    :disabled="!reportSubActive || reportSubSaving"
+                    @update:modelValue="saveReportSubscription"
+                >
+                    <SelectTrigger
+                        class="h-8 w-[110px] border-border/60 bg-background/50 text-xs"
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -895,58 +1446,103 @@ return 'bg-amber-500/70 text-white';
                     </SelectContent>
                 </Select>
                 <div class="flex items-center gap-2">
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         :disabled="reportSubSaving"
                         @click="toggleReportSubscription(!reportSubActive)"
                         :class="[
-                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20',
-                            reportSubActive ? 'bg-primary' : 'bg-muted-foreground/30'
+                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-primary/20 focus:outline-none',
+                            reportSubActive
+                                ? 'bg-primary'
+                                : 'bg-muted-foreground/30',
                         ]"
                     >
-                        <span 
+                        <span
                             :class="[
                                 'pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                                reportSubActive ? 'translate-x-4' : 'translate-x-0'
+                                reportSubActive
+                                    ? 'translate-x-4'
+                                    : 'translate-x-0',
                             ]"
                         />
                     </button>
-                    <span class="text-[10px] font-bold text-muted-foreground select-none uppercase tracking-wider">{{ reportSubActive ? 'Đang bật' : 'Đang tắt' }}</span>
+                    <span
+                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase select-none"
+                        >{{ reportSubActive ? 'Đang bật' : 'Đang tắt' }}</span
+                    >
                 </div>
             </div>
         </div>
 
         <!-- Main Chart + Health Grid -->
-        <div v-if="isSectionVisible('growth_chart')" class="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <div
+            v-if="isSectionVisible('growth_chart')"
+            class="grid gap-4 xl:grid-cols-[1.6fr_1fr]"
+        >
             <!-- Tenant Growth & Conversion Chart Card -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                <CardHeader class="flex-row flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40">
+            <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                <CardHeader
+                    class="flex-row flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-3"
+                >
                     <div>
-                        <CardTitle class="text-base font-bold">Biến động & Chuyển đổi Tenant</CardTitle>
-                        <p class="text-xs text-muted-foreground">Đăng ký mới so với tỷ lệ nâng cấp từ Free lên Pro</p>
+                        <CardTitle class="text-base font-bold"
+                            >Biến động & Chuyển đổi Tenant</CardTitle
+                        >
+                        <p class="text-xs text-muted-foreground">
+                            Đăng ký mới so với tỷ lệ nâng cấp từ Free lên Pro
+                        </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
-                        <label class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground cursor-pointer select-none">
-                            <Checkbox :checked="compareEnabled" @update:checked="(v: boolean) => { compareEnabled = v; applyGrowthFilters(); }" />
+                        <label
+                            class="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-muted-foreground select-none"
+                        >
+                            <Checkbox
+                                :checked="compareEnabled"
+                                @update:checked="
+                                    (v: boolean) => {
+                                        compareEnabled = v;
+                                        applyGrowthFilters();
+                                    }
+                                "
+                            />
                             So với kỳ trước
                         </label>
-                        <Select v-model="selectedRange" @update:modelValue="applyGrowthFilters">
+                        <Select
+                            v-model="selectedRange"
+                            @update:modelValue="applyGrowthFilters"
+                        >
                             <SelectTrigger class="h-8 w-[120px] text-xs">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem v-for="(label, key) in RANGE_LABELS" :key="key" :value="key">{{ label }}</SelectItem>
+                                <SelectItem
+                                    v-for="(label, key) in RANGE_LABELS"
+                                    :key="key"
+                                    :value="key"
+                                    >{{ label }}</SelectItem
+                                >
                             </SelectContent>
                         </Select>
-                        <Badge variant="secondary" class="gap-1 rounded-lg text-[10px] font-bold px-2 py-0.5 border border-border/80">
-                            <TrendingUp class="size-3" /> {{ tenantGrowth.length }} tháng
+                        <Badge
+                            variant="secondary"
+                            class="gap-1 rounded-lg border border-border/80 px-2 py-0.5 text-[10px] font-bold"
+                        >
+                            <TrendingUp class="size-3" />
+                            {{ tenantGrowth.length }} tháng
                         </Badge>
                     </div>
                 </CardHeader>
-                <CardContent class="relative pt-5 space-y-6">
+                <CardContent class="relative space-y-6 pt-5">
                     <!-- E3: Skeleton overlay khi đang đổi bộ lọc khoảng thời gian / so sánh kỳ trước -->
-                    <div v-if="isNavigating" class="absolute inset-0 z-10 grid gap-4 rounded-b-xl bg-card/80 p-4 backdrop-blur-xs md:grid-cols-2">
-                        <div v-for="i in 2" :key="i" class="space-y-3 rounded-xl border border-border bg-white/50 p-4 dark:bg-slate-950/20">
+                    <div
+                        v-if="isNavigating"
+                        class="absolute inset-0 z-10 grid gap-4 rounded-b-xl bg-card/80 p-4 backdrop-blur-xs md:grid-cols-2"
+                    >
+                        <div
+                            v-for="i in 2"
+                            :key="i"
+                            class="space-y-3 rounded-xl border border-border bg-white/50 p-4 dark:bg-slate-950/20"
+                        >
                             <div class="flex items-center justify-between">
                                 <Skeleton class="h-3.5 w-32" />
                                 <Skeleton class="h-4 w-20 rounded-full" />
@@ -957,68 +1553,166 @@ return 'bg-amber-500/70 text-white';
                     </div>
 
                     <!-- Twin Custom SVG Charts -->
-                    <div :class="['grid gap-4 md:grid-cols-2', { 'opacity-40 pointer-events-none transition-opacity': isNavigating }]">
+                    <div
+                        :class="[
+                            'grid gap-4 md:grid-cols-2',
+                            {
+                                'pointer-events-none opacity-40 transition-opacity':
+                                    isNavigating,
+                            },
+                        ]"
+                    >
                         <!-- Chart 1: New Tenants -->
-                        <div class="relative overflow-hidden rounded-xl border border-border bg-white/50 dark:bg-slate-950/20 p-4 transition-all duration-300 hover:border-sky-500/30">
-                            <div class="mb-3 flex items-center justify-between text-xs">
-                                <span class="font-bold text-slate-600 dark:text-slate-300">Nhà hàng đăng ký mới</span>
-                                <span class="text-[10px] font-extrabold text-sky-500 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-full">
-                                    Tháng này: +{{ tenantGrowth[tenantGrowth.length - 1]?.new_tenants ?? 0 }}
+                        <div
+                            class="relative overflow-hidden rounded-xl border border-border bg-white/50 p-4 transition-all duration-300 hover:border-sky-500/30 dark:bg-slate-950/20"
+                        >
+                            <div
+                                class="mb-3 flex items-center justify-between text-xs"
+                            >
+                                <span
+                                    class="font-bold text-slate-600 dark:text-slate-300"
+                                    >Nhà hàng đăng ký mới</span
+                                >
+                                <span
+                                    class="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-extrabold text-sky-500"
+                                >
+                                    Tháng này: +{{
+                                        tenantGrowth[tenantGrowth.length - 1]
+                                            ?.new_tenants ?? 0
+                                    }}
                                 </span>
                             </div>
 
                             <!-- Interactive Chart Body -->
-                            <AreaChart :series="growthSeries" gradient-id="growthGrad" color="#0ea5e9" :compare-series="compareSeries" compare-color="#94a3b8">
+                            <AreaChart
+                                :series="growthSeries"
+                                gradient-id="growthGrad"
+                                color="#0ea5e9"
+                                :compare-series="compareSeries"
+                                compare-color="#94a3b8"
+                            >
                                 <template #tooltip="{ point, comparePoint }">
-                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
-                                    <span class="font-extrabold text-sky-500">{{ point.value }} đăng ký mới</span>
-                                    <span class="text-[8px] text-emerald-500 font-semibold font-mono">Chuyển đổi: {{ point.rate }}%</span>
-                                    <span v-if="comparePoint" class="text-[8px] text-slate-400 font-semibold font-mono">Kỳ trước: {{ comparePoint.value }}</span>
+                                    <span
+                                        class="font-mono text-[8px] tracking-wider text-muted-foreground uppercase"
+                                        >{{ point.label }}</span
+                                    >
+                                    <span class="font-extrabold text-sky-500"
+                                        >{{ point.value }} đăng ký mới</span
+                                    >
+                                    <span
+                                        class="font-mono text-[8px] font-semibold text-emerald-500"
+                                        >Chuyển đổi: {{ point.rate }}%</span
+                                    >
+                                    <span
+                                        v-if="comparePoint"
+                                        class="font-mono text-[8px] font-semibold text-slate-400"
+                                        >Kỳ trước:
+                                        {{ comparePoint.value }}</span
+                                    >
                                 </template>
                             </AreaChart>
                         </div>
 
                         <!-- Chart 2: Free to Pro conversions -->
-                        <div class="relative overflow-hidden rounded-xl border border-border bg-white/50 dark:bg-slate-950/20 p-4 transition-all duration-300 hover:border-violet-500/30">
-                            <div class="mb-3 flex items-center justify-between text-xs">
-                                <span class="font-bold text-slate-600 dark:text-slate-300">Chuyển đổi Free sang Pro</span>
-                                <span class="text-[10px] font-extrabold text-violet-500 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full">
-                                    Tháng này: +{{ tenantGrowth[tenantGrowth.length - 1]?.free_to_pro ?? 0 }}
+                        <div
+                            class="relative overflow-hidden rounded-xl border border-border bg-white/50 p-4 transition-all duration-300 hover:border-violet-500/30 dark:bg-slate-950/20"
+                        >
+                            <div
+                                class="mb-3 flex items-center justify-between text-xs"
+                            >
+                                <span
+                                    class="font-bold text-slate-600 dark:text-slate-300"
+                                    >Chuyển đổi Free sang Pro</span
+                                >
+                                <span
+                                    class="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-extrabold text-violet-500"
+                                >
+                                    Tháng này: +{{
+                                        tenantGrowth[tenantGrowth.length - 1]
+                                            ?.free_to_pro ?? 0
+                                    }}
                                 </span>
                             </div>
 
-                            <AreaChart :series="freeToProSeries" gradient-id="proGrad" color="#8b5cf6">
+                            <AreaChart
+                                :series="freeToProSeries"
+                                gradient-id="proGrad"
+                                color="#8b5cf6"
+                            >
                                 <template #tooltip="{ point }">
-                                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }}</span>
-                                    <span class="font-extrabold text-violet-500">{{ point.value }} nâng cấp Pro</span>
+                                    <span
+                                        class="font-mono text-[8px] tracking-wider text-muted-foreground uppercase"
+                                        >{{ point.label }}</span
+                                    >
+                                    <span class="font-extrabold text-violet-500"
+                                        >{{ point.value }} nâng cấp Pro</span
+                                    >
                                 </template>
                             </AreaChart>
                         </div>
                     </div>
 
                     <!-- Growth Data Table -->
-                    <div class="overflow-hidden rounded-xl border border-border bg-white dark:bg-slate-950/20 shadow-2xs">
-                        <div class="overflow-x-auto w-full">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-muted/60 text-muted-foreground font-bold border-b border-border">
-                                <tr>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider">Tháng</th>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider text-center">New Tenants</th>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider text-center">Free to Pro</th>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider text-right">Tỷ lệ Chuyển đổi</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border/60">
-                                <tr v-for="point in tenantGrowth" :key="point.month" class="hover:bg-muted/30 transition-all font-medium text-slate-700 dark:text-slate-300">
-                                    <td class="px-4 py-2.5 font-bold font-mono">{{ point.label }}</td>
-                                    <td class="px-4 py-2.5 text-center font-mono font-semibold">{{ point.new_tenants }}</td>
-                                    <td class="px-4 py-2.5 text-center font-mono font-semibold">{{ point.free_to_pro }}</td>
-                                    <td class="px-4 py-2.5 text-right font-mono font-bold text-violet-600 dark:text-violet-400">
-                                        {{ point.conversion_rate }}%
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div
+                        class="overflow-hidden rounded-xl border border-border bg-white shadow-2xs dark:bg-slate-950/20"
+                    >
+                        <div class="w-full overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead
+                                    class="border-b border-border bg-muted/60 font-bold text-muted-foreground"
+                                >
+                                    <tr>
+                                        <th
+                                            class="px-4 py-2.5 font-bold tracking-wider uppercase"
+                                        >
+                                            Tháng
+                                        </th>
+                                        <th
+                                            class="px-4 py-2.5 text-center font-bold tracking-wider uppercase"
+                                        >
+                                            New Tenants
+                                        </th>
+                                        <th
+                                            class="px-4 py-2.5 text-center font-bold tracking-wider uppercase"
+                                        >
+                                            Free to Pro
+                                        </th>
+                                        <th
+                                            class="px-4 py-2.5 text-right font-bold tracking-wider uppercase"
+                                        >
+                                            Tỷ lệ Chuyển đổi
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border/60">
+                                    <tr
+                                        v-for="point in tenantGrowth"
+                                        :key="point.month"
+                                        class="font-medium text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
+                                    >
+                                        <td
+                                            class="px-4 py-2.5 font-mono font-bold"
+                                        >
+                                            {{ point.label }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-center font-mono font-semibold"
+                                        >
+                                            {{ point.new_tenants }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-center font-mono font-semibold"
+                                        >
+                                            {{ point.free_to_pro }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-right font-mono font-bold text-violet-600 dark:text-violet-400"
+                                        >
+                                            {{ point.conversion_rate }}%
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </CardContent>
@@ -1027,123 +1721,300 @@ return 'bg-amber-500/70 text-white';
             <!-- Right Column: SaaS Health & Usage -->
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <!-- SaaS Health Card -->
-                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
-                    <CardHeader class="pb-2.5 border-b border-border/30">
-                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center justify-between text-foreground">
+                <Card
+                    class="border border-border/40 bg-card/45 shadow-[var(--shadow-premium)] backdrop-blur-md transition-all duration-300 hover:border-border/60"
+                >
+                    <CardHeader class="border-b border-border/30 pb-2.5">
+                        <CardTitle
+                            class="flex items-center justify-between text-xs font-black tracking-widest text-foreground uppercase"
+                        >
                             <span class="flex items-center gap-2">
-                                <Activity class="size-4 text-emerald-500 animate-pulse" /> 
+                                <Activity
+                                    class="size-4 animate-pulse text-emerald-500"
+                                />
                                 <span>Sức khỏe SaaS</span>
                             </span>
-                            <LedIndicator :status="saasMetrics.churn_rate > 5 ? 'warning' : 'online'" />
+                            <LedIndicator
+                                :status="
+                                    saasMetrics.churn_rate > 5
+                                        ? 'warning'
+                                        : 'online'
+                                "
+                            />
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-3.5 font-semibold text-xs">
-                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                            <span class="text-muted-foreground">Active Subscription</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.active_subscriptions }}</span>
+                    <CardContent class="space-y-3.5 pt-4 text-xs font-semibold">
+                        <div
+                            class="flex items-center justify-between border-b border-border/20 pb-2"
+                        >
+                            <span class="text-muted-foreground"
+                                >Active Subscription</span
+                            >
+                            <span
+                                class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
+                                >{{ saasMetrics.active_subscriptions }}</span
+                            >
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                            <span class="text-muted-foreground">Paid Tenants</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.paid_tenants }}</span>
+                        <div
+                            class="flex items-center justify-between border-b border-border/20 pb-2"
+                        >
+                            <span class="text-muted-foreground"
+                                >Paid Tenants</span
+                            >
+                            <span
+                                class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
+                                >{{ saasMetrics.paid_tenants }}</span
+                            >
                         </div>
-                        <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                            <span class="text-muted-foreground">Churn Rate</span>
-                            <span :class="['font-bold font-mono px-2 py-0.5 rounded', saasMetrics.churn_rate > 5 ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10']">
+                        <div
+                            class="flex items-center justify-between border-b border-border/20 pb-2"
+                        >
+                            <span class="text-muted-foreground"
+                                >Churn Rate</span
+                            >
+                            <span
+                                :class="[
+                                    'rounded px-2 py-0.5 font-mono font-bold',
+                                    saasMetrics.churn_rate > 5
+                                        ? 'bg-rose-500/10 text-rose-500'
+                                        : 'bg-emerald-500/10 text-emerald-500',
+                                ]"
+                            >
                                 {{ saasMetrics.churn_rate }}%
                             </span>
                         </div>
                         <div class="flex items-center justify-between pb-0">
-                            <span class="text-muted-foreground">Rời bỏ tháng này</span>
-                            <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ saasMetrics.churned_this_month }}</span>
+                            <span class="text-muted-foreground"
+                                >Rời bỏ tháng này</span
+                            >
+                            <span
+                                class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
+                                >{{ saasMetrics.churned_this_month }}</span
+                            >
                         </div>
                     </CardContent>
                 </Card>
 
                 <!-- D3: NRR/GRR — Doanh thu giữ lại -->
-                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
-                    <CardHeader class="pb-2.5 border-b border-border/30">
-                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
-                            <TrendingUp class="size-4 text-cyan-500" /> 
+                <Card
+                    class="border border-border/40 bg-card/45 shadow-[var(--shadow-premium)] backdrop-blur-md transition-all duration-300 hover:border-border/60"
+                >
+                    <CardHeader class="border-b border-border/30 pb-2.5">
+                        <CardTitle
+                            class="flex items-center gap-2 text-xs font-black tracking-widest text-foreground uppercase"
+                        >
+                            <TrendingUp class="size-4 text-cyan-500" />
                             <span>Doanh thu giữ lại (NRR / GRR)</span>
                         </CardTitle>
-                        <p class="text-[10px] text-muted-foreground font-semibold italic">So sánh MRR {{ revenueRetention.previous_label }} → {{ revenueRetention.period_label }}</p>
+                        <p
+                            class="text-[10px] font-semibold text-muted-foreground italic"
+                        >
+                            So sánh MRR {{ revenueRetention.previous_label }} →
+                            {{ revenueRetention.period_label }}
+                        </p>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-4 font-semibold text-xs">
+                    <CardContent class="space-y-4 pt-4 text-xs font-semibold">
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-muted-foreground">NRR</p>
-                                <p :class="['mt-1 text-lg font-black font-mono', revenueRetention.nrr === null ? 'text-muted-foreground' : revenueRetention.nrr >= 100 ? 'text-emerald-500' : 'text-amber-500']">
-                                    {{ revenueRetention.nrr !== null ? `${revenueRetention.nrr}%` : '—' }}
+                            <div
+                                class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner"
+                            >
+                                <p
+                                    class="text-[9px] font-black tracking-widest text-muted-foreground uppercase"
+                                >
+                                    NRR
+                                </p>
+                                <p
+                                    :class="[
+                                        'mt-1 font-mono text-lg font-black',
+                                        revenueRetention.nrr === null
+                                            ? 'text-muted-foreground'
+                                            : revenueRetention.nrr >= 100
+                                              ? 'text-emerald-500'
+                                              : 'text-amber-500',
+                                    ]"
+                                >
+                                    {{
+                                        revenueRetention.nrr !== null
+                                            ? `${revenueRetention.nrr}%`
+                                            : '—'
+                                    }}
                                 </p>
                             </div>
-                            <div class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-muted-foreground">GRR</p>
-                                <p :class="['mt-1 text-lg font-black font-mono', revenueRetention.grr === null ? 'text-muted-foreground' : revenueRetention.grr >= 90 ? 'text-emerald-500' : 'text-amber-500']">
-                                    {{ revenueRetention.grr !== null ? `${revenueRetention.grr}%` : '—' }}
+                            <div
+                                class="rounded-xl border border-border/40 bg-muted/30 p-2.5 text-center shadow-inner"
+                            >
+                                <p
+                                    class="text-[9px] font-black tracking-widest text-muted-foreground uppercase"
+                                >
+                                    GRR
+                                </p>
+                                <p
+                                    :class="[
+                                        'mt-1 font-mono text-lg font-black',
+                                        revenueRetention.grr === null
+                                            ? 'text-muted-foreground'
+                                            : revenueRetention.grr >= 90
+                                              ? 'text-emerald-500'
+                                              : 'text-amber-500',
+                                    ]"
+                                >
+                                    {{
+                                        revenueRetention.grr !== null
+                                            ? `${revenueRetention.grr}%`
+                                            : '—'
+                                    }}
                                 </p>
                             </div>
                         </div>
-                        
+
                         <div class="space-y-2 pt-1">
-                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                                <span class="text-muted-foreground">MRR đầu kỳ</span>
-                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ formatCurrency(revenueRetention.starting_mrr) }}</span>
+                            <div
+                                class="flex items-center justify-between border-b border-border/20 pb-2"
+                            >
+                                <span class="text-muted-foreground"
+                                    >MRR đầu kỳ</span
+                                >
+                                <span
+                                    class="font-mono font-bold text-slate-800 dark:text-slate-200"
+                                    >{{
+                                        formatCurrency(
+                                            revenueRetention.starting_mrr,
+                                        )
+                                    }}</span
+                                >
                             </div>
-                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                                <span class="text-muted-foreground">Mở rộng (Expansion)</span>
-                                <span class="font-bold text-emerald-500 font-mono bg-emerald-500/10 px-2 py-0.5 rounded">+{{ formatCurrency(revenueRetention.expansion) }}</span>
+                            <div
+                                class="flex items-center justify-between border-b border-border/20 pb-2"
+                            >
+                                <span class="text-muted-foreground"
+                                    >Mở rộng (Expansion)</span
+                                >
+                                <span
+                                    class="rounded bg-emerald-500/10 px-2 py-0.5 font-mono font-bold text-emerald-500"
+                                    >+{{
+                                        formatCurrency(
+                                            revenueRetention.expansion,
+                                        )
+                                    }}</span
+                                >
                             </div>
-                            <div class="flex items-center justify-between border-b pb-2 border-border/20">
-                                <span class="text-muted-foreground">Co lại (Contraction)</span>
-                                <span class="font-bold text-amber-500 font-mono bg-amber-500/10 px-2 py-0.5 rounded">-{{ formatCurrency(revenueRetention.contraction) }}</span>
+                            <div
+                                class="flex items-center justify-between border-b border-border/20 pb-2"
+                            >
+                                <span class="text-muted-foreground"
+                                    >Co lại (Contraction)</span
+                                >
+                                <span
+                                    class="rounded bg-amber-500/10 px-2 py-0.5 font-mono font-bold text-amber-500"
+                                    >-{{
+                                        formatCurrency(
+                                            revenueRetention.contraction,
+                                        )
+                                    }}</span
+                                >
                             </div>
                             <div class="flex items-center justify-between pb-0">
-                                <span class="text-muted-foreground">Mất đi (Churned)</span>
-                                <span class="font-bold text-rose-500 font-mono bg-rose-500/10 px-2 py-0.5 rounded">-{{ formatCurrency(revenueRetention.churned) }}</span>
+                                <span class="text-muted-foreground"
+                                    >Mất đi (Churned)</span
+                                >
+                                <span
+                                    class="rounded bg-rose-500/10 px-2 py-0.5 font-mono font-bold text-rose-500"
+                                    >-{{
+                                        formatCurrency(revenueRetention.churned)
+                                    }}</span
+                                >
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 <!-- Resource Usage Card -->
-                <Card class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)]">
-                    <CardHeader class="pb-2.5 border-b border-border/30">
-                        <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
-                            <Server class="size-4 text-sky-500" /> 
+                <Card
+                    class="border border-border/40 bg-card/45 shadow-[var(--shadow-premium)] backdrop-blur-md transition-all duration-300 hover:border-border/60"
+                >
+                    <CardHeader class="border-b border-border/30 pb-2.5">
+                        <CardTitle
+                            class="flex items-center gap-2 text-xs font-black tracking-widest text-foreground uppercase"
+                        >
+                            <Server class="size-4 text-sky-500" />
                             <span>Sử dụng tài nguyên (Resources)</span>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-4 font-semibold text-xs">
+                    <CardContent class="space-y-4 pt-4 text-xs font-semibold">
                         <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
-                                <span class="text-muted-foreground">Orders (30 ngày qua)</span>
-                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ resourceInsights.totals.orders_last_30_days }}</span>
+                                <span class="text-muted-foreground"
+                                    >Orders (30 ngày qua)</span
+                                >
+                                <span
+                                    class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
+                                    >{{
+                                        resourceInsights.totals
+                                            .orders_last_30_days
+                                    }}</span
+                                >
                             </div>
                             <!-- Orders Capacity Bar (out of 50,000 max orders for example) -->
-                            <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                                <div class="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-700 shadow" :style="{ width: `${Math.min(100, Math.round((resourceInsights.totals.orders_last_30_days / 50000) * 100))}%` }" />
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-1.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-muted-foreground">Dung lượng Cloud</span>
-                                <span class="font-bold text-slate-800 dark:text-slate-200 font-mono bg-muted px-2 py-0.5 rounded border border-border/40 shadow-sm">{{ formatBytes(resourceInsights.totals.storage_bytes) }}</span>
-                            </div>
-                            <!-- Storage Capacity Bar (out of 100GB max for example) -->
-                            <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                                <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-700 shadow" :style="{ width: `${Math.min(100, Math.round((resourceInsights.totals.storage_bytes / (100 * 1024 * 1024 * 1024)) * 100))}%` }" />
+                            <div
+                                class="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                            >
+                                <div
+                                    class="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 shadow transition-all duration-700"
+                                    :style="{
+                                        width: `${Math.min(100, Math.round((resourceInsights.totals.orders_last_30_days / 50000) * 100))}%`,
+                                    }"
+                                />
                             </div>
                         </div>
 
-                        <div class="border-t border-dashed border-border/40 pt-2 space-y-2">
+                        <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
-                                <span class="text-muted-foreground">Doanh thu MRR</span>
-                                <span class="font-bold text-cyan-600 dark:text-cyan-400 font-mono">{{ formatCurrency(saasMetrics.mrr) }}</span>
+                                <span class="text-muted-foreground"
+                                    >Dung lượng Cloud</span
+                                >
+                                <span
+                                    class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
+                                    >{{
+                                        formatBytes(
+                                            resourceInsights.totals
+                                                .storage_bytes,
+                                        )
+                                    }}</span
+                                >
+                            </div>
+                            <!-- Storage Capacity Bar (out of 100GB max for example) -->
+                            <div
+                                class="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                            >
+                                <div
+                                    class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 shadow transition-all duration-700"
+                                    :style="{
+                                        width: `${Math.min(100, Math.round((resourceInsights.totals.storage_bytes / (100 * 1024 * 1024 * 1024)) * 100))}%`,
+                                    }"
+                                />
+                            </div>
+                        </div>
+
+                        <div
+                            class="space-y-2 border-t border-dashed border-border/40 pt-2"
+                        >
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground"
+                                    >Doanh thu MRR</span
+                                >
+                                <span
+                                    class="font-mono font-bold text-cyan-600 dark:text-cyan-400"
+                                    >{{ formatCurrency(saasMetrics.mrr) }}</span
+                                >
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-muted-foreground">Doanh thu ARR dự báo</span>
-                                <span class="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{{ formatCurrency(saasMetrics.arr) }}</span>
+                                <span class="text-muted-foreground"
+                                    >Doanh thu ARR dự báo</span
+                                >
+                                <span
+                                    class="font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                                    >{{ formatCurrency(saasMetrics.arr) }}</span
+                                >
                             </div>
                         </div>
                     </CardContent>
@@ -1152,108 +2023,208 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- Restructured Top KPI Section: Left Detail Console & Right 2x3 KPI Grid -->
-        <div v-if="isSectionVisible('kpi_console')" class="grid gap-4 lg:grid-cols-[1fr_1.3fr]">
+        <div
+            v-if="isSectionVisible('kpi_console')"
+            class="grid gap-4 lg:grid-cols-[1fr_1.3fr]"
+        >
             <!-- LEFT: 1 Big Detailed Card (Terminal Console style) -->
-            <div class="relative overflow-hidden rounded-3xl border border-cyan-500/20 bg-slate-950 p-6 text-slate-200 shadow-[0_0_30px_rgba(6,182,212,0.08)] flex flex-col justify-between h-auto lg:h-[500px] hover:border-cyan-500/40 transition-all duration-500" style="background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 0); background-size: 20px 20px;">
+            <div
+                class="relative flex h-auto flex-col justify-between overflow-hidden rounded-3xl border border-cyan-500/20 bg-slate-950 p-6 text-slate-200 shadow-[0_0_30px_rgba(6,182,212,0.08)] transition-all duration-500 hover:border-cyan-500/40 lg:h-[500px]"
+                style="
+                    background-image: radial-gradient(
+                        rgba(255, 255, 255, 0.03) 1px,
+                        transparent 0
+                    );
+                    background-size: 20px 20px;
+                "
+            >
                 <!-- Mac style header dots -->
-                <div class="absolute top-4 left-5 flex items-center gap-1.5 select-none">
-                    <span class="size-3 rounded-full bg-rose-500/90 shadow-[0_0_8px_#f43f5e]"></span>
-                    <span class="size-3 rounded-full bg-amber-500/90 shadow-[0_0_8px_#f59e0b]"></span>
-                    <span class="size-3 rounded-full bg-emerald-500/90 shadow-[0_0_8px_#10b981]"></span>
-                    <span class="text-[9px] font-mono text-slate-500 ml-2 uppercase font-extrabold tracking-widest">Business Insights Console v1.3.0</span>
+                <div
+                    class="absolute top-4 left-5 flex items-center gap-1.5 select-none"
+                >
+                    <span
+                        class="size-3 rounded-full bg-rose-500/90 shadow-[0_0_8px_#f43f5e]"
+                    ></span>
+                    <span
+                        class="size-3 rounded-full bg-amber-500/90 shadow-[0_0_8px_#f59e0b]"
+                    ></span>
+                    <span
+                        class="size-3 rounded-full bg-emerald-500/90 shadow-[0_0_8px_#10b981]"
+                    ></span>
+                    <span
+                        class="ml-2 font-mono text-[9px] font-extrabold tracking-widest text-slate-500 uppercase"
+                        >Business Insights Console v1.3.0</span
+                    >
                 </div>
                 <!-- Status tag -->
-                <div class="absolute top-3.5 right-5 flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[9px] font-bold text-emerald-400">
-                    <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <div
+                    class="absolute top-3.5 right-5 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[9px] font-bold text-emerald-400"
+                >
+                    <span
+                        class="size-1.5 animate-pulse rounded-full bg-emerald-400"
+                    ></span>
                     CONSOLE: ACTIVE
                 </div>
- 
+
                 <!-- Step Title & Info -->
-                <div class="space-y-4 mt-8">
+                <div class="mt-8 space-y-4">
                     <div class="space-y-2">
-                        <h3 class="text-sm font-black uppercase tracking-wider text-cyan-400 font-mono flex items-center gap-2">
-                            <span class="text-cyan-500 font-bold">&gt;_</span> {{ activeKpi.step }}
+                        <h3
+                            class="flex items-center gap-2 font-mono text-sm font-black tracking-wider text-cyan-400 uppercase"
+                        >
+                            <span class="font-bold text-cyan-500">&gt;_</span>
+                            {{ activeKpi.step }}
                         </h3>
-                        <p class="text-xs font-semibold text-slate-400 leading-relaxed">
+                        <p
+                            class="text-xs leading-relaxed font-semibold text-slate-400"
+                        >
                             {{ activeKpi.desc }}
                         </p>
                     </div>
- 
+
                     <!-- Business Operational Metrics -->
-                    <div class="space-y-3.5 border-t border-slate-800/80 pt-4 text-xs font-semibold">
+                    <div
+                        class="space-y-3.5 border-t border-slate-800/80 pt-4 text-xs font-semibold"
+                    >
                         <div class="space-y-0.5">
-                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">📊 {{ activeKpi.metric1_label }}</p>
-                            <p class="text-xl font-black text-white font-mono tracking-wide">
+                            <p
+                                class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                            >
+                                📊 {{ activeKpi.metric1_label }}
+                            </p>
+                            <p
+                                class="font-mono text-xl font-black tracking-wide text-white"
+                            >
                                 {{ activeKpi.metric1_value }}
                             </p>
                         </div>
                         <div class="space-y-0.5">
-                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">📈 {{ activeKpi.metric2_label }}</p>
-                            <p class="text-sm font-black text-emerald-400 font-mono">
+                            <p
+                                class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                            >
+                                📈 {{ activeKpi.metric2_label }}
+                            </p>
+                            <p
+                                class="font-mono text-sm font-black text-emerald-400"
+                            >
                                 {{ activeKpi.metric2_value }}
                             </p>
                         </div>
                         <div class="space-y-0.5">
-                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">⚡ {{ activeKpi.metric3_label }}</p>
-                            <p class="text-xs font-bold text-cyan-400 font-mono">
+                            <p
+                                class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                            >
+                                ⚡ {{ activeKpi.metric3_label }}
+                            </p>
+                            <p
+                                class="font-mono text-xs font-bold text-cyan-400"
+                            >
                                 {{ activeKpi.metric3_value }}
                             </p>
                         </div>
                     </div>
                 </div>
- 
+
                 <!-- Visual Allocation & AI Strategic Recommendation -->
-                <div class="space-y-3.5 border-t border-slate-800/80 pt-4 mt-4 text-xs font-semibold">
+                <div
+                    class="mt-4 space-y-3.5 border-t border-slate-800/80 pt-4 text-xs font-semibold"
+                >
                     <div class="space-y-1.5">
-                        <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">🔍 PHÂN BỔ CHI TIẾT (STATE DISTRIBUTION)</p>
+                        <p
+                            class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                        >
+                            🔍 PHÂN BỔ CHI TIẾT (STATE DISTRIBUTION)
+                        </p>
                         <div class="flex flex-wrap gap-1.5">
-                            <Badge v-for="tag in activeKpi.tables" :key="tag" 
-                                class="rounded-lg text-[10px] font-extrabold px-2.5 py-0.5 bg-slate-900 border border-slate-800 text-slate-300">
+                            <Badge
+                                v-for="tag in activeKpi.tables"
+                                :key="tag"
+                                class="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-300"
+                            >
                                 {{ tag }}
                             </Badge>
                         </div>
                     </div>
-                    
-                    <div class="rounded-2xl bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-violet-500/20 p-3.5 space-y-1.5 shadow-sm">
-                        <p class="text-[9px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-1.5">
+
+                    <div
+                        class="space-y-1.5 rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-600/10 to-indigo-600/10 p-3.5 shadow-sm"
+                    >
+                        <p
+                            class="flex items-center gap-1.5 text-[9px] font-black tracking-widest text-violet-400 uppercase"
+                        >
                             🤖 AI STRATEGIC GROWTH RECOMMENDATION
                         </p>
-                        <p class="text-[11px] text-violet-200/90 leading-relaxed font-semibold">
+                        <p
+                            class="text-[11px] leading-relaxed font-semibold text-violet-200/90"
+                        >
                             {{ activeKpi.note }}
                         </p>
                     </div>
                 </div>
             </div>
- 
+
             <!-- RIGHT: KPI Cards Grid -->
-            <div class="grid gap-4 sm:grid-cols-2 h-auto lg:h-[500px] overflow-y-auto pr-1">
-                <div v-for="(card, index) in statCards" :key="card.label" 
+            <div
+                class="grid h-auto gap-4 overflow-y-auto pr-1 sm:grid-cols-2 lg:h-[500px]"
+            >
+                <div
+                    v-for="(card, index) in statCards"
+                    :key="card.label"
                     @click="selectedKpiIdx = index"
                     :class="[
-                        'group relative overflow-hidden transition-all duration-350 rounded-2xl border p-5 cursor-pointer bg-card/45 dark:bg-card/25 backdrop-blur-md select-none flex flex-col justify-between min-h-[116px]',
-                        selectedKpiIdx === index 
-                            ? 'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/5 dark:bg-card/40' 
-                            : 'hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30 border-border/60'
+                        'group relative flex min-h-[116px] cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border bg-card/45 p-5 backdrop-blur-md transition-all duration-350 select-none dark:bg-card/25',
+                        selectedKpiIdx === index
+                            ? 'border-primary shadow-lg ring-2 shadow-primary/5 ring-primary/40 dark:bg-card/40'
+                            : 'border-border/60 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md',
                     ]"
                 >
                     <!-- Active indicator dot -->
-                    <div v-if="selectedKpiIdx === index" class="absolute top-3.5 right-3.5 flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    <div
+                        v-if="selectedKpiIdx === index"
+                        class="absolute top-3.5 right-3.5 flex h-2 w-2"
+                    >
+                        <span
+                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"
+                        ></span>
+                        <span
+                            class="relative inline-flex h-2 w-2 rounded-full bg-primary"
+                        ></span>
                     </div>
- 
+
                     <div class="flex items-center justify-between gap-4">
                         <div class="space-y-1">
-                            <p class="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{{ card.label }}</p>
-                            <p class="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 font-mono">{{ card.value }}</p>
+                            <p
+                                class="text-[10px] font-extrabold tracking-widest text-muted-foreground uppercase"
+                            >
+                                {{ card.label }}
+                            </p>
+                            <p
+                                class="font-mono text-xl font-black tracking-tight text-slate-800 dark:text-slate-100"
+                            >
+                                {{ card.value }}
+                            </p>
                         </div>
-                        <div :class="['flex size-10 items-center justify-center rounded-xl border transition-all duration-500 group-hover:scale-110 shrink-0', card.color]">
+                        <div
+                            :class="[
+                                'flex size-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-500 group-hover:scale-110',
+                                card.color,
+                            ]"
+                        >
                             <component :is="card.icon" class="size-4.5" />
                         </div>
                     </div>
-                    <div class="flex items-center gap-1.5 text-[10px] font-bold mt-2.5">
-                        <span :class="[card.trend === 'up' ? 'text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full' : 'text-slate-400 bg-slate-400/10 border border-slate-400/20 px-2 py-0.5 rounded-full']">
-                            {{ card.trend === 'up' ? '↑' : '•' }} {{ card.change }}
+                    <div
+                        class="mt-2.5 flex items-center gap-1.5 text-[10px] font-bold"
+                    >
+                        <span
+                            :class="[
+                                card.trend === 'up'
+                                    ? 'rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-500'
+                                    : 'rounded-full border border-slate-400/20 bg-slate-400/10 px-2 py-0.5 text-slate-400',
+                            ]"
+                        >
+                            {{ card.trend === 'up' ? '↑' : '•' }}
+                            {{ card.change }}
                         </span>
                     </div>
                 </div>
@@ -1261,182 +2232,454 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- AI Insights Section (Glassmorphic Premium) -->
-        <div v-if="hasAiData && isSectionVisible('ai_insights')" class="space-y-4 rounded-3xl border border-violet-500/20 dark:border-violet-500/30 p-6 bg-gradient-to-br from-violet-500/[0.04] via-indigo-500/[0.03] to-sky-500/[0.04] backdrop-blur-xl shadow-xs">
+        <div
+            v-if="hasAiData && isSectionVisible('ai_insights')"
+            class="space-y-4 rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.04] via-indigo-500/[0.03] to-sky-500/[0.04] p-6 shadow-xs backdrop-blur-xl dark:border-violet-500/30"
+        >
             <!-- Header + Overall Health -->
-            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-violet-500/10 pb-4">
+            <div
+                class="flex flex-wrap items-center justify-between gap-4 border-b border-violet-500/10 pb-4"
+            >
                 <div class="flex items-center gap-3.5">
-                    <div class="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 shadow-md shadow-violet-500/20 text-white animate-pulse">
+                    <div
+                        class="flex size-11 animate-pulse items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/20"
+                    >
                         <Brain class="size-5.5" />
                     </div>
                     <div>
-                        <h2 class="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <h2
+                            class="flex items-center gap-1.5 text-lg font-black tracking-tight text-slate-900 dark:text-slate-100"
+                        >
                             AI Co-Pilot Analytics
                         </h2>
-                        <p class="text-xs text-muted-foreground font-semibold">Công cụ trí tuệ dự báo hành vi, sức khoẻ tenant và dự phòng rủi ro rời bỏ</p>
+                        <p class="text-xs font-semibold text-muted-foreground">
+                            Công cụ trí tuệ dự báo hành vi, sức khoẻ tenant và
+                            dự phòng rủi ro rời bỏ
+                        </p>
                     </div>
                 </div>
 
                 <!-- Circular Overall Health Glass Badge -->
-                <div v-if="aiInsights.overall_health" :class="['flex items-center gap-3.5 rounded-2xl border px-5 py-2.5 bg-card/40 dark:bg-slate-950/40 shadow-lg transition-all duration-300 hover:shadow-xl', overallHealthStyle.bg, overallHealthStyle.glow]">
-                    <svg class="size-11 -rotate-90 filter drop-shadow-[0_0_4px_rgba(var(--health-glow),0.2)]" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-200 dark:stroke-slate-800" stroke-width="3" />
-                        <circle cx="18" cy="18" r="14" fill="none" :class="[overallHealthStyle.ring, 'transition-all duration-1000 ease-out']" stroke-width="3.2"
+                <div
+                    v-if="aiInsights.overall_health"
+                    :class="[
+                        'flex items-center gap-3.5 rounded-2xl border bg-card/40 px-5 py-2.5 shadow-lg transition-all duration-300 hover:shadow-xl dark:bg-slate-950/40',
+                        overallHealthStyle.bg,
+                        overallHealthStyle.glow,
+                    ]"
+                >
+                    <svg
+                        class="size-11 -rotate-90 drop-shadow-[0_0_4px_rgba(var(--health-glow),0.2)] filter"
+                        viewBox="0 0 36 36"
+                    >
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="14"
+                            fill="none"
+                            class="stroke-slate-200 dark:stroke-slate-800"
+                            stroke-width="3"
+                        />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="14"
+                            fill="none"
+                            :class="[
+                                overallHealthStyle.ring,
+                                'transition-all duration-1000 ease-out',
+                            ]"
+                            stroke-width="3.2"
                             stroke-linecap="round"
-                            :stroke-dasharray="`${(aiInsights.overall_health.score / 100) * 87.96} 87.96`" />
+                            :stroke-dasharray="`${(aiInsights.overall_health.score / 100) * 87.96} 87.96`"
+                        />
                     </svg>
                     <div class="space-y-0.5">
-                        <p :class="['text-2xl font-black font-mono', overallHealthStyle.text]">
-                            {{ aiInsights.overall_health.score }}<span class="text-xs font-semibold text-muted-foreground">/100</span>
+                        <p
+                            :class="[
+                                'font-mono text-2xl font-black',
+                                overallHealthStyle.text,
+                            ]"
+                        >
+                            {{ aiInsights.overall_health.score
+                            }}<span
+                                class="text-xs font-semibold text-muted-foreground"
+                                >/100</span
+                            >
                         </p>
-                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{{ aiInsights.overall_health.label }}</p>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            {{ aiInsights.overall_health.label }}
+                        </p>
                     </div>
                 </div>
             </div>
 
             <!-- Segment Indicators -->
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <button type="button" v-for="seg in segmentCards" :key="seg.key" @click="showSegmentRestaurants(seg)"
-                    :class="['relative overflow-hidden rounded-2xl border p-4.5 bg-gradient-to-br bg-card/40 dark:bg-slate-950/20 backdrop-blur-xs transition-all duration-300 hover:-translate-y-0.5 text-left cursor-pointer', seg.gradient, seg.border]">
-                    <p class="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{{ seg.label }}</p>
-                    <p :class="['mt-1.5 text-3xl font-black font-mono tracking-tight', seg.color]">{{ seg.value }}</p>
-                    <span class="absolute right-4 top-3 text-2xl opacity-20 select-none">{{ seg.icon }}</span>
+                <button
+                    type="button"
+                    v-for="seg in segmentCards"
+                    :key="seg.key"
+                    @click="showSegmentRestaurants(seg)"
+                    :class="[
+                        'relative cursor-pointer overflow-hidden rounded-2xl border bg-card/40 bg-gradient-to-br p-4.5 text-left backdrop-blur-xs transition-all duration-300 hover:-translate-y-0.5 dark:bg-slate-950/20',
+                        seg.gradient,
+                        seg.border,
+                    ]"
+                >
+                    <p
+                        class="text-[10px] font-extrabold tracking-widest text-muted-foreground uppercase"
+                    >
+                        {{ seg.label }}
+                    </p>
+                    <p
+                        :class="[
+                            'mt-1.5 font-mono text-3xl font-black tracking-tight',
+                            seg.color,
+                        ]"
+                    >
+                        {{ seg.value }}
+                    </p>
+                    <span
+                        class="absolute top-3 right-4 text-2xl opacity-20 select-none"
+                        >{{ seg.icon }}</span
+                    >
                 </button>
             </div>
 
             <div class="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
                 <!-- Churn Risk Assessment -->
-                <Card class="overflow-hidden border-rose-500/25 bg-card/40 dark:bg-slate-950/15 backdrop-blur-xs shadow-xs">
-                    <CardHeader class="flex-row items-center justify-between pb-3 border-b border-rose-500/10">
+                <Card
+                    class="overflow-hidden border-rose-500/25 bg-card/40 shadow-xs backdrop-blur-xs dark:bg-slate-950/15"
+                >
+                    <CardHeader
+                        class="flex-row items-center justify-between border-b border-rose-500/10 pb-3"
+                    >
                         <div class="flex items-center gap-2">
-                            <div class="flex size-8 items-center justify-center rounded-xl bg-rose-500/15 border border-rose-500/20 text-rose-500">
+                            <div
+                                class="flex size-8 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/15 text-rose-500"
+                            >
                                 <AlertTriangle class="size-4" />
                             </div>
                             <div>
-                                <CardTitle class="text-sm font-black">Nguy cơ rời bỏ (Churn Risks)</CardTitle>
-                                <p class="text-[10px] text-muted-foreground">Cảnh báo rủi ro tự động dựa trên tần suất vận hành</p>
+                                <CardTitle class="text-sm font-black"
+                                    >Nguy cơ rời bỏ (Churn Risks)</CardTitle
+                                >
+                                <p class="text-[10px] text-muted-foreground">
+                                    Cảnh báo rủi ro tự động dựa trên tần suất
+                                    vận hành
+                                </p>
                             </div>
                         </div>
-                        <Badge variant="secondary" class="text-[10px] font-extrabold rounded-lg px-2 bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                        <Badge
+                            variant="secondary"
+                            class="rounded-lg border border-rose-500/20 bg-rose-500/10 px-2 text-[10px] font-extrabold text-rose-500"
+                        >
                             Cảnh báo: {{ aiInsights.churn_risks.length }}
                         </Badge>
                     </CardHeader>
                     <CardContent class="divide-y divide-border/40 p-0">
-                        <div v-for="(r, idx) in aiInsights.churn_risks" :key="r.restaurant_id" 
+                        <div
+                            v-for="(r, idx) in aiInsights.churn_risks"
+                            :key="r.restaurant_id"
                             @click="toggleRiskExpand(r.restaurant_id)"
-                            class="px-5 py-4 hover:bg-muted/30 dark:hover:bg-slate-900/20 transition-all cursor-pointer select-none">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="font-extrabold text-sm truncate text-slate-800 dark:text-slate-200 flex items-center gap-1.5 min-w-0">
-                                    <component :is="isRiskExpanded(r.restaurant_id, idx) ? ChevronUp : ChevronDown" class="size-4 text-muted-foreground shrink-0" />
-                                    <Link :href="`/super-admin/restaurants/${r.restaurant_id}`" class="truncate hover:underline hover:text-rose-500 transition-colors" @click.stop>{{ r.name }}</Link>
+                            class="cursor-pointer px-5 py-4 transition-all select-none hover:bg-muted/30 dark:hover:bg-slate-900/20"
+                        >
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <p
+                                    class="flex min-w-0 items-center gap-1.5 truncate text-sm font-extrabold text-slate-800 dark:text-slate-200"
+                                >
+                                    <component
+                                        :is="
+                                            isRiskExpanded(r.restaurant_id, idx)
+                                                ? ChevronUp
+                                                : ChevronDown
+                                        "
+                                        class="size-4 shrink-0 text-muted-foreground"
+                                    />
+                                    <Link
+                                        :href="`/super-admin/restaurants/${r.restaurant_id}`"
+                                        class="truncate transition-colors hover:text-rose-500 hover:underline"
+                                        @click.stop
+                                        >{{ r.name }}</Link
+                                    >
                                 </p>
-                                <span :class="['shrink-0 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase border', riskColor[r.risk_level]]">
-                                    {{ r.risk_level === 'high' ? '🔴 Khẩn cấp' : r.risk_level === 'medium' ? '🟡 Trung bình' : '🟢 Thấp' }}
+                                <span
+                                    :class="[
+                                        'shrink-0 rounded-full border px-2.5 py-0.5 text-[9px] font-extrabold uppercase',
+                                        riskColor[r.risk_level],
+                                    ]"
+                                >
+                                    {{
+                                        r.risk_level === 'high'
+                                            ? '🔴 Khẩn cấp'
+                                            : r.risk_level === 'medium'
+                                              ? '🟡 Trung bình'
+                                              : '🟢 Thấp'
+                                    }}
                                 </span>
                             </div>
                             <!-- Progress bar -->
-                            <div class="flex items-center gap-2.5 mt-2">
-                                <div class="h-2 flex-1 rounded-full bg-muted/60 overflow-hidden border">
-                                    <div :class="['h-full rounded-full transition-all duration-1000 ease-out', riskBarColor[r.risk_level]]"
-                                        :style="{ width: r.risk_score + '%' }" />
+                            <div class="mt-2 flex items-center gap-2.5">
+                                <div
+                                    class="h-2 flex-1 overflow-hidden rounded-full border bg-muted/60"
+                                >
+                                    <div
+                                        :class="[
+                                            'h-full rounded-full transition-all duration-1000 ease-out',
+                                            riskBarColor[r.risk_level],
+                                        ]"
+                                        :style="{ width: r.risk_score + '%' }"
+                                    />
                                 </div>
-                                <span class="text-xs font-black font-mono w-9 text-right text-slate-700 dark:text-slate-300">{{ r.risk_score }}%</span>
+                                <span
+                                    class="w-9 text-right font-mono text-xs font-black text-slate-700 dark:text-slate-300"
+                                    >{{ r.risk_score }}%</span
+                                >
                             </div>
                             <!-- Collapsible details -->
-                            <div v-if="isRiskExpanded(r.restaurant_id, idx)" class="space-y-3 pt-3">
+                            <div
+                                v-if="isRiskExpanded(r.restaurant_id, idx)"
+                                class="space-y-3 pt-3"
+                            >
                                 <!-- Reasons -->
-                                <div v-if="r.reasons.length" class="space-y-1 bg-white/30 dark:bg-slate-950/20 p-2.5 rounded-xl border border-border/40">
-                                    <p class="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Dấu hiệu bất thường:</p>
+                                <div
+                                    v-if="r.reasons.length"
+                                    class="space-y-1 rounded-xl border border-border/40 bg-white/30 p-2.5 dark:bg-slate-950/20"
+                                >
+                                    <p
+                                        class="text-[9px] font-bold tracking-widest text-muted-foreground uppercase"
+                                    >
+                                        Dấu hiệu bất thường:
+                                    </p>
                                     <ul class="space-y-1">
-                                        <li v-for="reason in r.reasons" :key="reason" class="text-xs text-muted-foreground/90 font-medium flex items-start gap-2">
-                                            <span class="shrink-0 mt-1 text-rose-500">•</span>{{ reason }}
+                                        <li
+                                            v-for="reason in r.reasons"
+                                            :key="reason"
+                                            class="flex items-start gap-2 text-xs font-medium text-muted-foreground/90"
+                                        >
+                                            <span
+                                                class="mt-1 shrink-0 text-rose-500"
+                                                >•</span
+                                            >{{ reason }}
                                         </li>
                                     </ul>
                                 </div>
                                 <!-- Actions -->
-                                <div v-if="r.actions?.length" class="rounded-xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/25 p-3 space-y-1 shadow-2xs">
-                                    <p class="text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1">
+                                <div
+                                    v-if="r.actions?.length"
+                                    class="space-y-1 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 shadow-2xs dark:bg-amber-950/20"
+                                >
+                                    <p
+                                        class="flex items-center gap-1 text-[9px] font-bold tracking-widest text-amber-600 uppercase dark:text-amber-400"
+                                    >
                                         💡 Gợi ý hành động can thiệp:
                                     </p>
                                     <ul class="space-y-1">
-                                        <li v-for="action in r.actions" :key="action" class="text-xs text-amber-700 dark:text-amber-300 font-semibold flex items-start gap-2">
-                                            <span class="shrink-0 text-amber-500">→</span>{{ action }}
+                                        <li
+                                            v-for="action in r.actions"
+                                            :key="action"
+                                            class="flex items-start gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                                        >
+                                            <span
+                                                class="shrink-0 text-amber-500"
+                                                >→</span
+                                            >{{ action }}
                                         </li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
-                        <div v-if="!aiInsights.churn_risks.length" class="px-5 py-12 text-center text-xs text-muted-foreground font-semibold">
-                            🎉 Hệ thống khoẻ mạnh! Không phát hiện rủi ro rời bỏ nào.
+                        <div
+                            v-if="!aiInsights.churn_risks.length"
+                            class="px-5 py-12 text-center text-xs font-semibold text-muted-foreground"
+                        >
+                            🎉 Hệ thống khoẻ mạnh! Không phát hiện rủi ro rời bỏ
+                            nào.
                         </div>
                     </CardContent>
                 </Card>
 
                 <div class="space-y-4">
                     <!-- Health Scores list -->
-                    <Card class="border-emerald-500/25 bg-card/40 dark:bg-slate-950/15 backdrop-blur-xs shadow-xs">
-                        <CardHeader class="flex-row items-center gap-2 pb-3 border-b border-emerald-500/10">
-                            <div class="flex size-8 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/20 text-emerald-500">
+                    <Card
+                        class="border-emerald-500/25 bg-card/40 shadow-xs backdrop-blur-xs dark:bg-slate-950/15"
+                    >
+                        <CardHeader
+                            class="flex-row items-center gap-2 border-b border-emerald-500/10 pb-3"
+                        >
+                            <div
+                                class="flex size-8 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-500"
+                            >
                                 <Heart class="size-4" />
                             </div>
                             <div>
-                                <CardTitle class="text-sm font-black">Top sức khoẻ Tenant (Health Scores)</CardTitle>
-                                <p class="text-[10px] text-muted-foreground">Các nhà hàng có chỉ số vận hành ổn định và phát triển tốt</p>
+                                <CardTitle class="text-sm font-black"
+                                    >Top sức khoẻ Tenant (Health
+                                    Scores)</CardTitle
+                                >
+                                <p class="text-[10px] text-muted-foreground">
+                                    Các nhà hàng có chỉ số vận hành ổn định và
+                                    phát triển tốt
+                                </p>
                             </div>
                         </CardHeader>
-                        <CardContent class="pt-4 space-y-4.5">
-                            <div v-for="(h, idx) in aiInsights.health_scores" :key="h.restaurant_id" class="flex items-center gap-3.5 hover:bg-muted/20 p-1.5 rounded-xl transition-all">
-                                <span class="text-xs font-black text-muted-foreground w-4 text-center font-mono">{{ idx + 1 }}</span>
-                                <div class="flex-1 min-w-0 space-y-0.5">
-                                    <Link :href="`/super-admin/restaurants/${h.restaurant_id}`" class="block text-xs font-black truncate text-slate-800 dark:text-slate-200 hover:underline hover:text-emerald-500 transition-colors">{{ h.name }}</Link>
-                                    <p class="text-[10px] font-bold text-muted-foreground font-mono">{{ h.order_count_30d }} đơn / 30 ngày</p>
+                        <CardContent class="space-y-4.5 pt-4">
+                            <div
+                                v-for="(h, idx) in aiInsights.health_scores"
+                                :key="h.restaurant_id"
+                                class="flex items-center gap-3.5 rounded-xl p-1.5 transition-all hover:bg-muted/20"
+                            >
+                                <span
+                                    class="w-4 text-center font-mono text-xs font-black text-muted-foreground"
+                                    >{{ idx + 1 }}</span
+                                >
+                                <div class="min-w-0 flex-1 space-y-0.5">
+                                    <Link
+                                        :href="`/super-admin/restaurants/${h.restaurant_id}`"
+                                        class="block truncate text-xs font-black text-slate-800 transition-colors hover:text-emerald-500 hover:underline dark:text-slate-200"
+                                        >{{ h.name }}</Link
+                                    >
+                                    <p
+                                        class="font-mono text-[10px] font-bold text-muted-foreground"
+                                    >
+                                        {{ h.order_count_30d }} đơn / 30 ngày
+                                    </p>
                                 </div>
-                                <div class="flex items-center gap-3 shrink-0">
-                                    <div class="h-2 w-20 rounded-full bg-muted/60 overflow-hidden border">
-                                        <div :class="['h-full rounded-full transition-all duration-1000 ease-out', healthBarColor[h.level]]"
-                                            :style="{ width: h.score + '%' }" />
+                                <div class="flex shrink-0 items-center gap-3">
+                                    <div
+                                        class="h-2 w-20 overflow-hidden rounded-full border bg-muted/60"
+                                    >
+                                        <div
+                                            :class="[
+                                                'h-full rounded-full transition-all duration-1000 ease-out',
+                                                healthBarColor[h.level],
+                                            ]"
+                                            :style="{ width: h.score + '%' }"
+                                        />
                                     </div>
-                                    <span :class="['text-xs font-black w-8 text-right font-mono', h.level === 'good' ? 'text-emerald-500' : h.level === 'fair' ? 'text-amber-500' : 'text-rose-500']">
+                                    <span
+                                        :class="[
+                                            'w-8 text-right font-mono text-xs font-black',
+                                            h.level === 'good'
+                                                ? 'text-emerald-500'
+                                                : h.level === 'fair'
+                                                  ? 'text-amber-500'
+                                                  : 'text-rose-500',
+                                        ]"
+                                    >
                                         {{ h.score }}
                                     </span>
                                 </div>
                             </div>
-                            <p v-if="!aiInsights.health_scores.length" class="text-xs text-muted-foreground font-semibold text-center py-4">Chưa ghi nhận dữ liệu.</p>
+                            <p
+                                v-if="!aiInsights.health_scores.length"
+                                class="py-4 text-center text-xs font-semibold text-muted-foreground"
+                            >
+                                Chưa ghi nhận dữ liệu.
+                            </p>
                         </CardContent>
                     </Card>
 
                     <!-- MRR Forecast Bar Chart -->
-                    <Card v-if="aiInsights.mrr_forecast?.length" class="border-cyan-500/25 bg-card/40 dark:bg-slate-950/15 backdrop-blur-xs shadow-xs">
-                        <CardHeader class="flex-row items-center justify-between pb-2 border-b border-cyan-500/10">
+                    <Card
+                        v-if="aiInsights.mrr_forecast?.length"
+                        class="border-cyan-500/25 bg-card/40 shadow-xs backdrop-blur-xs dark:bg-slate-950/15"
+                    >
+                        <CardHeader
+                            class="flex-row items-center justify-between border-b border-cyan-500/10 pb-2"
+                        >
                             <div class="flex items-center gap-2">
-                                <div class="flex size-8 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-500/20 text-cyan-500">
+                                <div
+                                    class="flex size-8 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/15 text-cyan-500"
+                                >
                                     <TrendingUp class="size-4" />
                                 </div>
                                 <div>
-                                    <CardTitle class="text-sm font-black">Dự báo MRR (3 tháng tới)</CardTitle>
-                                    <p class="text-[10px] text-muted-foreground">Mô hình hồi quy tuyến tính tích lũy doanh thu tương lai</p>
+                                    <CardTitle class="text-sm font-black"
+                                        >Dự báo MRR (3 tháng tới)</CardTitle
+                                    >
+                                    <p
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Mô hình hồi quy tuyến tính tích lũy
+                                        doanh thu tương lai
+                                    </p>
                                 </div>
                             </div>
-                            <Badge variant="secondary" class="text-[10px] font-extrabold rounded-lg px-2 bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
+                            <Badge
+                                variant="secondary"
+                                class="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2 text-[10px] font-extrabold text-cyan-500"
+                            >
                                 AI Forecast
                             </Badge>
                         </CardHeader>
                         <CardContent class="pt-5">
-                            <div class="flex items-end justify-around gap-4 h-28 select-none">
-                                <div v-for="f in aiInsights.mrr_forecast" :key="f.month" class="group/bar flex flex-col items-center gap-2 flex-1">
+                            <div
+                                class="flex h-28 items-end justify-around gap-4 select-none"
+                            >
+                                <div
+                                    v-for="f in aiInsights.mrr_forecast"
+                                    :key="f.month"
+                                    class="group/bar flex flex-1 flex-col items-center gap-2"
+                                >
                                     <!-- Tooltip hover trên cột -->
-                                    <span class="text-[9px] font-bold text-cyan-600 dark:text-cyan-400 font-mono transition-transform duration-300 group-hover/bar:-translate-y-1 text-center">
-                                        {{ formatCurrency(f.predicted_mrr).replace(',00 ₫', '').replace(' ₫', 'đ') }}
+                                    <span
+                                        class="text-center font-mono text-[9px] font-bold text-cyan-600 transition-transform duration-300 group-hover/bar:-translate-y-1 dark:text-cyan-400"
+                                    >
+                                        {{
+                                            formatCurrency(f.predicted_mrr)
+                                                .replace(',00 ₫', '')
+                                                .replace(' ₫', 'đ')
+                                        }}
                                     </span>
-                                    
+
                                     <!-- Column Graphic representation -->
-                                    <div class="w-full rounded-t-lg overflow-hidden bg-muted/50 dark:bg-slate-900/50 relative border border-border/40 hover:border-cyan-500/40" style="min-height: 8px; max-height: 60px;"
-                                        :style="{ height: Math.max(8, (f.predicted_mrr / maxForecastMrr) * 60) + 'px' }">
-                                        <div :class="['absolute inset-0 rounded-t-md transition-all duration-500 group-hover/bar:brightness-110', f.trend === 'up' ? 'bg-gradient-to-t from-cyan-600 to-cyan-400' : 'bg-gradient-to-t from-slate-600 to-slate-400']" />
+                                    <div
+                                        class="relative w-full overflow-hidden rounded-t-lg border border-border/40 bg-muted/50 hover:border-cyan-500/40 dark:bg-slate-900/50"
+                                        style="
+                                            min-height: 8px;
+                                            max-height: 60px;
+                                        "
+                                        :style="{
+                                            height:
+                                                Math.max(
+                                                    8,
+                                                    (f.predicted_mrr /
+                                                        maxForecastMrr) *
+                                                        60,
+                                                ) + 'px',
+                                        }"
+                                    >
+                                        <div
+                                            :class="[
+                                                'absolute inset-0 rounded-t-md transition-all duration-500 group-hover/bar:brightness-110',
+                                                f.trend === 'up'
+                                                    ? 'bg-gradient-to-t from-cyan-600 to-cyan-400'
+                                                    : 'bg-gradient-to-t from-slate-600 to-slate-400',
+                                            ]"
+                                        />
                                     </div>
-                                    
-                                    <div class="flex flex-col items-center gap-0.5">
-                                        <span class="text-[10px] font-bold text-muted-foreground font-mono">{{ f.month }}</span>
-                                        <span class="text-[10px] text-emerald-500 font-bold">{{ f.trend === 'up' ? '↑ Tăng' : '↓' }}</span>
+
+                                    <div
+                                        class="flex flex-col items-center gap-0.5"
+                                    >
+                                        <span
+                                            class="font-mono text-[10px] font-bold text-muted-foreground"
+                                            >{{ f.month }}</span
+                                        >
+                                        <span
+                                            class="text-[10px] font-bold text-emerald-500"
+                                            >{{
+                                                f.trend === 'up'
+                                                    ? '↑ Tăng'
+                                                    : '↓'
+                                            }}</span
+                                        >
                                     </div>
                                 </div>
                             </div>
@@ -1447,104 +2690,240 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- Top Order & Top Storage Capacity Bars -->
-        <div v-if="isSectionVisible('resource_usage')" class="grid gap-4 xl:grid-cols-2">
+        <div
+            v-if="isSectionVisible('resource_usage')"
+            class="grid gap-4 xl:grid-cols-2"
+        >
             <!-- Top Order Volume with dynamic progress bars -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                <CardHeader class="pb-2 border-b border-border/40">
-                    <CardTitle class="text-base font-bold flex items-center gap-2">
-                        <Crown class="size-4.5 text-violet-500" /> Top Tenant theo lượng đơn hàng
+            <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                <CardHeader class="border-b border-border/40 pb-2">
+                    <CardTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Crown class="size-4.5 text-violet-500" /> Top Tenant
+                        theo lượng đơn hàng
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="pt-4 space-y-4">
-                    <div v-for="item in resourceInsights.top_order_restaurants" :key="item.restaurant_id" class="space-y-2 hover:bg-muted/10 p-2 rounded-xl transition-all border border-transparent hover:border-border/30">
-                        <div class="flex items-center justify-between text-xs font-semibold">
+                <CardContent class="space-y-4 pt-4">
+                    <div
+                        v-for="item in resourceInsights.top_order_restaurants"
+                        :key="item.restaurant_id"
+                        class="space-y-2 rounded-xl border border-transparent p-2 transition-all hover:border-border/30 hover:bg-muted/10"
+                    >
+                        <div
+                            class="flex items-center justify-between text-xs font-semibold"
+                        >
                             <div class="min-w-0">
-                                <Link :href="`/super-admin/restaurants/${item.restaurant_id}`" class="font-bold text-slate-800 dark:text-slate-200 hover:underline hover:text-violet-500 transition-colors">{{ item.name }}</Link>
-                                <p class="text-[10px] text-muted-foreground font-mono uppercase">{{ item.code ?? 'tenant' }}</p>
+                                <Link
+                                    :href="`/super-admin/restaurants/${item.restaurant_id}`"
+                                    class="font-bold text-slate-800 transition-colors hover:text-violet-500 hover:underline dark:text-slate-200"
+                                    >{{ item.name }}</Link
+                                >
+                                <p
+                                    class="font-mono text-[10px] text-muted-foreground uppercase"
+                                >
+                                    {{ item.code ?? 'tenant' }}
+                                </p>
                             </div>
-                            <Badge variant="secondary" class="font-bold font-mono text-[10px] bg-violet-500/10 text-violet-500 hover:bg-violet-500/10 border border-violet-500/25">
+                            <Badge
+                                variant="secondary"
+                                class="border border-violet-500/25 bg-violet-500/10 font-mono text-[10px] font-bold text-violet-500 hover:bg-violet-500/10"
+                            >
                                 {{ item.orders_count }} orders
                             </Badge>
                         </div>
-                        <div class="h-2 w-full rounded-full bg-muted/60 overflow-hidden border">
-                            <div class="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 transition-all duration-1000 ease-out" 
-                                :style="{ width: `${((item.orders_count ?? 0) / topOrdersMax) * 100}%` }" />
+                        <div
+                            class="h-2 w-full overflow-hidden rounded-full border bg-muted/60"
+                        >
+                            <div
+                                class="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 transition-all duration-1000 ease-out"
+                                :style="{
+                                    width: `${((item.orders_count ?? 0) / topOrdersMax) * 100}%`,
+                                }"
+                            />
                         </div>
                     </div>
-                    <p v-if="!resourceInsights.top_order_restaurants.length" class="text-xs text-muted-foreground font-semibold text-center py-4">Chưa có dữ liệu đơn hàng.</p>
+                    <p
+                        v-if="!resourceInsights.top_order_restaurants.length"
+                        class="py-4 text-center text-xs font-semibold text-muted-foreground"
+                    >
+                        Chưa có dữ liệu đơn hàng.
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- Top Storage Capacity with dynamic progress bars -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                <CardHeader class="pb-2 border-b border-border/40">
-                    <CardTitle class="text-base font-bold flex items-center gap-2">
-                        <Server class="size-4.5 text-sky-500" /> Top Tenant theo dung lượng lưu trữ Cloud
+            <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                <CardHeader class="border-b border-border/40 pb-2">
+                    <CardTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Server class="size-4.5 text-sky-500" /> Top Tenant theo
+                        dung lượng lưu trữ Cloud
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="pt-4 space-y-4">
-                    <div v-for="item in resourceInsights.top_storage_restaurants" :key="item.restaurant_id" class="space-y-2 hover:bg-muted/10 p-2 rounded-xl transition-all border border-transparent hover:border-border/30">
-                        <div class="flex items-center justify-between text-xs font-semibold">
+                <CardContent class="space-y-4 pt-4">
+                    <div
+                        v-for="item in resourceInsights.top_storage_restaurants"
+                        :key="item.restaurant_id"
+                        class="space-y-2 rounded-xl border border-transparent p-2 transition-all hover:border-border/30 hover:bg-muted/10"
+                    >
+                        <div
+                            class="flex items-center justify-between text-xs font-semibold"
+                        >
                             <div class="min-w-0">
-                                <Link :href="`/super-admin/restaurants/${item.restaurant_id}`" class="font-bold text-slate-800 dark:text-slate-200 hover:underline hover:text-sky-500 transition-colors">{{ item.name }}</Link>
-                                <p class="text-[10px] text-muted-foreground font-mono">{{ item.files_count ?? 0 }} tệp tin</p>
+                                <Link
+                                    :href="`/super-admin/restaurants/${item.restaurant_id}`"
+                                    class="font-bold text-slate-800 transition-colors hover:text-sky-500 hover:underline dark:text-slate-200"
+                                    >{{ item.name }}</Link
+                                >
+                                <p
+                                    class="font-mono text-[10px] text-muted-foreground"
+                                >
+                                    {{ item.files_count ?? 0 }} tệp tin
+                                </p>
                             </div>
-                            <Badge variant="secondary" class="font-bold font-mono text-[10px] bg-sky-500/10 text-sky-500 hover:bg-sky-500/10 border border-sky-500/25">
+                            <Badge
+                                variant="secondary"
+                                class="border border-sky-500/25 bg-sky-500/10 font-mono text-[10px] font-bold text-sky-500 hover:bg-sky-500/10"
+                            >
                                 {{ formatBytes(item.storage_bytes ?? 0) }}
                             </Badge>
                         </div>
-                        <div class="h-2 w-full rounded-full bg-muted/60 overflow-hidden border">
-                            <div class="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-1000 ease-out" 
-                                :style="{ width: `${((item.storage_bytes ?? 0) / topStorageMax) * 100}%` }" />
+                        <div
+                            class="h-2 w-full overflow-hidden rounded-full border bg-muted/60"
+                        >
+                            <div
+                                class="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-1000 ease-out"
+                                :style="{
+                                    width: `${((item.storage_bytes ?? 0) / topStorageMax) * 100}%`,
+                                }"
+                            />
                         </div>
                     </div>
-                    <p v-if="!resourceInsights.top_storage_restaurants.length" class="text-xs text-muted-foreground font-semibold text-center py-4">Chưa có dữ liệu dung lượng.</p>
+                    <p
+                        v-if="!resourceInsights.top_storage_restaurants.length"
+                        class="py-4 text-center text-xs font-semibold text-muted-foreground"
+                    >
+                        Chưa có dữ liệu dung lượng.
+                    </p>
                 </CardContent>
             </Card>
         </div>
 
         <!-- Recent Restaurants & System signals -->
-        <div v-if="isSectionVisible('recent_restaurants')" class="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <div
+            v-if="isSectionVisible('recent_restaurants')"
+            class="grid gap-4 xl:grid-cols-[1.5fr_1fr]"
+        >
             <!-- Recent Restaurants Card Table -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
-                <CardHeader class="flex-row items-center justify-between pb-3 border-b border-border/40">
+            <Card
+                class="overflow-hidden bg-card/60 backdrop-blur-xs dark:bg-card/30"
+            >
+                <CardHeader
+                    class="flex-row items-center justify-between border-b border-border/40 pb-3"
+                >
                     <div>
-                        <CardTitle class="text-base font-bold">Danh sách Tenant đăng ký mới nhất</CardTitle>
-                        <p class="text-xs text-muted-foreground">Theo dõi và xét duyệt trạng thái kích hoạt nhà hàng mới</p>
+                        <CardTitle class="text-base font-bold"
+                            >Danh sách Tenant đăng ký mới nhất</CardTitle
+                        >
+                        <p class="text-xs text-muted-foreground">
+                            Theo dõi và xét duyệt trạng thái kích hoạt nhà hàng
+                            mới
+                        </p>
                     </div>
-                    <Link href="/super-admin/restaurants" class="text-[11px] font-bold text-primary hover:underline">Xem tất cả</Link>
+                    <Link
+                        href="/super-admin/restaurants"
+                        class="text-[11px] font-bold text-primary hover:underline"
+                        >Xem tất cả</Link
+                    >
                 </CardHeader>
                 <CardContent class="p-0">
-                    <div class="overflow-x-auto w-full">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-muted/40 border-b border-border/60 text-muted-foreground font-bold">
+                    <div class="w-full overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead
+                                class="border-b border-border/60 bg-muted/40 font-bold text-muted-foreground"
+                            >
                                 <tr>
-                                    <th class="px-5 py-3 font-bold uppercase tracking-wider">Nhà hàng</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-center">Gói cước</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-center">Trạng thái</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-right">Ngày tạo</th>
+                                    <th
+                                        class="px-5 py-3 font-bold tracking-wider uppercase"
+                                    >
+                                        Nhà hàng
+                                    </th>
+                                    <th
+                                        class="px-4 py-3 text-center font-bold tracking-wider uppercase"
+                                    >
+                                        Gói cước
+                                    </th>
+                                    <th
+                                        class="px-4 py-3 text-center font-bold tracking-wider uppercase"
+                                    >
+                                        Trạng thái
+                                    </th>
+                                    <th
+                                        class="px-4 py-3 text-right font-bold tracking-wider uppercase"
+                                    >
+                                        Ngày tạo
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border/60">
-                                <tr v-for="r in recentRestaurants" :key="r.id" class="hover:bg-muted/30 transition-all font-medium text-slate-700 dark:text-slate-300">
+                                <tr
+                                    v-for="r in recentRestaurants"
+                                    :key="r.id"
+                                    class="font-medium text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
+                                >
                                     <td class="px-5 py-3">
-                                        <Link :href="`/super-admin/restaurants/${r.id}`" class="font-bold hover:underline hover:text-primary transition-all">{{ r.name }}</Link>
-                                        <p class="text-[10px] text-slate-400 mt-0.5 font-semibold">Chủ quán: {{ r.owner }}</p>
+                                        <Link
+                                            :href="`/super-admin/restaurants/${r.id}`"
+                                            class="font-bold transition-all hover:text-primary hover:underline"
+                                            >{{ r.name }}</Link
+                                        >
+                                        <p
+                                            class="mt-0.5 text-[10px] font-semibold text-slate-400"
+                                        >
+                                            Chủ quán: {{ r.owner }}
+                                        </p>
                                     </td>
                                     <td class="px-4 py-3 text-center">
-                                        <span :class="['rounded-full px-2 py-0.5 text-[10px] font-extrabold border', r.plan_code?.toLowerCase() === 'pro' ? 'text-violet-600 bg-violet-500/10 border-violet-500/25' : 'text-slate-500 bg-slate-500/10 border-slate-500/25']">
+                                        <span
+                                            :class="[
+                                                'rounded-full border px-2 py-0.5 text-[10px] font-extrabold',
+                                                r.plan_code?.toLowerCase() ===
+                                                'pro'
+                                                    ? 'border-violet-500/25 bg-violet-500/10 text-violet-600'
+                                                    : 'border-slate-500/25 bg-slate-500/10 text-slate-500',
+                                            ]"
+                                        >
                                             {{ r.plan }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-center">
-                                        <span :class="['inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase', statusColor[r.status]]">
-                                            {{ statusLabel[r.status] ?? r.status }}
+                                        <span
+                                            :class="[
+                                                'inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase',
+                                                statusColor[r.status],
+                                            ]"
+                                        >
+                                            {{
+                                                statusLabel[r.status] ??
+                                                r.status
+                                            }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-right font-mono font-semibold text-slate-500">{{ r.created_at }}</td>
+                                    <td
+                                        class="px-4 py-3 text-right font-mono font-semibold text-slate-500"
+                                    >
+                                        {{ r.created_at }}
+                                    </td>
                                 </tr>
                                 <tr v-if="!recentRestaurants.length">
-                                    <td colspan="4" class="px-5 py-10 text-center text-muted-foreground font-semibold">Hiện chưa có nhà hàng nào.</td>
+                                    <td
+                                        colspan="4"
+                                        class="px-5 py-10 text-center font-semibold text-muted-foreground"
+                                    >
+                                        Hiện chưa có nhà hàng nào.
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1555,23 +2934,48 @@ return 'bg-amber-500/70 text-white';
             <!-- Plan Distribution & System Signals (Pulsing LEDs) -->
             <div class="space-y-4">
                 <!-- Plan Distribution -->
-                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                    <CardHeader class="pb-2 border-b border-border/40">
-                        <CardTitle class="text-base font-bold flex items-center gap-2">
-                            <Crown class="size-4.5 text-violet-500" /> Phân bổ gói dịch vụ (Plan Distribution)
+                <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                    <CardHeader class="border-b border-border/40 pb-2">
+                        <CardTitle
+                            class="flex items-center gap-2 text-base font-bold"
+                        >
+                            <Crown class="size-4.5 text-violet-500" /> Phân bổ
+                            gói dịch vụ (Plan Distribution)
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-4">
-                        <div class="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+                    <CardContent class="space-y-4 pt-4">
+                        <div
+                            class="flex flex-col items-center justify-around gap-6 py-2 sm:flex-row"
+                        >
                             <!-- Custom SVG Donut/Pie Chart -->
-                            <div class="relative size-32 flex items-center justify-center shrink-0">
-                                <svg class="size-full -rotate-90" viewBox="0 0 36 36">
+                            <div
+                                class="relative flex size-32 shrink-0 items-center justify-center"
+                            >
+                                <svg
+                                    class="size-full -rotate-90"
+                                    viewBox="0 0 36 36"
+                                >
                                     <!-- Track background -->
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-100 dark:stroke-slate-900/60" stroke-width="4.2" />
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.9155"
+                                        fill="none"
+                                        class="stroke-slate-100 dark:stroke-slate-900/60"
+                                        stroke-width="4.2"
+                                    />
                                     <!-- Dynamic Donut Segments -->
-                                    <circle v-for="slice in donutSlices" :key="slice.code"
-                                        cx="18" cy="18" r="15.9155" fill="none"
-                                        :class="[slice.color.stroke, 'transition-all duration-1000 ease-out hover:stroke-[5.2] cursor-pointer']"
+                                    <circle
+                                        v-for="slice in donutSlices"
+                                        :key="slice.code"
+                                        cx="18"
+                                        cy="18"
+                                        r="15.9155"
+                                        fill="none"
+                                        :class="[
+                                            slice.color.stroke,
+                                            'cursor-pointer transition-all duration-1000 ease-out hover:stroke-[5.2]',
+                                        ]"
                                         stroke-width="4.2"
                                         stroke-linecap="round"
                                         :stroke-dasharray="slice.dasharray"
@@ -1579,32 +2983,84 @@ return 'bg-amber-500/70 text-white';
                                     />
                                 </svg>
                                 <!-- Central Total Count Label -->
-                                <div class="absolute flex flex-col items-center justify-center text-center">
-                                    <span class="text-2xl font-black font-mono tracking-tight text-slate-800 dark:text-slate-100">
-                                        {{ props.planDistribution.reduce((sum, p) => sum + p.count, 0) }}
+                                <div
+                                    class="absolute flex flex-col items-center justify-center text-center"
+                                >
+                                    <span
+                                        class="font-mono text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100"
+                                    >
+                                        {{
+                                            props.planDistribution.reduce(
+                                                (sum, p) => sum + p.count,
+                                                0,
+                                            )
+                                        }}
                                     </span>
-                                    <span class="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Tenants</span>
+                                    <span
+                                        class="text-[9px] font-bold tracking-widest text-muted-foreground uppercase"
+                                        >Tenants</span
+                                    >
                                 </div>
                             </div>
 
                             <!-- Plan Legends & Details list -->
-                            <div class="flex-1 w-full space-y-2 font-semibold text-xs">
-                                <div v-for="plan in props.planDistribution" :key="plan.code"
-                                    class="flex items-center justify-between hover:bg-muted/15 px-2 py-1.5 rounded-xl transition-all border border-transparent hover:border-border/30">
+                            <div
+                                class="w-full flex-1 space-y-2 text-xs font-semibold"
+                            >
+                                <div
+                                    v-for="plan in props.planDistribution"
+                                    :key="plan.code"
+                                    class="flex items-center justify-between rounded-xl border border-transparent px-2 py-1.5 transition-all hover:border-border/30 hover:bg-muted/15"
+                                >
                                     <div class="flex items-center gap-2">
-                                        <span :class="[
-                                            'size-2.5 rounded-full shrink-0',
-                                            plan.code?.toLowerCase() === 'pro' ? 'bg-violet-500 shadow-[0_0_6px_#8b5cf6]' :
-                                            plan.code?.toLowerCase() === 'free' ? 'bg-sky-500 shadow-[0_0_6px_#0ea5e9]' :
-                                            plan.code?.toLowerCase() === 'max' ? 'bg-amber-500 shadow-[0_0_6px_#f59e0b]' :
-                                            'bg-emerald-500 shadow-[0_0_6px_#10b981]'
-                                        ]" />
-                                        <span class="text-slate-700 dark:text-slate-300 font-bold">{{ plan.name }}</span>
+                                        <span
+                                            :class="[
+                                                'size-2.5 shrink-0 rounded-full',
+                                                plan.code?.toLowerCase() ===
+                                                'pro'
+                                                    ? 'bg-violet-500 shadow-[0_0_6px_#8b5cf6]'
+                                                    : plan.code?.toLowerCase() ===
+                                                        'free'
+                                                      ? 'bg-sky-500 shadow-[0_0_6px_#0ea5e9]'
+                                                      : plan.code?.toLowerCase() ===
+                                                          'max'
+                                                        ? 'bg-amber-500 shadow-[0_0_6px_#f59e0b]'
+                                                        : 'bg-emerald-500 shadow-[0_0_6px_#10b981]',
+                                            ]"
+                                        />
+                                        <span
+                                            class="font-bold text-slate-700 dark:text-slate-300"
+                                            >{{ plan.name }}</span
+                                        >
                                     </div>
                                     <div class="flex items-center gap-1.5">
-                                        <span class="font-black font-mono text-slate-800 dark:text-slate-200">{{ plan.count }}</span>
-                                        <span class="text-[10px] font-bold text-muted-foreground font-mono">
-                                            ({{ plan.count > 0 ? Math.round((plan.count / Math.max(1, props.planDistribution.reduce((sum, p) => sum + p.count, 0))) * 100) : 0 }}%)
+                                        <span
+                                            class="font-mono font-black text-slate-800 dark:text-slate-200"
+                                            >{{ plan.count }}</span
+                                        >
+                                        <span
+                                            class="font-mono text-[10px] font-bold text-muted-foreground"
+                                        >
+                                            ({{
+                                                plan.count > 0
+                                                    ? Math.round(
+                                                          (plan.count /
+                                                              Math.max(
+                                                                  1,
+                                                                  props.planDistribution.reduce(
+                                                                      (
+                                                                          sum,
+                                                                          p,
+                                                                      ) =>
+                                                                          sum +
+                                                                          p.count,
+                                                                      0,
+                                                                  ),
+                                                              )) *
+                                                              100,
+                                                      )
+                                                    : 0
+                                            }}%)
                                         </span>
                                     </div>
                                 </div>
@@ -1614,85 +3070,183 @@ return 'bg-amber-500/70 text-white';
                 </Card>
 
                 <!-- System Signals with Pulsing LEDs -->
-                <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                    <CardHeader class="pb-2 border-b border-border/40">
-                        <CardTitle class="text-base font-bold flex items-center gap-2">
-                            <Terminal class="size-4.5 text-emerald-500" /> Tín hiệu hệ thống (System Signals)
+                <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                    <CardHeader class="border-b border-border/40 pb-2">
+                        <CardTitle
+                            class="flex items-center gap-2 text-base font-bold"
+                        >
+                            <Terminal class="size-4.5 text-emerald-500" /> Tín
+                            hiệu hệ thống (System Signals)
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="pt-4 space-y-4 text-xs font-semibold">
+                    <CardContent class="space-y-4 pt-4 text-xs font-semibold">
                         <!-- LED Signals Grid -->
                         <div class="grid grid-cols-2 gap-3.5">
                             <!-- Signal 1: WebSockets Reverb -->
-                            <div class="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-900/50 border rounded-xl p-2">
+                            <div
+                                class="flex items-center gap-2 rounded-xl border bg-slate-100/50 p-2 dark:bg-slate-900/50"
+                            >
                                 <span class="relative flex h-2 w-2 shrink-0">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500 shadow-[0_0_8px_#06b6d4]"></span>
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_#06b6d4]"
+                                    ></span>
                                 </span>
                                 <div class="min-w-0">
-                                    <p class="text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">WebSockets</p>
-                                    <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 truncate">Reverb Online</p>
+                                    <p
+                                        class="text-[9px] font-extrabold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        WebSockets
+                                    </p>
+                                    <p
+                                        class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
+                                    >
+                                        Reverb Online
+                                    </p>
                                 </div>
                             </div>
                             <!-- Signal 2: Horizon Queue -->
-                            <div class="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-900/50 border rounded-xl p-2">
+                            <div
+                                class="flex items-center gap-2 rounded-xl border bg-slate-100/50 p-2 dark:bg-slate-900/50"
+                            >
                                 <span class="relative flex h-2 w-2 shrink-0">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                                    ></span>
                                 </span>
                                 <div class="min-w-0">
-                                    <p class="text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">Queue Worker</p>
-                                    <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 truncate">Horizon Active</p>
+                                    <p
+                                        class="text-[9px] font-extrabold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        Queue Worker
+                                    </p>
+                                    <p
+                                        class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
+                                    >
+                                        Horizon Active
+                                    </p>
                                 </div>
                             </div>
                             <!-- Signal 3: Pulse Analytics -->
-                            <div class="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-900/50 border rounded-xl p-2">
+                            <div
+                                class="flex items-center gap-2 rounded-xl border bg-slate-100/50 p-2 dark:bg-slate-900/50"
+                            >
                                 <span class="relative flex h-2 w-2 shrink-0">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-violet-500 shadow-[0_0_8px_#8b5cf6]"></span>
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_#8b5cf6]"
+                                    ></span>
                                 </span>
                                 <div class="min-w-0">
-                                    <p class="text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">Laravel Pulse</p>
-                                    <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 truncate">Pulse Online</p>
+                                    <p
+                                        class="text-[9px] font-extrabold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        Laravel Pulse
+                                    </p>
+                                    <p
+                                        class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
+                                    >
+                                        Pulse Online
+                                    </p>
                                 </div>
                             </div>
                             <!-- Signal 4: API Gateway -->
-                            <div class="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-900/50 border rounded-xl p-2">
+                            <div
+                                class="flex items-center gap-2 rounded-xl border bg-slate-100/50 p-2 dark:bg-slate-900/50"
+                            >
                                 <span class="relative flex h-2 w-2 shrink-0">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                                    ></span>
                                 </span>
                                 <div class="min-w-0">
-                                    <p class="text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">API Health</p>
-                                    <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 truncate">Gateway Stable</p>
+                                    <p
+                                        class="text-[9px] font-extrabold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        API Health
+                                    </p>
+                                    <p
+                                        class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
+                                    >
+                                        Gateway Stable
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- System metrics detail list -->
-                        <div class="border-t pt-3.5 space-y-2 text-[10px] font-bold text-muted-foreground">
+                        <div
+                            class="space-y-2 border-t pt-3.5 text-[10px] font-bold text-muted-foreground"
+                        >
                             <div class="flex items-center justify-between">
                                 <span>Hoạt động / Tạm khóa / Hết hạn:</span>
-                                <span class="font-mono text-slate-700 dark:text-slate-300 font-bold">
-                                    {{ stats.active }} / {{ stats.suspended }} / {{ stats.expired }}
+                                <span
+                                    class="font-mono font-bold text-slate-700 dark:text-slate-300"
+                                >
+                                    {{ stats.active }} / {{ stats.suspended }} /
+                                    {{ stats.expired }}
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span>Failed Jobs / Pending Jobs:</span>
-                                <span :class="['font-mono font-bold', supportOverview.monitoring.failed_jobs > 0 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-400']">
-                                    {{ supportOverview.monitoring.failed_jobs }} / {{ supportOverview.monitoring.pending_jobs }}
+                                <span
+                                    :class="[
+                                        'font-mono font-bold',
+                                        supportOverview.monitoring.failed_jobs >
+                                        0
+                                            ? 'text-rose-500'
+                                            : 'text-slate-600 dark:text-slate-400',
+                                    ]"
+                                >
+                                    {{ supportOverview.monitoring.failed_jobs }}
+                                    /
+                                    {{
+                                        supportOverview.monitoring.pending_jobs
+                                    }}
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span>API Error Rate / Slow Queries:</span>
-                                <span :class="['font-mono font-bold', supportOverview.monitoring.api_error_rate > 1 ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400']">
-                                    {{ supportOverview.monitoring.api_error_rate }}% / {{ supportOverview.monitoring.slow_queries }}
+                                <span
+                                    :class="[
+                                        'font-mono font-bold',
+                                        supportOverview.monitoring
+                                            .api_error_rate > 1
+                                            ? 'text-amber-500'
+                                            : 'text-slate-600 dark:text-slate-400',
+                                    ]"
+                                >
+                                    {{
+                                        supportOverview.monitoring
+                                            .api_error_rate
+                                    }}% /
+                                    {{
+                                        supportOverview.monitoring.slow_queries
+                                    }}
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span>Support Tickets / Alerts Open:</span>
-                                <span :class="['font-mono font-bold', supportOverview.stats.alerts_open > 0 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-400']">
-                                    {{ supportOverview.stats.tickets_open }} / {{ supportOverview.stats.alerts_open }}
+                                <span
+                                    :class="[
+                                        'font-mono font-bold',
+                                        supportOverview.stats.alerts_open > 0
+                                            ? 'text-rose-500'
+                                            : 'text-slate-600 dark:text-slate-400',
+                                    ]"
+                                >
+                                    {{ supportOverview.stats.tickets_open }} /
+                                    {{ supportOverview.stats.alerts_open }}
                                 </span>
                             </div>
                         </div>
@@ -1702,76 +3256,187 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- D2 + D5: Doanh thu theo gói & Hiệu suất sử dụng giữa các gói -->
-        <div v-if="isSectionVisible('revenue_plan')" class="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <div
+            v-if="isSectionVisible('revenue_plan')"
+            class="grid gap-4 xl:grid-cols-[1.3fr_1fr]"
+        >
             <!-- D2: Revenue Breakdown theo gói (stacked bar ngang theo tháng) -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs">
-                <CardHeader class="pb-2 border-b border-border/40">
-                    <CardTitle class="text-base font-bold flex items-center gap-2">
-                        <Gauge class="size-4.5 text-cyan-500" /> Doanh thu MRR theo gói (6 tháng gần nhất)
+            <Card class="bg-card/60 backdrop-blur-xs dark:bg-card/30">
+                <CardHeader class="border-b border-border/40 pb-2">
+                    <CardTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Gauge class="size-4.5 text-cyan-500" /> Doanh thu MRR
+                        theo gói (6 tháng gần nhất)
                     </CardTitle>
-                    <p class="text-[11px] text-muted-foreground font-medium">Tỷ trọng đóng góp doanh thu định kỳ của từng gói dịch vụ theo từng tháng</p>
+                    <p class="text-[11px] font-medium text-muted-foreground">
+                        Tỷ trọng đóng góp doanh thu định kỳ của từng gói dịch vụ
+                        theo từng tháng
+                    </p>
                 </CardHeader>
-                <CardContent class="pt-4 space-y-3">
-                    <div class="flex flex-wrap items-center gap-3 text-[10px] font-bold text-muted-foreground">
-                        <span v-for="code in revenueBreakdownPlanCodes" :key="code" class="flex items-center gap-1.5">
-                            <span :class="['size-2.5 rounded-full', planColor(code).dot]" /> {{ planDisplayName(code) }}
+                <CardContent class="space-y-3 pt-4">
+                    <div
+                        class="flex flex-wrap items-center gap-3 text-[10px] font-bold text-muted-foreground"
+                    >
+                        <span
+                            v-for="code in revenueBreakdownPlanCodes"
+                            :key="code"
+                            class="flex items-center gap-1.5"
+                        >
+                            <span
+                                :class="[
+                                    'size-2.5 rounded-full',
+                                    planColor(code).dot,
+                                ]"
+                            />
+                            {{ planDisplayName(code) }}
                         </span>
                     </div>
                     <div class="space-y-2.5">
-                        <div v-for="point in revenueBreakdown" :key="point.month" class="space-y-1">
-                            <div class="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                        <div
+                            v-for="point in revenueBreakdown"
+                            :key="point.month"
+                            class="space-y-1"
+                        >
+                            <div
+                                class="flex items-center justify-between text-[10px] font-bold text-muted-foreground"
+                            >
                                 <span class="font-mono">{{ point.label }}</span>
-                                <span class="font-mono text-slate-700 dark:text-slate-300">{{ formatCurrency(point.total) }}</span>
+                                <span
+                                    class="font-mono text-slate-700 dark:text-slate-300"
+                                    >{{ formatCurrency(point.total) }}</span
+                                >
                             </div>
-                            <div class="flex h-3.5 w-full overflow-hidden rounded-full bg-muted/30">
-                                <div v-for="code in revenueBreakdownPlanCodes" :key="code"
-                                    :class="['h-full transition-all duration-700', planColor(code).bar]"
-                                    :style="{ width: `${revenueBreakdownMax > 0 ? ((point.by_plan[code] ?? 0) / revenueBreakdownMax) * 100 : 0}%` }"
+                            <div
+                                class="flex h-3.5 w-full overflow-hidden rounded-full bg-muted/30"
+                            >
+                                <div
+                                    v-for="code in revenueBreakdownPlanCodes"
+                                    :key="code"
+                                    :class="[
+                                        'h-full transition-all duration-700',
+                                        planColor(code).bar,
+                                    ]"
+                                    :style="{
+                                        width: `${revenueBreakdownMax > 0 ? ((point.by_plan[code] ?? 0) / revenueBreakdownMax) * 100 : 0}%`,
+                                    }"
                                     :title="`${planDisplayName(code)}: ${formatCurrency(point.by_plan[code] ?? 0)}`"
                                 />
                             </div>
                         </div>
-                        <p v-if="!revenueBreakdown.length" class="text-xs text-muted-foreground font-semibold text-center py-4">Chưa có dữ liệu doanh thu để hiển thị.</p>
+                        <p
+                            v-if="!revenueBreakdown.length"
+                            class="py-4 text-center text-xs font-semibold text-muted-foreground"
+                        >
+                            Chưa có dữ liệu doanh thu để hiển thị.
+                        </p>
                     </div>
                 </CardContent>
             </Card>
 
             <!-- D5: Bảng so sánh hiệu suất giữa các gói -->
-            <Card class="bg-card/60 dark:bg-card/30 backdrop-blur-xs overflow-hidden">
-                <CardHeader class="pb-2 border-b border-border/40">
-                    <CardTitle class="text-base font-bold flex items-center gap-2">
-                        <Crown class="size-4.5 text-violet-500" /> Hiệu suất sử dụng theo gói
+            <Card
+                class="overflow-hidden bg-card/60 backdrop-blur-xs dark:bg-card/30"
+            >
+                <CardHeader class="border-b border-border/40 pb-2">
+                    <CardTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Crown class="size-4.5 text-violet-500" /> Hiệu suất sử
+                        dụng theo gói
                     </CardTitle>
-                    <p class="text-[11px] text-muted-foreground font-medium">Mức độ hoạt động trung bình của tenant theo từng gói (30 ngày qua)</p>
+                    <p class="text-[11px] font-medium text-muted-foreground">
+                        Mức độ hoạt động trung bình của tenant theo từng gói (30
+                        ngày qua)
+                    </p>
                 </CardHeader>
                 <CardContent class="p-0">
-                    <div class="overflow-x-auto w-full">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-muted/40 border-b border-border/60 text-muted-foreground font-bold">
+                    <div class="w-full overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead
+                                class="border-b border-border/60 bg-muted/40 font-bold text-muted-foreground"
+                            >
                                 <tr>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider">Gói</th>
-                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">Tenant</th>
-                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">Đơn / 30 ngày</th>
-                                    <th class="px-3 py-2.5 font-bold uppercase tracking-wider text-center">TB đơn/ngày/tenant</th>
-                                    <th class="px-4 py-2.5 font-bold uppercase tracking-wider text-right">Tỷ lệ hoạt động</th>
+                                    <th
+                                        class="px-4 py-2.5 font-bold tracking-wider uppercase"
+                                    >
+                                        Gói
+                                    </th>
+                                    <th
+                                        class="px-3 py-2.5 text-center font-bold tracking-wider uppercase"
+                                    >
+                                        Tenant
+                                    </th>
+                                    <th
+                                        class="px-3 py-2.5 text-center font-bold tracking-wider uppercase"
+                                    >
+                                        Đơn / 30 ngày
+                                    </th>
+                                    <th
+                                        class="px-3 py-2.5 text-center font-bold tracking-wider uppercase"
+                                    >
+                                        TB đơn/ngày/tenant
+                                    </th>
+                                    <th
+                                        class="px-4 py-2.5 text-right font-bold tracking-wider uppercase"
+                                    >
+                                        Tỷ lệ hoạt động
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border/60">
-                                <tr v-for="plan in planPerformance" :key="plan.plan_code" class="hover:bg-muted/30 transition-all font-medium text-slate-700 dark:text-slate-300">
+                                <tr
+                                    v-for="plan in planPerformance"
+                                    :key="plan.plan_code"
+                                    class="font-medium text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
+                                >
                                     <td class="px-4 py-2.5">
-                                        <span class="flex items-center gap-1.5 font-bold">
-                                            <span :class="['size-2.5 rounded-full shrink-0', planColor(plan.plan_code).dot]" /> {{ plan.plan_name }}
+                                        <span
+                                            class="flex items-center gap-1.5 font-bold"
+                                        >
+                                            <span
+                                                :class="[
+                                                    'size-2.5 shrink-0 rounded-full',
+                                                    planColor(plan.plan_code)
+                                                        .dot,
+                                                ]"
+                                            />
+                                            {{ plan.plan_name }}
                                         </span>
                                     </td>
-                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.tenant_count }}</td>
-                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.orders_30d }}</td>
-                                    <td class="px-3 py-2.5 text-center font-mono font-semibold">{{ plan.avg_orders_per_tenant_per_day }}</td>
-                                    <td :class="['px-4 py-2.5 text-right font-mono font-bold', plan.active_tenant_ratio >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400']">
+                                    <td
+                                        class="px-3 py-2.5 text-center font-mono font-semibold"
+                                    >
+                                        {{ plan.tenant_count }}
+                                    </td>
+                                    <td
+                                        class="px-3 py-2.5 text-center font-mono font-semibold"
+                                    >
+                                        {{ plan.orders_30d }}
+                                    </td>
+                                    <td
+                                        class="px-3 py-2.5 text-center font-mono font-semibold"
+                                    >
+                                        {{ plan.avg_orders_per_tenant_per_day }}
+                                    </td>
+                                    <td
+                                        :class="[
+                                            'px-4 py-2.5 text-right font-mono font-bold',
+                                            plan.active_tenant_ratio >= 50
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-amber-600 dark:text-amber-400',
+                                        ]"
+                                    >
                                         {{ plan.active_tenant_ratio }}%
                                     </td>
                                 </tr>
                                 <tr v-if="!planPerformance.length">
-                                    <td colspan="5" class="px-5 py-10 text-center text-muted-foreground font-semibold">Chưa có dữ liệu để so sánh.</td>
+                                    <td
+                                        colspan="5"
+                                        class="px-5 py-10 text-center font-semibold text-muted-foreground"
+                                    >
+                                        Chưa có dữ liệu để so sánh.
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1781,82 +3446,198 @@ return 'bg-amber-500/70 text-white';
         </div>
 
         <!-- D1: Cohort Analysis Heatmap -->
-        <Card v-if="isSectionVisible('cohort_heatmap')" class="bg-card/45 backdrop-blur-md border border-border/40 hover:border-border/60 transition-all duration-300 shadow-[var(--shadow-premium)] overflow-hidden">
-            <CardHeader class="pb-3 border-b border-border/30">
-                <CardTitle class="text-xs uppercase font-black tracking-widest flex items-center gap-2 text-foreground">
-                    <Users class="size-4.5 text-emerald-500" /> 
-                    <span>Phân tích Cohort — Tỷ lệ giữ chân theo nhóm đăng ký</span>
+        <Card
+            v-if="isSectionVisible('cohort_heatmap')"
+            class="overflow-hidden border border-border/40 bg-card/45 shadow-[var(--shadow-premium)] backdrop-blur-md transition-all duration-300 hover:border-border/60"
+        >
+            <CardHeader class="border-b border-border/30 pb-3">
+                <CardTitle
+                    class="flex items-center gap-2 text-xs font-black tracking-widest text-foreground uppercase"
+                >
+                    <Users class="size-4.5 text-emerald-500" />
+                    <span
+                        >Phân tích Cohort — Tỷ lệ giữ chân theo nhóm đăng
+                        ký</span
+                    >
                 </CardTitle>
-                <p class="text-[10px] text-muted-foreground font-semibold">Tỷ lệ % nhà hàng còn hoạt động (có phát sinh đơn hàng) ở các cột mốc thời gian M+1 / M+3 / M+6 kể từ khi đăng ký</p>
+                <p class="text-[10px] font-semibold text-muted-foreground">
+                    Tỷ lệ % nhà hàng còn hoạt động (có phát sinh đơn hàng) ở các
+                    cột mốc thời gian M+1 / M+3 / M+6 kể từ khi đăng ký
+                </p>
             </CardHeader>
             <CardContent class="pt-4">
-                <div class="overflow-hidden rounded-xl border border-border/50 bg-background/30">
-                    <div class="overflow-x-auto w-full">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-muted/50 text-muted-foreground border-b border-border/50">
+                <div
+                    class="overflow-hidden rounded-xl border border-border/50 bg-background/30"
+                >
+                    <div class="w-full overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead
+                                class="border-b border-border/50 bg-muted/50 text-muted-foreground"
+                            >
                                 <tr>
-                                    <th class="px-4 py-3 font-black uppercase tracking-wider">Cohort (tháng đăng ký)</th>
-                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">Số tenant</th>
-                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+1</th>
-                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+3</th>
-                                    <th class="px-3 py-3 font-black uppercase tracking-wider text-center">M+6</th>
+                                    <th
+                                        class="px-4 py-3 font-black tracking-wider uppercase"
+                                    >
+                                        Cohort (tháng đăng ký)
+                                    </th>
+                                    <th
+                                        class="px-3 py-3 text-center font-black tracking-wider uppercase"
+                                    >
+                                        Số tenant
+                                    </th>
+                                    <th
+                                        class="px-3 py-3 text-center font-black tracking-wider uppercase"
+                                    >
+                                        M+1
+                                    </th>
+                                    <th
+                                        class="px-3 py-3 text-center font-black tracking-wider uppercase"
+                                    >
+                                        M+3
+                                    </th>
+                                    <th
+                                        class="px-3 py-3 text-center font-black tracking-wider uppercase"
+                                    >
+                                        M+6
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border/40">
-                                <tr v-for="row in cohortAnalysis" :key="row.month" class="hover:bg-muted/40 transition-colors font-semibold text-slate-700 dark:text-slate-200">
-                                    <td class="px-4 py-2 font-bold font-mono">{{ row.cohort }}</td>
-                                    <td class="px-3 py-2 text-center font-mono">{{ row.total }}</td>
+                                <tr
+                                    v-for="row in cohortAnalysis"
+                                    :key="row.month"
+                                    class="font-semibold text-slate-700 transition-colors hover:bg-muted/40 dark:text-slate-200"
+                                >
+                                    <td class="px-4 py-2 font-mono font-bold">
+                                        {{ row.cohort }}
+                                    </td>
+                                    <td class="px-3 py-2 text-center font-mono">
+                                        {{ row.total }}
+                                    </td>
                                     <td class="px-2 py-2 text-center">
-                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m1)]">
-                                            {{ row.m1 !== null ? `${row.m1}%` : '—' }}
+                                        <span
+                                            :class="[
+                                                'inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 font-mono text-[11px] font-black shadow-xs',
+                                                cohortCellStyle(row.m1),
+                                            ]"
+                                        >
+                                            {{
+                                                row.m1 !== null
+                                                    ? `${row.m1}%`
+                                                    : '—'
+                                            }}
                                         </span>
                                     </td>
                                     <td class="px-2 py-2 text-center">
-                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m3)]">
-                                            {{ row.m3 !== null ? `${row.m3}%` : '—' }}
+                                        <span
+                                            :class="[
+                                                'inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 font-mono text-[11px] font-black shadow-xs',
+                                                cohortCellStyle(row.m3),
+                                            ]"
+                                        >
+                                            {{
+                                                row.m3 !== null
+                                                    ? `${row.m3}%`
+                                                    : '—'
+                                            }}
                                         </span>
                                     </td>
                                     <td class="px-2 py-2 text-center">
-                                        <span :class="['inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 text-[11px] font-black font-mono shadow-xs', cohortCellStyle(row.m6)]">
-                                            {{ row.m6 !== null ? `${row.m6}%` : '—' }}
+                                        <span
+                                            :class="[
+                                                'inline-flex min-w-[3.5rem] justify-center rounded-lg px-2.5 py-1 font-mono text-[11px] font-black shadow-xs',
+                                                cohortCellStyle(row.m6),
+                                            ]"
+                                        >
+                                            {{
+                                                row.m6 !== null
+                                                    ? `${row.m6}%`
+                                                    : '—'
+                                            }}
                                         </span>
                                     </td>
                                 </tr>
                                 <tr v-if="!cohortAnalysis.length">
-                                    <td colspan="5" class="px-5 py-12 text-center text-muted-foreground font-semibold">Chưa có đủ dữ liệu cohort để phân tích.</td>
+                                    <td
+                                        colspan="5"
+                                        class="px-5 py-12 text-center font-semibold text-muted-foreground"
+                                    >
+                                        Chưa có đủ dữ liệu cohort để phân tích.
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <p class="mt-4 text-[10px] text-muted-foreground font-bold flex flex-wrap items-center gap-4 bg-muted/30 px-3.5 py-2.5 rounded-xl border border-border/40">
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-emerald-500/80" /> ≥ 70% — Giữ chân tốt</span>
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-amber-500/70" /> 40–69% — Cần theo dõi sát</span>
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-rose-500/70" /> &lt; 40% — Nguy cơ rời bỏ cao</span>
-                    <span class="flex items-center gap-1.5"><span class="size-2.5 rounded bg-muted border border-border/80" /> — Chưa đủ dữ liệu quan sát</span>
+                <p
+                    class="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-border/40 bg-muted/30 px-3.5 py-2.5 text-[10px] font-bold text-muted-foreground"
+                >
+                    <span class="flex items-center gap-1.5"
+                        ><span class="size-2.5 rounded bg-emerald-500/80" /> ≥
+                        70% — Giữ chân tốt</span
+                    >
+                    <span class="flex items-center gap-1.5"
+                        ><span class="size-2.5 rounded bg-amber-500/70" />
+                        40–69% — Cần theo dõi sát</span
+                    >
+                    <span class="flex items-center gap-1.5"
+                        ><span class="size-2.5 rounded bg-rose-500/70" /> &lt;
+                        40% — Nguy cơ rời bỏ cao</span
+                    >
+                    <span class="flex items-center gap-1.5"
+                        ><span
+                            class="size-2.5 rounded border border-border/80 bg-muted"
+                        />
+                        — Chưa đủ dữ liệu quan sát</span
+                    >
                 </p>
             </CardContent>
         </Card>
 
         <!-- Segment Restaurant Drill-down Dialog (B4) -->
-        <Dialog :open="!!selectedSegment" @update:open="val => { if (!val) selectedSegment = null }">
-            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+        <Dialog
+            :open="!!selectedSegment"
+            @update:open="
+                (val) => {
+                    if (!val) selectedSegment = null;
+                }
+            "
+        >
+            <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Nhà hàng thuộc nhóm: {{ selectedSegment?.label }}</DialogTitle>
-                    <DialogDescription>Danh sách nhà hàng được phân loại vào phân khúc này dựa trên dữ liệu hoạt động thực tế.</DialogDescription>
+                    <DialogTitle
+                        >Nhà hàng thuộc nhóm:
+                        {{ selectedSegment?.label }}</DialogTitle
+                    >
+                    <DialogDescription
+                        >Danh sách nhà hàng được phân loại vào phân khúc này dựa
+                        trên dữ liệu hoạt động thực tế.</DialogDescription
+                    >
                 </DialogHeader>
 
                 <div class="py-4">
                     <div v-if="isLoadingSegmentRestaurants" class="space-y-2">
-                        <Skeleton v-for="i in 5" :key="i" class="h-9 w-full rounded-lg" />
+                        <Skeleton
+                            v-for="i in 5"
+                            :key="i"
+                            class="h-9 w-full rounded-lg"
+                        />
                     </div>
-                    <div v-else-if="segmentRestaurantsList.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                    <div
+                        v-else-if="segmentRestaurantsList.length === 0"
+                        class="py-8 text-center text-sm text-muted-foreground"
+                    >
                         Không có nhà hàng nào thuộc nhóm này.
                     </div>
-                    <div v-else class="overflow-x-auto rounded-lg border border-border">
-                        <table class="w-full text-left border-collapse text-xs">
+                    <div
+                        v-else
+                        class="overflow-x-auto rounded-lg border border-border"
+                    >
+                        <table class="w-full border-collapse text-left text-xs">
                             <thead>
-                                <tr class="bg-muted border-b border-border text-muted-foreground uppercase font-semibold">
+                                <tr
+                                    class="border-b border-border bg-muted font-semibold text-muted-foreground uppercase"
+                                >
                                     <th class="p-3">Tên Nhà Hàng</th>
                                     <th class="p-3">Mã Code</th>
                                     <th class="p-3">Chủ sở hữu</th>
@@ -1865,22 +3646,45 @@ return 'bg-amber-500/70 text-white';
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="res in segmentRestaurantsList" :key="res.id" class="border-b border-border last:border-0 hover:bg-muted/30">
+                                <tr
+                                    v-for="res in segmentRestaurantsList"
+                                    :key="res.id"
+                                    class="border-b border-border last:border-0 hover:bg-muted/30"
+                                >
                                     <td class="p-3 font-semibold">
-                                        <Link :href="`/super-admin/restaurants/${res.id}`" class="text-primary hover:underline">
+                                        <Link
+                                            :href="`/super-admin/restaurants/${res.id}`"
+                                            class="text-primary hover:underline"
+                                        >
                                             {{ res.name }}
                                         </Link>
                                     </td>
-                                    <td class="p-3 font-mono text-[10px]">{{ res.code }}</td>
+                                    <td class="p-3 font-mono text-[10px]">
+                                        {{ res.code }}
+                                    </td>
                                     <td class="p-3">
                                         <div>{{ res.owner_name }}</div>
-                                        <div class="text-[10px] text-muted-foreground">{{ res.owner_email }}</div>
+                                        <div
+                                            class="text-[10px] text-muted-foreground"
+                                        >
+                                            {{ res.owner_email }}
+                                        </div>
                                     </td>
-                                    <td class="p-3">{{ res.subscription_ends_at }}</td>
+                                    <td class="p-3">
+                                        {{ res.subscription_ends_at }}
+                                    </td>
                                     <td class="p-3 text-right">
                                         <Badge
-                                            :variant="res.status === 'active' ? 'default' : 'secondary'"
-                                            :class="res.status === 'active' ? 'bg-emerald-500 text-white' : ''"
+                                            :variant="
+                                                res.status === 'active'
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            "
+                                            :class="
+                                                res.status === 'active'
+                                                    ? 'bg-emerald-500 text-white'
+                                                    : ''
+                                            "
                                         >
                                             {{ res.status }}
                                         </Badge>
@@ -1931,8 +3735,7 @@ return 'bg-amber-500/70 text-white';
 .compact-mode .space-y-2 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 0.375rem;
 }
-.compact-mode [data-slot="card-header"] {
+.compact-mode [data-slot='card-header'] {
     padding-bottom: 0.625rem;
 }
 </style>
-

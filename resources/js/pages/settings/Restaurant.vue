@@ -84,23 +84,42 @@ defineOptions({
 <template>
     <Head title="Cài đặt nhà hàng" />
 
-    <div class="space-y-6 w-full">
-        <Card class="w-full border border-neutral-200/60 dark:border-neutral-800/60 shadow-xs rounded-2xl overflow-hidden bg-white/70 dark:bg-neutral-900/40 backdrop-blur-md">
-            <CardHeader class="flex flex-row items-center gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5 px-6 pt-6">
-                <div class="p-2.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-xl shrink-0">
-                    <Building2 class="w-5 h-5" />
+    <div class="w-full space-y-6">
+        <Card
+            class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40"
+        >
+            <CardHeader
+                class="flex flex-row items-center gap-4 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
+            >
+                <div
+                    class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                >
+                    <Building2 class="h-5 w-5" />
                 </div>
                 <div class="space-y-0.5">
-                    <CardTitle class="text-lg font-black text-neutral-900 dark:text-neutral-50">Thông tin nhà hàng</CardTitle>
-                    <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400">Cập nhật tên, địa chỉ, liên hệ và thông tin thuế của nhà hàng</CardDescription>
+                    <CardTitle
+                        class="text-lg font-black text-neutral-900 dark:text-neutral-50"
+                        >Thông tin nhà hàng</CardTitle
+                    >
+                    <CardDescription
+                        class="text-xs text-neutral-500 dark:text-neutral-400"
+                        >Cập nhật tên, địa chỉ, liên hệ và thông tin thuế của
+                        nhà hàng</CardDescription
+                    >
                 </div>
             </CardHeader>
             <CardContent class="p-6">
-                <div v-if="status" class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+                <div
+                    v-if="status"
+                    class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400"
+                >
                     {{ status }}
                 </div>
 
-                <div v-if="!restaurant" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
+                <div
+                    v-if="!restaurant"
+                    class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400"
+                >
                     Không tìm thấy thông tin nhà hàng. Vui lòng liên hệ hỗ trợ.
                 </div>
 
@@ -113,16 +132,26 @@ defineOptions({
                 >
                     <!-- Logo nhà hàng -->
                     <div class="grid gap-2">
-                        <Label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Logo nhà hàng</Label>
+                        <Label
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Logo nhà hàng</Label
+                        >
                         <div class="flex items-center gap-4">
-                            <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-neutral-100 dark:bg-neutral-800">
+                            <div
+                                class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-neutral-100 dark:bg-neutral-800"
+                            >
                                 <img
                                     v-if="logoPreview ?? restaurant.logo_url"
-                                    :src="logoPreview ?? restaurant.logo_url ?? ''"
+                                    :src="
+                                        logoPreview ?? restaurant.logo_url ?? ''
+                                    "
                                     alt="Logo nhà hàng"
-                                    class="size-full object-cover animate-in fade-in duration-200"
+                                    class="size-full animate-in object-cover duration-200 fade-in"
                                 />
-                                <ImagePlus v-else class="size-6 text-neutral-400" />
+                                <ImagePlus
+                                    v-else
+                                    class="size-6 text-neutral-400"
+                                />
                             </div>
                             <div class="flex flex-col gap-2">
                                 <input
@@ -134,27 +163,31 @@ defineOptions({
                                     @change="onLogoChange"
                                 />
                                 <div class="flex items-center gap-2">
-                                    <Button 
-                                        type="button" 
-                                        variant="outline" 
-                                        size="sm" 
-                                        class="rounded-xl font-bold text-xs cursor-pointer gap-1.5 h-9"
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="h-9 cursor-pointer gap-1.5 rounded-xl text-xs font-bold"
                                         @click="logoInput?.click()"
                                     >
                                         <ImagePlus class="size-4" /> Chọn ảnh
                                     </Button>
-                                    <Button 
-                                        v-if="logoPreview" 
-                                        type="button" 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        class="rounded-xl font-bold text-xs cursor-pointer gap-1.5 h-9 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                                    <Button
+                                        v-if="logoPreview"
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        class="h-9 cursor-pointer gap-1.5 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
                                         @click="clearLogoSelection"
                                     >
                                         <X class="size-4" /> Hủy chọn
                                     </Button>
                                 </div>
-                                <p class="text-[10px] text-neutral-500 dark:text-neutral-400">PNG, JPG hoặc WEBP, tối đa 2MB.</p>
+                                <p
+                                    class="text-[10px] text-neutral-500 dark:text-neutral-400"
+                                >
+                                    PNG, JPG hoặc WEBP, tối đa 2MB.
+                                </p>
                                 <InputError :message="errors.logo" />
                             </div>
                         </div>
@@ -162,41 +195,54 @@ defineOptions({
 
                     <!-- Tên nhà hàng -->
                     <div class="grid gap-2">
-                        <Label for="name" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tên nhà hàng <span class="text-rose-500">*</span></Label>
+                        <Label
+                            for="name"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Tên nhà hàng
+                            <span class="text-rose-500">*</span></Label
+                        >
                         <Input
                             id="name"
                             name="name"
                             :default-value="restaurant.name"
                             required
                             placeholder="Ví dụ: Phở Việt, Quán Cơm Nhà..."
-                            class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                            class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                         />
                         <InputError :message="errors.name" />
                     </div>
 
                     <!-- Phone + Email -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div class="grid gap-2">
-                            <Label for="phone" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Số điện thoại</Label>
+                            <Label
+                                for="phone"
+                                class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                                >Số điện thoại</Label
+                            >
                             <Input
                                 id="phone"
                                 name="phone"
                                 type="tel"
                                 :default-value="restaurant.phone ?? ''"
                                 placeholder="0900 000 000"
-                                class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                             />
                             <InputError :message="errors.phone" />
                         </div>
                         <div class="grid gap-2">
-                            <Label for="email" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Email nhà hàng</Label>
+                            <Label
+                                for="email"
+                                class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                                >Email nhà hàng</Label
+                            >
                             <Input
                                 id="email"
                                 name="email"
                                 type="email"
                                 :default-value="restaurant.email ?? ''"
                                 placeholder="info@nhahang.vn"
-                                class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                             />
                             <InputError :message="errors.email" />
                         </div>
@@ -204,109 +250,180 @@ defineOptions({
 
                     <!-- Address -->
                     <div class="grid gap-2">
-                        <Label for="address" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Địa chỉ</Label>
+                        <Label
+                            for="address"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Địa chỉ</Label
+                        >
                         <Input
                             id="address"
                             name="address"
                             :default-value="restaurant.address ?? ''"
                             placeholder="Số nhà, đường, phường, quận, thành phố..."
-                            class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                            class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                         />
                         <InputError :message="errors.address" />
                     </div>
 
                     <!-- Tax code -->
                     <div class="grid gap-2">
-                        <Label for="tax_code" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Mã số thuế (MST)</Label>
+                        <Label
+                            for="tax_code"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Mã số thuế (MST)</Label
+                        >
                         <Input
                             id="tax_code"
                             name="tax_code"
                             :default-value="restaurant.tax_code ?? ''"
                             placeholder="0123456789"
-                            class="w-full block font-mono rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                            class="block w-full rounded-xl border-neutral-200 font-mono focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                         />
                         <InputError :message="errors.tax_code" />
-                        <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.</p>
+                        <p
+                            class="text-[10px] text-neutral-500 dark:text-neutral-400"
+                        >
+                            Dùng để xuất hóa đơn GTGT. Bỏ trống nếu không có.
+                        </p>
                     </div>
 
                     <!-- Mức cọc giữ bàn -->
                     <div class="grid gap-2">
-                        <Label for="reservation_deposit_amount" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tiền cọc giữ bàn (đ)</Label>
+                        <Label
+                            for="reservation_deposit_amount"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Tiền cọc giữ bàn (đ)</Label
+                        >
                         <Input
                             id="reservation_deposit_amount"
                             name="reservation_deposit_amount"
                             type="number"
                             min="0"
                             step="10000"
-                            :default-value="String(restaurant.reservation_deposit_amount ?? 0)"
+                            :default-value="
+                                String(
+                                    restaurant.reservation_deposit_amount ?? 0,
+                                )
+                            "
                             placeholder="0"
-                            class="w-full block font-mono rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                            class="block w-full rounded-xl border-neutral-200 font-mono focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                         />
-                        <InputError :message="errors.reservation_deposit_amount" />
-                        <p class="text-[10px] text-neutral-500 dark:text-neutral-400">
-                            Khách đặt bàn online sẽ được yêu cầu thanh toán cọc để giữ chỗ — bàn tự động xác nhận khi cọc được trả. Đặt 0 để tắt.
+                        <InputError
+                            :message="errors.reservation_deposit_amount"
+                        />
+                        <p
+                            class="text-[10px] text-neutral-500 dark:text-neutral-400"
+                        >
+                            Khách đặt bàn online sẽ được yêu cầu thanh toán cọc
+                            để giữ chỗ — bàn tự động xác nhận khi cọc được trả.
+                            Đặt 0 để tắt.
                         </p>
                     </div>
 
                     <!-- Cấu hình Ngân hàng thụ hưởng nhận chuyển khoản QR -->
-                    <div class="border-t border-neutral-100 dark:border-neutral-800 pt-6 space-y-4 text-left">
-                        <h3 class="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Cấu hình Thanh toán QR</h3>
-                        
+                    <div
+                        class="space-y-4 border-t border-neutral-100 pt-6 text-left dark:border-neutral-800"
+                    >
+                        <h3
+                            class="text-xs font-bold tracking-wider text-neutral-800 uppercase dark:text-neutral-200"
+                        >
+                            Cấu hình Thanh toán QR
+                        </h3>
+
                         <div class="flex items-center space-x-2.5">
-                            <Checkbox 
-                                id="qr_enabled" 
-                                name="qr_enabled" 
+                            <Checkbox
+                                id="qr_enabled"
+                                name="qr_enabled"
                                 value="1"
-                                :checked="restaurant.qr_enabled" 
-                                class="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 size-4 cursor-pointer"
+                                :checked="restaurant.qr_enabled"
+                                class="size-4 cursor-pointer rounded border-neutral-300 text-neutral-900 dark:border-neutral-700 dark:text-neutral-50"
                             />
-                            <Label for="qr_enabled" class="text-xs font-bold text-neutral-700 dark:text-neutral-300 cursor-pointer select-none">Kích hoạt thanh toán VietQR động cho khách hàng tại bàn</Label>
+                            <Label
+                                for="qr_enabled"
+                                class="cursor-pointer text-xs font-bold text-neutral-700 select-none dark:text-neutral-300"
+                                >Kích hoạt thanh toán VietQR động cho khách hàng
+                                tại bàn</Label
+                            >
                         </div>
                         <InputError :message="errors.qr_enabled" />
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div class="grid gap-2">
-                                <Label for="qr_bank_id" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Ngân hàng</Label>
-                                <Select 
-                                    name="qr_bank_id" 
+                                <Label
+                                    for="qr_bank_id"
+                                    class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                                    >Ngân hàng</Label
+                                >
+                                <Select
+                                    name="qr_bank_id"
                                     :default-value="restaurant.qr_bank_id ?? ''"
                                 >
-                                    <SelectTrigger class="w-full h-9 rounded-xl border border-neutral-200 bg-white text-xs px-3 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 flex items-center justify-between">
-                                        <SelectValue placeholder="Chọn ngân hàng" />
+                                    <SelectTrigger
+                                        class="flex h-9 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-800 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200"
+                                    >
+                                        <SelectValue
+                                            placeholder="Chọn ngân hàng"
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="mbbank">MB Bank</SelectItem>
-                                        <SelectItem value="vietcombank">Vietcombank</SelectItem>
-                                        <SelectItem value="techcombank">Techcombank</SelectItem>
-                                        <SelectItem value="bidv">BIDV</SelectItem>
-                                        <SelectItem value="vietinbank">Vietinbank</SelectItem>
+                                        <SelectItem value="mbbank"
+                                            >MB Bank</SelectItem
+                                        >
+                                        <SelectItem value="vietcombank"
+                                            >Vietcombank</SelectItem
+                                        >
+                                        <SelectItem value="techcombank"
+                                            >Techcombank</SelectItem
+                                        >
+                                        <SelectItem value="bidv"
+                                            >BIDV</SelectItem
+                                        >
+                                        <SelectItem value="vietinbank"
+                                            >Vietinbank</SelectItem
+                                        >
                                         <SelectItem value="acb">ACB</SelectItem>
-                                        <SelectItem value="sacombank">Sacombank</SelectItem>
+                                        <SelectItem value="sacombank"
+                                            >Sacombank</SelectItem
+                                        >
                                     </SelectContent>
                                 </Select>
                                 <InputError :message="errors.qr_bank_id" />
                             </div>
 
                             <div class="grid gap-2">
-                                <Label for="qr_account_number" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Số tài khoản</Label>
+                                <Label
+                                    for="qr_account_number"
+                                    class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                                    >Số tài khoản</Label
+                                >
                                 <Input
                                     id="qr_account_number"
                                     name="qr_account_number"
-                                    :default-value="restaurant.qr_account_number ?? ''"
+                                    :default-value="
+                                        restaurant.qr_account_number ?? ''
+                                    "
                                     placeholder="Ví dụ: 0123456789"
-                                    class="w-full block font-mono rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                    class="block w-full rounded-xl border-neutral-200 font-mono focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                                 />
-                                <InputError :message="errors.qr_account_number" />
+                                <InputError
+                                    :message="errors.qr_account_number"
+                                />
                             </div>
 
                             <div class="grid gap-2">
-                                <Label for="qr_account_name" class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tên chủ tài khoản</Label>
+                                <Label
+                                    for="qr_account_name"
+                                    class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                                    >Tên chủ tài khoản</Label
+                                >
                                 <Input
                                     id="qr_account_name"
                                     name="qr_account_name"
-                                    :default-value="restaurant.qr_account_name ?? ''"
+                                    :default-value="
+                                        restaurant.qr_account_name ?? ''
+                                    "
                                     placeholder="VIET COMBANK"
-                                    class="w-full block rounded-xl border-neutral-200 focus:ring-2 focus:ring-neutral-950 focus:border-neutral-950 dark:border-neutral-800"
+                                    class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                                 />
                                 <InputError :message="errors.qr_account_name" />
                             </div>
@@ -314,22 +431,40 @@ defineOptions({
                     </div>
 
                     <!-- Read-only info -->
-                    <div class="rounded-2xl border border-neutral-200 bg-neutral-50/50 dark:border-neutral-800 dark:bg-neutral-900/30 px-5 py-4 grid grid-cols-2 gap-4 text-xs font-semibold">
+                    <div
+                        class="grid grid-cols-2 gap-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 px-5 py-4 text-xs font-semibold dark:border-neutral-800 dark:bg-neutral-900/30"
+                    >
                         <div>
-                            <p class="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Múi giờ</p>
-                            <p class="text-neutral-800 dark:text-neutral-200 mt-1 font-mono font-bold">{{ restaurant.timezone }}</p>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-neutral-500 uppercase"
+                            >
+                                Múi giờ
+                            </p>
+                            <p
+                                class="mt-1 font-mono font-bold text-neutral-800 dark:text-neutral-200"
+                            >
+                                {{ restaurant.timezone }}
+                            </p>
                         </div>
                         <div>
-                            <p class="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Đơn vị tiền tệ</p>
-                            <p class="text-neutral-800 dark:text-neutral-200 mt-1 font-mono font-bold">{{ restaurant.currency }}</p>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-neutral-500 uppercase"
+                            >
+                                Đơn vị tiền tệ
+                            </p>
+                            <p
+                                class="mt-1 font-mono font-bold text-neutral-800 dark:text-neutral-200"
+                            >
+                                {{ restaurant.currency }}
+                            </p>
                         </div>
                     </div>
 
                     <div class="flex items-center gap-3 pt-2">
-                        <Button 
-                            type="submit" 
+                        <Button
+                            type="submit"
                             :disabled="processing"
-                            class="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-950 dark:hover:bg-neutral-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                            class="cursor-pointer rounded-xl bg-neutral-900 px-6 py-2.5 text-xs font-bold tracking-wider text-white uppercase shadow-sm transition-all duration-200 hover:bg-neutral-800 active:scale-95 disabled:opacity-50 dark:bg-neutral-50 dark:text-neutral-950 dark:hover:bg-neutral-200"
                         >
                             {{ processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
                         </Button>

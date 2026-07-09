@@ -7,19 +7,27 @@
  *   fireConfetti();
  */
 
-const COLORS = ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'];
+const COLORS = [
+    '#f97316',
+    '#fbbf24',
+    '#34d399',
+    '#60a5fa',
+    '#f472b6',
+    '#a78bfa',
+];
 
 export function fireConfetti(count = 90): void {
     if (typeof document === 'undefined') {
-return;
-}
+        return;
+    }
 
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-return;
-}
+        return;
+    }
 
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;';
+    container.style.cssText =
+        'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;';
     document.body.appendChild(container);
 
     for (let i = 0; i < count; i++) {
@@ -43,9 +51,17 @@ return;
         piece.animate(
             [
                 { transform: 'translate3d(0,0,0) rotate(0deg)', opacity: 1 },
-                { transform: `translate3d(${drift}vw,105vh,0) rotate(${rotate}deg)`, opacity: 0.6 },
+                {
+                    transform: `translate3d(${drift}vw,105vh,0) rotate(${rotate}deg)`,
+                    opacity: 0.6,
+                },
             ],
-            { duration, delay, easing: 'cubic-bezier(0.25, 0.6, 0.45, 1)', fill: 'forwards' },
+            {
+                duration,
+                delay,
+                easing: 'cubic-bezier(0.25, 0.6, 0.45, 1)',
+                fill: 'forwards',
+            },
         );
 
         container.appendChild(piece);

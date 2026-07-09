@@ -24,30 +24,50 @@ function onOpenChange(open: boolean) {
             <DialogHeader>
                 <div class="flex items-start gap-3">
                     <div
-                        class="p-2.5 rounded-xl shrink-0"
-                        :class="confirmState.variant === 'destructive'
-                            ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-                            : 'bg-primary/10 text-primary'"
+                        class="shrink-0 rounded-xl p-2.5"
+                        :class="
+                            confirmState.variant === 'destructive'
+                                ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+                                : 'bg-primary/10 text-primary'
+                        "
                     >
                         <component
-                            :is="confirmState.variant === 'destructive' ? AlertTriangle : HelpCircle"
-                            class="w-5 h-5"
+                            :is="
+                                confirmState.variant === 'destructive'
+                                    ? AlertTriangle
+                                    : HelpCircle
+                            "
+                            class="h-5 w-5"
                         />
                     </div>
                     <div class="space-y-1.5 pt-0.5">
-                        <DialogTitle class="text-base">{{ confirmState.title }}</DialogTitle>
-                        <DialogDescription v-if="confirmState.description" class="text-xs leading-relaxed whitespace-pre-line">
+                        <DialogTitle class="text-base">{{
+                            confirmState.title
+                        }}</DialogTitle>
+                        <DialogDescription
+                            v-if="confirmState.description"
+                            class="text-xs leading-relaxed whitespace-pre-line"
+                        >
                             {{ confirmState.description }}
                         </DialogDescription>
                     </div>
                 </div>
             </DialogHeader>
             <DialogFooter class="gap-2 sm:gap-2">
-                <Button variant="outline" size="sm" class="text-xs" @click="resolveConfirm(false)">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    @click="resolveConfirm(false)"
+                >
                     {{ confirmState.cancelText }}
                 </Button>
                 <Button
-                    :variant="confirmState.variant === 'destructive' ? 'destructive' : 'default'"
+                    :variant="
+                        confirmState.variant === 'destructive'
+                            ? 'destructive'
+                            : 'default'
+                    "
                     size="sm"
                     class="text-xs"
                     autofocus

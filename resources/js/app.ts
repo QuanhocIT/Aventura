@@ -4,8 +4,8 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia';
-import { createApp, h  } from 'vue';
-import type {DefineComponent} from 'vue';
+import { createApp, h } from 'vue';
+import type { DefineComponent } from 'vue';
 import { toast } from 'vue-sonner';
 import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -15,13 +15,17 @@ import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 
-router.on('success', (event: { detail: { page: { props: Record<string, any> } } }) => {
-    const announcement = (event.detail.page.props as Record<string, any>)?.flash?.success;
+router.on(
+    'success',
+    (event: { detail: { page: { props: Record<string, any> } } }) => {
+        const announcement = (event.detail.page.props as Record<string, any>)
+            ?.flash?.success;
 
-    if (announcement) {
-        toast.success(String(announcement));
-    }
-});
+        if (announcement) {
+            toast.success(String(announcement));
+        }
+    },
+);
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -30,52 +34,63 @@ createInertiaApp({
     resolve: (name: string) => {
         const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
 
-        return resolvePageComponent(`./pages/${name}.vue`, pages).then((module) => {
-            const page = module.default;
+        return resolvePageComponent(`./pages/${name}.vue`, pages).then(
+            (module) => {
+                const page = module.default;
 
-            // Fix project-wide layout metadata object bug (converts plain layout props objects into real Inertia layouts)
-            if (page.layout && typeof page.layout === 'object' && !Array.isArray(page.layout) && !page.layout.render && !page.layout.setup && !page.layout.__file) {
-                const layoutProps = page.layout;
+                // Fix project-wide layout metadata object bug (converts plain layout props objects into real Inertia layouts)
+                if (
+                    page.layout &&
+                    typeof page.layout === 'object' &&
+                    !Array.isArray(page.layout) &&
+                    !page.layout.render &&
+                    !page.layout.setup &&
+                    !page.layout.__file
+                ) {
+                    const layoutProps = page.layout;
 
-                if (name.startsWith('auth/')) {
-                    page.layout = [AuthLayout, layoutProps];
-                } else if (name.startsWith('settings/')) {
-                    page.layout = [AppLayout, SettingsLayout];
+                    if (name.startsWith('auth/')) {
+                        page.layout = [AuthLayout, layoutProps];
+                    } else if (name.startsWith('settings/')) {
+                        page.layout = [AppLayout, SettingsLayout];
 
-                    if (layoutProps.breadcrumbs) {
-                        page.layoutProps = { breadcrumbs: layoutProps.breadcrumbs };
+                        if (layoutProps.breadcrumbs) {
+                            page.layoutProps = {
+                                breadcrumbs: layoutProps.breadcrumbs,
+                            };
+                        }
                     }
                 }
-            }
 
-            if (page.layout === undefined) {
-                switch (true) {
-                    case name === 'Welcome':
-                        page.layout = GuestLayout;
-                        break;
-                    case name === 'Khach':
-                    case name.startsWith('customers/'):
-                    case name === 'auth/Login':
-                    case name === 'auth/Register':
-                    case name === 'auth/ChooseRestaurant':
-                    case name === 'auth/TwoFactorChallenge':
-                    case name === 'auth/ConfirmPassword':
-                        page.layout = BareLayout;
-                        break;
-                    case name.startsWith('auth/'):
-                        page.layout = AuthLayout;
-                        break;
-                    case name.startsWith('settings/'):
-                        page.layout = [AppLayout, SettingsLayout];
-                        break;
-                    default:
-                        page.layout = AppLayout;
-                        break;
+                if (page.layout === undefined) {
+                    switch (true) {
+                        case name === 'Welcome':
+                            page.layout = GuestLayout;
+                            break;
+                        case name === 'Khach':
+                        case name.startsWith('customers/'):
+                        case name === 'auth/Login':
+                        case name === 'auth/Register':
+                        case name === 'auth/ChooseRestaurant':
+                        case name === 'auth/TwoFactorChallenge':
+                        case name === 'auth/ConfirmPassword':
+                            page.layout = BareLayout;
+                            break;
+                        case name.startsWith('auth/'):
+                            page.layout = AuthLayout;
+                            break;
+                        case name.startsWith('settings/'):
+                            page.layout = [AppLayout, SettingsLayout];
+                            break;
+                        default:
+                            page.layout = AppLayout;
+                            break;
+                    }
                 }
-            }
 
-            return page;
-        });
+                return page;
+            },
+        );
     },
     setup({ el, App, props, plugin }: any) {
         const pinia = createPinia();
@@ -101,16 +116,24 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     });
 }
 
-
 axios.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response && error.response.status === 403 && error.response.data && error.response.data.error === 'SHIFT_EXPIRED') {
-            window.dispatchEvent(new CustomEvent('shift-expired', { detail: error.response.data }));
+        if (
+            error.response &&
+            error.response.status === 403 &&
+            error.response.data &&
+            error.response.data.error === 'SHIFT_EXPIRED'
+        ) {
+            window.dispatchEvent(
+                new CustomEvent('shift-expired', {
+                    detail: error.response.data,
+                }),
+            );
         }
 
         return Promise.reject(error);
-    }
+    },
 );
 
 router.on('invalid', (event: any) => {
@@ -129,9 +152,9 @@ router.on('invalid', (event: any) => {
 
         if (data && data.error === 'SHIFT_EXPIRED') {
             event.preventDefault();
-            window.dispatchEvent(new CustomEvent('shift-expired', { detail: data }));
+            window.dispatchEvent(
+                new CustomEvent('shift-expired', { detail: data }),
+            );
         }
     }
 });
-
-

@@ -1,15 +1,28 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    BarChart3, TrendingUp, TrendingDown, Minus, Star, FlaskConical,
-    Play, Square, Loader2,
+    BarChart3,
+    TrendingUp,
+    TrendingDown,
+    Minus,
+    Star,
+    FlaskConical,
+    Play,
+    Square,
+    Loader2,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
@@ -18,10 +31,19 @@ import AppLayout from '@/layouts/AppLayout.vue';
 defineOptions({ layout: AppLayout });
 
 interface ScoringItem {
-    product_id: number; name: string; price: number; cost_price: number;
-    qty: number; revenue: number; margin: number;
-    popularity_score: number; profitability_score: number; trend_score: number;
-    composite_score: number; suggestion: string; weekly_avg: number;
+    product_id: number;
+    name: string;
+    price: number;
+    cost_price: number;
+    qty: number;
+    revenue: number;
+    margin: number;
+    popularity_score: number;
+    profitability_score: number;
+    trend_score: number;
+    composite_score: number;
+    suggestion: string;
+    weekly_avg: number;
 }
 
 const props = defineProps<{
@@ -31,15 +53,18 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-watch(() => page.props.flash, (flash: any) => {
-    if (flash?.success) {
-        toast.success(flash.success);
-    }
+watch(
+    () => page.props.flash,
+    (flash: any) => {
+        if (flash?.success) {
+            toast.success(flash.success);
+        }
 
-    if (flash?.error) {
-        toast.error(flash.error);
-    }
-});
+        if (flash?.error) {
+            toast.error(flash.error);
+        }
+    },
+);
 
 const activeTab = ref<'scoring' | 'ab-test' | 'schedule'>('scoring');
 
@@ -124,7 +149,13 @@ function submitTest() {
 }
 
 async function completeTest(test: any) {
-    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Kết thúc test và khôi phục giá gốc?', variant: 'default' }))) {
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: 'Kết thúc test và khôi phục giá gốc?',
+            variant: 'default',
+        }))
+    ) {
         return;
     }
 
@@ -132,7 +163,12 @@ async function completeTest(test: any) {
 }
 
 async function cancelTest(test: any) {
-    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: 'Hủy test và khôi phục giá gốc?' }))) {
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: 'Hủy test và khôi phục giá gốc?',
+        }))
+    ) {
         return;
     }
 
@@ -140,10 +176,18 @@ async function cancelTest(test: any) {
 }
 
 // Time slot / season update
-function updateSchedule(productId: number, field: string, value: string | null) {
-    router.patch(`/menu-engineering/products/${productId}/time-slot`, {
-        [field]: value || null,
-    }, { preserveScroll: true });
+function updateSchedule(
+    productId: number,
+    field: string,
+    value: string | null,
+) {
+    router.patch(
+        `/menu-engineering/products/${productId}/time-slot`,
+        {
+            [field]: value || null,
+        },
+        { preserveScroll: true },
+    );
 }
 
 // Score color
@@ -176,113 +220,194 @@ const avgScore = computed(() => {
         return 0;
     }
 
-    return Math.round(props.scoring.reduce((s, i) => s + i.composite_score, 0) / props.scoring.length);
+    return Math.round(
+        props.scoring.reduce((s, i) => s + i.composite_score, 0) /
+            props.scoring.length,
+    );
 });
 
-const topPerformers = computed(() => props.scoring.filter(s => s.composite_score >= 70).length);
-const needsAttention = computed(() => props.scoring.filter(s => s.composite_score < 40).length);
+const topPerformers = computed(
+    () => props.scoring.filter((s) => s.composite_score >= 70).length,
+);
+const needsAttention = computed(
+    () => props.scoring.filter((s) => s.composite_score < 40).length,
+);
 </script>
 
 <template>
     <Head title="Menu Engineering" />
 
-    <div class="flex flex-col gap-5 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
         <!-- ── Header ──────────────────────────────────────────────────────── -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
+        <div
+            class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                    <BarChart3 class="size-6 text-violet-600 dark:text-violet-400" />
+                <div
+                    class="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                >
+                    <BarChart3
+                        class="size-6 text-violet-600 dark:text-violet-400"
+                    />
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight">Menu Engineering Nâng Cao</h1>
-                    <p class="text-sm text-muted-foreground">Phân tích, chấm điểm, A/B testing giá, và lập lịch menu theo giờ/mùa.</p>
+                    <h1 class="text-xl font-bold tracking-tight">
+                        Menu Engineering Nâng Cao
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        Phân tích, chấm điểm, A/B testing giá, và lập lịch menu
+                        theo giờ/mùa.
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- KPI Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <!-- 1. Điểm TB menu -->
             <Card>
-                <CardContent class="pt-4 pb-4 px-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Điểm TB menu</span>
+                <CardContent class="px-4 pt-4 pb-4">
+                    <div class="mb-2 flex items-center justify-between">
+                        <span
+                            class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                            >Điểm TB menu</span
+                        >
                         <Star class="size-4 text-amber-500" />
                     </div>
-                    <p :class="['text-xl font-bold', scoreColor(avgScore)]">{{ avgScore }}/100</p>
-                    <p class="text-[10px] text-muted-foreground mt-1.5">Điểm chất lượng menu tổng hợp</p>
+                    <p :class="['text-xl font-bold', scoreColor(avgScore)]">
+                        {{ avgScore }}/100
+                    </p>
+                    <p class="mt-1.5 text-[10px] text-muted-foreground">
+                        Điểm chất lượng menu tổng hợp
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- 2. Top performers -->
             <Card>
-                <CardContent class="pt-4 pb-4 px-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Top performers</span>
+                <CardContent class="px-4 pt-4 pb-4">
+                    <div class="mb-2 flex items-center justify-between">
+                        <span
+                            class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                            >Top performers</span
+                        >
                         <TrendingUp class="size-4 text-emerald-500" />
                     </div>
-                    <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ topPerformers }} món</p>
-                    <p class="text-[10px] text-muted-foreground mt-1.5">Số món đạt điểm xuất sắc</p>
+                    <p
+                        class="text-xl font-bold text-emerald-600 dark:text-emerald-400"
+                    >
+                        {{ topPerformers }} món
+                    </p>
+                    <p class="mt-1.5 text-[10px] text-muted-foreground">
+                        Số món đạt điểm xuất sắc
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- 3. Cần cải thiện -->
             <Card>
-                <CardContent class="pt-4 pb-4 px-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cần cải thiện</span>
+                <CardContent class="px-4 pt-4 pb-4">
+                    <div class="mb-2 flex items-center justify-between">
+                        <span
+                            class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                            >Cần cải thiện</span
+                        >
                         <TrendingDown class="size-4 text-rose-500" />
                     </div>
-                    <p class="text-xl font-bold text-rose-500">{{ needsAttention }} món</p>
-                    <p class="text-[10px] text-muted-foreground mt-1.5">Số món cần tối ưu lại giá/cost</p>
+                    <p class="text-xl font-bold text-rose-500">
+                        {{ needsAttention }} món
+                    </p>
+                    <p class="mt-1.5 text-[10px] text-muted-foreground">
+                        Số món cần tối ưu lại giá/cost
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- 4. A/B Tests đang chạy -->
             <Card>
-                <CardContent class="pt-4 pb-4 px-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">A/B Tests đang chạy</span>
+                <CardContent class="px-4 pt-4 pb-4">
+                    <div class="mb-2 flex items-center justify-between">
+                        <span
+                            class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                            >A/B Tests đang chạy</span
+                        >
                         <FlaskConical class="size-4 text-blue-500" />
                     </div>
-                    <p class="text-xl font-bold text-blue-600 dark:text-blue-400">{{ priceTests.filter(t => t.status === 'running').length }}</p>
-                    <p class="text-[10px] text-muted-foreground mt-1.5">Chiến dịch thử nghiệm giá hiện tại</p>
+                    <p
+                        class="text-xl font-bold text-blue-600 dark:text-blue-400"
+                    >
+                        {{
+                            priceTests.filter((t) => t.status === 'running')
+                                .length
+                        }}
+                    </p>
+                    <p class="mt-1.5 text-[10px] text-muted-foreground">
+                        Chiến dịch thử nghiệm giá hiện tại
+                    </p>
                 </CardContent>
             </Card>
         </div>
 
         <!-- Tabs Switcher (Pill Style) -->
-        <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 self-start overflow-x-auto max-w-full">
-            <button v-for="tab in [
-                { key: 'scoring', label: 'Menu Scoring' },
-                { key: 'ab-test', label: 'A/B Testing giá' },
-                { key: 'schedule', label: 'Lịch menu theo giờ/mùa' },
-            ]" :key="tab.key" @click="activeTab = tab.key as any"
-                class="cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all whitespace-nowrap"
-                :class="activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-            >{{ tab.label }}</button>
+        <div
+            class="flex max-w-full items-center gap-1 self-start overflow-x-auto rounded-xl border border-border bg-muted p-1"
+        >
+            <button
+                v-for="tab in [
+                    { key: 'scoring', label: 'Menu Scoring' },
+                    { key: 'ab-test', label: 'A/B Testing giá' },
+                    { key: 'schedule', label: 'Lịch menu theo giờ/mùa' },
+                ]"
+                :key="tab.key"
+                @click="activeTab = tab.key as any"
+                class="cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all"
+                :class="
+                    activeTab === tab.key
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
+            >
+                {{ tab.label }}
+            </button>
         </div>
 
         <!-- Tab: Scoring -->
         <div v-if="activeTab === 'scoring'" class="space-y-4">
             <!-- Toggle buttons for Table vs BCG -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/40 pb-4">
+            <div
+                class="flex flex-col justify-between gap-3 border-b border-border/40 pb-4 sm:flex-row sm:items-center"
+            >
                 <div>
-                    <h3 class="text-sm font-bold text-foreground">Phân tích thực đơn</h3>
-                    <p class="text-xs text-muted-foreground">Chọn kiểu hiển thị ma trận BCG hoặc bảng thống kê chi tiết.</p>
+                    <h3 class="text-sm font-bold text-foreground">
+                        Phân tích thực đơn
+                    </h3>
+                    <p class="text-xs text-muted-foreground">
+                        Chọn kiểu hiển thị ma trận BCG hoặc bảng thống kê chi
+                        tiết.
+                    </p>
                 </div>
-                <div class="flex items-center gap-1 bg-muted p-1 rounded-xl shrink-0">
+                <div
+                    class="flex shrink-0 items-center gap-1 rounded-xl bg-muted p-1"
+                >
                     <button
                         @click="scoringViewMode = 'bcg'"
-                        class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        :class="scoringViewMode === 'bcg' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                        :class="
+                            scoringViewMode === 'bcg'
+                                ? 'bg-background text-foreground shadow'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
                         📊 Ma trận BCG
                     </button>
                     <button
                         @click="scoringViewMode = 'table'"
-                        class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        :class="scoringViewMode === 'table' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                        :class="
+                            scoringViewMode === 'table'
+                                ? 'bg-background text-foreground shadow'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
                         📋 Bảng chi tiết
                     </button>
@@ -290,59 +415,223 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
             </div>
 
             <!-- BCG Matrix View -->
-            <div v-if="scoringViewMode === 'bcg'" class="relative border rounded-2xl bg-card p-6 shadow-sm overflow-visible">
+            <div
+                v-if="scoringViewMode === 'bcg'"
+                class="relative overflow-visible rounded-2xl border bg-card p-6 shadow-sm"
+            >
                 <!-- SVG Area wrapper -->
-                <div class="relative w-full max-w-3xl mx-auto overflow-visible">
-                    <svg viewBox="0 0 600 500" class="w-full h-auto select-none overflow-visible">
+                <div class="relative mx-auto w-full max-w-3xl overflow-visible">
+                    <svg
+                        viewBox="0 0 600 500"
+                        class="h-auto w-full overflow-visible select-none"
+                    >
                         <!-- Quadrants backgrounds -->
                         <!-- Top-Left: Plowhorses -->
-                        <rect :x="getX(0)" :y="getY(100)" :width="plotWidth / 2" :height="plotHeight / 2" class="fill-amber-500/[0.03] dark:fill-amber-500/[0.06]" />
+                        <rect
+                            :x="getX(0)"
+                            :y="getY(100)"
+                            :width="plotWidth / 2"
+                            :height="plotHeight / 2"
+                            class="fill-amber-500/[0.03] dark:fill-amber-500/[0.06]"
+                        />
                         <!-- Top-Right: Stars -->
-                        <rect :x="getX(50)" :y="getY(100)" :width="plotWidth / 2" :height="plotHeight / 2" class="fill-emerald-500/[0.03] dark:fill-emerald-500/[0.06]" />
+                        <rect
+                            :x="getX(50)"
+                            :y="getY(100)"
+                            :width="plotWidth / 2"
+                            :height="plotHeight / 2"
+                            class="fill-emerald-500/[0.03] dark:fill-emerald-500/[0.06]"
+                        />
                         <!-- Bottom-Left: Dogs -->
-                        <rect :x="getX(0)" :y="getY(50)" :width="plotWidth / 2" :height="plotHeight / 2" class="fill-red-500/[0.03] dark:fill-red-500/[0.06]" />
+                        <rect
+                            :x="getX(0)"
+                            :y="getY(50)"
+                            :width="plotWidth / 2"
+                            :height="plotHeight / 2"
+                            class="fill-red-500/[0.03] dark:fill-red-500/[0.06]"
+                        />
                         <!-- Bottom-Right: Puzzles -->
-                        <rect :x="getX(50)" :y="getY(50)" :width="plotWidth / 2" :height="plotHeight / 2" class="fill-indigo-500/[0.03] dark:fill-indigo-500/[0.06]" />
+                        <rect
+                            :x="getX(50)"
+                            :y="getY(50)"
+                            :width="plotWidth / 2"
+                            :height="plotHeight / 2"
+                            class="fill-indigo-500/[0.03] dark:fill-indigo-500/[0.06]"
+                        />
 
                         <!-- Grid dividers -->
-                        <line :x1="getX(50)" :y1="getY(100)" :x2="getX(50)" :y2="getY(0)" class="stroke-muted-foreground/25" stroke-width="1.5" stroke-dasharray="4" />
-                        <line :x1="getX(0)" :y1="getY(50)" :x2="getX(100)" :y2="getY(50)" class="stroke-muted-foreground/25" stroke-width="1.5" stroke-dasharray="4" />
+                        <line
+                            :x1="getX(50)"
+                            :y1="getY(100)"
+                            :x2="getX(50)"
+                            :y2="getY(0)"
+                            class="stroke-muted-foreground/25"
+                            stroke-width="1.5"
+                            stroke-dasharray="4"
+                        />
+                        <line
+                            :x1="getX(0)"
+                            :y1="getY(50)"
+                            :x2="getX(100)"
+                            :y2="getY(50)"
+                            class="stroke-muted-foreground/25"
+                            stroke-width="1.5"
+                            stroke-dasharray="4"
+                        />
 
                         <!-- Quadrant Labels -->
                         <!-- Stars -->
-                        <text :x="getX(75)" :y="getY(75) - 10" text-anchor="middle" class="fill-emerald-600 dark:fill-emerald-400 font-extrabold text-xs uppercase tracking-wider">🌟 Stars (Món Ngôi Sao)</text>
-                        <text :x="getX(75)" :y="getY(75) + 8" text-anchor="middle" class="fill-muted-foreground text-[9px]">Lợi nhuận cao & Bán chạy</text>
-                        
+                        <text
+                            :x="getX(75)"
+                            :y="getY(75) - 10"
+                            text-anchor="middle"
+                            class="fill-emerald-600 text-xs font-extrabold tracking-wider uppercase dark:fill-emerald-400"
+                        >
+                            🌟 Stars (Món Ngôi Sao)
+                        </text>
+                        <text
+                            :x="getX(75)"
+                            :y="getY(75) + 8"
+                            text-anchor="middle"
+                            class="fill-muted-foreground text-[9px]"
+                        >
+                            Lợi nhuận cao & Bán chạy
+                        </text>
+
                         <!-- Plowhorses -->
-                        <text :x="getX(25)" :y="getY(75) - 10" text-anchor="middle" class="fill-amber-600 dark:fill-amber-400 font-extrabold text-xs uppercase tracking-wider">🐎 Plowhorses (Bò Sữa)</text>
-                        <text :x="getX(25)" :y="getY(75) + 8" text-anchor="middle" class="fill-muted-foreground text-[9px]">Lợi nhuận thấp & Bán chạy</text>
+                        <text
+                            :x="getX(25)"
+                            :y="getY(75) - 10"
+                            text-anchor="middle"
+                            class="fill-amber-600 text-xs font-extrabold tracking-wider uppercase dark:fill-amber-400"
+                        >
+                            🐎 Plowhorses (Bò Sữa)
+                        </text>
+                        <text
+                            :x="getX(25)"
+                            :y="getY(75) + 8"
+                            text-anchor="middle"
+                            class="fill-muted-foreground text-[9px]"
+                        >
+                            Lợi nhuận thấp & Bán chạy
+                        </text>
 
                         <!-- Puzzles -->
-                        <text :x="getX(75)" :y="getY(25) - 10" text-anchor="middle" class="fill-indigo-600 dark:fill-indigo-400 font-extrabold text-xs uppercase tracking-wider">🧩 Puzzles (Câu Đố)</text>
-                        <text :x="getX(75)" :y="getY(25) + 8" text-anchor="middle" class="fill-muted-foreground text-[9px]">Lợi nhuận cao & Bán chậm</text>
+                        <text
+                            :x="getX(75)"
+                            :y="getY(25) - 10"
+                            text-anchor="middle"
+                            class="fill-indigo-600 text-xs font-extrabold tracking-wider uppercase dark:fill-indigo-400"
+                        >
+                            🧩 Puzzles (Câu Đố)
+                        </text>
+                        <text
+                            :x="getX(75)"
+                            :y="getY(25) + 8"
+                            text-anchor="middle"
+                            class="fill-muted-foreground text-[9px]"
+                        >
+                            Lợi nhuận cao & Bán chậm
+                        </text>
 
                         <!-- Dogs -->
-                        <text :x="getX(25)" :y="getY(25) - 10" text-anchor="middle" class="fill-red-600 dark:fill-red-400 font-extrabold text-xs uppercase tracking-wider">🐕 Dogs (Chó Hoang)</text>
-                        <text :x="getX(25)" :y="getY(25) + 8" text-anchor="middle" class="fill-muted-foreground text-[9px]">Lợi nhuận thấp & Bán chậm</text>
+                        <text
+                            :x="getX(25)"
+                            :y="getY(25) - 10"
+                            text-anchor="middle"
+                            class="fill-red-600 text-xs font-extrabold tracking-wider uppercase dark:fill-red-400"
+                        >
+                            🐕 Dogs (Chó Hoang)
+                        </text>
+                        <text
+                            :x="getX(25)"
+                            :y="getY(25) + 8"
+                            text-anchor="middle"
+                            class="fill-muted-foreground text-[9px]"
+                        >
+                            Lợi nhuận thấp & Bán chậm
+                        </text>
 
                         <!-- Axes and ticks -->
                         <!-- Y-Axis -->
-                        <line :x1="getX(0)" :y1="getY(0)" :x2="getX(0)" :y2="getY(100)" class="stroke-border" stroke-width="2" />
+                        <line
+                            :x1="getX(0)"
+                            :y1="getY(0)"
+                            :x2="getX(0)"
+                            :y2="getY(100)"
+                            class="stroke-border"
+                            stroke-width="2"
+                        />
                         <!-- X-Axis -->
-                        <line :x1="getX(0)" :y1="getY(0)" :x2="getX(100)" :y2="getY(0)" class="stroke-border" stroke-width="2" />
+                        <line
+                            :x1="getX(0)"
+                            :y1="getY(0)"
+                            :x2="getX(100)"
+                            :y2="getY(0)"
+                            class="stroke-border"
+                            stroke-width="2"
+                        />
 
                         <!-- Axis Titles -->
-                        <text :x="margin.left - 15" :y="margin.top - 10" text-anchor="start" class="fill-foreground font-bold text-[10px]">Độ phổ biến (%) ↑</text>
-                        <text :x="getX(100) + 10" :y="getY(0) + 4" text-anchor="start" class="fill-foreground font-bold text-[10px]">Biên lợi nhuận (%) →</text>
+                        <text
+                            :x="margin.left - 15"
+                            :y="margin.top - 10"
+                            text-anchor="start"
+                            class="fill-foreground text-[10px] font-bold"
+                        >
+                            Độ phổ biến (%) ↑
+                        </text>
+                        <text
+                            :x="getX(100) + 10"
+                            :y="getY(0) + 4"
+                            text-anchor="start"
+                            class="fill-foreground text-[10px] font-bold"
+                        >
+                            Biên lợi nhuận (%) →
+                        </text>
 
                         <!-- Axis Ticks & Numbers -->
-                        <g v-for="tick in [0, 25, 50, 75, 100]" :key="'tick-x-' + tick">
-                            <line :x1="getX(tick)" :y1="getY(0)" :x2="getX(tick)" :y2="getY(0) + 5" class="stroke-border" stroke-width="1.5" />
-                            <text :x="getX(tick)" :y="getY(0) + 18" text-anchor="middle" class="fill-muted-foreground text-[9px] font-mono">{{ tick }}%</text>
+                        <g
+                            v-for="tick in [0, 25, 50, 75, 100]"
+                            :key="'tick-x-' + tick"
+                        >
+                            <line
+                                :x1="getX(tick)"
+                                :y1="getY(0)"
+                                :x2="getX(tick)"
+                                :y2="getY(0) + 5"
+                                class="stroke-border"
+                                stroke-width="1.5"
+                            />
+                            <text
+                                :x="getX(tick)"
+                                :y="getY(0) + 18"
+                                text-anchor="middle"
+                                class="fill-muted-foreground font-mono text-[9px]"
+                            >
+                                {{ tick }}%
+                            </text>
                         </g>
-                        <g v-for="tick in [0, 25, 50, 75, 100]" :key="'tick-y-' + tick">
-                            <line :x1="getX(0) - 5" :y1="getY(tick)" :x2="getX(0)" :y2="getY(tick)" class="stroke-border" stroke-width="1.5" />
-                            <text :x="getX(0) - 10" :y="getY(tick) + 3" text-anchor="end" class="fill-muted-foreground text-[9px] font-mono">{{ tick }}%</text>
+                        <g
+                            v-for="tick in [0, 25, 50, 75, 100]"
+                            :key="'tick-y-' + tick"
+                        >
+                            <line
+                                :x1="getX(0) - 5"
+                                :y1="getY(tick)"
+                                :x2="getX(0)"
+                                :y2="getY(tick)"
+                                class="stroke-border"
+                                stroke-width="1.5"
+                            />
+                            <text
+                                :x="getX(0) - 10"
+                                :y="getY(tick) + 3"
+                                text-anchor="end"
+                                class="fill-muted-foreground font-mono text-[9px]"
+                            >
+                                {{ tick }}%
+                            </text>
                         </g>
 
                         <!-- Data Points (Circles) -->
@@ -353,9 +642,12 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                                 :cy="getY(item.popularity_score)"
                                 :r="8 + (item.composite_score / 100) * 12 + 6"
                                 :class="[
-                                    'transition-all duration-300 opacity-0 hover:opacity-15 cursor-pointer',
-                                    item.composite_score >= 70 ? 'fill-emerald-500' : 
-                                    item.composite_score >= 40 ? 'fill-amber-500' : 'fill-red-500'
+                                    'cursor-pointer opacity-0 transition-all duration-300 hover:opacity-15',
+                                    item.composite_score >= 70
+                                        ? 'fill-emerald-500'
+                                        : item.composite_score >= 40
+                                          ? 'fill-amber-500'
+                                          : 'fill-red-500',
                                 ]"
                             />
                             <!-- Main circle -->
@@ -363,8 +655,14 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                                 :cx="getX(item.profitability_score)"
                                 :cy="getY(item.popularity_score)"
                                 :r="8 + (item.composite_score / 100) * 12"
-                                :fill="item.composite_score >= 70 ? '#10b981' : item.composite_score >= 40 ? '#f59e0b' : '#ef4444'"
-                                class="stroke-white dark:stroke-slate-900 stroke-2 cursor-pointer shadow-lg hover:scale-110 transition-transform duration-200"
+                                :fill="
+                                    item.composite_score >= 70
+                                        ? '#10b981'
+                                        : item.composite_score >= 40
+                                          ? '#f59e0b'
+                                          : '#ef4444'
+                                "
+                                class="cursor-pointer stroke-white stroke-2 shadow-lg transition-transform duration-200 hover:scale-110 dark:stroke-slate-900"
                                 @mouseenter="(e) => handleMouseEnter(item, e)"
                                 @mouseleave="handleMouseLeave"
                             />
@@ -373,7 +671,7 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                                 :x="getX(item.profitability_score)"
                                 :y="getY(item.popularity_score) + 3"
                                 text-anchor="middle"
-                                class="fill-white font-extrabold text-[8px] pointer-events-none"
+                                class="pointer-events-none fill-white text-[8px] font-extrabold"
                             >
                                 {{ item.name.substring(0, 2).toUpperCase() }}
                             </text>
@@ -381,27 +679,74 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                     </svg>
 
                     <!-- Text indicator if empty -->
-                    <p v-if="!scoring.length" class="text-center text-muted-foreground py-24">Chưa có dữ liệu đơn hàng để phân tích.</p>
+                    <p
+                        v-if="!scoring.length"
+                        class="py-24 text-center text-muted-foreground"
+                    >
+                        Chưa có dữ liệu đơn hàng để phân tích.
+                    </p>
                 </div>
 
                 <!-- HTML Tooltip overlay -->
                 <transition name="fade">
-                    <div v-if="hoveredItem" class="absolute z-20 bg-card border border-border rounded-xl p-3.5 shadow-elevated max-w-xs pointer-events-none transition-all duration-150 ease-out" :style="tooltipStyle">
+                    <div
+                        v-if="hoveredItem"
+                        class="shadow-elevated pointer-events-none absolute z-20 max-w-xs rounded-xl border border-border bg-card p-3.5 transition-all duration-150 ease-out"
+                        :style="tooltipStyle"
+                    >
                         <div class="flex items-center justify-between gap-4">
-                            <h4 class="font-bold text-xs text-foreground">{{ hoveredItem.name }}</h4>
-                            <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold', scoreBg(hoveredItem.composite_score), scoreColor(hoveredItem.composite_score)]">
+                            <h4 class="text-xs font-bold text-foreground">
+                                {{ hoveredItem.name }}
+                            </h4>
+                            <span
+                                :class="[
+                                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                    scoreBg(hoveredItem.composite_score),
+                                    scoreColor(hoveredItem.composite_score),
+                                ]"
+                            >
                                 {{ hoveredItem.composite_score }}/100
                             </span>
                         </div>
-                        <p class="text-[10px] text-muted-foreground mt-0.5 font-medium">Giá: {{ hoveredItem.price.toLocaleString() }}đ · Lợi nhuận {{ hoveredItem.margin }}%</p>
-                        
-                        <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-border/60 text-[9px] font-semibold">
-                            <div><span class="text-muted-foreground font-normal">Doanh số:</span> <p class="text-foreground font-bold mt-0.5">{{ hoveredItem.qty }} đơn</p></div>
-                            <div><span class="text-muted-foreground font-normal">Phổ biến:</span> <p class="text-foreground font-bold mt-0.5">{{ hoveredItem.popularity_score }}%</p></div>
-                            <div><span class="text-muted-foreground font-normal">Xu hướng:</span> <p class="text-foreground font-bold mt-0.5">{{ hoveredItem.trend_score }}/100</p></div>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-muted-foreground"
+                        >
+                            Giá: {{ hoveredItem.price.toLocaleString() }}đ · Lợi
+                            nhuận {{ hoveredItem.margin }}%
+                        </p>
+
+                        <div
+                            class="mt-2 grid grid-cols-3 gap-2 border-t border-border/60 pt-2 text-[9px] font-semibold"
+                        >
+                            <div>
+                                <span class="font-normal text-muted-foreground"
+                                    >Doanh số:</span
+                                >
+                                <p class="mt-0.5 font-bold text-foreground">
+                                    {{ hoveredItem.qty }} đơn
+                                </p>
+                            </div>
+                            <div>
+                                <span class="font-normal text-muted-foreground"
+                                    >Phổ biến:</span
+                                >
+                                <p class="mt-0.5 font-bold text-foreground">
+                                    {{ hoveredItem.popularity_score }}%
+                                </p>
+                            </div>
+                            <div>
+                                <span class="font-normal text-muted-foreground"
+                                    >Xu hướng:</span
+                                >
+                                <p class="mt-0.5 font-bold text-foreground">
+                                    {{ hoveredItem.trend_score }}/100
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="mt-2.5 text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-300 p-2 rounded-lg font-medium leading-normal border border-violet-500/20">
+                        <div
+                            class="mt-2.5 rounded-lg border border-violet-500/20 bg-violet-500/10 p-2 text-[10px] leading-normal font-medium text-violet-700 dark:text-violet-300"
+                        >
                             💡 {{ hoveredItem.suggestion }}
                         </div>
                     </div>
@@ -410,18 +755,27 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
 
             <!-- Table View -->
             <Card v-else>
-                <CardContent class="pt-5 p-0">
+                <CardContent class="p-0 pt-5">
                     <div class="px-5 pb-3">
-                        <p class="font-semibold text-sm mb-1">Bảng điểm Menu ({{ days }} ngày gần nhất)</p>
-                        <p class="text-xs text-muted-foreground">Điểm tổng hợp = Popularity (40%) × Profitability (35%) × Trend (25%)</p>
+                        <p class="mb-1 text-sm font-semibold">
+                            Bảng điểm Menu ({{ days }} ngày gần nhất)
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                            Điểm tổng hợp = Popularity (40%) × Profitability
+                            (35%) × Trend (25%)
+                        </p>
                     </div>
-                    <table class="w-full text-sm border-t border-border">
+                    <table class="w-full border-t border-border text-sm">
                         <thead class="bg-muted/50">
-                            <tr class="text-left text-xs text-muted-foreground border-b">
+                            <tr
+                                class="border-b text-left text-xs text-muted-foreground"
+                            >
                                 <th class="px-4 py-3">#</th>
                                 <th class="px-4 py-3">Món</th>
                                 <th class="px-4 py-3 text-center">Tổng điểm</th>
-                                <th class="px-4 py-3 text-center">Popularity</th>
+                                <th class="px-4 py-3 text-center">
+                                    Popularity
+                                </th>
                                 <th class="px-4 py-3 text-center">Profit</th>
                                 <th class="px-4 py-3 text-center">Trend</th>
                                 <th class="px-4 py-3 text-right">Doanh thu</th>
@@ -430,38 +784,85 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(item, idx) in scoring" :key="item.product_id" class="border-b last:border-0 hover:bg-muted/30">
-                                <td class="px-4 py-3 text-muted-foreground">{{ idx + 1 }}</td>
+                            <tr
+                                v-for="(item, idx) in scoring"
+                                :key="item.product_id"
+                                class="border-b last:border-0 hover:bg-muted/30"
+                            >
+                                <td class="px-4 py-3 text-muted-foreground">
+                                    {{ idx + 1 }}
+                                </td>
                                 <td class="px-4 py-3">
                                     <div>
-                                        <p class="font-medium">{{ item.name }}</p>
-                                        <p class="text-xs text-muted-foreground">{{ item.price.toLocaleString() }}đ | Margin {{ item.margin }}%</p>
+                                        <p class="font-medium">
+                                            {{ item.name }}
+                                        </p>
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ item.price.toLocaleString() }}đ |
+                                            Margin {{ item.margin }}%
+                                        </p>
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span :class="['inline-flex items-center rounded-full px-2.5 py-1 text-sm font-bold', scoreBg(item.composite_score), scoreColor(item.composite_score)]">
+                                    <span
+                                        :class="[
+                                            'inline-flex items-center rounded-full px-2.5 py-1 text-sm font-bold',
+                                            scoreBg(item.composite_score),
+                                            scoreColor(item.composite_score),
+                                        ]"
+                                    >
                                         {{ item.composite_score }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-center text-xs">{{ item.popularity_score }}</td>
-                                <td class="px-4 py-3 text-center text-xs">{{ item.profitability_score }}</td>
+                                <td class="px-4 py-3 text-center text-xs">
+                                    {{ item.popularity_score }}
+                                </td>
+                                <td class="px-4 py-3 text-center text-xs">
+                                    {{ item.profitability_score }}
+                                </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="flex items-center justify-center gap-0.5 text-xs">
-                                        <TrendingUp v-if="item.trend_score >= 60" class="size-3 text-green-500" />
-                                        <TrendingDown v-else-if="item.trend_score < 40" class="size-3 text-red-500" />
-                                        <Minus v-else class="size-3 text-muted-foreground" />
+                                    <span
+                                        class="flex items-center justify-center gap-0.5 text-xs"
+                                    >
+                                        <TrendingUp
+                                            v-if="item.trend_score >= 60"
+                                            class="size-3 text-green-500"
+                                        />
+                                        <TrendingDown
+                                            v-else-if="item.trend_score < 40"
+                                            class="size-3 text-red-500"
+                                        />
+                                        <Minus
+                                            v-else
+                                            class="size-3 text-muted-foreground"
+                                        />
                                         {{ item.trend_score }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-right text-xs font-medium">{{ item.revenue.toLocaleString() }}đ</td>
-                                <td class="px-4 py-3 text-right text-xs">{{ item.weekly_avg }}</td>
-                                <td class="px-4 py-3 text-xs max-w-xs">
-                                    <p class="line-clamp-2">{{ item.suggestion }}</p>
+                                <td
+                                    class="px-4 py-3 text-right text-xs font-medium"
+                                >
+                                    {{ item.revenue.toLocaleString() }}đ
+                                </td>
+                                <td class="px-4 py-3 text-right text-xs">
+                                    {{ item.weekly_avg }}
+                                </td>
+                                <td class="max-w-xs px-4 py-3 text-xs">
+                                    <p class="line-clamp-2">
+                                        {{ item.suggestion }}
+                                    </p>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
-                    <p v-if="!scoring.length" class="text-center text-muted-foreground py-12">Chưa có dữ liệu đơn hàng để phân tích.</p>
+                    <p
+                        v-if="!scoring.length"
+                        class="py-12 text-center text-muted-foreground"
+                    >
+                        Chưa có dữ liệu đơn hàng để phân tích.
+                    </p>
                 </CardContent>
             </Card>
         </div>
@@ -469,41 +870,86 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
         <!-- Tab: A/B Testing -->
         <div v-if="activeTab === 'ab-test'" class="space-y-4">
             <div class="flex justify-end">
-                <Button @click="openCreateTest()" class="gap-1.5 cursor-pointer rounded-xl bg-violet-600 hover:bg-violet-700 text-white transition active:scale-95 px-4 py-2 text-xs font-semibold">
+                <Button
+                    @click="openCreateTest()"
+                    class="cursor-pointer gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 active:scale-95"
+                >
                     <FlaskConical class="size-4" /> Tạo A/B Test mới
                 </Button>
             </div>
 
-            <Card v-for="test in priceTests" :key="test.id" class="hover:bg-muted/10 transition-colors">
-                <CardContent class="p-4 flex items-center justify-between">
+            <Card
+                v-for="test in priceTests"
+                :key="test.id"
+                class="transition-colors hover:bg-muted/10"
+            >
+                <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="font-medium text-sm">{{ test.name }}</p>
-                        <p class="text-xs text-muted-foreground mt-0.5">
-                            {{ test.product?.name }} |
-                            Giá gốc: {{ Number(test.original_price).toLocaleString() }}đ →
-                            Giá test: {{ Number(test.test_price).toLocaleString() }}đ
+                        <p class="text-sm font-medium">{{ test.name }}</p>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            {{ test.product?.name }} | Giá gốc:
+                            {{ Number(test.original_price).toLocaleString() }}đ
+                            → Giá test:
+                            {{ Number(test.test_price).toLocaleString() }}đ
                         </p>
                         <div v-if="test.results_json" class="mt-1 text-xs">
-                            <span class="text-muted-foreground">Orders: {{ test.orders_original }} vs {{ test.orders_test }}</span>
-                            <span v-if="test.results_json.impact_percent != null" class="ml-2 font-bold"
-                                :class="test.results_json.impact_percent >= 0 ? 'text-green-600' : 'text-red-500'">
-                                Impact: {{ test.results_json.impact_percent > 0 ? '+' : '' }}{{ test.results_json.impact_percent }}%
+                            <span class="text-muted-foreground"
+                                >Orders: {{ test.orders_original }} vs
+                                {{ test.orders_test }}</span
+                            >
+                            <span
+                                v-if="test.results_json.impact_percent != null"
+                                class="ml-2 font-bold"
+                                :class="
+                                    test.results_json.impact_percent >= 0
+                                        ? 'text-green-600'
+                                        : 'text-red-500'
+                                "
+                            >
+                                Impact:
+                                {{
+                                    test.results_json.impact_percent > 0
+                                        ? '+'
+                                        : ''
+                                }}{{ test.results_json.impact_percent }}%
                             </span>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <Badge :variant="test.status === 'running' ? 'default' : 'secondary'">{{ test.status }}</Badge>
-                        <Button v-if="test.status === 'running'" variant="outline" size="sm" @click="completeTest(test)" class="cursor-pointer">
-                            <Square class="size-3.5 mr-1" /> Kết thúc
+                        <Badge
+                            :variant="
+                                test.status === 'running'
+                                    ? 'default'
+                                    : 'secondary'
+                            "
+                            >{{ test.status }}</Badge
+                        >
+                        <Button
+                            v-if="test.status === 'running'"
+                            variant="outline"
+                            size="sm"
+                            @click="completeTest(test)"
+                            class="cursor-pointer"
+                        >
+                            <Square class="mr-1 size-3.5" /> Kết thúc
                         </Button>
-                        <Button v-if="test.status === 'running'" variant="ghost" size="sm" class="text-red-500 cursor-pointer" @click="cancelTest(test)">
+                        <Button
+                            v-if="test.status === 'running'"
+                            variant="ghost"
+                            size="sm"
+                            class="cursor-pointer text-red-500"
+                            @click="cancelTest(test)"
+                        >
                             Hủy
                         </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            <p v-if="!priceTests.length" class="text-center text-muted-foreground py-12 text-sm">
+            <p
+                v-if="!priceTests.length"
+                class="py-12 text-center text-sm text-muted-foreground"
+            >
                 Chưa có A/B test nào. Tạo test mới để so sánh hiệu quả giá bán.
             </p>
         </div>
@@ -511,14 +957,21 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
         <!-- Tab: Schedule -->
         <div v-if="activeTab === 'schedule'">
             <Card>
-                <CardContent class="pt-5 p-0">
+                <CardContent class="p-0 pt-5">
                     <div class="px-5 pb-3">
-                        <p class="font-semibold text-sm mb-1">Lịch hiển thị menu theo giờ & mùa</p>
-                        <p class="text-xs text-muted-foreground">Để trống = hiển thị cả ngày, mọi mùa. Chỉ áp dụng cho QR menu và online ordering.</p>
+                        <p class="mb-1 text-sm font-semibold">
+                            Lịch hiển thị menu theo giờ & mùa
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                            Để trống = hiển thị cả ngày, mọi mùa. Chỉ áp dụng
+                            cho QR menu và online ordering.
+                        </p>
                     </div>
-                    <table class="w-full text-sm border-t border-border">
+                    <table class="w-full border-t border-border text-sm">
                         <thead class="bg-muted/50">
-                            <tr class="text-left text-xs text-muted-foreground border-b">
+                            <tr
+                                class="border-b text-left text-xs text-muted-foreground"
+                            >
                                 <th class="px-4 py-3">Món</th>
                                 <th class="px-4 py-3">Giá</th>
                                 <th class="px-4 py-3">Khung giờ</th>
@@ -526,25 +979,57 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="item in scoring" :key="item.product_id" class="border-b last:border-0 hover:bg-muted/10 transition-colors">
-                                <td class="px-4 py-3 font-medium">{{ item.name }}</td>
-                                <td class="px-4 py-3 text-xs text-muted-foreground">{{ item.price.toLocaleString() }}đ</td>
+                            <tr
+                                v-for="item in scoring"
+                                :key="item.product_id"
+                                class="border-b transition-colors last:border-0 hover:bg-muted/10"
+                            >
+                                <td class="px-4 py-3 font-medium">
+                                    {{ item.name }}
+                                </td>
+                                <td
+                                    class="px-4 py-3 text-xs text-muted-foreground"
+                                >
+                                    {{ item.price.toLocaleString() }}đ
+                                </td>
                                 <td class="px-4 py-3">
                                     <select
-                                        class="h-8 rounded-md border bg-background px-2 text-xs border-border cursor-pointer"
-                                        @change="(e: any) => updateSchedule(item.product_id, 'time_slot', e.target.value)"
+                                        class="h-8 cursor-pointer rounded-md border border-border bg-background px-2 text-xs"
+                                        @change="
+                                            (e: any) =>
+                                                updateSchedule(
+                                                    item.product_id,
+                                                    'time_slot',
+                                                    e.target.value,
+                                                )
+                                        "
                                     >
                                         <option value="">Cả ngày</option>
-                                        <option value="morning">Sáng (trước 11h)</option>
-                                        <option value="lunch">Trưa (11h-14h)</option>
-                                        <option value="afternoon">Chiều (14h-17h)</option>
-                                        <option value="dinner">Tối (sau 17h)</option>
+                                        <option value="morning">
+                                            Sáng (trước 11h)
+                                        </option>
+                                        <option value="lunch">
+                                            Trưa (11h-14h)
+                                        </option>
+                                        <option value="afternoon">
+                                            Chiều (14h-17h)
+                                        </option>
+                                        <option value="dinner">
+                                            Tối (sau 17h)
+                                        </option>
                                     </select>
                                 </td>
                                 <td class="px-4 py-3">
                                     <select
-                                        class="h-8 rounded-md border bg-background px-2 text-xs border-border cursor-pointer"
-                                        @change="(e: any) => updateSchedule(item.product_id, 'season', e.target.value)"
+                                        class="h-8 cursor-pointer rounded-md border border-border bg-background px-2 text-xs"
+                                        @change="
+                                            (e: any) =>
+                                                updateSchedule(
+                                                    item.product_id,
+                                                    'season',
+                                                    e.target.value,
+                                                )
+                                        "
                                     >
                                         <option value="">Quanh năm</option>
                                         <option value="spring">Xuân</option>
@@ -570,25 +1055,45 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
             <form @submit.prevent="submitTest" class="space-y-4">
                 <div class="grid gap-1.5">
                     <Label>Chọn món</Label>
-                    <select v-model="testForm.product_id" required class="h-9 w-full rounded-md border bg-background px-3 text-sm">
+                    <select
+                        v-model="testForm.product_id"
+                        required
+                        class="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    >
                         <option :value="null" disabled>Chọn món...</option>
-                        <option v-for="s in scoring" :key="s.product_id" :value="s.product_id">
+                        <option
+                            v-for="s in scoring"
+                            :key="s.product_id"
+                            :value="s.product_id"
+                        >
                             {{ s.name }} ({{ s.price.toLocaleString() }}đ)
                         </option>
                     </select>
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Tên test</Label>
-                    <Input v-model="testForm.name" placeholder="Ví dụ: Test tăng giá Phở 10%" required />
+                    <Input
+                        v-model="testForm.name"
+                        placeholder="Ví dụ: Test tăng giá Phở 10%"
+                        required
+                    />
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Giá thử nghiệm (VND)</Label>
-                    <Input type="number" v-model="testForm.test_price" required />
+                    <Input
+                        type="number"
+                        v-model="testForm.test_price"
+                        required
+                    />
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">
                         <Label>Bắt đầu</Label>
-                        <Input type="date" v-model="testForm.start_at" required />
+                        <Input
+                            type="date"
+                            v-model="testForm.start_at"
+                            required
+                        />
                     </div>
                     <div class="grid gap-1.5">
                         <Label>Kết thúc</Label>
@@ -596,11 +1101,25 @@ const needsAttention = computed(() => props.scoring.filter(s => s.composite_scor
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" type="button" @click="showTestDialog = false">Hủy</Button>
-                    <Button type="submit" :disabled="testForm.processing" class="gap-1.5">
-                        <Loader2 v-if="testForm.processing" class="size-4 animate-spin" />
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="showTestDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="testForm.processing"
+                        class="gap-1.5"
+                    >
+                        <Loader2
+                            v-if="testForm.processing"
+                            class="size-4 animate-spin"
+                        />
                         <Play v-else class="size-4" />
-                        {{ testForm.processing ? 'Đang tạo...' : 'Bắt đầu test' }}
+                        {{
+                            testForm.processing ? 'Đang tạo...' : 'Bắt đầu test'
+                        }}
                     </Button>
                 </DialogFooter>
             </form>

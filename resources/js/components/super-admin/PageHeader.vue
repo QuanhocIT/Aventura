@@ -12,17 +12,26 @@ const props = defineProps<{
 
 <template>
     <div :class="cn('space-y-4', props.class)">
-        <div class="group flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            class="group flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="space-y-1">
                 <slot name="breadcrumb" />
-                <h1 class="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
+                <h1
+                    class="flex items-center gap-2.5 text-2xl font-bold tracking-tight"
+                >
                     <div
                         v-if="icon"
                         class="flex size-8 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 transition-all duration-300 group-hover:scale-105 group-hover:shadow-md group-hover:shadow-primary/10"
                     >
-                        <component :is="icon" class="size-5 shrink-0 text-primary/80" />
+                        <component
+                            :is="icon"
+                            class="size-5 shrink-0 text-primary/80"
+                        />
                     </div>
-                    <span class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-slate-300">
+                    <span
+                        class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-slate-300"
+                    >
                         {{ title }}
                     </span>
                 </h1>
@@ -34,6 +43,8 @@ const props = defineProps<{
                 <slot name="actions" />
             </div>
         </div>
-        <div class="h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+        <div
+            class="h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent"
+        />
     </div>
 </template>

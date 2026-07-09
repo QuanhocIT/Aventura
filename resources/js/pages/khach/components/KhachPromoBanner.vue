@@ -22,7 +22,8 @@ function dismissPromo() {
 }
 
 onMounted(() => {
-    promoDismissed.value = localStorage.getItem('aventura_promo_dismissed') === '1';
+    promoDismissed.value =
+        localStorage.getItem('aventura_promo_dismissed') === '1';
 });
 </script>
 
@@ -32,16 +33,26 @@ onMounted(() => {
             v-if="firstPromoBanner && !promoDismissed"
             class="border-y border-green-500/20 bg-gradient-to-r from-green-500/10 via-emerald-400/8 to-green-500/10"
         >
-            <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8">
+            <div
+                class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8"
+            >
                 <!-- Badge -->
-                <span class="hidden shrink-0 items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 sm:inline-flex dark:text-green-300">
+                <span
+                    class="hidden shrink-0 items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 sm:inline-flex dark:text-green-300"
+                >
                     🎉 {{ firstPromoBanner.title ?? 'Khuyến mãi' }}
                 </span>
 
                 <!-- Middle text -->
-                <p class="flex-1 text-center text-sm text-green-800 dark:text-green-200">
-                    <span class="font-semibold sm:hidden">{{ firstPromoBanner.title }} </span>
-                    <span class="opacity-80">{{ firstPromoBanner.subtitle }}</span>
+                <p
+                    class="flex-1 text-center text-sm text-green-800 dark:text-green-200"
+                >
+                    <span class="font-semibold sm:hidden"
+                        >{{ firstPromoBanner.title }}
+                    </span>
+                    <span class="opacity-80">{{
+                        firstPromoBanner.subtitle
+                    }}</span>
                 </p>
 
                 <!-- CTA -->
@@ -69,7 +80,10 @@ onMounted(() => {
 <style scoped>
 /* Promo strip dismiss */
 .promo-strip-leave-active {
-    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    transition:
+        max-height 0.3s ease,
+        opacity 0.3s ease,
+        padding 0.3s ease;
     overflow: hidden;
 }
 .promo-strip-leave-to {
@@ -79,9 +93,17 @@ onMounted(() => {
     padding-bottom: 0;
 }
 .promo-strip-enter-active {
-    transition: max-height 0.3s ease, opacity 0.3s ease;
+    transition:
+        max-height 0.3s ease,
+        opacity 0.3s ease;
     overflow: hidden;
 }
-.promo-strip-enter-from { max-height: 0; opacity: 0; }
-.promo-strip-enter-to   { max-height: 80px; opacity: 1; }
+.promo-strip-enter-from {
+    max-height: 0;
+    opacity: 0;
+}
+.promo-strip-enter-to {
+    max-height: 80px;
+    opacity: 1;
+}
 </style>

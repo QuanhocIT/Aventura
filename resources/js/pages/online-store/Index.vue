@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { 
-    ExternalLink, Globe, Loader2, Save, Copy, Check, 
-    Image as ImageIcon, ShoppingBag, Truck, Calendar, 
-    DollarSign, MapPin, Store, FileText, AlertTriangle 
+import {
+    ExternalLink,
+    Globe,
+    Loader2,
+    Save,
+    Copy,
+    Check,
+    Image as ImageIcon,
+    ShoppingBag,
+    Truck,
+    Calendar,
+    DollarSign,
+    MapPin,
+    Store,
+    FileText,
+    AlertTriangle,
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -32,7 +44,7 @@ watch(
         if (flash?.error) {
             toast.error(flash.error);
         }
-    }
+    },
 );
 
 const form = useForm({
@@ -70,30 +82,45 @@ function submit() {
 <template>
     <Head title="Cấu hình Cửa hàng Online" />
 
-    <div class="flex flex-col gap-5 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
         <!-- ── Header ──────────────────────────────────────────────────────── -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
+        <div
+            class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <div
+                    class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                >
                     <Globe class="size-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight">Cửa hàng Online</h1>
-                    <p class="text-sm text-muted-foreground">Cấu hình trang đặt hàng online cho khách hàng của bạn.</p>
+                    <h1 class="text-xl font-bold tracking-tight">
+                        Cửa hàng Online
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        Cấu hình trang đặt hàng online cho khách hàng của bạn.
+                    </p>
                 </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex shrink-0 items-center gap-2">
                 <button
                     v-if="storeUrl"
                     type="button"
                     @click="copyStoreUrl"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95 text-foreground"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95"
                 >
-                    <component :is="isCopied ? Check : Copy" class="size-3.5" :class="isCopied ? 'text-emerald-500' : ''" />
+                    <component
+                        :is="isCopied ? Check : Copy"
+                        class="size-3.5"
+                        :class="isCopied ? 'text-emerald-500' : ''"
+                    />
                     {{ isCopied ? 'Đã chép' : 'Sao chép link' }}
                 </button>
-                <a v-if="storeUrl" :href="storeUrl" target="_blank"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95 text-foreground"
+                <a
+                    v-if="storeUrl"
+                    :href="storeUrl"
+                    target="_blank"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95"
                 >
                     <ExternalLink class="size-3.5" />
                     Xem trang
@@ -102,227 +129,453 @@ function submit() {
         </div>
 
         <form @submit.prevent="submit" class="space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <!-- ── Left Column: Brand & Service configuration (2/3 width) ── -->
-                <div class="lg:col-span-2 space-y-6">
-                    
+                <div class="space-y-6 lg:col-span-2">
                     <!-- Nhận diện cửa hàng -->
-                    <Card class="shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-border bg-slate-50/50 dark:bg-slate-900/20">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Card class="overflow-hidden shadow-sm">
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <h3
+                                class="flex items-center gap-2 text-sm font-bold text-foreground"
+                            >
                                 <Store class="size-4.5 text-blue-500" />
                                 Thiết lập Nhận diện & Thương hiệu
                             </h3>
-                            <p class="text-xs text-muted-foreground mt-0.5">Cấu hình đường dẫn kết nối và hình ảnh đại diện thương hiệu.</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Cấu hình đường dẫn kết nối và hình ảnh đại diện
+                                thương hiệu.
+                            </p>
                         </div>
-                        <CardContent class="p-6 space-y-5">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CardContent class="space-y-5 p-6">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div class="grid gap-1.5">
-                                    <Label class="font-bold text-xs flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Đường dẫn cửa hàng (Slug)</Label>
+                                    <Label
+                                        class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                        >Đường dẫn cửa hàng (Slug)</Label
+                                    >
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs font-bold text-muted-foreground bg-muted px-3 py-2.5 rounded-xl border border-border">/order/</span>
-                                        <Input v-model="form.slug" placeholder="ten-nha-hang" class="rounded-xl h-10 font-bold" />
+                                        <span
+                                            class="rounded-xl border border-border bg-muted px-3 py-2.5 text-xs font-bold text-muted-foreground"
+                                            >/order/</span
+                                        >
+                                        <Input
+                                            v-model="form.slug"
+                                            placeholder="ten-nha-hang"
+                                            class="h-10 rounded-xl font-bold"
+                                        />
                                     </div>
-                                    <p v-if="form.errors.slug" class="text-xs text-rose-500 font-semibold mt-1">{{ form.errors.slug }}</p>
+                                    <p
+                                        v-if="form.errors.slug"
+                                        class="mt-1 text-xs font-semibold text-rose-500"
+                                    >
+                                        {{ form.errors.slug }}
+                                    </p>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label class="font-bold text-xs flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Đường dẫn Banner URL</Label>
+                                    <Label
+                                        class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                        >Đường dẫn Banner URL</Label
+                                    >
                                     <div class="relative">
-                                        <Input v-model="form.banner_url" placeholder="https://images.unsplash.com/..." class="rounded-xl h-10 pl-8 text-xs" />
-                                        <ImageIcon class="absolute left-2.5 top-3 size-4 text-muted-foreground/60" />
+                                        <Input
+                                            v-model="form.banner_url"
+                                            placeholder="https://images.unsplash.com/..."
+                                            class="h-10 rounded-xl pl-8 text-xs"
+                                        />
+                                        <ImageIcon
+                                            class="absolute top-3 left-2.5 size-4 text-muted-foreground/60"
+                                        />
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Live Banner Preview Card -->
                             <div class="grid gap-1.5 pt-2">
-                                <Label class="font-bold text-xs text-muted-foreground uppercase tracking-wider">Xem trước ảnh bìa (Live Preview)</Label>
-                                <div class="relative w-full h-36 rounded-xl overflow-hidden border border-border bg-slate-50 dark:bg-slate-900 flex items-center justify-center group">
-                                    <img 
-                                        v-if="form.banner_url" 
-                                        :src="form.banner_url" 
-                                        alt="Banner Preview" 
-                                        class="w-full h-full object-cover transition duration-300 group-hover:scale-102"
+                                <Label
+                                    class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                    >Xem trước ảnh bìa (Live Preview)</Label
+                                >
+                                <div
+                                    class="group relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-slate-50 dark:bg-slate-900"
+                                >
+                                    <img
+                                        v-if="form.banner_url"
+                                        :src="form.banner_url"
+                                        alt="Banner Preview"
+                                        class="h-full w-full object-cover transition duration-300 group-hover:scale-102"
                                     />
-                                    <div v-else class="flex flex-col items-center gap-2 text-muted-foreground/50">
+                                    <div
+                                        v-else
+                                        class="flex flex-col items-center gap-2 text-muted-foreground/50"
+                                    >
                                         <ImageIcon class="size-8 stroke-1" />
-                                        <span class="text-xs font-medium">Chưa có ảnh bìa thiết lập</span>
+                                        <span class="text-xs font-medium"
+                                            >Chưa có ảnh bìa thiết lập</span
+                                        >
                                     </div>
                                     <!-- Visual Overlay if image exists -->
-                                    <div v-if="form.banner_url" class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4">
+                                    <div
+                                        v-if="form.banner_url"
+                                        class="absolute inset-0 flex items-end bg-gradient-to-t from-slate-950/70 via-transparent to-transparent p-4"
+                                    >
                                         <div class="text-white">
-                                            <p class="text-sm font-extrabold">{{ form.slug ? '/' + form.slug : 'Aventura Online Store' }}</p>
-                                            <p class="text-[10px] text-slate-300 mt-0.5">Đặt hàng trực tuyến mượt mà</p>
+                                            <p class="text-sm font-extrabold">
+                                                {{
+                                                    form.slug
+                                                        ? '/' + form.slug
+                                                        : 'Aventura Online Store'
+                                                }}
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-[10px] text-slate-300"
+                                            >
+                                                Đặt hàng trực tuyến mượt mà
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="grid gap-1.5">
-                                <Label class="font-bold text-xs flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Mô tả ngắn nhà hàng</Label>
+                                <Label
+                                    class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                    >Mô tả ngắn nhà hàng</Label
+                                >
                                 <div class="relative">
-                                    <Input v-model="form.description" placeholder="Chào mừng quý khách đến với cửa hàng đặt món trực tuyến của chúng tôi..." class="rounded-xl h-10 pl-8 text-xs" />
-                                    <FileText class="absolute left-2.5 top-3 size-4 text-muted-foreground/60" />
+                                    <Input
+                                        v-model="form.description"
+                                        placeholder="Chào mừng quý khách đến với cửa hàng đặt món trực tuyến của chúng tôi..."
+                                        class="h-10 rounded-xl pl-8 text-xs"
+                                    />
+                                    <FileText
+                                        class="absolute top-3 left-2.5 size-4 text-muted-foreground/60"
+                                    />
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
 
                     <!-- Fulfillment Options (Các hình thức phục vụ) -->
-                    <Card class="shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-border bg-slate-50/50 dark:bg-slate-900/20">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Card class="overflow-hidden shadow-sm">
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <h3
+                                class="flex items-center gap-2 text-sm font-bold text-foreground"
+                            >
                                 <ShoppingBag class="size-4.5 text-indigo-500" />
                                 Hình thức phục vụ khách hàng
                             </h3>
-                            <p class="text-xs text-muted-foreground mt-0.5">Lựa chọn các hình thức cung cấp dịch vụ trên trang đặt hàng.</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Lựa chọn các hình thức cung cấp dịch vụ trên
+                                trang đặt hàng.
+                            </p>
                         </div>
                         <CardContent class="p-6">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <!-- Option 1: Takeaway (Mang về) -->
-                                <div 
-                                    @click="form.enable_takeaway = !form.enable_takeaway"
+                                <div
+                                    @click="
+                                        form.enable_takeaway =
+                                            !form.enable_takeaway
+                                    "
                                     :class="[
-                                        'relative flex flex-col p-4 rounded-2xl border cursor-pointer select-none transition-all duration-200 gap-3 group',
-                                        form.enable_takeaway 
-                                            ? 'border-indigo-500 bg-indigo-500/[0.03] dark:bg-indigo-950/10' 
-                                            : 'border-border bg-card hover:bg-muted/30'
+                                        'group relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition-all duration-200 select-none',
+                                        form.enable_takeaway
+                                            ? 'border-indigo-500 bg-indigo-500/[0.03] dark:bg-indigo-950/10'
+                                            : 'border-border bg-card hover:bg-muted/30',
                                     ]"
                                 >
-                                    <div class="flex items-center justify-between">
-                                        <div :class="['p-2 rounded-xl border transition-colors', form.enable_takeaway ? 'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:text-indigo-400 dark:border-indigo-900/50' : 'bg-muted text-muted-foreground border-border']">
+                                    <div
+                                        class="flex items-center justify-between"
+                                    >
+                                        <div
+                                            :class="[
+                                                'rounded-xl border p-2 transition-colors',
+                                                form.enable_takeaway
+                                                    ? 'border-indigo-200 bg-indigo-500/10 text-indigo-600 dark:border-indigo-900/50 dark:text-indigo-400'
+                                                    : 'border-border bg-muted text-muted-foreground',
+                                            ]"
+                                        >
                                             <ShoppingBag class="size-4.5" />
                                         </div>
-                                        <div v-if="form.enable_takeaway" class="h-4.5 w-4.5 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold"><Check class="size-3 stroke-3" /></div>
+                                        <div
+                                            v-if="form.enable_takeaway"
+                                            class="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white"
+                                        >
+                                            <Check class="size-3 stroke-3" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <p class="text-xs font-black text-foreground">Tự đến lấy (Takeaway)</p>
-                                        <p class="text-[10px] text-muted-foreground mt-0.5">Cho phép khách đặt món và tự qua cửa hàng lấy đồ.</p>
+                                        <p
+                                            class="text-xs font-black text-foreground"
+                                        >
+                                            Tự đến lấy (Takeaway)
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[10px] text-muted-foreground"
+                                        >
+                                            Cho phép khách đặt món và tự qua cửa
+                                            hàng lấy đồ.
+                                        </p>
                                     </div>
                                 </div>
 
                                 <!-- Option 2: Delivery (Giao hàng) -->
-                                <div 
-                                    @click="form.enable_delivery = !form.enable_delivery"
+                                <div
+                                    @click="
+                                        form.enable_delivery =
+                                            !form.enable_delivery
+                                    "
                                     :class="[
-                                        'relative flex flex-col p-4 rounded-2xl border cursor-pointer select-none transition-all duration-200 gap-3 group',
-                                        form.enable_delivery 
-                                            ? 'border-emerald-500 bg-emerald-500/[0.03] dark:bg-emerald-950/10' 
-                                            : 'border-border bg-card hover:bg-muted/30'
+                                        'group relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition-all duration-200 select-none',
+                                        form.enable_delivery
+                                            ? 'border-emerald-500 bg-emerald-500/[0.03] dark:bg-emerald-950/10'
+                                            : 'border-border bg-card hover:bg-muted/30',
                                     ]"
                                 >
-                                    <div class="flex items-center justify-between">
-                                        <div :class="['p-2 rounded-xl border transition-colors', form.enable_delivery ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-900/50' : 'bg-muted text-muted-foreground border-border']">
+                                    <div
+                                        class="flex items-center justify-between"
+                                    >
+                                        <div
+                                            :class="[
+                                                'rounded-xl border p-2 transition-colors',
+                                                form.enable_delivery
+                                                    ? 'border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-900/50 dark:text-emerald-400'
+                                                    : 'border-border bg-muted text-muted-foreground',
+                                            ]"
+                                        >
                                             <Truck class="size-4.5" />
                                         </div>
-                                        <div v-if="form.enable_delivery" class="h-4.5 w-4.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold"><Check class="size-3 stroke-3" /></div>
+                                        <div
+                                            v-if="form.enable_delivery"
+                                            class="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white"
+                                        >
+                                            <Check class="size-3 stroke-3" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <p class="text-xs font-black text-foreground">Giao tận nơi (Delivery)</p>
-                                        <p class="text-[10px] text-muted-foreground mt-0.5">Tích hợp giao hàng tận nhà theo phạm vi thiết lập phí ship.</p>
+                                        <p
+                                            class="text-xs font-black text-foreground"
+                                        >
+                                            Giao tận nơi (Delivery)
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[10px] text-muted-foreground"
+                                        >
+                                            Tích hợp giao hàng tận nhà theo phạm
+                                            vi thiết lập phí ship.
+                                        </p>
                                     </div>
                                 </div>
 
                                 <!-- Option 3: Preorder (Đặt trước) -->
-                                <div 
-                                    @click="form.enable_preorder = !form.enable_preorder"
+                                <div
+                                    @click="
+                                        form.enable_preorder =
+                                            !form.enable_preorder
+                                    "
                                     :class="[
-                                        'relative flex flex-col p-4 rounded-2xl border cursor-pointer select-none transition-all duration-200 gap-3 group',
-                                        form.enable_preorder 
-                                            ? 'border-amber-500 bg-amber-500/[0.03] dark:bg-amber-950/10' 
-                                            : 'border-border bg-card hover:bg-muted/30'
+                                        'group relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition-all duration-200 select-none',
+                                        form.enable_preorder
+                                            ? 'border-amber-500 bg-amber-500/[0.03] dark:bg-amber-950/10'
+                                            : 'border-border bg-card hover:bg-muted/30',
                                     ]"
                                 >
-                                    <div class="flex items-center justify-between">
-                                        <div :class="['p-2 rounded-xl border transition-colors', form.enable_preorder ? 'bg-amber-500/10 text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-900/50' : 'bg-muted text-muted-foreground border-border']">
+                                    <div
+                                        class="flex items-center justify-between"
+                                    >
+                                        <div
+                                            :class="[
+                                                'rounded-xl border p-2 transition-colors',
+                                                form.enable_preorder
+                                                    ? 'border-amber-200 bg-amber-500/10 text-amber-600 dark:border-amber-900/50 dark:text-amber-400'
+                                                    : 'border-border bg-muted text-muted-foreground',
+                                            ]"
+                                        >
                                             <Calendar class="size-4.5" />
                                         </div>
-                                        <div v-if="form.enable_preorder" class="h-4.5 w-4.5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[9px] font-bold"><Check class="size-3 stroke-3" /></div>
+                                        <div
+                                            v-if="form.enable_preorder"
+                                            class="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white"
+                                        >
+                                            <Check class="size-3 stroke-3" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <p class="text-xs font-black text-foreground">Lên lịch trước (Preorder)</p>
-                                        <p class="text-[10px] text-muted-foreground mt-0.5">Khách hàng lên lịch hẹn ngày/giờ nhận món trong tương lai.</p>
+                                        <p
+                                            class="text-xs font-black text-foreground"
+                                        >
+                                            Lên lịch trước (Preorder)
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[10px] text-muted-foreground"
+                                        >
+                                            Khách hàng lên lịch hẹn ngày/giờ
+                                            nhận món trong tương lai.
+                                        </p>
                                     </div>
                                 </div>
-
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
                 <!-- ── Right Column: Status Toggle & Shipping Rules (1/3 width) ── -->
-                <div class="lg:col-span-1 space-y-6">
-                    
+                <div class="space-y-6 lg:col-span-1">
                     <!-- Hoạt động Switch -->
-                    <Card class="shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-border bg-slate-50/50 dark:bg-slate-900/20">
-                            <p class="font-bold text-sm text-foreground">Trạng thái Cửa hàng</p>
-                            <p class="text-xs text-muted-foreground mt-0.5">Đóng/Mở kết nối trực tuyến nhanh.</p>
+                    <Card class="overflow-hidden shadow-sm">
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <p class="text-sm font-bold text-foreground">
+                                Trạng thái Cửa hàng
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Đóng/Mở kết nối trực tuyến nhanh.
+                            </p>
                         </div>
-                        <CardContent class="p-6 flex flex-col gap-4">
+                        <CardContent class="flex flex-col gap-4 p-6">
                             <!-- Glowing status block -->
-                            <div 
-                                class="p-4 rounded-2xl border transition-all duration-300 text-center flex flex-col items-center gap-1"
+                            <div
+                                class="flex flex-col items-center gap-1 rounded-2xl border p-4 text-center transition-all duration-300"
                                 :class="[
                                     form.is_active
-                                        ? 'bg-emerald-500/10 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400 shadow-sm shadow-emerald-500/5'
-                                        : 'bg-rose-500/10 border-rose-200 dark:border-rose-900/40 text-rose-800 dark:text-rose-400 shadow-sm shadow-rose-500/5'
+                                        ? 'border-emerald-200 bg-emerald-500/10 text-emerald-800 shadow-sm shadow-emerald-500/5 dark:border-emerald-900/40 dark:text-emerald-400'
+                                        : 'border-rose-200 bg-rose-500/10 text-rose-800 shadow-sm shadow-rose-500/5 dark:border-rose-900/40 dark:text-rose-400',
                                 ]"
                             >
                                 <div class="flex items-center gap-2">
-                                    <span class="size-2.5 rounded-full" :class="form.is_active ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'" />
-                                    <span class="text-xs font-black uppercase tracking-wider">{{ form.is_active ? 'Cửa hàng Đang mở' : 'Cửa hàng Đang đóng' }}</span>
+                                    <span
+                                        class="size-2.5 rounded-full"
+                                        :class="
+                                            form.is_active
+                                                ? 'animate-pulse bg-emerald-500'
+                                                : 'bg-rose-500'
+                                        "
+                                    />
+                                    <span
+                                        class="text-xs font-black tracking-wider uppercase"
+                                        >{{
+                                            form.is_active
+                                                ? 'Cửa hàng Đang mở'
+                                                : 'Cửa hàng Đang đóng'
+                                        }}</span
+                                    >
                                 </div>
-                                <span class="text-[10px] text-muted-foreground mt-1 leading-normal">
-                                    {{ form.is_active ? 'Khách hàng có thể truy cập liên kết và đặt đơn món ăn bình thường.' : 'Tạm thời chặn kết nối đặt món trực tuyến từ khách hàng.' }}
+                                <span
+                                    class="mt-1 text-[10px] leading-normal text-muted-foreground"
+                                >
+                                    {{
+                                        form.is_active
+                                            ? 'Khách hàng có thể truy cập liên kết và đặt đơn món ăn bình thường.'
+                                            : 'Tạm thời chặn kết nối đặt món trực tuyến từ khách hàng.'
+                                    }}
                                 </span>
                             </div>
 
-                            <label class="flex items-center justify-between cursor-pointer p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors w-full group">
-                                <span class="text-xs font-bold text-foreground">Trạng thái hoạt động</span>
-                                <input type="checkbox" v-model="form.is_active" class="sr-only peer" />
-                                <div class="relative w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                            <label
+                                class="group flex w-full cursor-pointer items-center justify-between rounded-xl border border-border bg-muted/20 p-3 transition-colors hover:bg-muted/40"
+                            >
+                                <span class="text-xs font-bold text-foreground"
+                                    >Trạng thái hoạt động</span
+                                >
+                                <input
+                                    type="checkbox"
+                                    v-model="form.is_active"
+                                    class="peer sr-only"
+                                />
+                                <div
+                                    class="peer relative h-5 w-9 rounded-full bg-slate-200 peer-checked:bg-blue-600 peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:border-gray-600 dark:bg-slate-700"
+                                ></div>
                             </label>
                         </CardContent>
                     </Card>
 
                     <!-- Quy tắc vận chuyển & Đơn hàng -->
-                    <Card class="shadow-sm overflow-hidden" v-if="form.enable_delivery">
-                        <div class="p-5 border-b border-border bg-slate-50/50 dark:bg-slate-900/20">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Card
+                        class="overflow-hidden shadow-sm"
+                        v-if="form.enable_delivery"
+                    >
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <h3
+                                class="flex items-center gap-2 text-sm font-bold text-foreground"
+                            >
                                 <Truck class="size-4.5 text-emerald-500" />
                                 Thiết lập Giao hàng & Phí ship
                             </h3>
                         </div>
-                        <CardContent class="p-6 space-y-4">
+                        <CardContent class="space-y-4 p-6">
                             <div class="grid gap-1.5">
-                                <Label class="font-bold text-[10px] flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Phí ship cơ bản (VND)</Label>
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                    >Phí ship cơ bản (VND)</Label
+                                >
                                 <div class="relative">
-                                    <Input type="number" v-model="form.delivery_base_fee" class="rounded-xl h-10 pl-8 font-mono text-xs font-bold" />
-                                    <DollarSign class="absolute left-2.5 top-3 size-4 text-muted-foreground/60" />
+                                    <Input
+                                        type="number"
+                                        v-model="form.delivery_base_fee"
+                                        class="h-10 rounded-xl pl-8 font-mono text-xs font-bold"
+                                    />
+                                    <DollarSign
+                                        class="absolute top-3 left-2.5 size-4 text-muted-foreground/60"
+                                    />
                                 </div>
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="font-bold text-[10px] flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Phí cộng thêm mỗi km (VND)</Label>
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                    >Phí cộng thêm mỗi km (VND)</Label
+                                >
                                 <div class="relative">
-                                    <Input type="number" v-model="form.delivery_fee_per_km" class="rounded-xl h-10 pl-8 font-mono text-xs font-bold" />
-                                    <DollarSign class="absolute left-2.5 top-3 size-4 text-muted-foreground/60" />
+                                    <Input
+                                        type="number"
+                                        v-model="form.delivery_fee_per_km"
+                                        class="h-10 rounded-xl pl-8 font-mono text-xs font-bold"
+                                    />
+                                    <DollarSign
+                                        class="absolute top-3 left-2.5 size-4 text-muted-foreground/60"
+                                    />
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="grid gap-1.5">
-                                    <Label class="font-bold text-[10px] flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Bán kính tối đa</Label>
+                                    <Label
+                                        class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                        >Bán kính tối đa</Label
+                                    >
                                     <div class="relative">
-                                        <Input type="number" step="0.5" v-model="form.max_delivery_km" class="rounded-xl h-10 pr-8 font-mono text-xs font-bold text-right" />
-                                        <span class="absolute right-2.5 top-2.5 text-xxs font-bold text-muted-foreground/60">km</span>
+                                        <Input
+                                            type="number"
+                                            step="0.5"
+                                            v-model="form.max_delivery_km"
+                                            class="h-10 rounded-xl pr-8 text-right font-mono text-xs font-bold"
+                                        />
+                                        <span
+                                            class="text-xxs absolute top-2.5 right-2.5 font-bold text-muted-foreground/60"
+                                            >km</span
+                                        >
                                     </div>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label class="font-bold text-[10px] flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">Đơn hàng tối thiểu</Label>
+                                    <Label
+                                        class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                        >Đơn hàng tối thiểu</Label
+                                    >
                                     <div class="relative">
-                                        <Input type="number" v-model="form.min_order_amount" class="rounded-xl h-10 pr-10 font-mono text-[10px] font-bold text-right" />
-                                        <span class="absolute right-2.5 top-2.5 text-[9px] font-bold text-muted-foreground/60">VND</span>
+                                        <Input
+                                            type="number"
+                                            v-model="form.min_order_amount"
+                                            class="h-10 rounded-xl pr-10 text-right font-mono text-[10px] font-bold"
+                                        />
+                                        <span
+                                            class="absolute top-2.5 right-2.5 text-[9px] font-bold text-muted-foreground/60"
+                                            >VND</span
+                                        >
                                     </div>
                                 </div>
                             </div>
@@ -330,26 +583,41 @@ function submit() {
                     </Card>
 
                     <!-- Alert message when delivery is disabled -->
-                    <div 
-                        v-else 
-                        class="p-4 rounded-2xl border border-amber-250 bg-amber-50/40 text-amber-700 text-xs flex gap-2.5 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400"
+                    <div
+                        v-else
+                        class="border-amber-250 flex gap-2.5 rounded-2xl border bg-amber-50/40 p-4 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-400"
                     >
-                        <AlertTriangle class="size-4 shrink-0 mt-0.5 text-amber-600" />
-                        <p>Các cấu hình liên quan đến <strong>Phí ship</strong> và <strong>Bán kính giao hàng</strong> được ẩn đi do bạn đang tắt hình thức phục vụ <strong>Giao tận nơi</strong>.</p>
+                        <AlertTriangle
+                            class="mt-0.5 size-4 shrink-0 text-amber-600"
+                        />
+                        <p>
+                            Các cấu hình liên quan đến
+                            <strong>Phí ship</strong> và
+                            <strong>Bán kính giao hàng</strong> được ẩn đi do
+                            bạn đang tắt hình thức phục vụ
+                            <strong>Giao tận nơi</strong>.
+                        </p>
                     </div>
                 </div>
             </div>
 
             <!-- Submit Button Footer -->
-            <div class="flex justify-end pt-4 border-t border-border/80">
-                <Button 
-                    type="submit" 
+            <div class="flex justify-end border-t border-border/80 pt-4">
+                <Button
+                    type="submit"
                     :disabled="form.processing"
-                    class="gap-2 px-6 h-11 cursor-pointer rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md shadow-blue-500/10 transition duration-150 active:scale-95 disabled:opacity-50"
+                    class="h-11 cursor-pointer gap-2 rounded-xl bg-blue-600 px-6 font-semibold text-white shadow-md shadow-blue-500/10 transition duration-150 hover:bg-blue-700 active:scale-95 disabled:opacity-50"
                 >
-                    <Loader2 v-if="form.processing" class="size-4.5 animate-spin" />
+                    <Loader2
+                        v-if="form.processing"
+                        class="size-4.5 animate-spin"
+                    />
                     <Save v-else class="size-4.5" />
-                    {{ form.processing ? 'Đang lưu cấu hình...' : 'Lưu cấu hình cửa hàng' }}
+                    {{
+                        form.processing
+                            ? 'Đang lưu cấu hình...'
+                            : 'Lưu cấu hình cửa hàng'
+                    }}
                 </Button>
             </div>
         </form>

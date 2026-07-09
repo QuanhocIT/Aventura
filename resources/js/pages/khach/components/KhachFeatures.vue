@@ -275,7 +275,7 @@ onUnmounted(() => {
 <template>
     <section
         id="features"
-        class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-10 lg:py-12 lg:px-8"
+        class="relative mt-0 overflow-hidden border-y border-border bg-muted/30 px-4 py-10 lg:px-8 lg:py-12"
     >
         <!-- Decorative subtle background grids or glows -->
         <div
@@ -302,8 +302,8 @@ onUnmounted(() => {
                         class="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base"
                     >
                         Không marketing mơ hồ. Đây là các lớp chức năng khớp
-                        trực tiếp với schema database và báo cáo kỹ thuật
-                        thực tế đã chốt.
+                        trực tiếp với schema database và báo cáo kỹ thuật thực
+                        tế đã chốt.
                     </p>
                 </div>
 
@@ -343,19 +343,14 @@ onUnmounted(() => {
                                     activeFeature.color === 'indigo',
                                 'bg-emerald-500':
                                     activeFeature.color === 'emerald',
-                                'bg-amber-500':
-                                    activeFeature.color === 'amber',
+                                'bg-amber-500': activeFeature.color === 'amber',
                                 'bg-sky-500': activeFeature.color === 'sky',
-                                'bg-rose-500':
-                                    activeFeature.color === 'rose',
-                                'bg-blue-500':
-                                    activeFeature.color === 'blue',
-                                'bg-teal-500':
-                                    activeFeature.color === 'teal',
+                                'bg-rose-500': activeFeature.color === 'rose',
+                                'bg-blue-500': activeFeature.color === 'blue',
+                                'bg-teal-500': activeFeature.color === 'teal',
                                 'bg-violet-500':
                                     activeFeature.color === 'violet',
-                                'bg-cyan-500':
-                                    activeFeature.color === 'cyan',
+                                'bg-cyan-500': activeFeature.color === 'cyan',
                             }"
                         ></div>
 
@@ -413,11 +408,9 @@ onUnmounted(() => {
                                     class="border px-2 py-0.5 font-mono text-[9px] tracking-wider uppercase"
                                     :class="{
                                         'border-indigo-500/30 bg-indigo-950/20 text-indigo-400':
-                                            activeFeature.color ===
-                                            'indigo',
+                                            activeFeature.color === 'indigo',
                                         'border-emerald-500/30 bg-emerald-950/20 text-emerald-400':
-                                            activeFeature.color ===
-                                            'emerald',
+                                            activeFeature.color === 'emerald',
                                         'border-cyan-500/30 bg-cyan-950/20 text-cyan-400':
                                             activeFeature.color === 'cyan',
                                         'border-amber-500/30 bg-amber-950/20 text-amber-400':
@@ -431,8 +424,7 @@ onUnmounted(() => {
                                         'border-blue-500/30 bg-blue-950/20 text-blue-400':
                                             activeFeature.color === 'blue',
                                         'border-violet-500/30 bg-violet-950/20 text-violet-400':
-                                            activeFeature.color ===
-                                            'violet',
+                                            activeFeature.color === 'violet',
                                     }"
                                 >
                                     {{ activeFeature.status }}
@@ -441,7 +433,10 @@ onUnmounted(() => {
                         </div>
 
                         <Transition name="fade-slide-tab" mode="out-in">
-                            <div :key="activeFeature.title" class="flex flex-col flex-1 justify-between">
+                            <div
+                                :key="activeFeature.title"
+                                class="flex flex-1 flex-col justify-between"
+                            >
                                 <!-- Selected Feature Overview -->
                                 <div class="mt-4 space-y-3">
                                     <div class="flex items-center gap-3">
@@ -455,20 +450,26 @@ onUnmounted(() => {
                                                     activeFeature.color ===
                                                     'emerald',
                                                 'border-amber-500/30 bg-amber-950/50 text-amber-400':
-                                                    activeFeature.color === 'amber',
+                                                    activeFeature.color ===
+                                                    'amber',
                                                 'border-sky-500/30 bg-sky-950/50 text-sky-400':
-                                                    activeFeature.color === 'sky',
+                                                    activeFeature.color ===
+                                                    'sky',
                                                 'border-rose-500/30 bg-rose-950/50 text-rose-400':
-                                                    activeFeature.color === 'rose',
+                                                    activeFeature.color ===
+                                                    'rose',
                                                 'border-blue-500/30 bg-blue-950/50 text-blue-400':
-                                                    activeFeature.color === 'blue',
+                                                    activeFeature.color ===
+                                                    'blue',
                                                 'border-teal-500/30 bg-teal-950/50 text-teal-400':
-                                                    activeFeature.color === 'teal',
+                                                    activeFeature.color ===
+                                                    'teal',
                                                 'border-violet-500/30 bg-violet-950/50 text-violet-400':
                                                     activeFeature.color ===
                                                     'violet',
                                                 'border-cyan-500/30 bg-cyan-950/50 text-cyan-400':
-                                                    activeFeature.color === 'cyan',
+                                                    activeFeature.color ===
+                                                    'cyan',
                                             }"
                                         >
                                             <component
@@ -503,7 +504,9 @@ onUnmounted(() => {
                                     </p>
 
                                     <!-- Step 1: TRIGGER -->
-                                    <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative flex items-start gap-3"
+                                    >
                                         <div
                                             class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
                                             :class="{
@@ -514,20 +517,26 @@ onUnmounted(() => {
                                                     activeFeature.color ===
                                                     'emerald',
                                                 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                                    activeFeature.color === 'amber',
+                                                    activeFeature.color ===
+                                                    'amber',
                                                 'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                                    activeFeature.color === 'sky',
+                                                    activeFeature.color ===
+                                                    'sky',
                                                 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                                    activeFeature.color === 'rose',
+                                                    activeFeature.color ===
+                                                    'rose',
                                                 'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                                    activeFeature.color === 'blue',
+                                                    activeFeature.color ===
+                                                    'blue',
                                                 'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                                    activeFeature.color === 'teal',
+                                                    activeFeature.color ===
+                                                    'teal',
                                                 'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
                                                     activeFeature.color ===
                                                     'violet',
                                                 'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                                    activeFeature.color === 'cyan',
+                                                    activeFeature.color ===
+                                                    'cyan',
                                             }"
                                         ></div>
                                         <div
@@ -536,7 +545,8 @@ onUnmounted(() => {
                                         <div class="space-y-0.5">
                                             <span
                                                 class="font-mono text-[9px] text-zinc-500 uppercase"
-                                                >Trigger (Sự kiện kích hoạt)</span
+                                                >Trigger (Sự kiện kích
+                                                hoạt)</span
                                             >
                                             <p
                                                 class="text-xs font-semibold text-zinc-200"
@@ -547,7 +557,9 @@ onUnmounted(() => {
                                     </div>
 
                                     <!-- Step 2: PROCESS -->
-                                    <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative flex items-start gap-3"
+                                    >
                                         <div
                                             class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full"
                                             :class="{
@@ -558,20 +570,26 @@ onUnmounted(() => {
                                                     activeFeature.color ===
                                                     'emerald',
                                                 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                                    activeFeature.color === 'amber',
+                                                    activeFeature.color ===
+                                                    'amber',
                                                 'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                                    activeFeature.color === 'sky',
+                                                    activeFeature.color ===
+                                                    'sky',
                                                 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                                    activeFeature.color === 'rose',
+                                                    activeFeature.color ===
+                                                    'rose',
                                                 'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                                    activeFeature.color === 'blue',
+                                                    activeFeature.color ===
+                                                    'blue',
                                                 'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                                    activeFeature.color === 'teal',
+                                                    activeFeature.color ===
+                                                    'teal',
                                                 'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
                                                     activeFeature.color ===
                                                     'violet',
                                                 'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                                    activeFeature.color === 'cyan',
+                                                    activeFeature.color ===
+                                                    'cyan',
                                             }"
                                         ></div>
                                         <div
@@ -591,7 +609,9 @@ onUnmounted(() => {
                                     </div>
 
                                     <!-- Step 3: STORAGE -->
-                                    <div class="relative flex items-start gap-3">
+                                    <div
+                                        class="relative flex items-start gap-3"
+                                    >
                                         <div
                                             class="relative z-10 mt-2 h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full"
                                             :class="{
@@ -602,20 +622,26 @@ onUnmounted(() => {
                                                     activeFeature.color ===
                                                     'emerald',
                                                 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]':
-                                                    activeFeature.color === 'amber',
+                                                    activeFeature.color ===
+                                                    'amber',
                                                 'bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.8)]':
-                                                    activeFeature.color === 'sky',
+                                                    activeFeature.color ===
+                                                    'sky',
                                                 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]':
-                                                    activeFeature.color === 'rose',
+                                                    activeFeature.color ===
+                                                    'rose',
                                                 'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]':
-                                                    activeFeature.color === 'blue',
+                                                    activeFeature.color ===
+                                                    'blue',
                                                 'bg-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.8)]':
-                                                    activeFeature.color === 'teal',
+                                                    activeFeature.color ===
+                                                    'teal',
                                                 'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]':
                                                     activeFeature.color ===
                                                     'violet',
                                                 'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]':
-                                                    activeFeature.color === 'cyan',
+                                                    activeFeature.color ===
+                                                    'cyan',
                                             }"
                                         ></div>
                                         <div class="flex-grow space-y-0.5">
@@ -637,7 +663,8 @@ onUnmounted(() => {
                                     <div class="space-y-1">
                                         <span
                                             class="font-mono text-[9px] tracking-widest text-zinc-500 uppercase"
-                                            >MAPPED SCHEMAS (DATABASE TABLES)</span
+                                            >MAPPED SCHEMAS (DATABASE
+                                            TABLES)</span
                                         >
                                         <div class="flex flex-wrap gap-1.5">
                                             <code
@@ -689,7 +716,8 @@ onUnmounted(() => {
                                 <span
                                     class="h-1.5 w-1.5 animate-ping rounded-full bg-primary"
                                 ></span>
-                                TIẾN TRÌNH LUỒNG DỮ LIỆU SAAS (8 BƯỚC VẬN HÀNH CHÍNH)
+                                TIẾN TRÌNH LUỒNG DỮ LIỆU SAAS (8 BƯỚC VẬN HÀNH
+                                CHÍNH)
                             </span>
                             <div
                                 class="flex scrollbar-none items-center justify-between gap-1 overflow-x-auto rounded-xl border border-zinc-900/80 bg-zinc-900/20 p-2"
@@ -704,21 +732,18 @@ onUnmounted(() => {
                                             activeFeatureTitle = item.title;
                                             if (
                                                 activeCategory !== 'all' &&
-                                                activeCategory !==
-                                                    item.category
+                                                activeCategory !== item.category
                                             )
                                                 activeCategory = 'all';
                                         "
                                         class="group relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border font-mono text-xs transition-all duration-300"
                                         :class="
-                                            activeFeatureTitle ===
-                                            item.title
+                                            activeFeatureTitle === item.title
                                                 ? 'scale-110 border-white bg-white font-extrabold text-zinc-950 shadow-lg'
                                                 : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                                         "
                                         :style="
-                                            activeFeatureTitle ===
-                                            item.title
+                                            activeFeatureTitle === item.title
                                                 ? `box-shadow: 0 0 10px ${colorGlowBorder}`
                                                 : ''
                                         "
@@ -767,17 +792,14 @@ onUnmounted(() => {
                             <div
                                 class="absolute -right-10 -bottom-10 h-24 w-24 rounded-full opacity-0 blur-2xl transition-all duration-300 group-hover:opacity-10"
                                 :class="{
-                                    'bg-indigo-500':
-                                        item.color === 'indigo',
-                                    'bg-emerald-500':
-                                        item.color === 'emerald',
+                                    'bg-indigo-500': item.color === 'indigo',
+                                    'bg-emerald-500': item.color === 'emerald',
                                     'bg-amber-500': item.color === 'amber',
                                     'bg-sky-500': item.color === 'sky',
                                     'bg-rose-500': item.color === 'rose',
                                     'bg-blue-500': item.color === 'blue',
                                     'bg-teal-500': item.color === 'teal',
-                                    'bg-violet-500':
-                                        item.color === 'violet',
+                                    'bg-violet-500': item.color === 'violet',
                                     'bg-cyan-500': item.color === 'cyan',
                                 }"
                             ></div>
@@ -808,10 +830,7 @@ onUnmounted(() => {
                                             item.color === 'violet',
                                     }"
                                 >
-                                    <component
-                                        :is="item.icon"
-                                        class="size-5"
-                                    />
+                                    <component :is="item.icon" class="size-5" />
                                 </div>
 
                                 <div class="flex items-center gap-1.5">
@@ -839,12 +858,7 @@ onUnmounted(() => {
                                                 item.color === 'violet',
                                         }"
                                     >
-                                        {{
-                                            String(item.step).padStart(
-                                                2,
-                                                '0',
-                                            )
-                                        }}
+                                        {{ String(item.step).padStart(2, '0') }}
                                     </span>
                                     <!-- Inline DB Table hint -->
                                     <span

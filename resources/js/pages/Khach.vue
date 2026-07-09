@@ -73,9 +73,9 @@ onMounted(() => {
     // Observer for toggling sticky bottom CTA bar
     heroObserver = new IntersectionObserver(
         ([entry]) => {
-            showStickyCta.value = !entry.isIntersecting; 
+            showStickyCta.value = !entry.isIntersecting;
         },
-        { threshold: 0.1 }
+        { threshold: 0.1 },
     );
     const heroEl = document.getElementById('hero-section');
 
@@ -93,7 +93,7 @@ onMounted(() => {
                 }
             });
         },
-        { threshold: 0.1 }
+        { threshold: 0.1 },
     );
     document.querySelectorAll('.reveal-on-scroll').forEach((el) => {
         revealObserver?.observe(el);
@@ -109,9 +109,18 @@ onUnmounted(() => {
 <template>
     <AppTopbarLayout transparent>
         <Head title="Aventura | SaaS quản lý nhà hàng">
-            <meta name="description" content="Aventura - Nền tảng quản lý nhà hàng thông minh. QR Order, Kitchen Display, Quản lý Kho, Nhân sự, Báo cáo AI. Dùng thử miễn phí." />
-            <meta property="og:title" content="Aventura | SaaS quản lý nhà hàng" />
-            <meta property="og:description" content="Vận hành nhà hàng vượt trội — QR Order, Kitchen Display, AI Analytics. Dùng thử miễn phí 14 ngày." />
+            <meta
+                name="description"
+                content="Aventura - Nền tảng quản lý nhà hàng thông minh. QR Order, Kitchen Display, Quản lý Kho, Nhân sự, Báo cáo AI. Dùng thử miễn phí."
+            />
+            <meta
+                property="og:title"
+                content="Aventura | SaaS quản lý nhà hàng"
+            />
+            <meta
+                property="og:description"
+                content="Vận hành nhà hàng vượt trội — QR Order, Kitchen Display, AI Analytics. Dùng thử miễn phí 14 ngày."
+            />
             <meta property="og:type" content="website" />
             <meta name="twitter:card" content="summary_large_image" />
         </Head>
@@ -156,11 +165,17 @@ onUnmounted(() => {
         <KhachStats />
 
         <!-- 14. Call to Action / footer section -->
-        <section class="px-4 py-16 lg:py-20 lg:px-8 bg-gradient-to-b from-primary/5 via-transparent to-transparent">
+        <section
+            class="bg-gradient-to-b from-primary/5 via-transparent to-transparent px-4 py-16 lg:px-8 lg:py-20"
+        >
             <div
                 class="reveal-on-scroll mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
             >
-                <h2 class="text-3xl font-bold heading-section text-gradient-brand">Đăng ký và thử ngay</h2>
+                <h2
+                    class="heading-section text-gradient-brand text-3xl font-bold"
+                >
+                    Đăng ký và thử ngay
+                </h2>
                 <p class="max-w-2xl text-muted-foreground">
                     Aventura đủ gọn để thử, đủ sâu để chạy thật. Gói Free có hạn
                     mức rõ; gói Pro mở khóa phần cần kiểm soát.
@@ -170,12 +185,17 @@ onUnmounted(() => {
                         <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
                     <Button as-child variant="outline" size="lg">
-                        <a href="tel:0346858035" class="flex items-center gap-2">
+                        <a
+                            href="tel:0346858035"
+                            class="flex items-center gap-2"
+                        >
                             <span>📅</span> Đặt lịch demo với chuyên gia
                         </a>
                     </Button>
                 </div>
-                <p class="text-xs text-muted-foreground">Demo 30 phút · Không cam kết · Chuyên gia tư vấn 1:1</p>
+                <p class="text-xs text-muted-foreground">
+                    Demo 30 phút · Không cam kết · Chuyên gia tư vấn 1:1
+                </p>
             </div>
         </section>
     </AppTopbarLayout>
@@ -189,8 +209,9 @@ onUnmounted(() => {
 .reveal-on-scroll {
     opacity: 0;
     transform: translateY(24px);
-    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
-                transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+        opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reveal-on-scroll.revealed {
     opacity: 1;

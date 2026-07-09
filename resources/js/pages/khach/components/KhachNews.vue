@@ -26,21 +26,35 @@ const latestNewsList = computed(() => props.latestNews ?? []);
 
 <template>
     <!-- ── Tin tức mới nhất ──────────────────────────────────────── -->
-    <section v-if="latestNewsList.length > 0" id="news" class="px-4 py-10 lg:py-12 lg:px-8">
+    <section
+        v-if="latestNewsList.length > 0"
+        id="news"
+        class="px-4 py-10 lg:px-8 lg:py-12"
+    >
         <div class="mx-auto max-w-7xl">
             <div class="reveal-on-scroll flex items-end justify-between">
                 <div class="max-w-2xl">
-                    <Badge variant="outline" class="mb-3 border-primary/30 bg-primary/5 text-primary">Tin tức</Badge>
+                    <Badge
+                        variant="outline"
+                        class="mb-3 border-primary/30 bg-primary/5 text-primary"
+                        >Tin tức</Badge
+                    >
                     <h2 class="text-3xl font-semibold">Tin tức & Cập nhật</h2>
                     <p class="mt-3 text-muted-foreground">
-                        Những bài viết mới nhất về Aventura, nhà hàng và ngành dịch vụ ăn uống.
+                        Những bài viết mới nhất về Aventura, nhà hàng và ngành
+                        dịch vụ ăn uống.
                     </p>
                 </div>
-                <Link href="/tin-tuc" class="hidden shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline sm:flex">
+                <Link
+                    href="/tin-tuc"
+                    class="hidden shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline sm:flex"
+                >
                     Xem tất cả <ChevronRight class="size-4" />
                 </Link>
             </div>
-            <div class="reveal-on-scroll mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div
+                class="reveal-on-scroll mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4"
+            >
                 <NewsCard
                     v-for="post in latestNewsList"
                     :key="post.id"

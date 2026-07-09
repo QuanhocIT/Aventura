@@ -44,14 +44,16 @@ function getCellValue(row: any, key: string): any {
         <CardContent class="p-0">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
-                    <thead class="border-b border-border/60 bg-muted/20 backdrop-blur-sm">
+                    <thead
+                        class="border-b border-border/60 bg-muted/20 backdrop-blur-sm"
+                    >
                         <tr>
                             <th
                                 v-for="col in columns"
                                 :key="col.key"
                                 :class="
                                     cn(
-                                        'px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground',
+                                        'px-5 py-3 text-[10px] font-bold tracking-wider text-muted-foreground uppercase',
                                         col.align === 'center' && 'text-center',
                                         col.align === 'right' && 'text-right',
                                         col.width,
@@ -65,21 +67,35 @@ function getCellValue(row: any, key: string): any {
                     </thead>
 
                     <tbody v-if="loading">
-                        <tr v-for="i in 5" :key="i" class="border-b border-border/30 last:border-0">
-                            <td v-for="col in columns" :key="col.key" class="px-5 py-4">
+                        <tr
+                            v-for="i in 5"
+                            :key="i"
+                            class="border-b border-border/30 last:border-0"
+                        >
+                            <td
+                                v-for="col in columns"
+                                :key="col.key"
+                                class="px-5 py-4"
+                            >
                                 <Skeleton class="h-4 w-full max-w-[120px]" />
                             </td>
                         </tr>
                     </tbody>
 
                     <tbody v-else-if="rows.length > 0">
-                        <template v-for="(row, idx) in rows" :key="row.id ?? idx">
+                        <template
+                            v-for="(row, idx) in rows"
+                            :key="row.id ?? idx"
+                        >
                             <tr
                                 :class="
                                     cn(
-                                        'border-b border-border/30 last:border-0 transition-all duration-200',
-                                        hoverable && 'hover:bg-muted/20 hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_2px_12px_rgba(0,0,0,0.15)] hover:-translate-y-px',
-                                        striped && idx % 2 !== 0 && 'bg-muted/[0.06]',
+                                        'border-b border-border/30 transition-all duration-200 last:border-0',
+                                        hoverable &&
+                                            'hover:-translate-y-px hover:bg-muted/20 hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_2px_12px_rgba(0,0,0,0.15)]',
+                                        striped &&
+                                            idx % 2 !== 0 &&
+                                            'bg-muted/[0.06]',
                                     )
                                 "
                             >
@@ -89,13 +105,19 @@ function getCellValue(row: any, key: string): any {
                                     :class="
                                         cn(
                                             'px-5 py-4',
-                                            col.align === 'center' && 'text-center',
-                                            col.align === 'right' && 'text-right',
+                                            col.align === 'center' &&
+                                                'text-center',
+                                            col.align === 'right' &&
+                                                'text-right',
                                             col.width,
                                         )
                                     "
                                 >
-                                    <slot :name="`cell-${col.key}`" :row="row" :value="getCellValue(row, col.key)">
+                                    <slot
+                                        :name="`cell-${col.key}`"
+                                        :row="row"
+                                        :value="getCellValue(row, col.key)"
+                                    >
                                         {{ getCellValue(row, col.key) }}
                                     </slot>
                                 </td>

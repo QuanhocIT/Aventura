@@ -12,7 +12,7 @@ import {
     ChevronRight,
     Utensils,
     Sparkles,
-    Trash2
+    Trash2,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
@@ -24,12 +24,16 @@ const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
 
-    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
 });
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 
-const isStaff = computed(() => user.value && hasRole('owner', 'manager', 'cashier', 'waiter'));
+const isStaff = computed(
+    () => user.value && hasRole('owner', 'manager', 'cashier', 'waiter'),
+);
 const isManager = computed(() => user.value && hasRole('owner', 'manager'));
 
 // Alert State
@@ -49,8 +53,10 @@ const cancelReason = ref('');
 // Synthesize alarm sound using Web Audio API (cross-browser, no external files)
 function playAlarm(type = 'normal') {
     try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        
+        const audioCtx = new (
+            window.AudioContext || (window as any).webkitAudioContext
+        )();
+
         if (type === 'escalated') {
             // Urgent fast treble alarm
             const playBeep = (delay: number, freq: number) => {
@@ -61,7 +67,10 @@ function playAlarm(type = 'normal') {
                 osc.type = 'sawtooth';
                 osc.frequency.value = freq;
                 gain.gain.setValueAtTime(0.3, audioCtx.currentTime + delay);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + 0.15);
+                gain.gain.exponentialRampToValueAtTime(
+                    0.01,
+                    audioCtx.currentTime + delay + 0.15,
+                );
                 osc.start(audioCtx.currentTime + delay);
                 osc.stop(audioCtx.currentTime + delay + 0.15);
             };
@@ -78,7 +87,10 @@ function playAlarm(type = 'normal') {
                 osc.type = 'sine';
                 osc.frequency.value = freq;
                 gain.gain.setValueAtTime(0.25, audioCtx.currentTime + delay);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + 0.12);
+                gain.gain.exponentialRampToValueAtTime(
+                    0.01,
+                    audioCtx.currentTime + delay + 0.12,
+                );
                 osc.start(audioCtx.currentTime + delay);
                 osc.stop(audioCtx.currentTime + delay + 0.12);
             };
@@ -93,7 +105,10 @@ function playAlarm(type = 'normal') {
             osc.type = 'triangle';
             osc.frequency.value = 587.33; // D5
             gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + 0.35,
+            );
             osc.start();
             osc.stop(audioCtx.currentTime + 0.35);
         }
@@ -103,30 +118,36 @@ function playAlarm(type = 'normal') {
 }
 
 function removeNotification(id: string) {
-    activeNotifications.value = activeNotifications.value.filter(n => n.uid !== id);
+    activeNotifications.value = activeNotifications.value.filter(
+        (n) => n.uid !== id,
+    );
 }
 
 // APIs Actions
 async function confirmOrder(notification: any) {
     try {
-        const response = await axios.post(`/api/temporary-orders/${notification.id}/confirm`);
+        const response = await axios.post(
+            `/api/temporary-orders/${notification.id}/confirm`,
+        );
 
         if (response.data.success) {
             toast.success(response.data.message);
             removeNotification(notification.uid);
-            
+
             // If upselling suggestions returned, trigger upsell modal
             if (response.data.upsell && response.data.upsell.recommended_item) {
                 upsellData.value = response.data.upsell;
                 currentOrderId.value = response.data.order_id;
                 showUpsellModal.value = true;
             }
-            
+
             // Reload parent Inertia pages to update lists
             window.location.reload(); // Force reload to refresh lists reliably
         }
     } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận đơn.');
+        toast.error(
+            err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận đơn.',
+        );
     }
 }
 
@@ -138,21 +159,26 @@ function openCancelModal(notification: any) {
 
 async function submitCancel() {
     if (!cancelOrderId.value || !cancelReason.value.trim()) {
-return;
-}
-    
+        return;
+    }
+
     try {
-        const response = await axios.post(`/api/temporary-orders/${cancelOrderId.value}/cancel`, {
-            reason: cancelReason.value
-        });
-        
+        const response = await axios.post(
+            `/api/temporary-orders/${cancelOrderId.value}/cancel`,
+            {
+                reason: cancelReason.value,
+            },
+        );
+
         if (response.data.success) {
             toast.success(response.data.message);
             showCancelModal.value = false;
-            
+
             // Remove from local list
-            activeNotifications.value = activeNotifications.value.filter(n => n.id !== cancelOrderId.value || n.type !== 'qr_order');
-            
+            activeNotifications.value = activeNotifications.value.filter(
+                (n) => n.id !== cancelOrderId.value || n.type !== 'qr_order',
+            );
+
             // Reload parent Inertia pages
             window.location.reload();
         }
@@ -163,9 +189,9 @@ return;
 
 async function addUpsellItem() {
     if (!currentOrderId.value || !upsellData.value?.recommended_item) {
-return;
-}
-    
+        return;
+    }
+
     try {
         // Find product ID by name if possible (or fallback via backend).
         // Since we want to update the order with the recommended item, we can patch the order items.
@@ -181,24 +207,28 @@ return;
                 {
                     product_id: null, // Backend can resolve or we search client side.
                     quantity: 1,
-                    notes: 'Món mua thêm theo đề xuất AI'
-                }
-            ]
+                    notes: 'Món mua thêm theo đề xuất AI',
+                },
+            ],
         });
-        toast.success(`Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`);
+        toast.success(
+            `Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`,
+        );
         showUpsellModal.value = false;
     } catch (e) {
         // If product ID resolution fails or validation rejects, notify staff to append manually.
-        toast.info(`Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`);
+        toast.info(
+            `Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`,
+        );
         showUpsellModal.value = false;
     }
 }
 
 onMounted(() => {
     if (!isStaff.value) {
-return;
-}
-    
+        return;
+    }
+
     const restaurantId = user.value.restaurant_id;
 
     if (window.Echo) {
@@ -215,19 +245,22 @@ return;
                     details: `Tổng cộng: ${e.total_amount.toLocaleString('vi-VN')}đ • ${e.items.length} món`,
                     items: e.items,
                     time: e.created_at,
-                    urgency: 'normal'
+                    urgency: 'normal',
                 });
                 toast.info(`Yêu cầu gọi món mới tại ${e.table_name}`);
             })
-            
+
             // 2. Listening to Escalation warnings (Manager only)
             .listen('.temporary_order.escalated', (e: any) => {
                 if (isManager.value) {
                     playAlarm('escalated');
-                    
+
                     // Replace or add escalated alert
-                    activeNotifications.value = activeNotifications.value.filter(n => n.id !== e.id || n.type !== 'qr_order');
-                    
+                    activeNotifications.value =
+                        activeNotifications.value.filter(
+                            (n) => n.id !== e.id || n.type !== 'qr_order',
+                        );
+
                     activeNotifications.value.unshift({
                         uid: `escalated-${e.id}`,
                         id: e.id,
@@ -236,13 +269,16 @@ return;
                         subtitle: `${e.table_name} (${e.area_name})`,
                         details: `Đơn hàng ${e.total_amount.toLocaleString('vi-VN')}đ chưa được duyệt sau 2 phút!`,
                         time: e.escalated_at,
-                        urgency: 'critical'
+                        urgency: 'critical',
                     });
-                    
-                    toast.error(`🚨 Cảnh báo khẩn cấp: Bàn ${e.table_name} quá hạn xác nhận!`, { duration: 10000 });
+
+                    toast.error(
+                        `🚨 Cảnh báo khẩn cấp: Bàn ${e.table_name} quá hạn xác nhận!`,
+                        { duration: 10000 },
+                    );
                 }
             })
-            
+
             // 3. Listening to calls for help
             .listen('.staff.called', (e: any) => {
                 playAlarm('normal');
@@ -253,11 +289,11 @@ return;
                     subtitle: `${e.table_name} (${e.area_name})`,
                     details: e.message,
                     time: e.timestamp,
-                    urgency: 'info'
+                    urgency: 'info',
                 });
                 toast.warning(`Bàn ${e.table_name} đang gọi nhân viên!`);
             })
-            
+
             // 4. Listening to payment requests
             .listen('.payment.requested', (e: any) => {
                 playAlarm('payment');
@@ -268,11 +304,13 @@ return;
                     subtitle: `${e.table_name} (${e.area_name})`,
                     details: 'Khách hàng yêu cầu thanh toán hóa đơn.',
                     time: e.timestamp,
-                    urgency: 'success'
+                    urgency: 'success',
                 });
-                toast.success(`Bàn ${e.table_name} yêu cầu thanh toán hóa đơn!`);
+                toast.success(
+                    `Bàn ${e.table_name} yêu cầu thanh toán hóa đơn!`,
+                );
             })
-            
+
             // 5. Listening to Fraud Alerts (Owner & Manager)
             .listen('.fraud.triggered', (e: any) => {
                 if (isManager.value) {
@@ -284,9 +322,12 @@ return;
                         subtitle: e.alert.violation_type,
                         details: e.alert.description,
                         time: e.timestamp,
-                        urgency: 'critical'
+                        urgency: 'critical',
                     });
-                    toast.error(`⚠️ AI Cảnh báo gian lận: ${e.alert.description}`, { duration: 15000 });
+                    toast.error(
+                        `⚠️ AI Cảnh báo gian lận: ${e.alert.description}`,
+                        { duration: 15000 },
+                    );
                 }
             });
     }
@@ -300,53 +341,85 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div v-if="isStaff" class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
-        
+    <div
+        v-if="isStaff"
+        class="pointer-events-none fixed right-6 bottom-6 z-50 flex flex-col items-end gap-3"
+    >
         <!-- Floating notification counter bubble if closed -->
-        <div v-if="activeAlertCount > 0" class="pointer-events-auto flex flex-col gap-2 max-w-sm w-80">
-            <div 
-                v-for="notif in activeNotifications.slice(0, 3)" 
+        <div
+            v-if="activeAlertCount > 0"
+            class="pointer-events-auto flex w-80 max-w-sm flex-col gap-2"
+        >
+            <div
+                v-for="notif in activeNotifications.slice(0, 3)"
                 :key="notif.uid"
-                :class="['p-4 rounded-2xl border shadow-xl flex gap-3 transition-all transform animate-slide-in relative overflow-hidden',
-                         notif.urgency === 'critical' ? 'bg-red-950/95 border-red-800 text-red-100' :
-                         notif.urgency === 'success' ? 'bg-emerald-950/95 border-emerald-800 text-emerald-100' :
-                         notif.urgency === 'info' ? 'bg-blue-950/95 border-blue-800 text-blue-100' : 'bg-slate-900/95 border-slate-800 text-slate-100']"
+                :class="[
+                    'animate-slide-in relative flex transform gap-3 overflow-hidden rounded-2xl border p-4 shadow-xl transition-all',
+                    notif.urgency === 'critical'
+                        ? 'border-red-800 bg-red-950/95 text-red-100'
+                        : notif.urgency === 'success'
+                          ? 'border-emerald-800 bg-emerald-950/95 text-emerald-100'
+                          : notif.urgency === 'info'
+                            ? 'border-blue-800 bg-blue-950/95 text-blue-100'
+                            : 'border-slate-800 bg-slate-900/95 text-slate-100',
+                ]"
             >
                 <!-- Close Button -->
-                <button 
-                    @click="removeNotification(notif.uid)" 
-                    class="absolute top-3 right-3 text-slate-500 hover:text-slate-300 p-0.5 rounded-lg hover:bg-slate-800/30"
+                <button
+                    @click="removeNotification(notif.uid)"
+                    class="absolute top-3 right-3 rounded-lg p-0.5 text-slate-500 hover:bg-slate-800/30 hover:text-slate-300"
                 >
                     <X class="size-4" />
                 </button>
 
                 <!-- Icon column -->
-                <div class="shrink-0 mt-0.5">
-                    <AlertTriangle v-if="notif.urgency === 'critical'" class="size-5 text-red-500 animate-bounce" />
-                    <CreditCard v-else-if="notif.type === 'payment_request'" class="size-5 text-emerald-400" />
-                    <Bell v-else-if="notif.type === 'call_staff'" class="size-5 text-blue-400" />
+                <div class="mt-0.5 shrink-0">
+                    <AlertTriangle
+                        v-if="notif.urgency === 'critical'"
+                        class="size-5 animate-bounce text-red-500"
+                    />
+                    <CreditCard
+                        v-else-if="notif.type === 'payment_request'"
+                        class="size-5 text-emerald-400"
+                    />
+                    <Bell
+                        v-else-if="notif.type === 'call_staff'"
+                        class="size-5 text-blue-400"
+                    />
                     <Utensils v-else class="size-5 text-amber-500" />
                 </div>
 
                 <!-- Text info -->
-                <div class="flex-1 min-w-0 pr-4 space-y-1">
-                    <h4 class="text-xs font-extrabold tracking-wide uppercase line-clamp-1">
+                <div class="min-w-0 flex-1 space-y-1 pr-4">
+                    <h4
+                        class="line-clamp-1 text-xs font-extrabold tracking-wide uppercase"
+                    >
                         {{ notif.title }}
                     </h4>
-                    <p class="text-xs font-bold text-slate-200">{{ notif.subtitle }}</p>
-                    <p class="text-xxs text-slate-400 leading-relaxed">{{ notif.details }}</p>
-                    
+                    <p class="text-xs font-bold text-slate-200">
+                        {{ notif.subtitle }}
+                    </p>
+                    <p class="text-xxs leading-relaxed text-slate-400">
+                        {{ notif.details }}
+                    </p>
+
                     <!-- Actions for QR order confirmation -->
-                    <div v-if="notif.type === 'qr_order' || notif.type === 'escalation'" class="flex gap-2 pt-2.5">
+                    <div
+                        v-if="
+                            notif.type === 'qr_order' ||
+                            notif.type === 'escalation'
+                        "
+                        class="flex gap-2 pt-2.5"
+                    >
                         <button
                             @click="openCancelModal(notif)"
-                            class="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:text-red-300 bg-red-500/5 hover:bg-red-500/10 text-xxs font-bold transition-all flex items-center gap-1"
+                            class="text-xxs flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-1.5 font-bold text-red-400 transition-all hover:bg-red-500/10 hover:text-red-300"
                         >
                             <Trash2 class="size-3" /> Từ chối
                         </button>
                         <button
                             @click="confirmOrder(notif)"
-                            class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xxs font-extrabold transition-all flex items-center gap-1 shadow-md shadow-amber-500/10"
+                            class="text-xxs flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 font-extrabold text-slate-950 shadow-md shadow-amber-500/10 transition-all hover:bg-amber-400"
                         >
                             <Check class="size-3" /> Xác nhận & Đẩy Bếp
                         </button>
@@ -356,46 +429,86 @@ onUnmounted(() => {
         </div>
 
         <!-- ── AI Upsell proposal modal ────────────────────────────────────── -->
-        <div v-if="showUpsellModal && upsellData" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-            <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-zoom-in">
+        <div
+            v-if="showUpsellModal && upsellData"
+            class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="animate-zoom-in relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 shadow-2xl"
+            >
                 <!-- Header with AI styling -->
-                <header class="p-4 bg-amber-500/10 border-b border-amber-500/10 flex items-center justify-between">
+                <header
+                    class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
+                >
                     <div class="flex items-center gap-2">
-                        <Bot class="size-5 text-amber-400 animate-pulse" />
-                        <h3 class="text-xs font-bold text-amber-400 tracking-wider uppercase flex items-center gap-1">
-                            Smart Upselling Engine <Sparkles class="size-3.5 text-amber-400 animate-pulse" />
+                        <Bot class="size-5 animate-pulse text-amber-400" />
+                        <h3
+                            class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
+                        >
+                            Smart Upselling Engine
+                            <Sparkles
+                                class="size-3.5 animate-pulse text-amber-400"
+                            />
                         </h3>
                     </div>
-                    <button @click="showUpsellModal = false" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400">
+                    <button
+                        @click="showUpsellModal = false"
+                        class="bg-slate-850 rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                    >
                         <X class="size-4" />
                     </button>
                 </header>
-                
-                <div class="p-5 space-y-4">
+
+                <div class="space-y-4 p-5">
                     <!-- Recommendation details -->
-                    <div class="p-4 bg-slate-950 rounded-2xl border border-slate-850 space-y-2">
-                        <p class="text-xs text-slate-300 font-medium leading-relaxed">
+                    <div
+                        class="border-slate-850 space-y-2 rounded-2xl border bg-slate-950 p-4"
+                    >
+                        <p
+                            class="text-xs leading-relaxed font-medium text-slate-300"
+                        >
                             {{ upsellData.suggestion }}
                         </p>
-                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-900">
-                            <span>Độ tin cậy: {{ Math.round(upsellData.confidence * 100) }}%</span>
+                        <div
+                            class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
+                        >
+                            <span
+                                >Độ tin cậy:
+                                {{
+                                    Math.round(upsellData.confidence * 100)
+                                }}%</span
+                            >
                             <span>Chỉ số Lift: {{ upsellData.lift }}x</span>
                         </div>
                     </div>
 
-                    <div v-if="upsellData.recommended_item" class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 flex items-center justify-between text-xs">
-                        <span class="font-bold text-slate-200">Gợi ý: Mời dùng {{ upsellData.recommended_item }}</span>
-                        <span class="text-xxs text-amber-400 font-bold px-1.5 py-0.5 rounded bg-amber-500/10">-10% combo</span>
+                    <div
+                        v-if="upsellData.recommended_item"
+                        class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                    >
+                        <span class="font-bold text-slate-200"
+                            >Gợi ý: Mời dùng
+                            {{ upsellData.recommended_item }}</span
+                        >
+                        <span
+                            class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
+                            >-10% combo</span
+                        >
                     </div>
                 </div>
-                
-                <footer class="p-4 border-t border-slate-850 bg-slate-950/20 flex gap-2">
-                    <button @click="showUpsellModal = false" class="flex-1 h-10 rounded-xl border border-slate-800 text-slate-400 text-xs font-bold hover:bg-slate-850">
+
+                <footer
+                    class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
+                >
+                    <button
+                        @click="showUpsellModal = false"
+                        class="hover:bg-slate-850 h-10 flex-1 rounded-xl border border-slate-800 text-xs font-bold text-slate-400"
+                    >
                         Bỏ qua
                     </button>
-                    <button 
+                    <button
                         @click="addUpsellItem"
-                        class="flex-1 h-10 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1 shadow-lg shadow-amber-500/10"
+                        class="flex h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
                     >
                         <Check class="size-4" /> Thêm vào đơn
                     </button>
@@ -404,39 +517,55 @@ onUnmounted(() => {
         </div>
 
         <!-- ── Cancellation Reason Modal ────────────────────────────────────── -->
-        <div v-if="showCancelModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xs overflow-hidden shadow-2xl relative animate-zoom-in">
-                <header class="p-4 border-b border-slate-850 flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-slate-200">Lý do từ chối yêu cầu QR</h3>
-                    <button @click="showCancelModal = false" class="p-1 rounded-lg bg-slate-850 hover:bg-slate-850 text-slate-400">
+        <div
+            v-if="showCancelModal"
+            class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="animate-zoom-in relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
+            >
+                <header
+                    class="border-slate-850 flex items-center justify-between border-b p-4"
+                >
+                    <h3 class="text-xs font-bold text-slate-200">
+                        Lý do từ chối yêu cầu QR
+                    </h3>
+                    <button
+                        @click="showCancelModal = false"
+                        class="bg-slate-850 hover:bg-slate-850 rounded-lg p-1 text-slate-400"
+                    >
                         <X class="size-4" />
                     </button>
                 </header>
-                
-                <div class="p-4 space-y-3">
-                    <textarea 
-                        v-model="cancelReason" 
+
+                <div class="space-y-3 p-4">
+                    <textarea
+                        v-model="cancelReason"
                         rows="3"
-                        placeholder="Nhập lý do từ chối (ví dụ: Bàn trống quét phá hoại, Khách bấm nhầm...)" 
-                        class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-850 text-xs text-slate-350 focus:outline-none focus:border-red-500 resize-none"
+                        placeholder="Nhập lý do từ chối (ví dụ: Bàn trống quét phá hoại, Khách bấm nhầm...)"
+                        class="border-slate-850 text-slate-350 w-full resize-none rounded-xl border bg-slate-950 p-2.5 text-xs focus:border-red-500 focus:outline-none"
                     ></textarea>
                 </div>
-                
-                <footer class="p-4 border-t border-slate-850 bg-slate-950/20 flex gap-2">
-                    <button @click="showCancelModal = false" class="flex-1 h-9 rounded-lg border border-slate-800 text-slate-400 text-xs font-bold hover:bg-slate-850">
+
+                <footer
+                    class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
+                >
+                    <button
+                        @click="showCancelModal = false"
+                        class="hover:bg-slate-850 h-9 flex-1 rounded-lg border border-slate-800 text-xs font-bold text-slate-400"
+                    >
                         Quay lại
                     </button>
-                    <button 
+                    <button
                         @click="submitCancel"
                         :disabled="!cancelReason.trim()"
-                        class="flex-1 h-9 bg-red-500 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-650 text-slate-950 rounded-lg text-xs font-bold"
+                        class="disabled:text-slate-650 h-9 flex-1 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800"
                     >
                         Từ chối đặt món
                     </button>
                 </footer>
             </div>
         </div>
-
     </div>
 </template>
 

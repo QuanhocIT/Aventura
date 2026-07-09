@@ -8,5 +8,12 @@ const props = defineProps<{
 </script>
 
 <template>
-    <div :class="cn('h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent', props.class)" />
+    <div
+        :class="
+            cn(
+                'h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent',
+                props.class,
+            )
+        "
+    />
 </template>

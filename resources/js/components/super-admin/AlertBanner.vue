@@ -55,7 +55,7 @@ const resolvedIcon = computed(() => props.icon ?? defaultIcons[props.severity]);
     <div
         :class="
             cn(
-                'flex items-start gap-3 rounded-2xl border px-4 py-3 animate-enter transition-all duration-300',
+                'animate-enter flex items-start gap-3 rounded-2xl border px-4 py-3 transition-all duration-300',
                 styles[severity].card,
                 props.class,
             )
@@ -63,14 +63,21 @@ const resolvedIcon = computed(() => props.icon ?? defaultIcons[props.severity]);
     >
         <component
             :is="resolvedIcon"
-            :class="['mt-0.5 size-4.5 shrink-0 animate-pulse', styles[severity].icon]"
+            :class="[
+                'mt-0.5 size-4.5 shrink-0 animate-pulse',
+                styles[severity].icon,
+            ]"
         />
         <div class="min-w-0 flex-1 space-y-0.5">
             <div class="flex flex-wrap items-center gap-2">
-                <p class="text-xs font-black text-slate-800 dark:text-slate-100">{{ title }}</p>
+                <p
+                    class="text-xs font-black text-slate-800 dark:text-slate-100"
+                >
+                    {{ title }}
+                </p>
                 <span
                     :class="[
-                        'rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider',
+                        'rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider uppercase',
                         styles[severity].badge,
                     ]"
                 >
@@ -79,7 +86,7 @@ const resolvedIcon = computed(() => props.icon ?? defaultIcons[props.severity]);
             </div>
             <p
                 v-if="message"
-                class="text-[11px] font-medium leading-relaxed text-muted-foreground"
+                class="text-[11px] leading-relaxed font-medium text-muted-foreground"
             >
                 {{ message }}
             </p>

@@ -7,22 +7,25 @@ import { onMounted, ref, watch } from 'vue';
  *
  *   <AnimatedNumber :value="1250000" suffix="đ" />
  */
-const props = withDefaults(defineProps<{
-    value: number;
-    duration?: number;
-    /** số chữ số thập phân (mặc định 0) */
-    decimals?: number;
-    prefix?: string;
-    suffix?: string;
-    /** rút gọn kiểu 1,2 Tr / 3,4 T (Intl compact notation) */
-    compact?: boolean;
-}>(), {
-    duration: 900,
-    decimals: 0,
-    prefix: '',
-    suffix: '',
-    compact: false,
-});
+const props = withDefaults(
+    defineProps<{
+        value: number;
+        duration?: number;
+        /** số chữ số thập phân (mặc định 0) */
+        decimals?: number;
+        prefix?: string;
+        suffix?: string;
+        /** rút gọn kiểu 1,2 Tr / 3,4 T (Intl compact notation) */
+        compact?: boolean;
+    }>(),
+    {
+        duration: 900,
+        decimals: 0,
+        prefix: '',
+        suffix: '',
+        compact: false,
+    },
+);
 
 const displayed = ref(0);
 let raf: number | null = null;
@@ -32,7 +35,10 @@ function animateTo(target: number, from = 0) {
         cancelAnimationFrame(raf);
     }
 
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    if (
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
         displayed.value = target;
 
         return;
@@ -58,11 +64,17 @@ function animateTo(target: number, from = 0) {
 }
 
 onMounted(() => animateTo(props.value));
-watch(() => props.value, (val, old) => animateTo(val, old ?? 0));
+watch(
+    () => props.value,
+    (val, old) => animateTo(val, old ?? 0),
+);
 
 function format(n: number): string {
     if (props.compact) {
-        return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        return new Intl.NumberFormat('vi-VN', {
+            notation: 'compact',
+            maximumFractionDigits: 1,
+        }).format(n);
     }
 
     return n.toLocaleString('vi-VN', {
@@ -73,5 +85,7 @@ function format(n: number): string {
 </script>
 
 <template>
-    <span class="tabular-nums">{{ prefix }}{{ format(displayed) }}{{ suffix }}</span>
+    <span class="tabular-nums"
+        >{{ prefix }}{{ format(displayed) }}{{ suffix }}</span
+    >
 </template>

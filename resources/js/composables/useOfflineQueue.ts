@@ -12,10 +12,17 @@ import { ref } from 'vue';
 
 const STORAGE_KEY = 'aventura_offline_queue';
 
-type QueuedRequest = { id: string; url: string; payload: Record<string, unknown>; queuedAt: string };
+type QueuedRequest = {
+    id: string;
+    url: string;
+    payload: Record<string, unknown>;
+    queuedAt: string;
+};
 
 const pendingCount = ref(0);
-const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true);
+const isOnline = ref(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+);
 let initialized = false;
 
 function readQueue(): QueuedRequest[] {
@@ -32,7 +39,9 @@ function writeQueue(queue: QueuedRequest[]): void {
 }
 
 /** Gửi lại lần lượt các request đã xếp hàng; giữ lại những cái vẫn thất bại vì mạng. */
-async function flushQueue(onFlushed?: (item: QueuedRequest, response: unknown) => void): Promise<void> {
+async function flushQueue(
+    onFlushed?: (item: QueuedRequest, response: unknown) => void,
+): Promise<void> {
     const queue = readQueue();
 
     if (queue.length === 0) {
@@ -58,7 +67,9 @@ async function flushQueue(onFlushed?: (item: QueuedRequest, response: unknown) =
     writeQueue(remaining);
 }
 
-export function useOfflineQueue(onFlushed?: (item: QueuedRequest, response: unknown) => void) {
+export function useOfflineQueue(
+    onFlushed?: (item: QueuedRequest, response: unknown) => void,
+) {
     if (!initialized && typeof window !== 'undefined') {
         initialized = true;
         pendingCount.value = readQueue().length;
@@ -79,7 +90,10 @@ export function useOfflineQueue(onFlushed?: (item: QueuedRequest, response: unkn
     }
 
     /** POST có hàng đợi: lỗi mạng → xếp hàng, lỗi server → ném lại cho caller xử lý. */
-    async function postWithQueue(url: string, payload: Record<string, unknown>): Promise<{ queued: boolean; data?: any }> {
+    async function postWithQueue(
+        url: string,
+        payload: Record<string, unknown>,
+    ): Promise<{ queued: boolean; data?: any }> {
         try {
             const { data } = await axios.post(url, payload);
 

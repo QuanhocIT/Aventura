@@ -16,7 +16,14 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────────
-type NotifType = 'success' | 'error' | 'warning' | 'info' | 'order' | 'stock' | 'flash_promo';
+type NotifType =
+    | 'success'
+    | 'error'
+    | 'warning'
+    | 'info'
+    | 'order'
+    | 'stock'
+    | 'flash_promo';
 
 interface Notification {
     id: number;
@@ -31,12 +38,12 @@ interface Notification {
 // ──────────────────────────────────────────────────────────────────────────────
 // State
 // ──────────────────────────────────────────────────────────────────────────────
-const page     = usePage();
-const isOpen   = ref(false);
-const items    = ref<Notification[]>([]);
-let   nextId   = 0;
+const page = usePage();
+const isOpen = ref(false);
+const items = ref<Notification[]>([]);
+let nextId = 0;
 
-const unread   = computed(() => items.value.filter(n => !n.read).length);
+const unread = computed(() => items.value.filter((n) => !n.read).length);
 const hasUnread = computed(() => unread.value > 0);
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -44,13 +51,18 @@ const hasUnread = computed(() => unread.value > 0);
 // ──────────────────────────────────────────────────────────────────────────────
 function formatRelative(date: Date): string {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (diff < 60)  return 'Vừa xong';
+    if (diff < 60) return 'Vừa xong';
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
     return `${Math.floor(diff / 86400)} ngày trước`;
 }
 
-function addNotification(type: NotifType, title: string, message: string, href?: string) {
+function addNotification(
+    type: NotifType,
+    title: string,
+    message: string,
+    href?: string,
+) {
     const id = nextId++;
     items.value.unshift({
         id,
@@ -68,16 +80,16 @@ function addNotification(type: NotifType, title: string, message: string, href?:
 }
 
 function markRead(id: number) {
-    const notif = items.value.find(n => n.id === id);
+    const notif = items.value.find((n) => n.id === id);
     if (notif) notif.read = true;
 }
 
 function markAllRead() {
-    items.value.forEach(n => (n.read = true));
+    items.value.forEach((n) => (n.read = true));
 }
 
 function removeNotif(id: number) {
-    items.value = items.value.filter(n => n.id !== id);
+    items.value = items.value.filter((n) => n.id !== id);
 }
 
 function clearAll() {
@@ -92,10 +104,12 @@ import { watch } from 'vue';
 watch(
     () => (page.props as any).flash,
     (flash) => {
-        if (flash?.success) addNotification('success', 'Thành công', flash.success);
-        if (flash?.error)   addNotification('error',   'Lỗi',       flash.error);
-        if (flash?.info)    addNotification('info',    'Thông tin',  flash.info);
-        if (flash?.warning) addNotification('warning', 'Cảnh báo',  flash.warning);
+        if (flash?.success)
+            addNotification('success', 'Thành công', flash.success);
+        if (flash?.error) addNotification('error', 'Lỗi', flash.error);
+        if (flash?.info) addNotification('info', 'Thông tin', flash.info);
+        if (flash?.warning)
+            addNotification('warning', 'Cảnh báo', flash.warning);
     },
     { deep: true },
 );
@@ -118,22 +132,22 @@ onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
 // Icon mapping
 // ──────────────────────────────────────────────────────────────────────────────
 const iconMap: Record<NotifType, any> = {
-    success:     CheckCircle2,
-    error:       X,
-    warning:     AlertTriangle,
-    info:        Info,
-    order:       ShoppingCart,
-    stock:       Package,
+    success: CheckCircle2,
+    error: X,
+    warning: AlertTriangle,
+    info: Info,
+    order: ShoppingCart,
+    stock: Package,
     flash_promo: Zap,
 };
 
 const colorMap: Record<NotifType, string> = {
-    success:     'text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40',
-    error:       'text-rose-600 bg-rose-100 dark:bg-rose-950/40',
-    warning:     'text-amber-600 bg-amber-100 dark:bg-amber-950/40',
-    info:        'text-sky-600 bg-sky-100 dark:bg-sky-950/40',
-    order:       'text-violet-600 bg-violet-100 dark:bg-violet-950/40',
-    stock:       'text-orange-600 bg-orange-100 dark:bg-orange-950/40',
+    success: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40',
+    error: 'text-rose-600 bg-rose-100 dark:bg-rose-950/40',
+    warning: 'text-amber-600 bg-amber-100 dark:bg-amber-950/40',
+    info: 'text-sky-600 bg-sky-100 dark:bg-sky-950/40',
+    order: 'text-violet-600 bg-violet-100 dark:bg-violet-950/40',
+    stock: 'text-orange-600 bg-orange-100 dark:bg-orange-950/40',
     flash_promo: 'text-pink-600 bg-pink-100 dark:bg-pink-950/40',
 };
 
@@ -146,7 +160,7 @@ defineExpose({ addNotification });
         <!-- Bell Button -->
         <button
             id="notification-bell-btn"
-            class="relative rounded-md p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="relative rounded-md p-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             :class="isOpen ? 'bg-muted' : ''"
             aria-label="Thông báo"
             @click="isOpen = !isOpen"
@@ -163,7 +177,7 @@ defineExpose({ addNotification });
             >
                 <span
                     v-if="hasUnread"
-                    class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white"
+                    class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white"
                 >
                     {{ unread > 9 ? '9+' : unread }}
                 </span>
@@ -172,7 +186,7 @@ defineExpose({ addNotification });
             <!-- Pulse ring khi có thông báo mới -->
             <span
                 v-if="hasUnread"
-                class="absolute right-1 top-1 h-4 w-4 animate-ping rounded-full bg-rose-400 opacity-40"
+                class="absolute top-1 right-1 h-4 w-4 animate-ping rounded-full bg-rose-400 opacity-40"
             />
         </button>
 
@@ -187,10 +201,12 @@ defineExpose({ addNotification });
         >
             <div
                 v-if="isOpen"
-                class="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-background shadow-xl ring-1 ring-black/5"
+                class="absolute top-full right-0 z-50 mt-2 w-80 rounded-xl border border-border bg-background shadow-xl ring-1 ring-black/5"
             >
                 <!-- Header -->
-                <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                <div
+                    class="flex items-center justify-between border-b border-border px-4 py-3"
+                >
                     <div class="flex items-center gap-2">
                         <Bell class="size-4 text-muted-foreground" />
                         <span class="text-sm font-semibold">Thông báo</span>
@@ -235,7 +251,7 @@ defineExpose({ addNotification });
                             <div
                                 v-for="notif in items"
                                 :key="notif.id"
-                                class="group relative flex cursor-pointer items-start gap-3 border-b border-border/50 px-4 py-3 last:border-0 transition-colors hover:bg-muted/50"
+                                class="group relative flex cursor-pointer items-start gap-3 border-b border-border/50 px-4 py-3 transition-colors last:border-0 hover:bg-muted/50"
                                 :class="notif.read ? 'opacity-70' : ''"
                                 @click="markRead(notif.id)"
                             >
@@ -244,17 +260,34 @@ defineExpose({ addNotification });
                                     class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
                                     :class="colorMap[notif.type]"
                                 >
-                                    <component :is="iconMap[notif.type]" class="size-3.5" />
+                                    <component
+                                        :is="iconMap[notif.type]"
+                                        class="size-3.5"
+                                    />
                                 </div>
 
                                 <!-- Content -->
                                 <div class="min-w-0 flex-1">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <p class="text-xs font-semibold leading-snug" :class="notif.read ? '' : 'text-foreground'">
+                                    <div
+                                        class="flex items-start justify-between gap-2"
+                                    >
+                                        <p
+                                            class="text-xs leading-snug font-semibold"
+                                            :class="
+                                                notif.read
+                                                    ? ''
+                                                    : 'text-foreground'
+                                            "
+                                        >
                                             {{ notif.title }}
                                         </p>
-                                        <div class="flex shrink-0 items-center gap-1">
-                                            <span class="text-[10px] text-muted-foreground">{{ notif.time }}</span>
+                                        <div
+                                            class="flex shrink-0 items-center gap-1"
+                                        >
+                                            <span
+                                                class="text-[10px] text-muted-foreground"
+                                                >{{ notif.time }}</span
+                                            >
                                             <!-- Unread dot -->
                                             <span
                                                 v-if="!notif.read"
@@ -262,14 +295,16 @@ defineExpose({ addNotification });
                                             />
                                         </div>
                                     </div>
-                                    <p class="mt-0.5 text-[11px] text-muted-foreground leading-snug">
+                                    <p
+                                        class="mt-0.5 text-[11px] leading-snug text-muted-foreground"
+                                    >
                                         {{ notif.message }}
                                     </p>
                                 </div>
 
                                 <!-- Remove button (visible on hover) -->
                                 <button
-                                    class="absolute right-2 top-2 rounded p-0.5 opacity-0 transition group-hover:opacity-100 hover:bg-muted text-muted-foreground"
+                                    class="absolute top-2 right-2 rounded p-0.5 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-muted"
                                     @click.stop="removeNotif(notif.id)"
                                 >
                                     <X class="size-3" />

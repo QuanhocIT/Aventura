@@ -35,13 +35,21 @@ const statusDot: Record<string, string> = {
         "
     >
         <!-- Mac dots -->
-        <div class="absolute left-5 top-4 flex select-none items-center gap-1.5">
-            <span class="size-3 rounded-full bg-rose-500/90 shadow-[0_0_8px_#f43f5e]" />
-            <span class="size-3 rounded-full bg-amber-500/90 shadow-[0_0_8px_#f59e0b]" />
-            <span class="size-3 rounded-full bg-emerald-500/90 shadow-[0_0_8px_#10b981]" />
+        <div
+            class="absolute top-4 left-5 flex items-center gap-1.5 select-none"
+        >
+            <span
+                class="size-3 rounded-full bg-rose-500/90 shadow-[0_0_8px_#f43f5e]"
+            />
+            <span
+                class="size-3 rounded-full bg-amber-500/90 shadow-[0_0_8px_#f59e0b]"
+            />
+            <span
+                class="size-3 rounded-full bg-emerald-500/90 shadow-[0_0_8px_#10b981]"
+            />
             <span
                 v-if="title"
-                class="ml-2 text-[9px] font-extrabold uppercase tracking-wider text-slate-500 font-mono"
+                class="ml-2 font-mono text-[9px] font-extrabold tracking-wider text-slate-500 uppercase"
             >
                 {{ title }}
             </span>
@@ -51,11 +59,16 @@ const statusDot: Record<string, string> = {
         <div
             v-if="statusText"
             :class="[
-                'absolute right-5 top-3.5 flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-bold',
+                'absolute top-3.5 right-5 flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-bold',
                 statusStyles[statusColor],
             ]"
         >
-            <span :class="['size-1.5 rounded-full animate-pulse', statusDot[statusColor]]" />
+            <span
+                :class="[
+                    'size-1.5 animate-pulse rounded-full',
+                    statusDot[statusColor],
+                ]"
+            />
             {{ statusText }}
         </div>
 

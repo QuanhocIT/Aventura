@@ -13,7 +13,10 @@ declare global {
     interface Window {
         dataLayer?: unknown[];
         gtag?: (...args: unknown[]) => void;
-        fbq?: ((...args: unknown[]) => void) & { queue?: unknown[]; loaded?: boolean };
+        fbq?: ((...args: unknown[]) => void) & {
+            queue?: unknown[];
+            loaded?: boolean;
+        };
         _fbq?: unknown;
     }
 }
@@ -26,8 +29,8 @@ export function useTracking(config: TrackingConfig) {
 
     function init(): void {
         if (initialized || (!hasGa && !hasPixel)) {
-return;
-}
+            return;
+        }
 
         initialized = true;
 
@@ -76,17 +79,27 @@ return;
         }
 
         if (hasPixel && window.fbq) {
-            window.fbq('track', 'AddToCart', { content_name: name, value: price, currency: 'VND' });
+            window.fbq('track', 'AddToCart', {
+                content_name: name,
+                value: price,
+                currency: 'VND',
+            });
         }
     }
 
     function trackBeginCheckout(total: number): void {
         if (hasGa && window.gtag) {
-            window.gtag('event', 'begin_checkout', { currency: 'VND', value: total });
+            window.gtag('event', 'begin_checkout', {
+                currency: 'VND',
+                value: total,
+            });
         }
 
         if (hasPixel && window.fbq) {
-            window.fbq('track', 'InitiateCheckout', { value: total, currency: 'VND' });
+            window.fbq('track', 'InitiateCheckout', {
+                value: total,
+                currency: 'VND',
+            });
         }
     }
 

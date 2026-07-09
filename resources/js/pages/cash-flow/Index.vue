@@ -16,12 +16,18 @@ import {
     History,
     BarChart3,
     ArrowRightLeft,
-    Loader2
+    Loader2,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -99,10 +105,15 @@ const props = defineProps<{
     forecast: Forecast;
 }>();
 
-const activeTab = ref<'active' | 'history' | 'analytics' | 'forecast'>('active');
+const activeTab = ref<'active' | 'history' | 'analytics' | 'forecast'>(
+    'active',
+);
 
 const vnd = (v: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+    new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+    }).format(v);
 
 // Modals
 const showOpenModal = ref(false);
@@ -114,7 +125,7 @@ const openForm = useForm({
     shift_id: '',
     opening_balance: 0,
     expense_budget: 0,
-    notes: ''
+    notes: '',
 });
 
 // Transaction Form
@@ -122,7 +133,7 @@ const txForm = useForm({
     type: 'out',
     amount: 0,
     source: 'expense',
-    notes: ''
+    notes: '',
 });
 
 function handleOpenRegister() {
@@ -139,8 +150,8 @@ function handleOpenRegister() {
             toast.success('Đã mở két đầu ca thành công!');
         },
         onError: (err: any) => {
-            toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
-        }
+            toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
+        },
     });
 }
 
@@ -167,8 +178,8 @@ function handleAddTransaction() {
             toast.success('Đã ghi nhận giao dịch dòng tiền!');
         },
         onError: (err: any) => {
-            toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
-        }
+            toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
+        },
     });
 }
 
@@ -182,14 +193,14 @@ function openTxModal(type: 'in' | 'out') {
 // Compute active register budget status
 const activeExpensesTotal = computed(() => {
     return props.activeTransactions
-        .filter(t => t.type === 'out')
+        .filter((t) => t.type === 'out')
         .reduce((sum, t) => sum + t.amount, 0);
 });
 
 const isBudgetExceeded = computed(() => {
     if (!props.activeRegister || !props.activeRegister.expense_budget) {
-return false;
-}
+        return false;
+    }
 
     return activeExpensesTotal.value > props.activeRegister.expense_budget;
 });
@@ -197,14 +208,14 @@ return false;
 // Pure Tailwind bar chart max value
 const chartMaxVal = computed(() => {
     let max = 0;
-    props.chartData.forEach(d => {
+    props.chartData.forEach((d) => {
         if (d.in > max) {
-max = d.in;
-}
+            max = d.in;
+        }
 
         if (d.out > max) {
-max = d.out;
-}
+            max = d.out;
+        }
     });
 
     return max || 1;
@@ -214,147 +225,288 @@ max = d.out;
 <template>
     <Head title="Quản lý Két tiền & Dòng tiền" />
 
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
         <!-- Page Header -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
+        <div
+            class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/30">
+                <div
+                    class="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50 text-indigo-600 shadow-sm dark:border-indigo-900/30 dark:bg-indigo-950/60 dark:text-indigo-400"
+                >
                     <Wallet class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Quỹ Tiền Mặt & Dòng Tiền</h1>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">Quản lý két tiền hàng ngày, theo dõi thu chi thực tế tại quầy, dự báo và cảnh báo ngân sách.</p>
+                    <h1
+                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
+                    >
+                        Quỹ Tiền Mặt & Dòng Tiền
+                    </h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">
+                        Quản lý két tiền hàng ngày, theo dõi thu chi thực tế tại
+                        quầy, dự báo và cảnh báo ngân sách.
+                    </p>
                 </div>
             </div>
 
             <!-- Open drawer button (only if no active drawer) -->
             <div v-if="!activeRegister" class="flex items-center gap-2">
-                <Button 
+                <Button
                     @click="showOpenModal = true"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm text-xs h-9"
+                    class="h-9 bg-indigo-600 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
                 >
-                    <PlusCircle class="size-4 mr-1.5" />
+                    <PlusCircle class="mr-1.5 size-4" />
                     Mở két đầu ca
                 </Button>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="flex gap-2 border-b pb-1 overflow-x-auto shrink-0">
-            <button 
+        <div class="flex shrink-0 gap-2 overflow-x-auto border-b pb-1">
+            <button
                 @click="activeTab = 'active'"
                 :class="[
-                    'px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'active' 
-                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'active'
+                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
                 Két tiền ca hiện tại
             </button>
-            <button 
+            <button
                 @click="activeTab = 'history'"
                 :class="[
-                    'px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'history' 
-                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'history'
+                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><History class="size-3.5" /> Lịch sử ca chốt két</span>
+                <span class="flex items-center gap-1.5"
+                    ><History class="size-3.5" /> Lịch sử ca chốt két</span
+                >
             </button>
-            <button 
+            <button
                 @click="activeTab = 'analytics'"
                 :class="[
-                    'px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'analytics' 
-                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'analytics'
+                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><BarChart3 class="size-3.5" /> Biểu đồ dòng tiền (30 ngày)</span>
+                <span class="flex items-center gap-1.5"
+                    ><BarChart3 class="size-3.5" /> Biểu đồ dòng tiền (30
+                    ngày)</span
+                >
             </button>
-            <button 
+            <button
                 @click="activeTab = 'forecast'"
                 :class="[
-                    'px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'forecast' 
-                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'forecast'
+                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><TrendingUp class="size-3.5" /> Dự báo thanh toán</span>
+                <span class="flex items-center gap-1.5"
+                    ><TrendingUp class="size-3.5" /> Dự báo thanh toán</span
+                >
             </button>
         </div>
 
         <!-- tab: ACTIVE DRAWER -->
         <div v-if="activeTab === 'active'" class="space-y-6">
             <!-- Active register details -->
-            <div v-if="activeRegister" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div
+                v-if="activeRegister"
+                class="grid grid-cols-1 gap-6 lg:grid-cols-3"
+            >
                 <!-- Left panel: drawer stats card -->
-                <div class="lg:col-span-1 space-y-6">
-                    <Card class="shadow-sm border-indigo-100 dark:border-indigo-950/30 overflow-hidden">
-                        <CardHeader class="pb-3 border-b bg-indigo-50/20 dark:bg-indigo-950/10">
-                            <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                                <Wallet class="size-4 text-indigo-600 dark:text-indigo-400" />
+                <div class="space-y-6 lg:col-span-1">
+                    <Card
+                        class="overflow-hidden border-indigo-100 shadow-sm dark:border-indigo-950/30"
+                    >
+                        <CardHeader
+                            class="border-b bg-indigo-50/20 pb-3 dark:bg-indigo-950/10"
+                        >
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-sm font-bold"
+                            >
+                                <Wallet
+                                    class="size-4 text-indigo-600 dark:text-indigo-400"
+                                />
                                 Thông tin két hiện tại
                             </CardTitle>
-                            <CardDescription class="text-[11px]">Két đang mở & sẵn sàng giao dịch</CardDescription>
+                            <CardDescription class="text-[11px]"
+                                >Két đang mở & sẵn sàng giao
+                                dịch</CardDescription
+                            >
                         </CardHeader>
-                        <CardContent class="p-5 space-y-4 text-xs">
-                            <div class="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                                <span class="text-slate-400 font-bold flex items-center gap-1"><Clock class="size-3.5" /> Ca trực</span>
-                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ activeRegister.shift_name }}</span>
+                        <CardContent class="space-y-4 p-5 text-xs">
+                            <div
+                                class="flex items-center justify-between border-b py-2 dark:border-slate-800"
+                            >
+                                <span
+                                    class="flex items-center gap-1 font-bold text-slate-400"
+                                    ><Clock class="size-3.5" /> Ca trực</span
+                                >
+                                <span
+                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                    >{{ activeRegister.shift_name }}</span
+                                >
                             </div>
-                            <div class="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                                <span class="text-slate-400 font-bold flex items-center gap-1"><User class="size-3.5" /> Cashier mở két</span>
-                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ activeRegister.opened_by_name }}</span>
+                            <div
+                                class="flex items-center justify-between border-b py-2 dark:border-slate-800"
+                            >
+                                <span
+                                    class="flex items-center gap-1 font-bold text-slate-400"
+                                    ><User class="size-3.5" /> Cashier mở
+                                    két</span
+                                >
+                                <span
+                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                    >{{ activeRegister.opened_by_name }}</span
+                                >
                             </div>
-                            <div class="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                                <span class="text-slate-400 font-bold flex items-center gap-1"><Calendar class="size-3.5" /> Ngày chốt</span>
-                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ new Date(activeRegister.closing_date).toLocaleDateString('vi-VN') }}</span>
+                            <div
+                                class="flex items-center justify-between border-b py-2 dark:border-slate-800"
+                            >
+                                <span
+                                    class="flex items-center gap-1 font-bold text-slate-400"
+                                    ><Calendar class="size-3.5" /> Ngày
+                                    chốt</span
+                                >
+                                <span
+                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                    >{{
+                                        new Date(
+                                            activeRegister.closing_date,
+                                        ).toLocaleDateString('vi-VN')
+                                    }}</span
+                                >
                             </div>
-                            <div class="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                                <span class="text-slate-400 font-bold">Mở lúc</span>
-                                <span class="font-mono text-slate-600 dark:text-slate-300">{{ activeRegister.opened_at }}</span>
+                            <div
+                                class="flex items-center justify-between border-b py-2 dark:border-slate-800"
+                            >
+                                <span class="font-bold text-slate-400"
+                                    >Mở lúc</span
+                                >
+                                <span
+                                    class="font-mono text-slate-600 dark:text-slate-300"
+                                    >{{ activeRegister.opened_at }}</span
+                                >
                             </div>
                         </CardContent>
                     </Card>
 
                     <!-- Budget & Alert Card -->
-                    <Card class="shadow-sm overflow-hidden" :class="isBudgetExceeded ? 'border-rose-200 dark:border-rose-950/40' : 'border-slate-100 dark:border-slate-800'">
-                        <CardHeader class="pb-3 border-b" :class="isBudgetExceeded ? 'bg-rose-50/20 dark:bg-rose-950/10' : 'bg-slate-50/20'">
-                            <CardTitle class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" :class="isBudgetExceeded ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'">
+                    <Card
+                        class="overflow-hidden shadow-sm"
+                        :class="
+                            isBudgetExceeded
+                                ? 'border-rose-200 dark:border-rose-950/40'
+                                : 'border-slate-100 dark:border-slate-800'
+                        "
+                    >
+                        <CardHeader
+                            class="border-b pb-3"
+                            :class="
+                                isBudgetExceeded
+                                    ? 'bg-rose-50/20 dark:bg-rose-950/10'
+                                    : 'bg-slate-50/20'
+                            "
+                        >
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase"
+                                :class="
+                                    isBudgetExceeded
+                                        ? 'text-rose-600 dark:text-rose-400'
+                                        : 'text-slate-500'
+                                "
+                            >
                                 <AlertTriangle class="size-4" />
                                 Ngân sách chi tiêu ca
                             </CardTitle>
                         </CardHeader>
-                        <CardContent class="p-5 space-y-4">
-                            <div class="flex justify-between items-center text-xs">
-                                <span class="text-slate-400 font-bold">Hạn mức chi tiêu:</span>
-                                <span class="font-mono font-bold text-slate-700 dark:text-slate-250">
-                                    {{ activeRegister.expense_budget > 0 ? vnd(activeRegister.expense_budget) : 'Không hạn chế' }}
+                        <CardContent class="space-y-4 p-5">
+                            <div
+                                class="flex items-center justify-between text-xs"
+                            >
+                                <span class="font-bold text-slate-400"
+                                    >Hạn mức chi tiêu:</span
+                                >
+                                <span
+                                    class="dark:text-slate-250 font-mono font-bold text-slate-700"
+                                >
+                                    {{
+                                        activeRegister.expense_budget > 0
+                                            ? vnd(activeRegister.expense_budget)
+                                            : 'Không hạn chế'
+                                    }}
                                 </span>
                             </div>
-                            <div class="flex justify-between items-center text-xs">
-                                <span class="text-slate-400 font-bold">Đã chi ngoài:</span>
-                                <span class="font-mono font-bold text-slate-700 dark:text-slate-250">
+                            <div
+                                class="flex items-center justify-between text-xs"
+                            >
+                                <span class="font-bold text-slate-400"
+                                    >Đã chi ngoài:</span
+                                >
+                                <span
+                                    class="dark:text-slate-250 font-mono font-bold text-slate-700"
+                                >
                                     {{ vnd(activeExpensesTotal) }}
                                 </span>
                             </div>
-                            
-                            <div v-if="isBudgetExceeded" class="bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/30 rounded-xl p-3 flex gap-2">
-                                <ShieldAlert class="size-5 text-rose-500 shrink-0 mt-0.5" />
+
+                            <div
+                                v-if="isBudgetExceeded"
+                                class="flex gap-2 rounded-xl border border-rose-100 bg-rose-50 p-3 dark:border-rose-900/30 dark:bg-rose-950/30"
+                            >
+                                <ShieldAlert
+                                    class="mt-0.5 size-5 shrink-0 text-rose-500"
+                                />
                                 <div>
-                                    <p class="text-xs font-bold text-rose-700 dark:text-rose-400">Vượt ngân sách ca!</p>
-                                    <p class="text-[10px] text-rose-500 dark:text-rose-500 mt-0.5">Tổng chi tiêu ngoài hệ thống đã vượt quá hạn mức tối đa {{ vnd(activeRegister.expense_budget) }} được cấp đầu ca.</p>
+                                    <p
+                                        class="text-xs font-bold text-rose-700 dark:text-rose-400"
+                                    >
+                                        Vượt ngân sách ca!
+                                    </p>
+                                    <p
+                                        class="mt-0.5 text-[10px] text-rose-500 dark:text-rose-500"
+                                    >
+                                        Tổng chi tiêu ngoài hệ thống đã vượt quá
+                                        hạn mức tối đa
+                                        {{ vnd(activeRegister.expense_budget) }}
+                                        được cấp đầu ca.
+                                    </p>
                                 </div>
                             </div>
-                            <div v-else-if="activeRegister.expense_budget > 0" class="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/20 rounded-xl p-3 flex gap-2">
-                                <CheckCircle class="size-5 text-emerald-500 shrink-0 mt-0.5" />
+                            <div
+                                v-else-if="activeRegister.expense_budget > 0"
+                                class="flex gap-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 dark:border-emerald-900/20 dark:bg-emerald-950/20"
+                            >
+                                <CheckCircle
+                                    class="mt-0.5 size-5 shrink-0 text-emerald-500"
+                                />
                                 <div>
-                                    <p class="text-xs font-bold text-emerald-700 dark:text-emerald-400">Trong tầm kiểm soát</p>
-                                    <p class="text-[10px] text-emerald-500 dark:text-emerald-500 mt-0.5">Chi ngoài còn lại: {{ vnd(activeRegister.expense_budget - activeExpensesTotal) }}</p>
+                                    <p
+                                        class="text-xs font-bold text-emerald-700 dark:text-emerald-400"
+                                    >
+                                        Trong tầm kiểm soát
+                                    </p>
+                                    <p
+                                        class="mt-0.5 text-[10px] text-emerald-500 dark:text-emerald-500"
+                                    >
+                                        Chi ngoài còn lại:
+                                        {{
+                                            vnd(
+                                                activeRegister.expense_budget -
+                                                    activeExpensesTotal,
+                                            )
+                                        }}
+                                    </p>
                                 </div>
                             </div>
                         </CardContent>
@@ -362,34 +514,48 @@ max = d.out;
                 </div>
 
                 <!-- Right panel: drawer cash balance and transactions log -->
-                <div class="lg:col-span-2 space-y-6">
+                <div class="space-y-6 lg:col-span-2">
                     <!-- Balance Display & Quick Actions -->
-                    <Card class="shadow-sm border-slate-100 dark:border-slate-800">
+                    <Card
+                        class="border-slate-100 shadow-sm dark:border-slate-800"
+                    >
                         <CardContent class="p-6">
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pb-6 border-b dark:border-slate-800">
+                            <div
+                                class="flex flex-col gap-6 border-b pb-6 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+                            >
                                 <div>
-                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tiền mặt thực tế kỳ vọng trong két</p>
-                                    <p class="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-1.5 font-mono">
+                                    <p
+                                        class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    >
+                                        Tiền mặt thực tế kỳ vọng trong két
+                                    </p>
+                                    <p
+                                        class="mt-1.5 font-mono text-3xl font-black text-indigo-600 dark:text-indigo-400"
+                                    >
                                         {{ vnd(activeRegister.expected_cash) }}
                                     </p>
-                                    <p class="text-[10px] text-slate-400 mt-1">Gồm: Mở két đầu ca ({{ vnd(activeRegister.opening_balance) }}) + Thu tại quầy - Chi ngoài ca</p>
+                                    <p class="mt-1 text-[10px] text-slate-400">
+                                        Gồm: Mở két đầu ca ({{
+                                            vnd(activeRegister.opening_balance)
+                                        }}) + Thu tại quầy - Chi ngoài ca
+                                    </p>
                                 </div>
 
-                                <div class="flex flex-wrap gap-2 shrink-0">
-                                    <Button 
+                                <div class="flex shrink-0 flex-wrap gap-2">
+                                    <Button
                                         @click="openTxModal('out')"
                                         variant="outline"
-                                        class="text-xs h-9 border-rose-100 text-rose-600 hover:bg-rose-50 font-bold active:scale-95 transition-transform"
+                                        class="h-9 border-rose-100 text-xs font-bold text-rose-600 transition-transform hover:bg-rose-50 active:scale-95"
                                     >
-                                        <MinusCircle class="size-4 mr-1.5" />
+                                        <MinusCircle class="mr-1.5 size-4" />
                                         Chi tiền ngoài két
                                     </Button>
-                                    <Button 
+                                    <Button
                                         @click="openTxModal('in')"
                                         variant="outline"
-                                        class="text-xs h-9 border-emerald-100 text-emerald-600 hover:bg-emerald-55 font-bold active:scale-95 transition-transform"
+                                        class="hover:bg-emerald-55 h-9 border-emerald-100 text-xs font-bold text-emerald-600 transition-transform active:scale-95"
                                     >
-                                        <PlusCircle class="size-4 mr-1.5" />
+                                        <PlusCircle class="mr-1.5 size-4" />
                                         Thu tiền mặt khác
                                     </Button>
                                 </div>
@@ -397,47 +563,75 @@ max = d.out;
 
                             <!-- Live transactions log list -->
                             <div class="pt-6">
-                                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                                    <ArrowRightLeft class="size-4 text-slate-400" />
+                                <h3
+                                    class="mb-4 flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-500 uppercase"
+                                >
+                                    <ArrowRightLeft
+                                        class="size-4 text-slate-400"
+                                    />
                                     Lịch sử giao dịch dòng tiền mặt trong ca
                                 </h3>
 
-                                <div v-if="activeTransactions.length === 0" class="text-center py-10 text-slate-400 text-xs">
-                                    Chưa phát sinh giao dịch tiền mặt nào trong ca này.
+                                <div
+                                    v-if="activeTransactions.length === 0"
+                                    class="py-10 text-center text-xs text-slate-400"
+                                >
+                                    Chưa phát sinh giao dịch tiền mặt nào trong
+                                    ca này.
                                 </div>
 
-                                <div v-else class="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-y-auto pr-1">
-                                    <div 
-                                        v-for="tx in activeTransactions" 
-                                        :key="tx.id" 
+                                <div
+                                    v-else
+                                    class="max-h-[300px] divide-y divide-slate-100 overflow-y-auto pr-1 dark:divide-slate-800"
+                                >
+                                    <div
+                                        v-for="tx in activeTransactions"
+                                        :key="tx.id"
                                         class="flex items-center justify-between py-3 text-xs"
                                     >
                                         <div class="flex items-center gap-3">
-                                            <div 
+                                            <div
                                                 :class="[
-                                                    'h-8 w-8 rounded-full flex items-center justify-center border',
-                                                    tx.type === 'in' 
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' 
-                                                        : 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/30'
+                                                    'flex h-8 w-8 items-center justify-center rounded-full border',
+                                                    tx.type === 'in'
+                                                        ? 'dark:text-emerald-450 border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/20'
+                                                        : 'dark:text-rose-450 border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/20',
                                                 ]"
                                             >
-                                                <component :is="tx.type === 'in' ? ArrowUpRight : ArrowDownRight" class="size-4" />
+                                                <component
+                                                    :is="
+                                                        tx.type === 'in'
+                                                            ? ArrowUpRight
+                                                            : ArrowDownRight
+                                                    "
+                                                    class="size-4"
+                                                />
                                             </div>
                                             <div>
-                                                <p class="font-bold text-slate-700 dark:text-slate-200">{{ tx.notes }}</p>
-                                                <p class="text-[10px] text-slate-400 mt-0.5">
-                                                    {{ tx.created_by_name }} · {{ tx.occurred_at }}
+                                                <p
+                                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                                >
+                                                    {{ tx.notes }}
+                                                </p>
+                                                <p
+                                                    class="mt-0.5 text-[10px] text-slate-400"
+                                                >
+                                                    {{ tx.created_by_name }} ·
+                                                    {{ tx.occurred_at }}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <span 
+                                        <span
                                             :class="[
-                                                'font-mono font-black text-sm',
-                                                tx.type === 'in' ? 'text-emerald-600 dark:text-emerald-450' : 'text-rose-600 dark:text-rose-455'
+                                                'font-mono text-sm font-black',
+                                                tx.type === 'in'
+                                                    ? 'dark:text-emerald-450 text-emerald-600'
+                                                    : 'dark:text-rose-455 text-rose-600',
                                             ]"
                                         >
-                                            {{ tx.type === 'in' ? '+' : '-' }}{{ vnd(tx.amount) }}
+                                            {{ tx.type === 'in' ? '+' : '-'
+                                            }}{{ vnd(tx.amount) }}
                                         </span>
                                     </div>
                                 </div>
@@ -448,19 +642,31 @@ max = d.out;
             </div>
 
             <!-- Empty state when no register is active -->
-            <div v-else class="flex flex-col items-center gap-4 py-24 text-center border-2 border-dashed rounded-2xl bg-white dark:bg-slate-950/30 dark:border-slate-800">
-                <div class="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900 text-slate-400">
+            <div
+                v-else
+                class="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed bg-white py-24 text-center dark:border-slate-800 dark:bg-slate-950/30"
+            >
+                <div
+                    class="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-900"
+                >
                     <Wallet class="size-8" />
                 </div>
                 <div>
-                    <h2 class="text-base font-bold text-slate-800 dark:text-slate-200">Chưa mở két tiền mặt ca làm việc</h2>
-                    <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1">Để bắt đầu bán hàng bằng tiền mặt hoặc ghi nhận chi tiêu ngoài hệ thống trong ca trực, vui lòng mở két tiền mặt.</p>
+                    <h2
+                        class="text-base font-bold text-slate-800 dark:text-slate-200"
+                    >
+                        Chưa mở két tiền mặt ca làm việc
+                    </h2>
+                    <p class="mx-auto mt-1 max-w-sm text-xs text-slate-400">
+                        Để bắt đầu bán hàng bằng tiền mặt hoặc ghi nhận chi tiêu
+                        ngoài hệ thống trong ca trực, vui lòng mở két tiền mặt.
+                    </p>
                 </div>
-                <Button 
+                <Button
                     @click="showOpenModal = true"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm text-xs h-9 px-6 active:scale-95 transition-transform"
+                    class="h-9 bg-indigo-600 px-6 text-xs font-semibold text-white shadow-sm transition-transform hover:bg-indigo-700 active:scale-95"
                 >
-                    <PlusCircle class="size-4 mr-1.5" />
+                    <PlusCircle class="mr-1.5 size-4" />
                     Mở két đầu ca ngay
                 </Button>
             </div>
@@ -468,15 +674,24 @@ max = d.out;
 
         <!-- tab: REGISTERS HISTORY -->
         <div v-if="activeTab === 'history'">
-            <Card class="shadow-sm overflow-hidden">
-                <CardHeader class="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/10">
-                    <CardTitle class="text-sm font-bold">Lịch sử ca chốt két tiền mặt</CardTitle>
-                    <CardDescription class="text-xs">Danh sách các phiên đóng/mở két tiền mặt, đối soát và chênh lệch két.</CardDescription>
+            <Card class="overflow-hidden shadow-sm">
+                <CardHeader
+                    class="border-b bg-slate-50/50 pb-3 dark:bg-slate-900/10"
+                >
+                    <CardTitle class="text-sm font-bold"
+                        >Lịch sử ca chốt két tiền mặt</CardTitle
+                    >
+                    <CardDescription class="text-xs"
+                        >Danh sách các phiên đóng/mở két tiền mặt, đối soát và
+                        chênh lệch két.</CardDescription
+                    >
                 </CardHeader>
-                <CardContent class="p-0 overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
+                <CardContent class="overflow-x-auto p-0">
+                    <table class="w-full border-collapse text-left text-xs">
                         <thead>
-                            <tr class="bg-slate-50/20 dark:bg-slate-900/5 border-b font-bold text-slate-500">
+                            <tr
+                                class="border-b bg-slate-50/20 font-bold text-slate-500 dark:bg-slate-900/5"
+                            >
                                 <th class="p-3 pl-5">Ngày chốt</th>
                                 <th class="p-3">Ca</th>
                                 <th class="p-3">Người mở / đóng</th>
@@ -487,47 +702,89 @@ max = d.out;
                                 <th class="p-3 text-center">Trạng thái</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-350">
+                        <tbody
+                            class="dark:text-slate-350 divide-y divide-slate-100 text-slate-600 dark:divide-slate-800"
+                        >
                             <tr v-if="registers.length === 0">
-                                <td colspan="8" class="p-10 text-center text-slate-400">Chưa có lịch sử phiên két tiền mặt nào.</td>
+                                <td
+                                    colspan="8"
+                                    class="p-10 text-center text-slate-400"
+                                >
+                                    Chưa có lịch sử phiên két tiền mặt nào.
+                                </td>
                             </tr>
-                            <tr 
-                                v-for="r in registers" 
+                            <tr
+                                v-for="r in registers"
                                 :key="r.id"
-                                class="hover:bg-slate-50/40 dark:hover:bg-slate-900/30 transition-colors"
+                                class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
                             >
-                                <td class="p-3 pl-5 font-bold">{{ r.closing_date }}</td>
+                                <td class="p-3 pl-5 font-bold">
+                                    {{ r.closing_date }}
+                                </td>
                                 <td class="p-3">{{ r.shift_name }}</td>
                                 <td class="p-3">
-                                    <p class="font-semibold">{{ r.opened_by_name }}</p>
-                                    <p class="text-[10px] text-slate-400 mt-0.5">Đóng: {{ r.closed_by_name }}</p>
+                                    <p class="font-semibold">
+                                        {{ r.opened_by_name }}
+                                    </p>
+                                    <p
+                                        class="mt-0.5 text-[10px] text-slate-400"
+                                    >
+                                        Đóng: {{ r.closed_by_name }}
+                                    </p>
                                 </td>
-                                <td class="p-3 text-right font-mono font-semibold">{{ vnd(r.opening_balance) }}</td>
-                                <td class="p-3 text-right font-mono font-semibold">
-                                    {{ r.status === 'closed' ? vnd(r.expected_closing_balance) : '—' }}
+                                <td
+                                    class="p-3 text-right font-mono font-semibold"
+                                >
+                                    {{ vnd(r.opening_balance) }}
                                 </td>
-                                <td class="p-3 text-right font-mono font-bold text-slate-700 dark:text-slate-200">
-                                    {{ r.status === 'closed' ? vnd(r.closing_balance) : '—' }}
+                                <td
+                                    class="p-3 text-right font-mono font-semibold"
+                                >
+                                    {{
+                                        r.status === 'closed'
+                                            ? vnd(r.expected_closing_balance)
+                                            : '—'
+                                    }}
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono font-bold text-slate-700 dark:text-slate-200"
+                                >
+                                    {{
+                                        r.status === 'closed'
+                                            ? vnd(r.closing_balance)
+                                            : '—'
+                                    }}
                                 </td>
                                 <td class="p-3 text-right font-mono font-black">
-                                    <span 
+                                    <span
                                         v-if="r.status === 'closed'"
-                                        :class="r.difference > 0 ? 'text-emerald-600' : r.difference < 0 ? 'text-rose-600' : 'text-slate-400'"
+                                        :class="
+                                            r.difference > 0
+                                                ? 'text-emerald-600'
+                                                : r.difference < 0
+                                                  ? 'text-rose-600'
+                                                  : 'text-slate-400'
+                                        "
                                     >
-                                        {{ r.difference > 0 ? '+' : '' }}{{ vnd(r.difference) }}
+                                        {{ r.difference > 0 ? '+' : ''
+                                        }}{{ vnd(r.difference) }}
                                     </span>
                                     <span v-else>—</span>
                                 </td>
                                 <td class="p-3 text-center">
-                                    <span 
+                                    <span
                                         :class="[
-                                            'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider',
-                                            r.status === 'open' 
-                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' 
-                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            'rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase',
+                                            r.status === 'open'
+                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
                                         ]"
                                     >
-                                        {{ r.status === 'open' ? 'Đang mở' : 'Đã đóng' }}
+                                        {{
+                                            r.status === 'open'
+                                                ? 'Đang mở'
+                                                : 'Đã đóng'
+                                        }}
                                     </span>
                                 </td>
                             </tr>
@@ -539,53 +796,88 @@ max = d.out;
 
         <!-- tab: CASH FLOW CHARTS -->
         <div v-if="activeTab === 'analytics'" class="space-y-6">
-            <Card class="shadow-sm border-slate-100 dark:border-slate-800">
-                <CardHeader class="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/10">
-                    <CardTitle class="text-sm font-bold">Biến động Dòng tiền mặt hàng ngày (Thu vs Chi)</CardTitle>
-                    <CardDescription class="text-xs">Theo dõi và so sánh lượng tiền mặt nạp vào (Bán hàng) và chi ra (Phát sinh) 30 ngày qua.</CardDescription>
+            <Card class="border-slate-100 shadow-sm dark:border-slate-800">
+                <CardHeader
+                    class="border-b bg-slate-50/50 pb-3 dark:bg-slate-900/10"
+                >
+                    <CardTitle class="text-sm font-bold"
+                        >Biến động Dòng tiền mặt hàng ngày (Thu vs
+                        Chi)</CardTitle
+                    >
+                    <CardDescription class="text-xs"
+                        >Theo dõi và so sánh lượng tiền mặt nạp vào (Bán hàng)
+                        và chi ra (Phát sinh) 30 ngày qua.</CardDescription
+                    >
                 </CardHeader>
                 <CardContent class="p-6">
                     <!-- Pure Tailwind Graph -->
                     <div class="space-y-4">
-                        <div class="flex items-end justify-between h-48 border-b border-slate-200 dark:border-slate-800 pb-2 px-2 overflow-x-auto gap-4">
-                            <div 
-                                v-for="d in chartData" 
+                        <div
+                            class="flex h-48 items-end justify-between gap-4 overflow-x-auto border-b border-slate-200 px-2 pb-2 dark:border-slate-800"
+                        >
+                            <div
+                                v-for="d in chartData"
                                 :key="d.date"
-                                class="flex flex-col items-center gap-1 min-w-[30px] w-full group relative"
+                                class="group relative flex w-full min-w-[30px] flex-col items-center gap-1"
                             >
                                 <!-- Bars wrapper -->
-                                <div class="flex items-end gap-1 h-36 w-full justify-center">
+                                <div
+                                    class="flex h-36 w-full items-end justify-center gap-1"
+                                >
                                     <!-- In bar (Green) -->
-                                    <div 
-                                        class="w-2.5 bg-emerald-500/80 hover:bg-emerald-500 rounded-t-sm transition-all duration-300"
+                                    <div
+                                        class="w-2.5 rounded-t-sm bg-emerald-500/80 transition-all duration-300 hover:bg-emerald-500"
                                         :style="`height: ${Math.max(3, (d.in / chartMaxVal) * 120)}px`"
                                     />
                                     <!-- Out bar (Red) -->
-                                    <div 
-                                        class="w-2.5 bg-rose-500/80 hover:bg-rose-500 rounded-t-sm transition-all duration-300"
+                                    <div
+                                        class="w-2.5 rounded-t-sm bg-rose-500/80 transition-all duration-300 hover:bg-rose-500"
                                         :style="`height: ${Math.max(3, (d.out / chartMaxVal) * 120)}px`"
                                     />
                                 </div>
 
                                 <!-- Tooltip popup -->
-                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] rounded-lg p-2.5 hidden group-hover:block z-20 shadow-lg font-bold border border-slate-800 whitespace-nowrap">
-                                    <p class="border-b pb-1 mb-1 border-slate-700 text-center">Ngày {{ d.date }}</p>
-                                    <p class="text-emerald-400">Tổng thu: +{{ vnd(d.in) }}</p>
-                                    <p class="text-rose-400">Tổng chi: -{{ vnd(d.out) }}</p>
-                                    <p class="text-indigo-400 mt-0.5 border-t pt-1 border-slate-700">Dòng tiền ròng: {{ vnd(d.net) }}</p>
+                                <div
+                                    class="absolute bottom-full left-1/2 z-20 hidden -translate-x-1/2 rounded-lg border border-slate-800 bg-slate-900 p-2.5 text-[9px] font-bold whitespace-nowrap text-white shadow-lg group-hover:block"
+                                >
+                                    <p
+                                        class="mb-1 border-b border-slate-700 pb-1 text-center"
+                                    >
+                                        Ngày {{ d.date }}
+                                    </p>
+                                    <p class="text-emerald-400">
+                                        Tổng thu: +{{ vnd(d.in) }}
+                                    </p>
+                                    <p class="text-rose-400">
+                                        Tổng chi: -{{ vnd(d.out) }}
+                                    </p>
+                                    <p
+                                        class="mt-0.5 border-t border-slate-700 pt-1 text-indigo-400"
+                                    >
+                                        Dòng tiền ròng: {{ vnd(d.net) }}
+                                    </p>
                                 </div>
 
-                                <span class="text-[9px] font-mono text-slate-400 shrink-0 scale-90">{{ d.date }}</span>
+                                <span
+                                    class="shrink-0 scale-90 font-mono text-[9px] text-slate-400"
+                                    >{{ d.date }}</span
+                                >
                             </div>
                         </div>
 
                         <!-- Legend indicators -->
-                        <div class="flex justify-center gap-6 pt-4 text-xs font-semibold text-slate-500">
+                        <div
+                            class="flex justify-center gap-6 pt-4 text-xs font-semibold text-slate-500"
+                        >
                             <span class="flex items-center gap-2">
-                                <span class="size-3 bg-emerald-500 rounded-xs" /> Dòng tiền Thu (Sales & Khác)
+                                <span
+                                    class="size-3 rounded-xs bg-emerald-500"
+                                />
+                                Dòng tiền Thu (Sales & Khác)
                             </span>
                             <span class="flex items-center gap-2">
-                                <span class="size-3 bg-rose-500 rounded-xs" /> Dòng tiền Chi (Expenses & Khác)
+                                <span class="size-3 rounded-xs bg-rose-500" />
+                                Dòng tiền Chi (Expenses & Khác)
                             </span>
                         </div>
                     </div>
@@ -595,108 +887,198 @@ max = d.out;
 
         <!-- tab: FORECASTING -->
         <div v-if="activeTab === 'forecast'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Forecast Metrics -->
-                <Card class="shadow-sm border-slate-100 dark:border-slate-800">
-                    <CardHeader class="pb-3 border-b bg-slate-50/20">
-                        <CardTitle class="text-xs font-bold uppercase tracking-wider text-slate-400">Doanh số kì vọng 7 ngày tới</CardTitle>
+                <Card class="border-slate-100 shadow-sm dark:border-slate-800">
+                    <CardHeader class="border-b bg-slate-50/20 pb-3">
+                        <CardTitle
+                            class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >Doanh số kì vọng 7 ngày tới</CardTitle
+                        >
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-sm font-bold text-slate-400">Thu tiền mặt ước tính (7 ngày)</p>
-                        <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                        <p class="text-sm font-bold text-slate-400">
+                            Thu tiền mặt ước tính (7 ngày)
+                        </p>
+                        <p
+                            class="mt-1 font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                        >
                             +{{ vnd(forecast.projected_in) }}
                         </p>
-                        <p class="text-[10px] text-slate-400 mt-2">Dựa trên trung bình thu nhập tiền mặt thực tế {{ vnd(forecast.avg_daily_in) }}/ngày.</p>
+                        <p class="mt-2 text-[10px] text-slate-400">
+                            Dựa trên trung bình thu nhập tiền mặt thực tế
+                            {{ vnd(forecast.avg_daily_in) }}/ngày.
+                        </p>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-sm border-slate-100 dark:border-slate-800">
-                    <CardHeader class="pb-3 border-b bg-slate-50/20">
-                        <CardTitle class="text-xs font-bold uppercase tracking-wider text-slate-400">Chi tiêu dự kiến 7 ngày tới</CardTitle>
+                <Card class="border-slate-100 shadow-sm dark:border-slate-800">
+                    <CardHeader class="border-b bg-slate-50/20 pb-3">
+                        <CardTitle
+                            class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >Chi tiêu dự kiến 7 ngày tới</CardTitle
+                        >
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-sm font-bold text-slate-400">Chi tiền mặt dự tính (7 ngày)</p>
-                        <p class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1 font-mono">
+                        <p class="text-sm font-bold text-slate-400">
+                            Chi tiền mặt dự tính (7 ngày)
+                        </p>
+                        <p
+                            class="mt-1 font-mono text-2xl font-black text-rose-600 dark:text-rose-400"
+                        >
                             -{{ vnd(forecast.projected_out) }}
                         </p>
-                        <p class="text-[10px] text-slate-400 mt-2">Dựa trên trung bình chi tiêu ngoài hệ thống {{ vnd(forecast.avg_daily_out) }}/ngày.</p>
+                        <p class="mt-2 text-[10px] text-slate-400">
+                            Dựa trên trung bình chi tiêu ngoài hệ thống
+                            {{ vnd(forecast.avg_daily_out) }}/ngày.
+                        </p>
                     </CardContent>
                 </Card>
 
-                <Card class="shadow-sm border-slate-100 dark:border-slate-800">
-                    <CardHeader class="pb-3 border-b bg-slate-50/20">
-                        <CardTitle class="text-xs font-bold uppercase tracking-wider text-slate-400">Số dư dự tính cuối kỳ</CardTitle>
+                <Card class="border-slate-100 shadow-sm dark:border-slate-800">
+                    <CardHeader class="border-b bg-slate-50/20 pb-3">
+                        <CardTitle
+                            class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >Số dư dự tính cuối kỳ</CardTitle
+                        >
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-sm font-bold text-slate-400">Số dư két ước tính (7 ngày)</p>
-                        <p 
-                            class="text-2xl font-black mt-1 font-mono"
-                            :class="forecast.projected_balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-650'"
+                        <p class="text-sm font-bold text-slate-400">
+                            Số dư két ước tính (7 ngày)
+                        </p>
+                        <p
+                            class="mt-1 font-mono text-2xl font-black"
+                            :class="
+                                forecast.projected_balance >= 0
+                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                    : 'text-rose-650'
+                            "
                         >
                             {{ vnd(forecast.projected_balance) }}
                         </p>
-                        <p class="text-[10px] text-slate-400 mt-2">Tính toán từ số dư hiện tại trong két: {{ vnd(forecast.current_cash) }}</p>
+                        <p class="mt-2 text-[10px] text-slate-400">
+                            Tính toán từ số dư hiện tại trong két:
+                            {{ vnd(forecast.current_cash) }}
+                        </p>
                     </CardContent>
                 </Card>
             </div>
 
             <!-- Forecast Warning Callout -->
-            <Card class="shadow-sm border overflow-hidden" :class="forecast.status === 'warning' ? 'border-rose-200 dark:border-rose-950/40 bg-rose-50/10' : forecast.status === 'low_reserve' ? 'border-amber-200 dark:border-amber-950/40 bg-amber-50/10' : 'border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10'">
-                <CardContent class="p-6 flex items-start gap-4">
-                    <div 
+            <Card
+                class="overflow-hidden border shadow-sm"
+                :class="
+                    forecast.status === 'warning'
+                        ? 'border-rose-200 bg-rose-50/10 dark:border-rose-950/40'
+                        : forecast.status === 'low_reserve'
+                          ? 'border-amber-200 bg-amber-50/10 dark:border-amber-950/40'
+                          : 'border-emerald-100 bg-emerald-50/10 dark:border-emerald-950/20'
+                "
+            >
+                <CardContent class="flex items-start gap-4 p-6">
+                    <div
                         :class="[
-                            'h-10 w-10 rounded-full flex items-center justify-center shrink-0 border',
-                            forecast.status === 'warning' ? 'bg-rose-50 text-rose-500 border-rose-100' :
-                            forecast.status === 'low_reserve' ? 'bg-amber-50 text-amber-500 border-amber-100' :
-                            'bg-emerald-50 text-emerald-500 border-emerald-100'
+                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border',
+                            forecast.status === 'warning'
+                                ? 'border-rose-100 bg-rose-50 text-rose-500'
+                                : forecast.status === 'low_reserve'
+                                  ? 'border-amber-100 bg-amber-50 text-amber-500'
+                                  : 'border-emerald-100 bg-emerald-50 text-emerald-500',
                         ]"
                     >
-                        <AlertTriangle v-if="forecast.status !== 'safe'" class="size-5" />
+                        <AlertTriangle
+                            v-if="forecast.status !== 'safe'"
+                            class="size-5"
+                        />
                         <CheckCircle v-else class="size-5" />
                     </div>
-                    
+
                     <div>
-                        <h3 
-                            class="font-bold text-sm"
-                            :class="forecast.status === 'warning' ? 'text-rose-700 dark:text-rose-400' : forecast.status === 'low_reserve' ? 'text-amber-700 dark:text-amber-450' : 'text-emerald-700 dark:text-emerald-400'"
+                        <h3
+                            class="text-sm font-bold"
+                            :class="
+                                forecast.status === 'warning'
+                                    ? 'text-rose-700 dark:text-rose-400'
+                                    : forecast.status === 'low_reserve'
+                                      ? 'dark:text-amber-450 text-amber-700'
+                                      : 'text-emerald-700 dark:text-emerald-400'
+                            "
                         >
-                            {{ forecast.status === 'warning' ? 'Cảnh báo thâm hụt dòng tiền mặt!' : forecast.status === 'low_reserve' ? 'Lưu ý quỹ tiền mặt thấp' : 'Dòng tiền mặt an toàn' }}
+                            {{
+                                forecast.status === 'warning'
+                                    ? 'Cảnh báo thâm hụt dòng tiền mặt!'
+                                    : forecast.status === 'low_reserve'
+                                      ? 'Lưu ý quỹ tiền mặt thấp'
+                                      : 'Dòng tiền mặt an toàn'
+                            }}
                         </h3>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-1.5">{{ forecast.message }}</p>
+                        <p
+                            class="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+                        >
+                            {{ forecast.message }}
+                        </p>
                     </div>
                 </CardContent>
             </Card>
         </div>
 
         <!-- MODAL: Open Register -->
-        <div v-if="showOpenModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <Wallet class="size-5 text-indigo-600 dark:text-indigo-400" />
+        <div
+            v-if="showOpenModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-md animate-in shadow-2xl duration-200 fade-in zoom-in"
+            >
+                <CardHeader class="border-b pb-3">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
+                        <Wallet
+                            class="size-5 text-indigo-600 dark:text-indigo-400"
+                        />
                         Mở Két Tiền Mặt Đầu Ca
                     </CardTitle>
-                    <CardDescription class="text-xs">Thiết lập số dư két tiền ban đầu để cashier thực hiện giao dịch.</CardDescription>
+                    <CardDescription class="text-xs"
+                        >Thiết lập số dư két tiền ban đầu để cashier thực hiện
+                        giao dịch.</CardDescription
+                    >
                 </CardHeader>
                 <form @submit.prevent="handleOpenRegister">
-                    <CardContent class="p-5 space-y-4">
+                    <CardContent class="space-y-4 p-5">
                         <!-- Shift select -->
                         <div class="space-y-1.5">
-                            <Label for="open-shift" class="text-xs font-bold text-slate-500">Ca làm việc chốt ca:</Label>
-                            <select 
+                            <Label
+                                for="open-shift"
+                                class="text-xs font-bold text-slate-500"
+                                >Ca làm việc chốt ca:</Label
+                            >
+                            <select
                                 id="open-shift"
                                 v-model="openForm.shift_id"
-                                class="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/25"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-slate-800 dark:bg-slate-950"
                             >
-                                <option value="" disabled>-- Chọn ca trực --</option>
-                                <option v-for="s in shifts" :key="s.id" :value="s.id">{{ s.name }} ({{ s.code }})</option>
+                                <option value="" disabled>
+                                    -- Chọn ca trực --
+                                </option>
+                                <option
+                                    v-for="s in shifts"
+                                    :key="s.id"
+                                    :value="s.id"
+                                >
+                                    {{ s.name }} ({{ s.code }})
+                                </option>
                             </select>
                         </div>
 
                         <!-- Opening Balance -->
                         <div class="space-y-1.5">
-                            <Label for="open-balance" class="text-xs font-bold text-slate-500">Số dư tiền mặt ban đầu (VND):</Label>
-                            <Input 
+                            <Label
+                                for="open-balance"
+                                class="text-xs font-bold text-slate-500"
+                                >Số dư tiền mặt ban đầu (VND):</Label
+                            >
+                            <Input
                                 id="open-balance"
                                 v-model.number="openForm.opening_balance"
                                 type="number"
@@ -707,21 +1089,33 @@ max = d.out;
 
                         <!-- Expense Budget -->
                         <div class="space-y-1.5">
-                            <Label for="open-budget" class="text-xs font-bold text-slate-500">Hạn mức chi tiêu ngoài két (VND - Tùy chọn):</Label>
-                            <Input 
+                            <Label
+                                for="open-budget"
+                                class="text-xs font-bold text-slate-500"
+                                >Hạn mức chi tiêu ngoài két (VND - Tùy
+                                chọn):</Label
+                            >
+                            <Input
                                 id="open-budget"
                                 v-model.number="openForm.expense_budget"
                                 type="number"
                                 placeholder="Nhập ngân sách chi..."
                                 class="w-full"
                             />
-                            <p class="text-[10px] text-slate-400">Đặt hạn mức cảnh báo khi chi tiền đi chợ, sửa chữa vượt mức.</p>
+                            <p class="text-[10px] text-slate-400">
+                                Đặt hạn mức cảnh báo khi chi tiền đi chợ, sửa
+                                chữa vượt mức.
+                            </p>
                         </div>
 
                         <!-- Notes -->
                         <div class="space-y-1.5">
-                            <Label for="open-notes" class="text-xs font-bold text-slate-500">Ghi chú mở két:</Label>
-                            <Input 
+                            <Label
+                                for="open-notes"
+                                class="text-xs font-bold text-slate-500"
+                                >Ghi chú mở két:</Label
+                            >
+                            <Input
                                 id="open-notes"
                                 v-model="openForm.notes"
                                 type="text"
@@ -730,14 +1124,25 @@ max = d.out;
                             />
                         </div>
                     </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/50 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showOpenModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5"
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50/50 p-4 dark:bg-slate-900/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showOpenModal = false"
+                            class="h-9 text-xs font-semibold"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="flex h-9 items-center gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                             :disabled="openForm.processing"
                         >
-                            <Loader2 v-if="openForm.processing" class="size-4 animate-spin" />
+                            <Loader2
+                                v-if="openForm.processing"
+                                class="size-4 animate-spin"
+                            />
                             Xác nhận mở két
                         </Button>
                     </div>
@@ -746,23 +1151,54 @@ max = d.out;
         </div>
 
         <!-- MODAL: Add Cash Transaction (In/Out) -->
-        <div v-if="showTransactionModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <component :is="transactionModalType === 'in' ? PlusCircle : MinusCircle" :class="transactionModalType === 'in' ? 'text-emerald-500' : 'text-rose-500'" class="size-5" />
-                        {{ transactionModalType === 'in' ? 'Ghi Nhận Khoản Thu Tiền Mặt Khác' : 'Ghi Nhận Khoản Chi Ngoài Két' }}
+        <div
+            v-if="showTransactionModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-md animate-in shadow-2xl duration-200 fade-in zoom-in"
+            >
+                <CardHeader class="border-b pb-3">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
+                        <component
+                            :is="
+                                transactionModalType === 'in'
+                                    ? PlusCircle
+                                    : MinusCircle
+                            "
+                            :class="
+                                transactionModalType === 'in'
+                                    ? 'text-emerald-500'
+                                    : 'text-rose-500'
+                            "
+                            class="size-5"
+                        />
+                        {{
+                            transactionModalType === 'in'
+                                ? 'Ghi Nhận Khoản Thu Tiền Mặt Khác'
+                                : 'Ghi Nhận Khoản Chi Ngoài Két'
+                        }}
                     </CardTitle>
                     <CardDescription class="text-xs">
-                        {{ transactionModalType === 'in' ? 'Thu các nguồn tiền mặt ngoài hệ thống hóa đơn bán hàng.' : 'Ghi nhận các chi phí sửa chữa, đi chợ mua đồ phát sinh ngoài hệ thống.' }}
+                        {{
+                            transactionModalType === 'in'
+                                ? 'Thu các nguồn tiền mặt ngoài hệ thống hóa đơn bán hàng.'
+                                : 'Ghi nhận các chi phí sửa chữa, đi chợ mua đồ phát sinh ngoài hệ thống.'
+                        }}
                     </CardDescription>
                 </CardHeader>
                 <form @submit.prevent="handleAddTransaction">
-                    <CardContent class="p-5 space-y-4">
+                    <CardContent class="space-y-4 p-5">
                         <!-- Amount -->
                         <div class="space-y-1.5">
-                            <Label for="tx-amount" class="text-xs font-bold text-slate-500">Số tiền giao dịch (VND):</Label>
-                            <Input 
+                            <Label
+                                for="tx-amount"
+                                class="text-xs font-bold text-slate-500"
+                                >Số tiền giao dịch (VND):</Label
+                            >
+                            <Input
                                 id="tx-amount"
                                 v-model.number="txForm.amount"
                                 type="number"
@@ -773,27 +1209,45 @@ max = d.out;
 
                         <!-- Notes -->
                         <div class="space-y-1.5">
-                            <Label for="tx-notes" class="text-xs font-bold text-slate-500">Nội dung chi tiết (ví dụ: Mua súp lơ đi chợ, Sửa vòi nước hỏng...):</Label>
-                            <textarea 
+                            <Label
+                                for="tx-notes"
+                                class="text-xs font-bold text-slate-500"
+                                >Nội dung chi tiết (ví dụ: Mua súp lơ đi chợ,
+                                Sửa vòi nước hỏng...):</Label
+                            >
+                            <textarea
                                 id="tx-notes"
                                 v-model="txForm.notes"
                                 rows="3"
                                 placeholder="Vui lòng nhập lý do cụ thể..."
-                                class="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 dark:border-slate-800 dark:bg-slate-950"
                             ></textarea>
                         </div>
                     </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/50 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showTransactionModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50/50 p-4 dark:bg-slate-900/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showTransactionModal = false"
+                            class="h-9 text-xs font-semibold"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
                             :class="[
-                                'text-white font-semibold text-xs h-9 flex items-center gap-1.5',
-                                transactionModalType === 'in' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                                'flex h-9 items-center gap-1.5 text-xs font-semibold text-white',
+                                transactionModalType === 'in'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                                    : 'bg-rose-600 hover:bg-rose-700',
                             ]"
                             :disabled="txForm.processing"
                         >
-                            <Loader2 v-if="txForm.processing" class="size-4 animate-spin" />
+                            <Loader2
+                                v-if="txForm.processing"
+                                class="size-4 animate-spin"
+                            />
                             Ghi nhận giao dịch
                         </Button>
                     </div>

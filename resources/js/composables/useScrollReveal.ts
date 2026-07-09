@@ -15,9 +15,10 @@ export function useScrollReveal(
     let observer: IntersectionObserver | null = null;
 
     onMounted(() => {
-        const el = typeof target === 'string'
-            ? document.querySelector(target)
-            : target.value;
+        const el =
+            typeof target === 'string'
+                ? document.querySelector(target)
+                : target.value;
 
         if (!el) return;
 
@@ -45,7 +46,10 @@ export function useScrollReveal(
     return { isVisible };
 }
 
-export function useScrollRevealAll(selector = '.reveal-on-scroll', options: ScrollRevealOptions = {}) {
+export function useScrollRevealAll(
+    selector = '.reveal-on-scroll',
+    options: ScrollRevealOptions = {},
+) {
     const { threshold = 0.1, rootMargin = '0px', once = true } = options;
     let observer: IntersectionObserver | null = null;
 

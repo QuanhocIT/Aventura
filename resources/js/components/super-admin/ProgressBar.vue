@@ -7,7 +7,14 @@ const props = withDefaults(
     defineProps<{
         value: number;
         max?: number;
-        color?: 'emerald' | 'amber' | 'rose' | 'sky' | 'violet' | 'primary' | 'auto';
+        color?:
+            | 'emerald'
+            | 'amber'
+            | 'rose'
+            | 'sky'
+            | 'violet'
+            | 'primary'
+            | 'auto';
         size?: 'sm' | 'md';
         showLabel?: boolean;
         animated?: boolean;
@@ -40,7 +47,14 @@ const barColorClass: Record<string, string> = {
 
 <template>
     <div :class="cn('flex items-center gap-2', props.class)">
-        <div :class="cn('flex-1 overflow-hidden rounded-full bg-muted/30', size === 'sm' ? 'h-1.5' : 'h-2.5')">
+        <div
+            :class="
+                cn(
+                    'flex-1 overflow-hidden rounded-full bg-muted/30',
+                    size === 'sm' ? 'h-1.5' : 'h-2.5',
+                )
+            "
+        >
             <div
                 class="relative h-full overflow-hidden rounded-full"
                 :style="{ width: `${percentage}%` }"
@@ -49,7 +63,8 @@ const barColorClass: Record<string, string> = {
                     :class="
                         cn(
                             'absolute inset-0 bg-gradient-to-r transition-all duration-500',
-                            barColorClass[resolvedColor] ?? barColorClass.emerald,
+                            barColorClass[resolvedColor] ??
+                                barColorClass.emerald,
                         )
                     "
                 />
@@ -61,7 +76,11 @@ const barColorClass: Record<string, string> = {
         </div>
         <span
             v-if="showLabel"
-            :class="cn('text-[10px] font-mono tabular-nums text-muted-foreground shrink-0')"
+            :class="
+                cn(
+                    'shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums',
+                )
+            "
         >
             {{ percentage }}%
         </span>

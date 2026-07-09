@@ -1,10 +1,34 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { DollarSign, TrendingUp, ShoppingCart, Building2, Crown, Sparkles, Download, AlertTriangle, CreditCard, Wallet, Landmark, HelpCircle } from 'lucide-vue-next';
+import {
+    DollarSign,
+    TrendingUp,
+    ShoppingCart,
+    Building2,
+    Crown,
+    Sparkles,
+    Download,
+    AlertTriangle,
+    CreditCard,
+    Wallet,
+    Landmark,
+    HelpCircle,
+} from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader, StatCard, SectionCard, ProgressBar } from '@/components/super-admin';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    PageHeader,
+    StatCard,
+    SectionCard,
+    ProgressBar,
+} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AreaChart from '@/components/charts/AreaChart.vue';
 import { Button } from '@/components/ui/button';
@@ -12,19 +36,48 @@ import { Button } from '@/components/ui/button';
 defineOptions({ layout: AppLayout });
 
 const props = defineProps<{
-    revenueByRestaurant: Array<{ id: number; name: string; code: string; revenue: number; orders_count: number }>;
-    revenueByBranch: Array<{ id: number; name: string; revenue: number; orders_count: number }>;
+    revenueByRestaurant: Array<{
+        id: number;
+        name: string;
+        code: string;
+        revenue: number;
+        orders_count: number;
+    }>;
+    revenueByBranch: Array<{
+        id: number;
+        name: string;
+        revenue: number;
+        orders_count: number;
+    }>;
     dailyRevenue: Array<{ label: string; value: number; orders_count: number }>;
     compareRevenue: Array<{ label: string; value: number }>;
     revenueByPlan: Array<{ name: string; code: string; revenue: number }>;
-    revenueByPaymentMethod: Array<{ method: string; revenue: number; count: number }>;
+    revenueByPaymentMethod: Array<{
+        method: string;
+        revenue: number;
+        count: number;
+    }>;
     topItems: Array<{ name: string; quantity: number; revenue: number }>;
     retentionRate: number;
-    forecastRevenue: Array<{ label: string; value: number; is_forecast: boolean }>;
-    anomalies: Array<{ type: string; severity: string; title: string; message: string }>;
+    forecastRevenue: Array<{
+        label: string;
+        value: number;
+        is_forecast: boolean;
+    }>;
+    anomalies: Array<{
+        type: string;
+        severity: string;
+        title: string;
+        message: string;
+    }>;
     plans: Array<{ id: number; code: string; name: string }>;
     restaurants: Array<{ id: number; name: string; code: string }>;
-    stats: { total_revenue: number; total_orders: number; avg_order_value: number; active_restaurants: number };
+    stats: {
+        total_revenue: number;
+        total_orders: number;
+        avg_order_value: number;
+        active_restaurants: number;
+    };
     filters: { range: string; plan?: string; restaurant_id?: string };
 }>();
 
@@ -34,11 +87,18 @@ const restaurantFilter = ref(props.filters.restaurant_id || 'all');
 const chartMode = ref<'compare' | 'forecast'>('compare'); // 'compare' (so sánh kỳ trước) hoặc 'forecast' (dự báo AI)
 
 function applyFilter() {
-    router.get('/super-admin/revenue', {
-        range: range.value,
-        plan: planFilter.value !== 'all' ? planFilter.value : undefined,
-        restaurant_id: restaurantFilter.value !== 'all' ? restaurantFilter.value : undefined
-    }, { preserveState: true, replace: true });
+    router.get(
+        '/super-admin/revenue',
+        {
+            range: range.value,
+            plan: planFilter.value !== 'all' ? planFilter.value : undefined,
+            restaurant_id:
+                restaurantFilter.value !== 'all'
+                    ? restaurantFilter.value
+                    : undefined,
+        },
+        { preserveState: true, replace: true },
+    );
 }
 
 function exportCSV() {
@@ -47,7 +107,11 @@ function exportCSV() {
 }
 
 function formatVND(val: number) {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(val);
+    return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        maximumFractionDigits: 0,
+    }).format(val);
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -57,11 +121,19 @@ const paymentMethodLabels: Record<string, string> = {
     card: 'Thẻ tín dụng',
 };
 
-const maxRestaurantRevenue = Math.max(...(props.revenueByRestaurant.map(r => r.revenue) || [1]));
-const maxBranchRevenue = Math.max(...(props.revenueByBranch.map(b => b.revenue) || [1]));
-const maxPlanRevenue = Math.max(...(props.revenueByPlan.map(p => p.revenue) || [1]));
-const maxItemQty = Math.max(...(props.topItems.map(i => i.quantity) || [1]));
-const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum + item.revenue, 0) || 1;
+const maxRestaurantRevenue = Math.max(
+    ...(props.revenueByRestaurant.map((r) => r.revenue) || [1]),
+);
+const maxBranchRevenue = Math.max(
+    ...(props.revenueByBranch.map((b) => b.revenue) || [1]),
+);
+const maxPlanRevenue = Math.max(
+    ...(props.revenueByPlan.map((p) => p.revenue) || [1]),
+);
+const maxItemQty = Math.max(...(props.topItems.map((i) => i.quantity) || [1]));
+const totalPaymentsSum =
+    props.revenueByPaymentMethod.reduce((sum, item) => sum + item.revenue, 0) ||
+    1;
 </script>
 
 <template>
@@ -70,11 +142,14 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- AI Anomalies Alert -->
         <div v-if="anomalies && anomalies.length > 0" class="space-y-3">
-            <div v-for="(anomaly, idx) in anomalies" :key="idx" 
-                 class="flex items-start gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-rose-700 dark:text-rose-300 shadow-xs">
-                <AlertTriangle class="size-5 shrink-0 mt-0.5" />
+            <div
+                v-for="(anomaly, idx) in anomalies"
+                :key="idx"
+                class="flex items-start gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-rose-700 shadow-xs dark:text-rose-300"
+            >
+                <AlertTriangle class="mt-0.5 size-5 shrink-0" />
                 <div class="space-y-1">
-                    <h5 class="font-bold text-sm">{{ anomaly.title }}</h5>
+                    <h5 class="text-sm font-bold">{{ anomaly.title }}</h5>
                     <p class="text-xs">{{ anomaly.message }}</p>
                 </div>
             </div>
@@ -86,26 +161,42 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
             :icon="DollarSign"
         >
             <template #actions>
-                <div class="flex items-center gap-2.5 flex-wrap">
+                <div class="flex flex-wrap items-center gap-2.5">
                     <!-- Nhà hàng filter -->
-                    <Select v-model="restaurantFilter" @update:model-value="applyFilter">
+                    <Select
+                        v-model="restaurantFilter"
+                        @update:model-value="applyFilter"
+                    >
                         <SelectTrigger class="w-[180px]">
                             <SelectValue placeholder="Lọc theo nhà hàng" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Tất cả nhà hàng</SelectItem>
-                            <SelectItem v-for="r in restaurants" :key="r.id" :value="String(r.id)">{{ r.name }}</SelectItem>
+                            <SelectItem
+                                v-for="r in restaurants"
+                                :key="r.id"
+                                :value="String(r.id)"
+                                >{{ r.name }}</SelectItem
+                            >
                         </SelectContent>
                     </Select>
 
                     <!-- Gói cước filter -->
-                    <Select v-model="planFilter" @update:model-value="applyFilter">
+                    <Select
+                        v-model="planFilter"
+                        @update:model-value="applyFilter"
+                    >
                         <SelectTrigger class="w-[165px]">
                             <SelectValue placeholder="Lọc theo gói cước" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Tất cả gói cước</SelectItem>
-                            <SelectItem v-for="p in plans" :key="p.code" :value="p.code">{{ p.name }}</SelectItem>
+                            <SelectItem
+                                v-for="p in plans"
+                                :key="p.code"
+                                :value="p.code"
+                                >{{ p.name }}</SelectItem
+                            >
                         </SelectContent>
                     </Select>
 
@@ -122,7 +213,11 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
                     </Select>
 
                     <!-- Nút Xuất CSV -->
-                    <Button variant="outline" @click="exportCSV" class="gap-1.5 h-10 text-xs font-semibold cursor-pointer">
+                    <Button
+                        variant="outline"
+                        @click="exportCSV"
+                        class="h-10 cursor-pointer gap-1.5 text-xs font-semibold"
+                    >
                         <Download class="size-4" /> Xuất báo cáo
                     </Button>
                 </div>
@@ -130,40 +225,92 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
         </PageHeader>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard label="Tổng doanh thu" :value="formatVND(stats.total_revenue)" :icon="DollarSign" color="emerald" class="" />
-            <StatCard label="Tổng đơn hàng" :value="stats.total_orders" :icon="ShoppingCart" color="sky" class="" />
-            <StatCard label="Giá trị trung bình/đơn" :value="formatVND(stats.avg_order_value)" :icon="TrendingUp" color="violet" class="" />
-            <StatCard label="Nhà hàng hoạt động" :value="stats.active_restaurants" :icon="Building2" color="amber" class="" />
-            <StatCard label="Tỷ lệ quay lại" :value="`${retentionRate}%`" :icon="TrendingUp" color="pink" class="" />
+            <StatCard
+                label="Tổng doanh thu"
+                :value="formatVND(stats.total_revenue)"
+                :icon="DollarSign"
+                color="emerald"
+                class=""
+            />
+            <StatCard
+                label="Tổng đơn hàng"
+                :value="stats.total_orders"
+                :icon="ShoppingCart"
+                color="sky"
+                class=""
+            />
+            <StatCard
+                label="Giá trị trung bình/đơn"
+                :value="formatVND(stats.avg_order_value)"
+                :icon="TrendingUp"
+                color="violet"
+                class=""
+            />
+            <StatCard
+                label="Nhà hàng hoạt động"
+                :value="stats.active_restaurants"
+                :icon="Building2"
+                color="amber"
+                class=""
+            />
+            <StatCard
+                label="Tỷ lệ quay lại"
+                :value="`${retentionRate}%`"
+                :icon="TrendingUp"
+                color="pink"
+                class=""
+            />
         </div>
 
         <!-- Analytics & Forecasting row -->
         <div class="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
             <!-- Area Chart with Compare / Forecast toggling -->
-            <SectionCard accent-color="emerald" class="flex flex-col justify-between">
+            <SectionCard
+                accent-color="emerald"
+                class="flex flex-col justify-between"
+            >
                 <div>
-                    <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4 flex-wrap gap-2">
+                    <div
+                        class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
+                    >
                         <div class="space-y-1">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
-                                <TrendingUp class="size-4 text-emerald-500" /> Xu hướng doanh thu & AI Phân tích
+                            <h3
+                                class="flex items-center gap-1.5 text-sm font-bold text-foreground"
+                            >
+                                <TrendingUp class="size-4 text-emerald-500" />
+                                Xu hướng doanh thu & AI Phân tích
                             </h3>
                             <p class="text-xs text-muted-foreground">
-                                {{ chartMode === 'compare' ? 'So sánh doanh thu thực tế kỳ này với kỳ trước' : 'Doanh thu thực tế tích hợp dự báo AI 7 ngày tới' }}
+                                {{
+                                    chartMode === 'compare'
+                                        ? 'So sánh doanh thu thực tế kỳ này với kỳ trước'
+                                        : 'Doanh thu thực tế tích hợp dự báo AI 7 ngày tới'
+                                }}
                             </p>
                         </div>
-                        <div class="flex items-center gap-1.5 bg-secondary/20 p-1 rounded-lg border border-border/40 text-[10px] font-bold">
-                            <button 
-                                type="button" 
-                                class="px-2 py-1 rounded transition-all cursor-pointer"
-                                :class="chartMode === 'compare' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        <div
+                            class="flex items-center gap-1.5 rounded-lg border border-border/40 bg-secondary/20 p-1 text-[10px] font-bold"
+                        >
+                            <button
+                                type="button"
+                                class="cursor-pointer rounded px-2 py-1 transition-all"
+                                :class="
+                                    chartMode === 'compare'
+                                        ? 'bg-background text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                "
                                 @click="chartMode = 'compare'"
                             >
                                 So sánh kỳ trước
                             </button>
-                            <button 
-                                type="button" 
-                                class="px-2 py-1 rounded transition-all cursor-pointer"
-                                :class="chartMode === 'forecast' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                            <button
+                                type="button"
+                                class="cursor-pointer rounded px-2 py-1 transition-all"
+                                :class="
+                                    chartMode === 'forecast'
+                                        ? 'bg-background text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                "
                                 @click="chartMode = 'forecast'"
                             >
                                 Dự báo AI
@@ -171,76 +318,159 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
                         </div>
                     </div>
 
-                    <div class="h-56 mt-4 flex items-end">
+                    <div class="mt-4 flex h-56 items-end">
                         <AreaChart
                             v-if="dailyRevenue && dailyRevenue.length > 0"
                             :series="dailyRevenue"
-                            :compare-series="chartMode === 'compare' ? compareRevenue : forecastRevenue"
+                            :compare-series="
+                                chartMode === 'compare'
+                                    ? compareRevenue
+                                    : forecastRevenue
+                            "
                             gradient-id="revenueGrowthGrad"
                             color="#10b981"
-                            :compare-color="chartMode === 'compare' ? '#3b82f6' : '#64748b'"
-                            class="w-full h-full"
+                            :compare-color="
+                                chartMode === 'compare' ? '#3b82f6' : '#64748b'
+                            "
+                            class="h-full w-full"
                         >
                             <template #tooltip="{ point, comparePoint }">
-                                <div class="flex flex-col gap-0.5 text-[10px] font-bold text-foreground">
+                                <div
+                                    class="flex flex-col gap-0.5 text-[10px] font-bold text-foreground"
+                                >
                                     <template v-if="point">
-                                        <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">{{ point.label }} (Kỳ này)</span>
-                                        <span>{{ formatVND(point.value) }}</span>
+                                        <span
+                                            class="font-mono text-[8px] tracking-wider text-muted-foreground uppercase"
+                                            >{{ point.label }} (Kỳ này)</span
+                                        >
+                                        <span>{{
+                                            formatVND(point.value)
+                                        }}</span>
                                     </template>
                                     <template v-if="comparePoint">
-                                        <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono mt-1">
-                                            {{ chartMode === 'compare' ? 'Kỳ trước' : 'AI Dự báo' }}
+                                        <span
+                                            class="mt-1 font-mono text-[8px] tracking-wider text-muted-foreground uppercase"
+                                        >
+                                            {{
+                                                chartMode === 'compare'
+                                                    ? 'Kỳ trước'
+                                                    : 'AI Dự báo'
+                                            }}
                                         </span>
-                                        <span :class="chartMode === 'compare' ? 'text-sky-500' : 'text-slate-500 dark:text-slate-400'">{{ formatVND(comparePoint.value) }}</span>
+                                        <span
+                                            :class="
+                                                chartMode === 'compare'
+                                                    ? 'text-sky-500'
+                                                    : 'text-slate-500 dark:text-slate-400'
+                                            "
+                                            >{{
+                                                formatVND(comparePoint.value)
+                                            }}</span
+                                        >
                                     </template>
                                 </div>
                             </template>
                         </AreaChart>
-                        <div v-else class="w-full text-center py-12 text-xs text-muted-foreground">
+                        <div
+                            v-else
+                            class="w-full py-12 text-center text-xs text-muted-foreground"
+                        >
                             Chưa có dữ liệu doanh thu
                         </div>
                     </div>
 
                     <!-- Chart Legend -->
-                    <div class="flex items-center gap-4 mt-3 text-[10px] font-bold text-muted-foreground justify-center">
-                        <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-emerald-500"></span> Doanh thu kỳ này</span>
-                        <span v-if="chartMode === 'compare'" class="flex items-center gap-1"><span class="size-2 rounded-full bg-sky-500"></span> Doanh thu kỳ trước</span>
-                        <span v-else class="flex items-center gap-1"><span class="size-2 rounded-full bg-slate-500"></span> AI Dự báo (7 ngày tiếp theo)</span>
+                    <div
+                        class="mt-3 flex items-center justify-center gap-4 text-[10px] font-bold text-muted-foreground"
+                    >
+                        <span class="flex items-center gap-1"
+                            ><span
+                                class="size-2 rounded-full bg-emerald-500"
+                            ></span>
+                            Doanh thu kỳ này</span
+                        >
+                        <span
+                            v-if="chartMode === 'compare'"
+                            class="flex items-center gap-1"
+                            ><span
+                                class="size-2 rounded-full bg-sky-500"
+                            ></span>
+                            Doanh thu kỳ trước</span
+                        >
+                        <span v-else class="flex items-center gap-1"
+                            ><span
+                                class="size-2 rounded-full bg-slate-500"
+                            ></span>
+                            AI Dự báo (7 ngày tiếp theo)</span
+                        >
                     </div>
                 </div>
             </SectionCard>
 
             <!-- Plan Revenue Distribution -->
-            <SectionCard accent-color="violet" class="flex flex-col justify-between">
+            <SectionCard
+                accent-color="violet"
+                class="flex flex-col justify-between"
+            >
                 <div>
-                    <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                    <div
+                        class="mb-4 flex items-center justify-between border-b border-border/40 pb-2"
+                    >
                         <div class="space-y-1">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
-                                <Crown class="size-4 text-violet-500" /> Doanh thu theo gói cước
+                            <h3
+                                class="flex items-center gap-1.5 text-sm font-bold text-foreground"
+                            >
+                                <Crown class="size-4 text-violet-500" /> Doanh
+                                thu theo gói cước
                             </h3>
-                            <p class="text-xs text-muted-foreground">Tổng doanh thu phát sinh nhóm theo phân khúc gói dịch vụ</p>
+                            <p class="text-xs text-muted-foreground">
+                                Tổng doanh thu phát sinh nhóm theo phân khúc gói
+                                dịch vụ
+                            </p>
                         </div>
                     </div>
 
-                    <div class="space-y-4 mt-6">
-                        <div v-for="plan in revenueByPlan" :key="plan.code" class="space-y-1.5">
-                            <div class="flex items-center justify-between text-xs font-semibold">
-                                <span class="text-foreground flex items-center gap-1">
-                                    <Crown v-if="plan.code === 'pro' || plan.code === 'enterprise'" class="size-3.5 text-amber-500" />
+                    <div class="mt-6 space-y-4">
+                        <div
+                            v-for="plan in revenueByPlan"
+                            :key="plan.code"
+                            class="space-y-1.5"
+                        >
+                            <div
+                                class="flex items-center justify-between text-xs font-semibold"
+                            >
+                                <span
+                                    class="flex items-center gap-1 text-foreground"
+                                >
+                                    <Crown
+                                        v-if="
+                                            plan.code === 'pro' ||
+                                            plan.code === 'enterprise'
+                                        "
+                                        class="size-3.5 text-amber-500"
+                                    />
                                     {{ plan.name }}
                                 </span>
-                                <span class="text-muted-foreground tabular-nums">{{ formatVND(plan.revenue) }}</span>
+                                <span
+                                    class="text-muted-foreground tabular-nums"
+                                    >{{ formatVND(plan.revenue) }}</span
+                                >
                             </div>
-                            <div class="h-2 w-full rounded-full bg-secondary overflow-hidden">
+                            <div
+                                class="h-2 w-full overflow-hidden rounded-full bg-secondary"
+                            >
                                 <div
                                     class="h-full rounded-full transition-all duration-500"
                                     :class="{
                                         'bg-slate-400': plan.code === 'free',
                                         'bg-sky-500': plan.code === 'starter',
                                         'bg-purple-500': plan.code === 'pro',
-                                        'bg-emerald-500': plan.code === 'enterprise'
+                                        'bg-emerald-500':
+                                            plan.code === 'enterprise',
                                     }"
-                                    :style="{ width: `${(plan.revenue / (stats.total_revenue || 1)) * 100}%` }"
+                                    :style="{
+                                        width: `${(plan.revenue / (stats.total_revenue || 1)) * 100}%`,
+                                    }"
                                 ></div>
                             </div>
                         </div>
@@ -253,67 +483,156 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
         <div class="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
             <!-- Top Selling Products -->
             <SectionCard accent-color="amber" class="">
-                <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                <div
+                    class="mb-4 flex items-center justify-between border-b border-border/40 pb-2"
+                >
                     <div class="space-y-1">
-                        <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
-                            <Crown class="size-4 text-amber-500" /> Top 5 món ăn bán chạy nhất hệ thống
+                        <h3
+                            class="flex items-center gap-1.5 text-sm font-bold text-foreground"
+                        >
+                            <Crown class="size-4 text-amber-500" /> Top 5 món ăn
+                            bán chạy nhất hệ thống
                         </h3>
-                        <p class="text-xs text-muted-foreground">Các món ăn có lượng bán hàng đầu của toàn hệ thống trong kỳ lọc</p>
+                        <p class="text-xs text-muted-foreground">
+                            Các món ăn có lượng bán hàng đầu của toàn hệ thống
+                            trong kỳ lọc
+                        </p>
                     </div>
                 </div>
                 <div class="space-y-3">
-                    <div v-for="(item, idx) in topItems" :key="idx"
-                         class="flex items-center gap-3 rounded-xl border border-border/30 p-3 transition-all duration-200 hover:bg-muted/20">
-                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-xs font-black text-amber-500">
+                    <div
+                        v-for="(item, idx) in topItems"
+                        :key="idx"
+                        class="flex items-center gap-3 rounded-xl border border-border/30 p-3 transition-all duration-200 hover:bg-muted/20"
+                    >
+                        <span
+                            class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-xs font-black text-amber-500"
+                        >
                             #{{ idx + 1 }}
                         </span>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="truncate text-sm font-medium">{{ item.name }}</p>
-                                <span class="shrink-0 font-mono text-xs font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <p class="truncate text-sm font-medium">
+                                    {{ item.name }}
+                                </p>
+                                <span
+                                    class="shrink-0 font-mono text-xs font-bold text-amber-600 tabular-nums dark:text-amber-400"
+                                >
                                     {{ formatVND(item.revenue) }}
                                 </span>
                             </div>
                             <div class="mt-1.5 flex items-center gap-2">
-                                <ProgressBar :value="item.quantity" :max="maxItemQty" color="amber" class="flex-1" />
-                                <span class="text-[10px] text-muted-foreground shrink-0">{{ item.quantity }} phần</span>
+                                <ProgressBar
+                                    :value="item.quantity"
+                                    :max="maxItemQty"
+                                    color="amber"
+                                    class="flex-1"
+                                />
+                                <span
+                                    class="shrink-0 text-[10px] text-muted-foreground"
+                                    >{{ item.quantity }} phần</span
+                                >
                             </div>
                         </div>
                     </div>
-                    <p v-if="!topItems || !topItems.length" class="py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu sản phẩm.</p>
+                    <p
+                        v-if="!topItems || !topItems.length"
+                        class="py-8 text-center text-sm text-muted-foreground"
+                    >
+                        Chưa có dữ liệu sản phẩm.
+                    </p>
                 </div>
             </SectionCard>
 
             <!-- Payment Methods -->
-            <SectionCard accent-color="sky" class="flex flex-col justify-between">
+            <SectionCard
+                accent-color="sky"
+                class="flex flex-col justify-between"
+            >
                 <div>
-                    <div class="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                    <div
+                        class="mb-4 flex items-center justify-between border-b border-border/40 pb-2"
+                    >
                         <div class="space-y-1">
-                            <h3 class="font-bold text-sm text-foreground flex items-center gap-1.5">
-                                <CreditCard class="size-4 text-sky-500" /> Phân tích Kênh Thanh toán
+                            <h3
+                                class="flex items-center gap-1.5 text-sm font-bold text-foreground"
+                            >
+                                <CreditCard class="size-4 text-sky-500" /> Phân
+                                tích Kênh Thanh toán
                             </h3>
-                            <p class="text-xs text-muted-foreground">Tỷ lệ sử dụng và doanh thu theo các cổng thanh toán</p>
+                            <p class="text-xs text-muted-foreground">
+                                Tỷ lệ sử dụng và doanh thu theo các cổng thanh
+                                toán
+                            </p>
                         </div>
                     </div>
 
-                    <div class="space-y-4 mt-6">
-                        <div v-for="pay in revenueByPaymentMethod" :key="pay.method" class="space-y-2 p-3 bg-secondary/15 rounded-lg border border-border/40">
-                            <div class="flex items-center justify-between text-xs font-semibold">
-                                <span class="text-foreground flex items-center gap-2 font-bold">
-                                    <Wallet v-if="pay.method === 'ewallet'" class="size-4 text-rose-500" />
-                                    <Landmark v-else-if="pay.method === 'bank_transfer'" class="size-4 text-sky-500" />
-                                    <CreditCard v-else-if="pay.method === 'card'" class="size-4 text-purple-500" />
-                                    <DollarSign v-else class="size-4 text-emerald-500" />
-                                    {{ paymentMethodLabels[pay.method] ?? pay.method }}
+                    <div class="mt-6 space-y-4">
+                        <div
+                            v-for="pay in revenueByPaymentMethod"
+                            :key="pay.method"
+                            class="space-y-2 rounded-lg border border-border/40 bg-secondary/15 p-3"
+                        >
+                            <div
+                                class="flex items-center justify-between text-xs font-semibold"
+                            >
+                                <span
+                                    class="flex items-center gap-2 font-bold text-foreground"
+                                >
+                                    <Wallet
+                                        v-if="pay.method === 'ewallet'"
+                                        class="size-4 text-rose-500"
+                                    />
+                                    <Landmark
+                                        v-else-if="
+                                            pay.method === 'bank_transfer'
+                                        "
+                                        class="size-4 text-sky-500"
+                                    />
+                                    <CreditCard
+                                        v-else-if="pay.method === 'card'"
+                                        class="size-4 text-purple-500"
+                                    />
+                                    <DollarSign
+                                        v-else
+                                        class="size-4 text-emerald-500"
+                                    />
+                                    {{
+                                        paymentMethodLabels[pay.method] ??
+                                        pay.method
+                                    }}
                                 </span>
-                                <span class="text-muted-foreground tabular-nums">{{ formatVND(pay.revenue) }}</span>
+                                <span
+                                    class="text-muted-foreground tabular-nums"
+                                    >{{ formatVND(pay.revenue) }}</span
+                                >
                             </div>
                             <div class="flex items-center gap-2">
-                                <ProgressBar :value="pay.revenue" :max="totalPaymentsSum" color="sky" class="flex-1" />
-                                <span class="text-[10px] text-muted-foreground shrink-0 tabular-nums">{{ pay.count }} đơn ({{ Math.round((pay.revenue / totalPaymentsSum) * 100) }}%)</span>
+                                <ProgressBar
+                                    :value="pay.revenue"
+                                    :max="totalPaymentsSum"
+                                    color="sky"
+                                    class="flex-1"
+                                />
+                                <span
+                                    class="shrink-0 text-[10px] text-muted-foreground tabular-nums"
+                                    >{{ pay.count }} đơn ({{
+                                        Math.round(
+                                            (pay.revenue / totalPaymentsSum) *
+                                                100,
+                                        )
+                                    }}%)</span
+                                >
                             </div>
                         </div>
-                        <p v-if="!revenueByPaymentMethod.length" class="py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu thanh toán.</p>
+                        <p
+                            v-if="!revenueByPaymentMethod.length"
+                            class="py-8 text-center text-sm text-muted-foreground"
+                        >
+                            Chưa có dữ liệu thanh toán.
+                        </p>
                     </div>
                 </div>
             </SectionCard>
@@ -322,8 +641,14 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
         <!-- Dynamic Top Performers List (Top restaurants vs branches) -->
         <div class="grid gap-6">
             <!-- If no specific restaurant is selected -->
-            <SectionCard v-if="!restaurantFilter" accent-color="emerald" class="">
-                <div class="flex items-center gap-2 text-sm font-bold border-b border-border/40 pb-2 mb-4">
+            <SectionCard
+                v-if="!restaurantFilter"
+                accent-color="emerald"
+                class=""
+            >
+                <div
+                    class="mb-4 flex items-center gap-2 border-b border-border/40 pb-2 text-sm font-bold"
+                >
                     <Crown class="size-4 text-emerald-500" />
                     Top nhà hàng theo doanh thu
                 </div>
@@ -333,29 +658,54 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
                         :key="r.id"
                         class="flex items-center gap-3 rounded-xl border border-border/30 p-3 transition-all duration-200 hover:bg-muted/20"
                     >
-                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary">
+                        <span
+                            class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary"
+                        >
                             {{ idx + 1 }}
                         </span>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="truncate text-sm font-medium">{{ r.name }}</p>
-                                <span class="shrink-0 font-mono text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <p class="truncate text-sm font-medium">
+                                    {{ r.name }}
+                                </p>
+                                <span
+                                    class="shrink-0 font-mono text-xs font-bold text-emerald-600 tabular-nums dark:text-emerald-400"
+                                >
                                     {{ formatVND(r.revenue) }}
                                 </span>
                             </div>
                             <div class="mt-1.5 flex items-center gap-2">
-                                <ProgressBar :value="r.revenue" :max="maxRestaurantRevenue" color="emerald" class="flex-1" />
-                                <span class="text-[10px] text-muted-foreground shrink-0">{{ r.orders_count }} đơn</span>
+                                <ProgressBar
+                                    :value="r.revenue"
+                                    :max="maxRestaurantRevenue"
+                                    color="emerald"
+                                    class="flex-1"
+                                />
+                                <span
+                                    class="shrink-0 text-[10px] text-muted-foreground"
+                                    >{{ r.orders_count }} đơn</span
+                                >
                             </div>
                         </div>
                     </div>
-                    <p v-if="!revenueByRestaurant || !revenueByRestaurant.length" class="col-span-full py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu doanh thu nhà hàng.</p>
+                    <p
+                        v-if="
+                            !revenueByRestaurant || !revenueByRestaurant.length
+                        "
+                        class="col-span-full py-8 text-center text-sm text-muted-foreground"
+                    >
+                        Chưa có dữ liệu doanh thu nhà hàng.
+                    </p>
                 </div>
             </SectionCard>
 
             <!-- If a restaurant filter is active -->
             <SectionCard v-else accent-color="emerald" class="">
-                <div class="flex items-center gap-2 text-sm font-bold border-b border-border/40 pb-2 mb-4">
+                <div
+                    class="mb-4 flex items-center gap-2 border-b border-border/40 pb-2 text-sm font-bold"
+                >
                     <Building2 class="size-4 text-emerald-500" />
                     Top chi nhánh của nhà hàng theo doanh thu
                 </div>
@@ -365,23 +715,44 @@ const totalPaymentsSum = props.revenueByPaymentMethod.reduce((sum, item) => sum 
                         :key="b.id"
                         class="flex items-center gap-3 rounded-xl border border-border/30 p-3 transition-all duration-200 hover:bg-muted/20"
                     >
-                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary">
+                        <span
+                            class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary"
+                        >
                             {{ idx + 1 }}
                         </span>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="truncate text-sm font-medium">{{ b.name }}</p>
-                                <span class="shrink-0 font-mono text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <p class="truncate text-sm font-medium">
+                                    {{ b.name }}
+                                </p>
+                                <span
+                                    class="shrink-0 font-mono text-xs font-bold text-emerald-600 tabular-nums dark:text-emerald-400"
+                                >
                                     {{ formatVND(b.revenue) }}
                                 </span>
                             </div>
                             <div class="mt-1.5 flex items-center gap-2">
-                                <ProgressBar :value="b.revenue" :max="maxBranchRevenue" color="emerald" class="flex-1" />
-                                <span class="text-[10px] text-muted-foreground shrink-0">{{ b.orders_count }} đơn</span>
+                                <ProgressBar
+                                    :value="b.revenue"
+                                    :max="maxBranchRevenue"
+                                    color="emerald"
+                                    class="flex-1"
+                                />
+                                <span
+                                    class="shrink-0 text-[10px] text-muted-foreground"
+                                    >{{ b.orders_count }} đơn</span
+                                >
                             </div>
                         </div>
                     </div>
-                    <p v-if="!revenueByBranch || !revenueByBranch.length" class="col-span-full py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu doanh thu chi nhánh.</p>
+                    <p
+                        v-if="!revenueByBranch || !revenueByBranch.length"
+                        class="col-span-full py-8 text-center text-sm text-muted-foreground"
+                    >
+                        Chưa có dữ liệu doanh thu chi nhánh.
+                    </p>
                 </div>
             </SectionCard>
         </div>

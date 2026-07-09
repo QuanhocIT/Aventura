@@ -1,19 +1,50 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import {
-    BadgePercent, DollarSign, Hash, Layers, Plus, Search,
-    ToggleLeft, ToggleRight, Trash2, TrendingUp, Pencil, X, Check,
-    Brain, AlertTriangle, Sparkles, Calendar, Tag, Coins, Users, FileText
+    BadgePercent,
+    DollarSign,
+    Hash,
+    Layers,
+    Plus,
+    Search,
+    ToggleLeft,
+    ToggleRight,
+    Trash2,
+    TrendingUp,
+    Pencil,
+    X,
+    Check,
+    Brain,
+    AlertTriangle,
+    Sparkles,
+    Calendar,
+    Tag,
+    Coins,
+    Users,
+    FileText,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { PageHeader, StatCard, StatusBadge, Pagination, ProgressBar, EmptyState } from '@/components/super-admin';
+import {
+    PageHeader,
+    StatCard,
+    StatusBadge,
+    Pagination,
+    ProgressBar,
+    EmptyState,
+} from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -62,10 +93,15 @@ const statusFilter = ref(props.filters.status ?? 'all');
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 function applyFilters() {
-    router.get('/super-admin/coupons', {
-        search: search.value || undefined,
-        status: statusFilter.value === 'all' ? undefined : statusFilter.value,
-    }, { preserveState: true, replace: true });
+    router.get(
+        '/super-admin/coupons',
+        {
+            search: search.value || undefined,
+            status:
+                statusFilter.value === 'all' ? undefined : statusFilter.value,
+        },
+        { preserveState: true, replace: true },
+    );
 }
 
 watch(search, () => {
@@ -75,8 +111,8 @@ watch(search, () => {
 
 function goToPage(url: string | null) {
     if (!url) {
-return;
-}
+        return;
+    }
 
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
@@ -97,7 +133,15 @@ const formData = ref({
 
 function openCreateForm() {
     editingCoupon.value = null;
-    formData.value = { code: '', description: '', discount_type: 'percent', discount_value: 10, max_uses: '', starts_at: '', expires_at: '' };
+    formData.value = {
+        code: '',
+        description: '',
+        discount_type: 'percent',
+        discount_value: 10,
+        max_uses: '',
+        starts_at: '',
+        expires_at: '',
+    };
     showForm.value = true;
 }
 
@@ -123,7 +167,10 @@ function closeForm() {
 function submitForm() {
     const data = {
         ...formData.value,
-        max_uses: formData.value.max_uses === '' ? null : Number(formData.value.max_uses),
+        max_uses:
+            formData.value.max_uses === ''
+                ? null
+                : Number(formData.value.max_uses),
         starts_at: formData.value.starts_at || null,
         expires_at: formData.value.expires_at || null,
     };
@@ -132,32 +179,48 @@ function submitForm() {
         router.patch(`/super-admin/coupons/${editingCoupon.value.id}`, data, {
             preserveScroll: true,
             onSuccess: () => {
- toast.success('Đã cập nhật coupon!'); closeForm(); 
-},
+                toast.success('Đã cập nhật coupon!');
+                closeForm();
+            },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     } else {
         router.post('/super-admin/coupons', data, {
             preserveScroll: true,
             onSuccess: () => {
- toast.success('Đã tạo coupon!'); closeForm(); 
-},
+                toast.success('Đã tạo coupon!');
+                closeForm();
+            },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
         });
     }
 }
 
 function toggleCoupon(coupon: Coupon) {
-    router.patch(`/super-admin/coupons/${coupon.id}/toggle`, {}, {
-        preserveScroll: true,
-        onSuccess: () => toast.success(coupon.status === 'active' ? 'Đã vô hiệu hoá' : 'Đã kích hoạt'),
-    });
+    router.patch(
+        `/super-admin/coupons/${coupon.id}/toggle`,
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () =>
+                toast.success(
+                    coupon.status === 'active'
+                        ? 'Đã vô hiệu hoá'
+                        : 'Đã kích hoạt',
+                ),
+        },
+    );
 }
 
 async function deleteCoupon(coupon: Coupon) {
-    if (!(await confirmDialog({ title: 'Xác nhận thao tác', description: `Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.` }))) {
-return;
-}
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: `Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`,
+        }))
+    ) {
+        return;
+    }
 
     router.delete(`/super-admin/coupons/${coupon.id}`, {
         preserveScroll: true,
@@ -166,7 +229,7 @@ return;
 }
 
 const discountLabel = computed(() =>
-    formData.value.discount_type === 'percent' ? '%' : 'VND'
+    formData.value.discount_type === 'percent' ? '%' : 'VND',
 );
 
 // Analytical trends and chart points
@@ -177,28 +240,33 @@ const couponUsageTrend = computed(() => {
         { month: 'T02', usages: 12, discount: 360000 },
         { month: 'T03', usages: 19, discount: 570000 },
         { month: 'T04', usages: 25, discount: 750000 },
-        { month: 'T05', usages: props.stats.total_uses || 32, discount: parseFloat(props.stats.total_saved) || 980000 },
+        {
+            month: 'T05',
+            usages: props.stats.total_uses || 32,
+            discount: parseFloat(props.stats.total_saved) || 980000,
+        },
     ];
 });
 
 const couponSuccessRate = computed(() => {
     if (props.stats.total === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round((props.stats.active / props.stats.total) * 100);
 });
 
 const chartPoints = computed(() => {
     const data = couponUsageTrend.value;
-    const maxVal = Math.max(...data.map(d => d.usages), 1);
+    const maxVal = Math.max(...data.map((d) => d.usages), 1);
     const width = 500;
     const height = 100;
     const padding = 15;
-    
+
     return data.map((d, index) => {
         const x = (index / (data.length - 1)) * (width - padding * 2) + padding;
-        const y = height - (d.usages / maxVal) * (height - padding * 2) - padding;
+        const y =
+            height - (d.usages / maxVal) * (height - padding * 2) - padding;
 
         return { x, y, label: d.month, value: d.usages, discount: d.discount };
     });
@@ -206,20 +274,22 @@ const chartPoints = computed(() => {
 
 const chartPath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
-    return chartPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    return chartPoints.value
+        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+        .join(' ');
 });
 
 const chartAreaPath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;
-    const line = points.map(p => `L ${p.x} ${p.y}`).join(' ');
+    const line = points.map((p) => `L ${p.x} ${p.y}`).join(' ');
     const end = `L ${points[points.length - 1].x} 100 Z`;
 
     return `${start} ${line} ${end}`;
@@ -239,12 +309,15 @@ return '';
             <template #actions>
                 <Button
                     variant="outline"
-                    class="rounded-xl text-xs font-bold cursor-pointer"
+                    class="cursor-pointer rounded-xl text-xs font-bold"
                     @click="router.get('/super-admin/coupons/batches')"
                 >
                     <Layers class="mr-2 size-4" /> Coupon hàng loạt
                 </Button>
-                <Button class="rounded-xl bg-primary text-primary-foreground shadow-sm text-xs font-bold cursor-pointer" @click="openCreateForm">
+                <Button
+                    class="cursor-pointer rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm"
+                    @click="openCreateForm"
+                >
                     <Plus class="mr-2 size-4" /> Tạo coupon
                 </Button>
             </template>
@@ -253,52 +326,112 @@ return '';
         <!-- Stats -->
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <!-- Total -->
-            <div class="flex items-center justify-between p-4 bg-card/40 border border-border/40 backdrop-blur-md rounded-2xl shadow-3xs transition-all duration-300 hover:shadow-xs">
+            <div
+                class="shadow-3xs flex items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-xs"
+            >
                 <div>
-                    <p class="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Tổng coupon</p>
-                    <h3 class="text-2xl font-black font-mono tracking-tight mt-1">{{ stats.total }}</h3>
+                    <p
+                        class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                    >
+                        Tổng coupon
+                    </p>
+                    <h3
+                        class="mt-1 font-mono text-2xl font-black tracking-tight"
+                    >
+                        {{ stats.total }}
+                    </h3>
                 </div>
-                <div class="size-9 rounded-xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20 text-sky-500">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-500"
+                >
                     <Hash class="size-4.5" />
                 </div>
             </div>
             <!-- Active -->
-            <div class="flex items-center justify-between p-4 bg-card/40 border border-border/40 backdrop-blur-md rounded-2xl shadow-3xs transition-all duration-300 hover:shadow-xs">
+            <div
+                class="shadow-3xs flex items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-xs"
+            >
                 <div>
-                    <p class="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Đang hoạt động</p>
-                    <h3 class="text-2xl font-black font-mono tracking-tight mt-1 text-emerald-500">{{ stats.active }}</h3>
+                    <p
+                        class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                    >
+                        Đang hoạt động
+                    </p>
+                    <h3
+                        class="mt-1 font-mono text-2xl font-black tracking-tight text-emerald-500"
+                    >
+                        {{ stats.active }}
+                    </h3>
                 </div>
-                <div class="size-9 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-500">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-500"
+                >
                     <BadgePercent class="size-4.5" />
                 </div>
             </div>
             <!-- Expired -->
-            <div class="flex items-center justify-between p-4 bg-card/40 border border-border/40 backdrop-blur-md rounded-2xl shadow-3xs transition-all duration-300 hover:shadow-xs">
+            <div
+                class="shadow-3xs flex items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-xs"
+            >
                 <div>
-                    <p class="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Đã hết hạn/tắt</p>
-                    <h3 class="text-2xl font-black font-mono tracking-tight mt-1 text-rose-500">{{ stats.expired }}</h3>
+                    <p
+                        class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                    >
+                        Đã hết hạn/tắt
+                    </p>
+                    <h3
+                        class="mt-1 font-mono text-2xl font-black tracking-tight text-rose-500"
+                    >
+                        {{ stats.expired }}
+                    </h3>
                 </div>
-                <div class="size-9 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-500">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-500"
+                >
                     <X class="size-4.5" />
                 </div>
             </div>
             <!-- Uses -->
-            <div class="flex items-center justify-between p-4 bg-card/40 border border-border/40 backdrop-blur-md rounded-2xl shadow-3xs transition-all duration-300 hover:shadow-xs">
+            <div
+                class="shadow-3xs flex items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-xs"
+            >
                 <div>
-                    <p class="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Tổng lần dùng</p>
-                    <h3 class="text-2xl font-black font-mono tracking-tight mt-1 text-indigo-500">{{ stats.total_uses }}</h3>
+                    <p
+                        class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                    >
+                        Tổng lần dùng
+                    </p>
+                    <h3
+                        class="mt-1 font-mono text-2xl font-black tracking-tight text-indigo-500"
+                    >
+                        {{ stats.total_uses }}
+                    </h3>
                 </div>
-                <div class="size-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 text-indigo-500">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                >
                     <TrendingUp class="size-4.5" />
                 </div>
             </div>
             <!-- Saved -->
-            <div class="flex items-center justify-between p-4 bg-card/40 border border-border/40 backdrop-blur-md rounded-2xl shadow-3xs transition-all duration-300 hover:shadow-xs">
+            <div
+                class="shadow-3xs flex items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-xs"
+            >
                 <div>
-                    <p class="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Tổng đã giảm</p>
-                    <h3 class="text-lg font-black font-mono tracking-tight mt-1 text-violet-500">{{ stats.total_saved }}₫</h3>
+                    <p
+                        class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                    >
+                        Tổng đã giảm
+                    </p>
+                    <h3
+                        class="mt-1 font-mono text-lg font-black tracking-tight text-violet-500"
+                    >
+                        {{ stats.total_saved }}₫
+                    </h3>
                 </div>
-                <div class="size-9 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20 text-violet-500">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl border border-violet-500/20 bg-violet-500/10 text-violet-500"
+                >
                     <DollarSign class="size-4.5" />
                 </div>
             </div>
@@ -307,61 +440,132 @@ return '';
         <!-- ── ANALYTICS & AI ADVISOR CONSOLE ── -->
         <div class="grid gap-5 lg:grid-cols-3">
             <!-- Left: Usage Chart Card -->
-            <Card class="lg:col-span-2 border border-border/40 bg-card/45 backdrop-blur-md shadow-2xs overflow-hidden rounded-2xl flex flex-col justify-between">
+            <Card
+                class="flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md lg:col-span-2"
+            >
                 <CardHeader class="pb-2">
                     <div class="flex items-center justify-between">
                         <div>
-                            <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                                <TrendingUp class="size-4 text-primary animate-pulse" />
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-sm font-bold"
+                            >
+                                <TrendingUp
+                                    class="size-4 animate-pulse text-primary"
+                                />
                                 Xu hướng sử dụng Coupon (6 tháng qua)
                             </CardTitle>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">Biểu đồ thống kê số lượt áp dụng mã giảm giá thực tế của hệ thống.</p>
+                            <p class="mt-0.5 text-[10px] text-muted-foreground">
+                                Biểu đồ thống kê số lượt áp dụng mã giảm giá
+                                thực tế của hệ thống.
+                            </p>
                         </div>
-                        <Badge class="bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/15 border-none font-bold text-[10px] h-5 rounded-full px-2">Đồng bộ thực tế</Badge>
+                        <Badge
+                            class="h-5 rounded-full border-none bg-indigo-500/10 px-2 text-[10px] font-bold text-indigo-600 hover:bg-indigo-500/15"
+                            >Đồng bộ thực tế</Badge
+                        >
                     </div>
                 </CardHeader>
                 <CardContent class="pt-0 pb-3">
-                    <div class="relative w-full h-32 mt-4 bg-muted/10 rounded-xl border border-border/20 p-2 overflow-hidden flex flex-col justify-between">
+                    <div
+                        class="relative mt-4 flex h-32 w-full flex-col justify-between overflow-hidden rounded-xl border border-border/20 bg-muted/10 p-2"
+                    >
                         <!-- SVG area chart -->
-                        <div class="absolute inset-0 top-3 bottom-8 left-0 right-0">
-                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                        <div
+                            class="absolute inset-0 top-3 right-0 bottom-8 left-0"
+                        >
+                            <svg
+                                class="h-full w-full overflow-visible"
+                                viewBox="0 0 500 100"
+                                preserveAspectRatio="none"
+                            >
                                 <defs>
-                                    <linearGradient id="couponChartGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="rgba(99, 102, 241, 0.25)" />
-                                        <stop offset="100%" stop-color="rgba(99, 102, 241, 0.00)" />
+                                    <linearGradient
+                                        id="couponChartGrad"
+                                        x1="0"
+                                        y1="0"
+                                        x2="0"
+                                        y2="1"
+                                    >
+                                        <stop
+                                            offset="0%"
+                                            stop-color="rgba(99, 102, 241, 0.25)"
+                                        />
+                                        <stop
+                                            offset="100%"
+                                            stop-color="rgba(99, 102, 241, 0.00)"
+                                        />
                                     </linearGradient>
                                 </defs>
                                 <!-- Grid dotted lines -->
-                                <line x1="0" y1="20" x2="500" y2="20" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 2" />
-                                <line x1="0" y1="50" x2="500" y2="50" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 2" />
-                                <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 2" />
-                                
+                                <line
+                                    x1="0"
+                                    y1="20"
+                                    x2="500"
+                                    y2="20"
+                                    stroke="rgba(255,255,255,0.04)"
+                                    stroke-dasharray="2 2"
+                                />
+                                <line
+                                    x1="0"
+                                    y1="50"
+                                    x2="500"
+                                    y2="50"
+                                    stroke="rgba(255,255,255,0.04)"
+                                    stroke-dasharray="2 2"
+                                />
+                                <line
+                                    x1="0"
+                                    y1="80"
+                                    x2="500"
+                                    y2="80"
+                                    stroke="rgba(255,255,255,0.04)"
+                                    stroke-dasharray="2 2"
+                                />
+
                                 <!-- Filled Area Path -->
-                                <path :d="chartAreaPath" fill="url(#couponChartGrad)" />
-                                
+                                <path
+                                    :d="chartAreaPath"
+                                    fill="url(#couponChartGrad)"
+                                />
+
                                 <!-- Line path -->
-                                <path :d="chartPath" fill="none" stroke="#6366f1" stroke-width="2" />
-                                
+                                <path
+                                    :d="chartPath"
+                                    fill="none"
+                                    stroke="#6366f1"
+                                    stroke-width="2"
+                                />
+
                                 <!-- Tooltip circles -->
-                                <circle 
-                                    v-for="(p, i) in chartPoints" 
+                                <circle
+                                    v-for="(p, i) in chartPoints"
                                     :key="i"
-                                    :cx="p.x" 
-                                    :cy="p.y" 
-                                    r="3.5" 
-                                    fill="#6366f1" 
-                                    stroke="white" 
+                                    :cx="p.x"
+                                    :cy="p.y"
+                                    r="3.5"
+                                    fill="#6366f1"
+                                    stroke="white"
                                     stroke-width="1.5"
-                                    class="transition-all duration-300 hover:r-5"
+                                    class="hover:r-5 transition-all duration-300"
                                 />
                             </svg>
                         </div>
-                        
+
                         <!-- Chart Labels -->
-                        <div class="z-10 flex justify-between px-2 pt-24 text-[9px] font-black text-muted-foreground uppercase font-mono">
-                            <span v-for="(p, i) in chartPoints" :key="i" class="text-center w-8">
+                        <div
+                            class="z-10 flex justify-between px-2 pt-24 font-mono text-[9px] font-black text-muted-foreground uppercase"
+                        >
+                            <span
+                                v-for="(p, i) in chartPoints"
+                                :key="i"
+                                class="w-8 text-center"
+                            >
                                 {{ p.label }}
-                                <div class="text-foreground font-extrabold mt-0.5">{{ p.value }} lượt</div>
+                                <div
+                                    class="mt-0.5 font-extrabold text-foreground"
+                                >
+                                    {{ p.value }} lượt
+                                </div>
                             </span>
                         </div>
                     </div>
@@ -369,35 +573,66 @@ return '';
             </Card>
 
             <!-- Right: AI Advisor Card -->
-            <Card class="border border-border/40 bg-card/45 backdrop-blur-md shadow-2xs overflow-hidden rounded-2xl flex flex-col justify-between">
+            <Card
+                class="flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
+            >
                 <CardHeader class="pb-2">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
                         <Brain class="size-4 text-indigo-500" />
                         AI Advisor & Khuyến nghị
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="space-y-3 flex-grow flex flex-col justify-between pb-3">
-                    <div class="bg-indigo-500/[0.03] border border-indigo-500/10 p-3 rounded-xl space-y-2">
-                        <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <CardContent
+                    class="flex flex-grow flex-col justify-between space-y-3 pb-3"
+                >
+                    <div
+                        class="space-y-2 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.03] p-3"
+                    >
+                        <div
+                            class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                        >
                             <Sparkles class="size-3.5 animate-pulse" />
                             Đánh giá hiệu suất: {{ couponSuccessRate }}%
                         </div>
-                        <p class="text-[11px] text-muted-foreground leading-relaxed font-semibold">
+                        <p
+                            class="text-[11px] leading-relaxed font-semibold text-muted-foreground"
+                        >
                             <span v-if="stats.total_uses === 0">
-                                Chưa ghi nhận lượt áp dụng coupon nào. Hệ thống khuyên bạn nên chạy chiến dịch khuyến mãi dùng mã <code class="bg-indigo-500/10 px-1 py-0.5 rounded font-mono font-bold text-indigo-500">AVENTURACARE30</code> để kích cầu đối tác.
+                                Chưa ghi nhận lượt áp dụng coupon nào. Hệ thống
+                                khuyên bạn nên chạy chiến dịch khuyến mãi dùng
+                                mã
+                                <code
+                                    class="rounded bg-indigo-500/10 px-1 py-0.5 font-mono font-bold text-indigo-500"
+                                    >AVENTURACARE30</code
+                                >
+                                để kích cầu đối tác.
                             </span>
                             <span v-else-if="stats.active > 0">
-                                Chiến dịch coupon đang vận hành ổn định. Tỷ lệ coupon hoạt động đạt {{ couponSuccessRate }}%. Hãy cân nhắc tung mã cố định thay vì % để đo lường lòng trung thành của chủ nhà hàng.
+                                Chiến dịch coupon đang vận hành ổn định. Tỷ lệ
+                                coupon hoạt động đạt {{ couponSuccessRate }}%.
+                                Hãy cân nhắc tung mã cố định thay vì % để đo
+                                lường lòng trung thành của chủ nhà hàng.
                             </span>
                             <span v-else>
-                                Không có mã giảm giá nào đang hoạt động. Hãy tạo mới mã giảm giá dạng phần trăm để hỗ trợ kích cầu thu hút nhà hàng đăng ký dịch vụ.
+                                Không có mã giảm giá nào đang hoạt động. Hãy tạo
+                                mới mã giảm giá dạng phần trăm để hỗ trợ kích
+                                cầu thu hút nhà hàng đăng ký dịch vụ.
                             </span>
                         </p>
                     </div>
-                    
-                    <div class="flex items-center justify-between text-[10px] font-bold text-muted-foreground bg-muted/20 px-3 py-2 rounded-xl border border-border/30">
-                        <span class="flex items-center gap-1"><AlertTriangle class="size-3 text-amber-500" /> Mẹo vận hành</span>
-                        <span class="text-right">Giảm giá trị để tránh pha loãng giá trị gốc.</span>
+
+                    <div
+                        class="flex items-center justify-between rounded-xl border border-border/30 bg-muted/20 px-3 py-2 text-[10px] font-bold text-muted-foreground"
+                    >
+                        <span class="flex items-center gap-1"
+                            ><AlertTriangle class="size-3 text-amber-500" /> Mẹo
+                            vận hành</span
+                        >
+                        <span class="text-right"
+                            >Giảm giá trị để tránh pha loãng giá trị gốc.</span
+                        >
                     </div>
                 </CardContent>
             </Card>
@@ -405,9 +640,15 @@ return '';
 
         <!-- Filters -->
         <FilterBar>
-            <div class="relative flex-1 min-w-52">
-                <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                <Input v-model="search" placeholder="Tìm mã coupon, mô tả..." class="pl-9" />
+            <div class="relative min-w-52 flex-1">
+                <Search
+                    class="absolute top-2.5 left-3 size-4 text-muted-foreground"
+                />
+                <Input
+                    v-model="search"
+                    placeholder="Tìm mã coupon, mô tả..."
+                    class="pl-9"
+                />
             </div>
             <Select v-model="statusFilter" @update:modelValue="applyFilters">
                 <SelectTrigger class="w-44">
@@ -422,94 +663,180 @@ return '';
         </FilterBar>
 
         <!-- Coupon table -->
-        <Card class="border border-border/40 bg-card/45 backdrop-blur-md shadow-2xs overflow-hidden rounded-2xl">
-            <CardHeader class="pb-3 border-b border-border/40 bg-muted/10">
+        <Card
+            class="overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
+        >
+            <CardHeader class="border-b border-border/40 bg-muted/10 pb-3">
                 <CardTitle class="text-sm font-bold">
-                    Danh sách coupon 
-                    <span class="text-xs font-bold text-muted-foreground ml-1">({{ coupons.total }} coupon)</span>
+                    Danh sách coupon
+                    <span class="ml-1 text-xs font-bold text-muted-foreground"
+                        >({{ coupons.total }} coupon)</span
+                    >
                 </CardTitle>
             </CardHeader>
             <CardContent class="pt-4">
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs font-semibold">
                         <thead>
-                            <tr class="border-b border-border/60 text-[10px] font-black uppercase text-muted-foreground tracking-wider pb-3">
-                                <th class="pb-3 text-left font-black">Mã coupon</th>
+                            <tr
+                                class="border-b border-border/60 pb-3 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                <th class="pb-3 text-left font-black">
+                                    Mã coupon
+                                </th>
                                 <th class="pb-3 text-left font-black">Loại</th>
-                                <th class="pb-3 text-left font-black">Giá trị</th>
-                                <th class="pb-3 text-left font-black">Sử dụng</th>
-                                <th class="pb-3 text-left font-black">Tổng giảm</th>
-                                <th class="pb-3 text-left font-black">Hạn dùng</th>
-                                <th class="pb-3 text-left font-black">Trạng thái</th>
-                                <th class="pb-3 text-right font-black">Thao tác</th>
+                                <th class="pb-3 text-left font-black">
+                                    Giá trị
+                                </th>
+                                <th class="pb-3 text-left font-black">
+                                    Sử dụng
+                                </th>
+                                <th class="pb-3 text-left font-black">
+                                    Tổng giảm
+                                </th>
+                                <th class="pb-3 text-left font-black">
+                                    Hạn dùng
+                                </th>
+                                <th class="pb-3 text-left font-black">
+                                    Trạng thái
+                                </th>
+                                <th class="pb-3 text-right font-black">
+                                    Thao tác
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-border/30">
-                            <tr v-for="coupon in coupons.data" :key="coupon.id" class="hover:bg-muted/30 transition-all text-slate-700 dark:text-slate-300">
+                            <tr
+                                v-for="coupon in coupons.data"
+                                :key="coupon.id"
+                                class="text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
+                            >
                                 <td class="py-3.5 pr-3">
-                                    <div class="flex flex-col gap-1 items-start">
-                                        <p class="font-mono text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 inline-block uppercase tracking-wide">{{ coupon.code }}</p>
-                                        <p v-if="coupon.description" class="text-[11px] text-muted-foreground mt-0.5 max-w-[250px] leading-relaxed">{{ coupon.description }}</p>
+                                    <div
+                                        class="flex flex-col items-start gap-1"
+                                    >
+                                        <p
+                                            class="inline-block rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 font-mono text-xs font-black tracking-wide text-indigo-600 uppercase dark:text-indigo-400"
+                                        >
+                                            {{ coupon.code }}
+                                        </p>
+                                        <p
+                                            v-if="coupon.description"
+                                            class="mt-0.5 max-w-[250px] text-[11px] leading-relaxed text-muted-foreground"
+                                        >
+                                            {{ coupon.description }}
+                                        </p>
                                     </div>
                                 </td>
                                 <td class="py-3.5 pr-3">
-                                    <Badge 
+                                    <Badge
                                         variant="outline"
                                         :class="[
-                                            'text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border-none',
-                                            coupon.discount_type === 'percent' 
-                                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400' 
-                                                : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                                            'rounded-full border-none px-2.5 py-0.5 text-[10px] font-extrabold',
+                                            coupon.discount_type === 'percent'
+                                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                                                : 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
                                         ]"
                                     >
-                                        {{ coupon.discount_type === 'percent' ? 'Phần trăm' : 'Cố định' }}
+                                        {{
+                                            coupon.discount_type === 'percent'
+                                                ? 'Phần trăm'
+                                                : 'Cố định'
+                                        }}
                                     </Badge>
                                 </td>
-                                <td class="py-3.5 pr-3 font-black font-mono text-xs text-slate-800 dark:text-slate-100">
-                                    {{ coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `${coupon.discount_value.toLocaleString('vi')}₫` }}
+                                <td
+                                    class="py-3.5 pr-3 font-mono text-xs font-black text-slate-800 dark:text-slate-100"
+                                >
+                                    {{
+                                        coupon.discount_type === 'percent'
+                                            ? `${coupon.discount_value}%`
+                                            : `${coupon.discount_value.toLocaleString('vi')}₫`
+                                    }}
                                 </td>
-                                <td class="py-3.5 pr-3 font-mono text-xs text-slate-600 dark:text-slate-400 font-bold">
-                                    <span>{{ coupon.uses_count }}<span v-if="coupon.max_uses" class="text-muted-foreground/60">/{{ coupon.max_uses }}</span></span>
+                                <td
+                                    class="py-3.5 pr-3 font-mono text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >
+                                    <span
+                                        >{{ coupon.uses_count
+                                        }}<span
+                                            v-if="coupon.max_uses"
+                                            class="text-muted-foreground/60"
+                                            >/{{ coupon.max_uses }}</span
+                                        ></span
+                                    >
                                 </td>
-                                <td class="py-3.5 pr-3 font-mono font-bold text-xs text-emerald-500">{{ coupon.total_discount_given }}₫</td>
-                                <td class="py-3.5 pr-3 font-mono text-slate-500 text-xs">
-                                    <span v-if="coupon.expires_at">{{ coupon.expires_at }}</span>
-                                    <span v-else class="text-muted-foreground/60 italic font-medium">Không giới hạn</span>
+                                <td
+                                    class="py-3.5 pr-3 font-mono text-xs font-bold text-emerald-500"
+                                >
+                                    {{ coupon.total_discount_given }}₫
+                                </td>
+                                <td
+                                    class="py-3.5 pr-3 font-mono text-xs text-slate-500"
+                                >
+                                    <span v-if="coupon.expires_at">{{
+                                        coupon.expires_at
+                                    }}</span>
+                                    <span
+                                        v-else
+                                        class="font-medium text-muted-foreground/60 italic"
+                                        >Không giới hạn</span
+                                    >
                                 </td>
                                 <td class="py-3.5 pr-3">
-                                    <Badge 
+                                    <Badge
                                         variant="outline"
                                         :class="[
-                                            'text-[9px] font-black uppercase rounded-full px-2 py-0.5 border',
+                                            'rounded-full border px-2 py-0.5 text-[9px] font-black uppercase',
                                             coupon.is_valid
-                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
-                                                : coupon.status === 'inactive' 
-                                                    ? 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/25' 
-                                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
+                                                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                : coupon.status === 'inactive'
+                                                  ? 'border-slate-500/25 bg-slate-500/10 text-slate-600 dark:text-slate-400'
+                                                  : 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400',
                                         ]"
                                     >
-                                        {{ coupon.is_valid ? 'Hợp lệ' : coupon.status === 'inactive' ? 'Tắt' : 'Hết hạn' }}
+                                        {{
+                                            coupon.is_valid
+                                                ? 'Hợp lệ'
+                                                : coupon.status === 'inactive'
+                                                  ? 'Tắt'
+                                                  : 'Hết hạn'
+                                        }}
                                     </Badge>
                                 </td>
                                 <td class="py-3.5 text-right">
-                                    <div class="flex items-center justify-end gap-1.5">
+                                    <div
+                                        class="flex items-center justify-end gap-1.5"
+                                    >
                                         <button
-                                            class="rounded-full p-1.5 text-muted-foreground hover:bg-indigo-500/10 hover:text-indigo-600 transition-all cursor-pointer"
+                                            class="cursor-pointer rounded-full p-1.5 text-muted-foreground transition-all hover:bg-indigo-500/10 hover:text-indigo-600"
                                             title="Chỉnh sửa"
                                             @click="openEditForm(coupon)"
                                         >
                                             <Pencil class="size-3.5" />
                                         </button>
                                         <button
-                                            class="rounded-full p-1.5 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600 transition-all cursor-pointer"
-                                            :title="coupon.status === 'active' ? 'Vô hiệu hoá' : 'Kích hoạt'"
+                                            class="cursor-pointer rounded-full p-1.5 text-muted-foreground transition-all hover:bg-emerald-500/10 hover:text-emerald-600"
+                                            :title="
+                                                coupon.status === 'active'
+                                                    ? 'Vô hiệu hoá'
+                                                    : 'Kích hoạt'
+                                            "
                                             @click="toggleCoupon(coupon)"
                                         >
-                                            <ToggleRight v-if="coupon.status === 'active'" class="size-3.5 text-emerald-500" />
-                                            <ToggleLeft v-else class="size-3.5 text-slate-400" />
+                                            <ToggleRight
+                                                v-if="
+                                                    coupon.status === 'active'
+                                                "
+                                                class="size-3.5 text-emerald-500"
+                                            />
+                                            <ToggleLeft
+                                                v-else
+                                                class="size-3.5 text-slate-400"
+                                            />
                                         </button>
                                         <button
-                                            class="rounded-full p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 transition-all cursor-pointer"
+                                            class="cursor-pointer rounded-full p-1.5 text-muted-foreground transition-all hover:bg-rose-500/10 hover:text-rose-600"
                                             title="Xóa"
                                             @click="deleteCoupon(coupon)"
                                         >
@@ -520,20 +847,28 @@ return '';
                             </tr>
                         </tbody>
                     </table>
-                    <p v-if="!coupons.data.length" class="py-12 text-center text-sm text-muted-foreground font-semibold">
+                    <p
+                        v-if="!coupons.data.length"
+                        class="py-12 text-center text-sm font-semibold text-muted-foreground"
+                    >
                         Không có coupon nào phù hợp.
                     </p>
                 </div>
 
                 <!-- Pagination -->
-                <div v-if="coupons.last_page > 1" class="mt-4 flex flex-wrap justify-center gap-1">
+                <div
+                    v-if="coupons.last_page > 1"
+                    class="mt-4 flex flex-wrap justify-center gap-1"
+                >
                     <button
                         v-for="link in coupons.links"
                         :key="link.label"
                         :disabled="!link.url"
                         :class="[
                             'rounded px-3 py-1 text-xs transition',
-                            link.active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+                            link.active
+                                ? 'bg-primary text-primary-foreground'
+                                : 'hover:bg-muted',
                             !link.url ? 'cursor-not-allowed opacity-40' : '',
                         ]"
                         @click="goToPage(link.url)"
@@ -553,103 +888,205 @@ return '';
         leave-from-class="opacity-100 translate-y-0 sm:scale-100"
         leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
-        <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-300" @click.self="closeForm">
-            <div class="w-full max-w-md rounded-2xl bg-background border border-border/80 shadow-2xl overflow-hidden flex flex-col justify-between">
+        <div
+            v-if="showForm"
+            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
+            @click.self="closeForm"
+        >
+            <div
+                class="flex w-full max-w-md flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
+            >
                 <!-- Modal Header -->
-                <div class="flex items-center justify-between border-b border-border/40 p-5 bg-muted/10">
-                    <h2 class="text-sm font-bold flex items-center gap-2">
-                        <div class="size-7 bg-orange-500/10 text-orange-500 border border-orange-500/20 rounded-lg flex items-center justify-center shrink-0">
+                <div
+                    class="flex items-center justify-between border-b border-border/40 bg-muted/10 p-5"
+                >
+                    <h2 class="flex items-center gap-2 text-sm font-bold">
+                        <div
+                            class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-500"
+                        >
                             <BadgePercent class="size-4" />
                         </div>
-                        <span>{{ editingCoupon ? `Chỉnh sửa — ${editingCoupon.code}` : 'Tạo mã coupon mới' }}</span>
+                        <span>{{
+                            editingCoupon
+                                ? `Chỉnh sửa — ${editingCoupon.code}`
+                                : 'Tạo mã coupon mới'
+                        }}</span>
                     </h2>
-                    <button class="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors cursor-pointer" @click="closeForm">
+                    <button
+                        class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+                        @click="closeForm"
+                    >
                         <X class="size-4" />
                     </button>
                 </div>
 
                 <!-- Modal Body -->
-                <div class="space-y-4.5 p-5 max-h-[70vh] overflow-y-auto">
+                <div class="max-h-[70vh] space-y-4.5 overflow-y-auto p-5">
                     <!-- Code -->
                     <div v-if="!editingCoupon" class="grid gap-1.5">
-                        <Label for="code" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Label
+                            for="code"
+                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                        >
                             <Tag class="size-3.5 text-orange-500" />
                             Mã coupon <span class="text-rose-500">*</span>
                         </Label>
                         <div class="relative flex items-center">
-                            <span class="absolute left-3 text-[10px] font-black text-muted-foreground/80 bg-muted border border-border/55 px-1.5 py-0.5 rounded uppercase font-mono">CODE</span>
-                            <Input id="code" v-model="formData.code" placeholder="VD: SUMMER25" class="pl-14 rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500 font-mono font-bold uppercase tracking-wide" />
+                            <span
+                                class="absolute left-3 rounded border border-border/55 bg-muted px-1.5 py-0.5 font-mono text-[10px] font-black text-muted-foreground/80 uppercase"
+                                >CODE</span
+                            >
+                            <Input
+                                id="code"
+                                v-model="formData.code"
+                                placeholder="VD: SUMMER25"
+                                class="rounded-xl border-border pl-14 font-mono font-bold tracking-wide uppercase focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
                         </div>
-                        <p class="text-[10px] text-muted-foreground font-semibold">Chỉ dùng chữ, số và gạch ngang. Hệ thống sẽ tự động đổi sang chữ hoa.</p>
+                        <p
+                            class="text-[10px] font-semibold text-muted-foreground"
+                        >
+                            Chỉ dùng chữ, số và gạch ngang. Hệ thống sẽ tự động
+                            đổi sang chữ hoa.
+                        </p>
                     </div>
 
                     <!-- Description -->
                     <div class="grid gap-1.5">
-                        <Label for="description" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Label
+                            for="description"
+                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                        >
                             <FileText class="size-3.5 text-orange-500" />
                             Mô tả (tùy chọn)
                         </Label>
-                        <Input id="description" v-model="formData.description" placeholder="VD: Giảm giá mùa hè 2025" class="rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                        <Input
+                            id="description"
+                            v-model="formData.description"
+                            placeholder="VD: Giảm giá mùa hè 2025"
+                            class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                        />
                     </div>
 
                     <!-- Discount type + value -->
                     <div class="grid grid-cols-2 gap-3">
                         <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <BadgePercent class="size-3.5 text-orange-500" />
+                            <Label
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <BadgePercent
+                                    class="size-3.5 text-orange-500"
+                                />
                                 Loại giảm giá
                             </Label>
                             <Select v-model="formData.discount_type">
-                                <SelectTrigger class="h-9 text-xs rounded-xl border-border focus:ring-orange-500/20 focus:border-orange-500">
+                                <SelectTrigger
+                                    class="h-9 rounded-xl border-border text-xs focus:border-orange-500 focus:ring-orange-500/20"
+                                >
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent class="rounded-xl">
-                                    <SelectItem value="percent">Phần trăm (%)</SelectItem>
-                                    <SelectItem value="fixed">Số tiền cố định (đ)</SelectItem>
+                                    <SelectItem value="percent"
+                                        >Phần trăm (%)</SelectItem
+                                    >
+                                    <SelectItem value="fixed"
+                                        >Số tiền cố định (đ)</SelectItem
+                                    >
                                 </SelectContent>
                             </Select>
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="discount_value" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Label
+                                for="discount_value"
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Coins class="size-3.5 text-orange-500" />
                                 Giá trị ({{ discountLabel }})
                             </Label>
-                            <Input id="discount_value" v-model.number="formData.discount_value" type="number" min="0.01" :max="formData.discount_type === 'percent' ? 100 : undefined" step="1" class="rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            <Input
+                                id="discount_value"
+                                v-model.number="formData.discount_value"
+                                type="number"
+                                min="0.01"
+                                :max="
+                                    formData.discount_type === 'percent'
+                                        ? 100
+                                        : undefined
+                                "
+                                step="1"
+                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
                         </div>
                     </div>
 
                     <!-- Max uses -->
                     <div class="grid gap-1.5">
-                        <Label for="max_uses" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Label
+                            for="max_uses"
+                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                        >
                             <Users class="size-3.5 text-orange-500" />
                             Giới hạn số lần dùng
                         </Label>
-                        <Input id="max_uses" v-model="formData.max_uses" type="number" min="1" placeholder="Để trống = không giới hạn số lần dùng" class="rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                        <Input
+                            id="max_uses"
+                            v-model="formData.max_uses"
+                            type="number"
+                            min="1"
+                            placeholder="Để trống = không giới hạn số lần dùng"
+                            class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                        />
                     </div>
 
                     <!-- Date range -->
                     <div class="grid grid-cols-2 gap-3">
                         <div class="grid gap-1.5">
-                            <Label for="starts_at" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Label
+                                for="starts_at"
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Calendar class="size-3.5 text-orange-500" />
                                 Ngày bắt đầu
                             </Label>
-                            <Input id="starts_at" v-model="formData.starts_at" type="date" class="rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            <Input
+                                id="starts_at"
+                                v-model="formData.starts_at"
+                                type="date"
+                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
                         </div>
                         <div class="grid gap-1.5">
-                            <Label for="expires_at" class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Label
+                                for="expires_at"
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Calendar class="size-3.5 text-orange-500" />
                                 Ngày hết hạn
                             </Label>
-                            <Input id="expires_at" v-model="formData.expires_at" type="date" class="rounded-xl border-border focus-visible:ring-orange-500/20 focus-visible:border-orange-500" />
+                            <Input
+                                id="expires_at"
+                                v-model="formData.expires_at"
+                                type="date"
+                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
                         </div>
                     </div>
                 </div>
 
                 <!-- Modal Footer -->
-                <div class="flex gap-3 border-t border-border/40 p-5 bg-muted/10">
-                    <Button variant="outline" class="flex-grow rounded-xl border-border font-bold text-xs uppercase tracking-wider py-5 cursor-pointer" @click="closeForm">Hủy</Button>
-                    <Button class="flex-grow rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all py-5 border-none cursor-pointer" @click="submitForm">
+                <div
+                    class="flex gap-3 border-t border-border/40 bg-muted/10 p-5"
+                >
+                    <Button
+                        variant="outline"
+                        class="flex-grow cursor-pointer rounded-xl border-border py-5 text-xs font-bold tracking-wider uppercase"
+                        @click="closeForm"
+                        >Hủy</Button
+                    >
+                    <Button
+                        class="flex-grow cursor-pointer rounded-xl border-none bg-gradient-to-r from-orange-500 to-amber-500 py-5 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all hover:from-orange-600 hover:to-amber-600 hover:shadow-lg"
+                        @click="submitForm"
+                    >
                         <Check class="mr-1.5 size-4" />
                         {{ editingCoupon ? 'Cập nhật' : 'Tạo coupon' }}
                     </Button>

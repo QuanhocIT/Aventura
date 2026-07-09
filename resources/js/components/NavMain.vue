@@ -21,56 +21,120 @@ const { isCurrentUrl } = useCurrentUrl();
 const groupDefinitions = [
     {
         label: 'Tổng quan & Phân tích',
-        matches: (title: string) => [
-            'Tổng quan', 'Trang chủ', 'BI Dashboard', 'Phân tích địa lý', 
-            'Báo cáo & AI', 'Báo cáo doanh thu', 'Mục tiêu & OKR', 'Audit Log', 
-            'Dự đoán rời bỏ', 'Strategic AI Advisor', 'Trợ lý AI Chiến lược'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'Tổng quan',
+                'Trang chủ',
+                'BI Dashboard',
+                'Phân tích địa lý',
+                'Báo cáo & AI',
+                'Báo cáo doanh thu',
+                'Mục tiêu & OKR',
+                'Audit Log',
+                'Dự đoán rời bỏ',
+                'Strategic AI Advisor',
+                'Trợ lý AI Chiến lược',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Bán hàng & Phục vụ',
-        matches: (title: string) => [
-            'đơn hàng', 'đơn', 'sơ đồ bàn', 'phục vụ', 'giao hàng', 'online'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'đơn hàng',
+                'đơn',
+                'sơ đồ bàn',
+                'phục vụ',
+                'giao hàng',
+                'online',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Thực đơn & Nhà bếp',
-        matches: (title: string) => [
-            'thực đơn', 'món', 'menu', 'niêm yết'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            ['thực đơn', 'món', 'menu', 'niêm yết'].some((p) =>
+                title.toLowerCase().includes(p.toLowerCase()),
+            ),
     },
     {
         label: 'Kho & Nhà cung cấp',
-        matches: (title: string) => [
-            'kho', 'tồn', 'nhập', 'hao hụt', 'lãng phí', 'nhà cung cấp', 'rfp', 'chốt ca', 'doanh thu ca'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'kho',
+                'tồn',
+                'nhập',
+                'hao hụt',
+                'lãng phí',
+                'nhà cung cấp',
+                'rfp',
+                'chốt ca',
+                'doanh thu ca',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Tài chính & Gói cước',
-        matches: (title: string) => [
-            'dòng tiền', 'chi phí', 'công nợ', 'billing', 'gói dịch vụ', 'giảm giá', 'hoa hồng', 'hóa đơn'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'dòng tiền',
+                'chi phí',
+                'công nợ',
+                'billing',
+                'gói dịch vụ',
+                'giảm giá',
+                'hoa hồng',
+                'hóa đơn',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Nhân sự & Ca làm',
-        matches: (title: string) => [
-            'nhân sự', 'nhân viên', 'chấm công', 'lịch làm', 'lịch làm việc', 'bảng lương', 'lương', 'đào tạo', 'kpi'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'nhân sự',
+                'nhân viên',
+                'chấm công',
+                'lịch làm',
+                'lịch làm việc',
+                'bảng lương',
+                'lương',
+                'đào tạo',
+                'kpi',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Khách hàng & Marketing',
-        matches: (title: string) => [
-            'khách hàng', 'thân thiết', 'khuyến mãi', 'phản hồi', 'quảng bá'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
+        matches: (title: string) =>
+            [
+                'khách hàng',
+                'thân thiết',
+                'khuyến mãi',
+                'phản hồi',
+                'quảng bá',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
         label: 'Hệ thống & Vận hành',
-        matches: (title: string) => [
-            'phân quyền', 'checklist', 'thiết bị', 'kiểm toán', 'vi phạm', 'tố cáo', 
-            'phê duyệt', 'tin tức', 'hỗ trợ', 'devops', 'chatbot', 'tài khoản', 
-            'cấu hình', 'giám sát', 'bảo trì', 'sao lưu', 'dọn dẹp', 'meilisearch', 'banner'
-        ].some(p => title.toLowerCase().includes(p.toLowerCase()))
-    }
+        matches: (title: string) =>
+            [
+                'phân quyền',
+                'checklist',
+                'thiết bị',
+                'kiểm toán',
+                'vi phạm',
+                'tố cáo',
+                'phê duyệt',
+                'tin tức',
+                'hỗ trợ',
+                'devops',
+                'chatbot',
+                'tài khoản',
+                'cấu hình',
+                'giám sát',
+                'bảo trì',
+                'sao lưu',
+                'dọn dẹp',
+                'meilisearch',
+                'banner',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
+    },
 ];
 
 // Phân nhóm menu nếu tổng số lượng menu lớn hơn 8 để tránh quá tải thị giác
@@ -81,14 +145,18 @@ const groupedSections = computed(() => {
         return [];
     }
 
-    const sections: { label: string; items: NavItem[] }[] = groupDefinitions.map(def => ({
-        label: def.label,
-        items: []
-    }));
+    const sections: { label: string; items: NavItem[] }[] =
+        groupDefinitions.map((def) => ({
+            label: def.label,
+            items: [],
+        }));
 
-    const unmatchedSection: { label: string; items: NavItem[] } = { label: 'Chức năng khác', items: [] };
+    const unmatchedSection: { label: string; items: NavItem[] } = {
+        label: 'Chức năng khác',
+        items: [],
+    };
 
-    props.items.forEach(item => {
+    props.items.forEach((item) => {
         let matched = false;
 
         for (let i = 0; i < groupDefinitions.length; i++) {
@@ -108,14 +176,20 @@ const groupedSections = computed(() => {
         sections.unshift(unmatchedSection);
     }
 
-    return sections.filter(sec => sec.items.length > 0);
+    return sections.filter((sec) => sec.items.length > 0);
 });
 </script>
 
 <template>
     <template v-if="shouldGroup">
-        <SidebarGroup v-for="group in groupedSections" :key="group.label" class="px-2 py-1 select-none">
-            <SidebarGroupLabel class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest px-2.5 py-1">
+        <SidebarGroup
+            v-for="group in groupedSections"
+            :key="group.label"
+            class="px-2 py-1 select-none"
+        >
+            <SidebarGroupLabel
+                class="text-slate-450 px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase dark:text-slate-500"
+            >
                 {{ group.label }}
             </SidebarGroupLabel>
             <SidebarMenu>
@@ -124,16 +198,36 @@ const groupedSections = computed(() => {
                         as-child
                         :is-active="isCurrentUrl(item.href)"
                         :tooltip="item.title"
-                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0 group relative"
+                        class="group relative transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch class="relative w-full flex items-center gap-2 pl-3">
+                        <Link
+                            :id="
+                                'sidebar-link-' +
+                                item.href
+                                    .replace('/', '')
+                                    .replace('?', '')
+                                    .replace('=', '')
+                            "
+                            :href="item.href"
+                            prefetch
+                            class="relative flex w-full items-center gap-2 pl-3"
+                        >
                             <!-- Active left border marker -->
-                            <span 
-                                v-if="isCurrentUrl(item.href)" 
-                                class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary animate-fade-in"
+                            <span
+                                class="absolute left-0 w-[3px] origin-center rounded-r bg-primary transition-all duration-300"
+                                :class="
+                                    isCurrentUrl(item.href)
+                                        ? 'top-1.5 bottom-1.5 scale-y-100 opacity-100'
+                                        : 'top-1/2 bottom-1/2 scale-y-0 opacity-0'
+                                "
                             />
-                            <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
-                            <span class="flex-1 font-medium">{{ item.title }}</span>
+                            <component
+                                :is="item.icon"
+                                class="size-4 shrink-0 transition-transform duration-300 ease-out group-hover:scale-115 group-hover:rotate-6 group-active:scale-90"
+                            />
+                            <span class="flex-1 font-medium">{{
+                                item.title
+                            }}</span>
                             <span
                                 v-if="item.badge && item.badge > 0"
                                 class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-900"
@@ -148,7 +242,9 @@ const groupedSections = computed(() => {
     </template>
     <template v-else>
         <SidebarGroup class="px-2 py-0 select-none">
-            <SidebarGroupLabel class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest px-2.5 py-1">
+            <SidebarGroupLabel
+                class="text-slate-450 px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase dark:text-slate-500"
+            >
                 Quản trị hệ thống
             </SidebarGroupLabel>
             <SidebarMenu>
@@ -157,16 +253,36 @@ const groupedSections = computed(() => {
                         as-child
                         :is-active="isCurrentUrl(item.href)"
                         :tooltip="item.title"
-                        class="transition-all duration-200 hover:translate-x-0.5 active:translate-x-0 group relative"
+                        class="group relative transition-all duration-200 hover:translate-x-0.5 active:translate-x-0"
                     >
-                        <Link :id="'sidebar-link-' + item.href.replace('/', '').replace('?', '').replace('=', '')" :href="item.href" prefetch class="relative w-full flex items-center gap-2 pl-3">
+                        <Link
+                            :id="
+                                'sidebar-link-' +
+                                item.href
+                                    .replace('/', '')
+                                    .replace('?', '')
+                                    .replace('=', '')
+                            "
+                            :href="item.href"
+                            prefetch
+                            class="relative flex w-full items-center gap-2 pl-3"
+                        >
                             <!-- Active left border marker -->
-                            <span 
-                                v-if="isCurrentUrl(item.href)" 
-                                class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary animate-fade-in"
+                            <span
+                                class="absolute left-0 w-[3px] origin-center rounded-r bg-primary transition-all duration-300"
+                                :class="
+                                    isCurrentUrl(item.href)
+                                        ? 'top-1.5 bottom-1.5 scale-y-100 opacity-100'
+                                        : 'top-1/2 bottom-1/2 scale-y-0 opacity-0'
+                                "
                             />
-                            <component :is="item.icon" class="size-4 shrink-0 transition-transform duration-250 group-hover:scale-110" />
-                            <span class="flex-1 font-medium">{{ item.title }}</span>
+                            <component
+                                :is="item.icon"
+                                class="size-4 shrink-0 transition-transform duration-300 ease-out group-hover:scale-115 group-hover:rotate-6 group-active:scale-90"
+                            />
+                            <span class="flex-1 font-medium">{{
+                                item.title
+                            }}</span>
                             <span
                                 v-if="item.badge && item.badge > 0"
                                 class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-900"

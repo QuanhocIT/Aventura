@@ -22,12 +22,18 @@ import {
     ListFilter,
     X,
     FileUp,
-    Check
+    Check,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
@@ -91,7 +97,12 @@ type Analytics = {
     mom_delta: number;
     recurring_ratio: number;
     six_months_mom: { month: string; label: string; amount: number }[];
-    category_breakdown: { id: number | null; name: string; amount: number; percentage: number }[];
+    category_breakdown: {
+        id: number | null;
+        name: string;
+        amount: number;
+        percentage: number;
+    }[];
 };
 
 const props = defineProps<{
@@ -107,11 +118,16 @@ const props = defineProps<{
 }>();
 
 // --- Active Tab State ---
-const activeTab = ref<'analytics' | 'expenses' | 'recurring' | 'categories'>('analytics');
+const activeTab = ref<'analytics' | 'expenses' | 'recurring' | 'categories'>(
+    'analytics',
+);
 
 // --- VND Formatter Helper ---
 const vnd = (v: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+    new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+    }).format(v);
 
 // --- MODALS STATE ---
 const showExpenseModal = ref(false);
@@ -131,12 +147,16 @@ const filterForm = ref({
 });
 
 function applyFilters() {
-    router.get('/expenses', {
-        ...filterForm.value
-    }, {
-        preserveState: true,
-        preserveScroll: true
-    });
+    router.get(
+        '/expenses',
+        {
+            ...filterForm.value,
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+        },
+    );
 }
 
 function resetFilters() {
@@ -150,7 +170,7 @@ const expenseForm = useForm({
     amount: 0,
     expense_date: new Date().toISOString().substring(0, 10),
     description: '',
-    invoice: null as File | null
+    invoice: null as File | null,
 });
 
 function openNewExpenseModal() {
@@ -203,7 +223,7 @@ function saveExpense() {
             amount: expenseForm.amount,
             expense_date: expenseForm.expense_date,
             description: expenseForm.description,
-            invoice: expenseForm.invoice
+            invoice: expenseForm.invoice,
         });
 
         updateForm.post(`/expenses/${editingExpense.value.id}`, {
@@ -212,8 +232,10 @@ function saveExpense() {
                 toast.success('Đã cập nhật chi phí thành công!');
             },
             onError: (err: any) => {
-                toast.error(Object.values(err)[0] as string || 'Đã có lỗi xảy ra');
-            }
+                toast.error(
+                    (Object.values(err)[0] as string) || 'Đã có lỗi xảy ra',
+                );
+            },
         });
     } else {
         // Create flow
@@ -224,17 +246,24 @@ function saveExpense() {
                 toast.success('Đã ghi nhận chi phí vận hành mới!');
             },
             onError: (err: any) => {
-                toast.error(Object.values(err)[0] as string || 'Đã có lỗi xảy ra');
-            }
+                toast.error(
+                    (Object.values(err)[0] as string) || 'Đã có lỗi xảy ra',
+                );
+            },
         });
     }
 }
 
 async function deleteExpense(expense: OperatingExpense) {
-    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa khoản chi phí này không?' }))) {
+    if (
+        await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: 'Bạn có chắc chắn muốn xóa khoản chi phí này không?',
+        })
+    ) {
         router.delete(`/expenses/${expense.id}`, {
             onSuccess: () => toast.success('Đã xóa khoản chi phí thành công.'),
-            onError: () => toast.error('Có lỗi xảy ra khi xóa.')
+            onError: () => toast.error('Có lỗi xảy ra khi xóa.'),
         });
     }
 }
@@ -295,15 +324,20 @@ function saveRecurring() {
     }
 
     if (editingRecurring.value) {
-        recurringForm.patch(`/expenses/recurring/${editingRecurring.value.id}`, {
-            onSuccess: () => {
-                showRecurringModal.value = false;
-                toast.success('Đã cập nhật chi phí định kỳ.');
+        recurringForm.patch(
+            `/expenses/recurring/${editingRecurring.value.id}`,
+            {
+                onSuccess: () => {
+                    showRecurringModal.value = false;
+                    toast.success('Đã cập nhật chi phí định kỳ.');
+                },
+                onError: (err: any) => {
+                    toast.error(
+                        (Object.values(err)[0] as string) || 'Có lỗi xảy ra',
+                    );
+                },
             },
-            onError: (err: any) => {
-                toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
-            }
-        });
+        );
     } else {
         recurringForm.post('/expenses/recurring', {
             onSuccess: () => {
@@ -312,26 +346,40 @@ function saveRecurring() {
                 toast.success('Đã thêm cấu hình chi phí định kỳ mới.');
             },
             onError: (err: any) => {
-                toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
-            }
+                toast.error(
+                    (Object.values(err)[0] as string) || 'Có lỗi xảy ra',
+                );
+            },
         });
     }
 }
 
 function toggleRecurringStatus(rec: RecurringExpense) {
-    router.patch(`/expenses/recurring/${rec.id}`, {
-        is_active: !rec.is_active
-    }, {
-        preserveScroll: true,
-        onSuccess: () => toast.success('Đã thay đổi trạng thái chi phí định kỳ.')
-    });
+    router.patch(
+        `/expenses/recurring/${rec.id}`,
+        {
+            is_active: !rec.is_active,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () =>
+                toast.success('Đã thay đổi trạng thái chi phí định kỳ.'),
+        },
+    );
 }
 
 async function deleteRecurring(rec: RecurringExpense) {
-    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: 'Bạn có chắc chắn muốn xóa cấu hình chi phí định kỳ này? Lịch sử chi phí đã sinh ra vẫn được lưu giữ.' }))) {
+    if (
+        await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description:
+                'Bạn có chắc chắn muốn xóa cấu hình chi phí định kỳ này? Lịch sử chi phí đã sinh ra vẫn được lưu giữ.',
+        })
+    ) {
         router.delete(`/expenses/recurring/${rec.id}`, {
-            onSuccess: () => toast.success('Đã xóa cấu hình chi phí định kỳ thành công.'),
-            onError: () => toast.error('Có lỗi xảy ra khi xóa.')
+            onSuccess: () =>
+                toast.success('Đã xóa cấu hình chi phí định kỳ thành công.'),
+            onError: () => toast.error('Có lỗi xảy ra khi xóa.'),
         });
     }
 }
@@ -356,23 +404,31 @@ function saveCategory() {
             toast.success('Đã thêm danh mục chi phí tùy chỉnh mới!');
         },
         onError: (err: any) => {
-            toast.error(Object.values(err)[0] as string || 'Có lỗi xảy ra');
-        }
+            toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
+        },
     });
 }
 
 async function deleteCategory(cat: Category) {
-    if ((await confirmDialog({ title: 'Xác nhận thao tác', description: `Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Các chi phí liên kết sẽ bị xóa hoặc gán thành "Chưa phân loại".` }))) {
+    if (
+        await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: `Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Các chi phí liên kết sẽ bị xóa hoặc gán thành "Chưa phân loại".`,
+        })
+    ) {
         router.delete(`/expenses/categories/${cat.id}`, {
             onSuccess: () => toast.success('Đã xóa danh mục thành công.'),
-            onError: () => toast.error('Có lỗi xảy ra khi xóa.')
+            onError: () => toast.error('Có lỗi xảy ra khi xóa.'),
         });
     }
 }
 
 // --- Chart Max Value Helper ---
 const chartMaxVal = computed(() => {
-    const max = Math.max(...props.analytics.six_months_mom.map(m => m.amount), 0);
+    const max = Math.max(
+        ...props.analytics.six_months_mom.map((m) => m.amount),
+        0,
+    );
 
     return max || 1;
 });
@@ -381,191 +437,272 @@ const chartMaxVal = computed(() => {
 <template>
     <Head title="Quản Lý Chi Phí Vận Hành (OPEX)" />
 
-    <div class="flex flex-col gap-6 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6">
         <!-- Page Header -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5 border-border">
+        <div
+            class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs">
+                <div
+                    class="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-600 shadow-xs dark:text-amber-400"
+                >
                     <Receipt class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100">Quản Lý Chi Phí Vận Hành (OPEX)</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Theo dõi, kiểm soát chi phí thực tế (mặt bằng, điện nước, marketing) và đồng bộ vào báo cáo Lãi/Lỗ của nhà hàng.</p>
+                    <h1
+                        class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100"
+                    >
+                        Quản Lý Chi Phí Vận Hành (OPEX)
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Theo dõi, kiểm soát chi phí thực tế (mặt bằng, điện
+                        nước, marketing) và đồng bộ vào báo cáo Lãi/Lỗ của nhà
+                        hàng.
+                    </p>
                 </div>
             </div>
 
             <!-- Page Action Buttons based on active tab -->
             <div class="flex items-center gap-2">
-                <Button 
+                <Button
                     v-if="activeTab === 'expenses'"
                     @click="openNewExpenseModal"
-                    class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9"
+                    class="h-9 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
                 >
-                    <PlusCircle class="size-4 mr-1.5" />
+                    <PlusCircle class="mr-1.5 size-4" />
                     Ghi nhận chi phí
                 </Button>
-                <Button 
+                <Button
                     v-if="activeTab === 'recurring'"
                     @click="openNewRecurringModal"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9"
+                    class="h-9 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                 >
-                    <PlusCircle class="size-4 mr-1.5" />
+                    <PlusCircle class="mr-1.5 size-4" />
                     Tạo chi phí định kỳ
                 </Button>
-                <Button 
+                <Button
                     v-slot:default
                     v-if="activeTab === 'categories'"
                     @click="showCategoryModal = true"
-                    class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs h-9 dark:bg-slate-700 dark:hover:bg-slate-600"
+                    class="h-9 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
                 >
-                    <PlusCircle class="size-4 mr-1.5" />
+                    <PlusCircle class="mr-1.5 size-4" />
                     Thêm danh mục
                 </Button>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="flex gap-2 border-b pb-1 overflow-x-auto shrink-0 border-border">
-            <button 
+        <div
+            class="flex shrink-0 gap-2 overflow-x-auto border-b border-border pb-1"
+        >
+            <button
                 @click="activeTab = 'analytics'"
                 :class="[
-                    'px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'analytics' 
-                        ? 'border-amber-500 text-amber-600 dark:text-amber-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'analytics'
+                        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><LayoutDashboard class="size-3.5" /> Phân tích & So sánh</span>
+                <span class="flex items-center gap-1.5"
+                    ><LayoutDashboard class="size-3.5" /> Phân tích & So
+                    sánh</span
+                >
             </button>
-            <button 
+            <button
                 @click="activeTab = 'expenses'"
                 :class="[
-                    'px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'expenses' 
-                        ? 'border-amber-500 text-amber-600 dark:text-amber-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'expenses'
+                        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><Receipt class="size-3.5" /> Danh sách chi phí phát sinh</span>
+                <span class="flex items-center gap-1.5"
+                    ><Receipt class="size-3.5" /> Danh sách chi phí phát
+                    sinh</span
+                >
             </button>
-            <button 
+            <button
                 @click="activeTab = 'recurring'"
                 :class="[
-                    'px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'recurring' 
-                        ? 'border-amber-500 text-amber-600 dark:text-amber-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'recurring'
+                        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><Clock class="size-3.5" /> Chi phí định kỳ tự động</span>
+                <span class="flex items-center gap-1.5"
+                    ><Clock class="size-3.5" /> Chi phí định kỳ tự động</span
+                >
             </button>
-            <button 
+            <button
                 @click="activeTab = 'categories'"
                 :class="[
-                    'px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap',
-                    activeTab === 'categories' 
-                        ? 'border-amber-500 text-amber-600 dark:text-amber-400' 
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    'border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'categories'
+                        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
                 ]"
             >
-                <span class="flex items-center gap-1.5"><Layers class="size-3.5" /> Danh mục chi phí</span>
+                <span class="flex items-center gap-1.5"
+                    ><Layers class="size-3.5" /> Danh mục chi phí</span
+                >
             </button>
         </div>
 
         <!-- ── TAB 1: ANALYTICS ── -->
         <div v-if="activeTab === 'analytics'" class="space-y-6">
             <!-- Metric Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Card 1: Total OPEX this month -->
-                <Card class="shadow-xs border-border bg-card">
+                <Card class="border-border bg-card shadow-xs">
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tổng chi phí vận hành tháng này</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            >Tổng chi phí vận hành tháng này</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="pb-5">
-                        <p class="text-3xl font-black text-amber-600 dark:text-amber-400 font-mono">{{ vnd(analytics.total_this_month) }}</p>
-                        <p class="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                        <p
+                            class="font-mono text-3xl font-black text-amber-600 dark:text-amber-400"
+                        >
+                            {{ vnd(analytics.total_this_month) }}
+                        </p>
+                        <p
+                            class="mt-2 flex items-center gap-1 text-[10px] text-slate-400"
+                        >
                             <Clock class="size-3" />
-                            Tổng cộng các khoản chi thực tế phát sinh từ đầu tháng
+                            Tổng cộng các khoản chi thực tế phát sinh từ đầu
+                            tháng
                         </p>
                     </CardContent>
                 </Card>
 
                 <!-- Card 2: MoM Change -->
-                <Card class="shadow-xs border-border bg-card">
+                <Card class="border-border bg-card shadow-xs">
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Biến động so với tháng trước (MoM)</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            >Biến động so với tháng trước (MoM)</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="pb-5">
                         <div class="flex items-center gap-2">
-                            <div 
+                            <div
                                 :class="[
-                                    'h-8 w-8 rounded-full flex items-center justify-center border',
-                                    analytics.mom_delta > 0 
-                                        ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/30' 
+                                    'flex h-8 w-8 items-center justify-center rounded-full border',
+                                    analytics.mom_delta > 0
+                                        ? 'border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/20'
                                         : analytics.mom_delta < 0
-                                            ? 'bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30'
-                                            : 'bg-slate-50 border-slate-100 text-slate-500'
+                                          ? 'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/20'
+                                          : 'border-slate-100 bg-slate-50 text-slate-500',
                                 ]"
                             >
-                                <component :is="analytics.mom_delta >= 0 ? TrendingUp : TrendingDown" class="size-4" />
+                                <component
+                                    :is="
+                                        analytics.mom_delta >= 0
+                                            ? TrendingUp
+                                            : TrendingDown
+                                    "
+                                    class="size-4"
+                                />
                             </div>
-                            <span 
+                            <span
                                 :class="[
-                                    'text-2xl font-black font-mono',
-                                    analytics.mom_delta > 0 ? 'text-rose-600' : analytics.mom_delta < 0 ? 'text-emerald-600' : 'text-slate-600'
+                                    'font-mono text-2xl font-black',
+                                    analytics.mom_delta > 0
+                                        ? 'text-rose-600'
+                                        : analytics.mom_delta < 0
+                                          ? 'text-emerald-600'
+                                          : 'text-slate-600',
                                 ]"
                             >
-                                {{ analytics.mom_delta >= 0 ? '+' : '' }}{{ analytics.mom_delta }}%
+                                {{ analytics.mom_delta >= 0 ? '+' : ''
+                                }}{{ analytics.mom_delta }}%
                             </span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2">Tháng trước: <span class="font-bold text-slate-600 dark:text-slate-350">{{ vnd(analytics.total_last_month) }}</span></p>
+                        <p class="mt-2 text-[10px] text-slate-400">
+                            Tháng trước:
+                            <span
+                                class="dark:text-slate-350 font-bold text-slate-600"
+                                >{{ vnd(analytics.total_last_month) }}</span
+                            >
+                        </p>
                     </CardContent>
                 </Card>
 
                 <!-- Card 3: Recurring share -->
-                <Card class="shadow-xs border-border bg-card">
+                <Card class="border-border bg-card shadow-xs">
                     <CardHeader class="pb-2">
-                        <CardDescription class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tỷ lệ chi phí cố định (Định kỳ)</CardDescription>
+                        <CardDescription
+                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            >Tỷ lệ chi phí cố định (Định kỳ)</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="pb-5">
-                        <p class="text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{{ analytics.recurring_ratio }}%</p>
-                        <p class="text-[10px] text-slate-400 mt-2">Tỷ trọng các khoản chi tự động (mặt bằng, phần mềm) trong tổng chi phí</p>
+                        <p
+                            class="font-mono text-3xl font-black text-indigo-600 dark:text-indigo-400"
+                        >
+                            {{ analytics.recurring_ratio }}%
+                        </p>
+                        <p class="mt-2 text-[10px] text-slate-400">
+                            Tỷ trọng các khoản chi tự động (mặt bằng, phần mềm)
+                            trong tổng chi phí
+                        </p>
                     </CardContent>
                 </Card>
             </div>
 
             <!-- Charts and Breakdown -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <!-- Chart card -->
-                <Card class="lg:col-span-2 shadow-xs border-border">
-                    <CardHeader class="pb-3 border-b bg-slate-50/40 dark:bg-slate-900/10">
-                        <CardTitle class="text-sm font-bold">Biến động chi phí vận hành (6 tháng qua)</CardTitle>
-                        <CardDescription class="text-xs">Theo dõi lượng tiền chi tiêu vận hành nhà hàng Month-over-Month.</CardDescription>
+                <Card class="border-border shadow-xs lg:col-span-2">
+                    <CardHeader
+                        class="border-b bg-slate-50/40 pb-3 dark:bg-slate-900/10"
+                    >
+                        <CardTitle class="text-sm font-bold"
+                            >Biến động chi phí vận hành (6 tháng qua)</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >Theo dõi lượng tiền chi tiêu vận hành nhà hàng
+                            Month-over-Month.</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="p-6">
                         <div class="space-y-4">
                             <!-- Visual Bars -->
-                            <div class="flex items-end justify-between h-52 border-b border-border pb-2 px-4 overflow-x-auto gap-6">
-                                <div 
-                                    v-for="d in analytics.six_months_mom" 
+                            <div
+                                class="flex h-52 items-end justify-between gap-6 overflow-x-auto border-b border-border px-4 pb-2"
+                            >
+                                <div
+                                    v-for="d in analytics.six_months_mom"
                                     :key="d.month"
-                                    class="flex flex-col items-center gap-2 min-w-[50px] w-full group relative"
+                                    class="group relative flex w-full min-w-[50px] flex-col items-center gap-2"
                                 >
                                     <!-- Amount value on top of bar -->
-                                    <span class="text-[9px] font-bold font-mono text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full mb-1 bg-slate-800 text-white rounded px-1.5 py-0.5 pointer-events-none whitespace-nowrap z-10">
+                                    <span
+                                        class="pointer-events-none absolute bottom-full z-10 mb-1 rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[9px] font-bold whitespace-nowrap text-slate-600 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                    >
                                         {{ vnd(d.amount) }}
                                     </span>
 
                                     <!-- Bar wrapper -->
-                                    <div class="flex items-end h-40 w-full justify-center">
-                                        <div 
-                                            class="w-8 bg-amber-500/80 group-hover:bg-amber-500 rounded-t-sm transition-all duration-300 shadow-xs"
+                                    <div
+                                        class="flex h-40 w-full items-end justify-center"
+                                    >
+                                        <div
+                                            class="w-8 rounded-t-sm bg-amber-500/80 shadow-xs transition-all duration-300 group-hover:bg-amber-500"
                                             :style="`height: ${Math.max(4, (d.amount / chartMaxVal) * 140)}px`"
                                         />
                                     </div>
 
                                     <!-- X Label -->
-                                    <span class="text-[10px] font-bold text-slate-500 whitespace-nowrap font-mono">{{ d.month }}</span>
+                                    <span
+                                        class="font-mono text-[10px] font-bold whitespace-nowrap text-slate-500"
+                                        >{{ d.month }}</span
+                                    >
                                 </div>
                             </div>
                         </div>
@@ -573,28 +710,59 @@ const chartMaxVal = computed(() => {
                 </Card>
 
                 <!-- Category Breakdown list -->
-                <Card class="lg:col-span-1 shadow-xs border-border">
-                    <CardHeader class="pb-3 border-b bg-slate-50/40 dark:bg-slate-900/10">
-                        <CardTitle class="text-sm font-bold">Cơ cấu chi phí theo danh mục</CardTitle>
-                        <CardDescription class="text-xs">Phân bổ dòng tiền chi phí trong tháng này.</CardDescription>
+                <Card class="border-border shadow-xs lg:col-span-1">
+                    <CardHeader
+                        class="border-b bg-slate-50/40 pb-3 dark:bg-slate-900/10"
+                    >
+                        <CardTitle class="text-sm font-bold"
+                            >Cơ cấu chi phí theo danh mục</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >Phân bổ dòng tiền chi phí trong tháng
+                            này.</CardDescription
+                        >
                     </CardHeader>
-                    <CardContent class="p-5 space-y-4">
-                        <div v-if="analytics.category_breakdown.length === 0" class="text-center py-10 text-xs text-slate-400">
-                            Chưa phát sinh giao dịch chi phí nào trong tháng này.
+                    <CardContent class="space-y-4 p-5">
+                        <div
+                            v-if="analytics.category_breakdown.length === 0"
+                            class="py-10 text-center text-xs text-slate-400"
+                        >
+                            Chưa phát sinh giao dịch chi phí nào trong tháng
+                            này.
                         </div>
-                        <div v-else class="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-                            <div 
-                                v-for="c in analytics.category_breakdown" 
-                                :key="c.name" 
+                        <div
+                            v-else
+                            class="max-h-[300px] space-y-4 overflow-y-auto pr-1"
+                        >
+                            <div
+                                v-for="c in analytics.category_breakdown"
+                                :key="c.name"
                                 class="space-y-1.5"
                             >
-                                <div class="flex justify-between items-center text-xs font-bold">
-                                    <span class="text-slate-700 dark:text-slate-200">{{ c.name }}</span>
-                                    <span class="text-slate-900 dark:text-slate-100 font-mono">{{ vnd(c.amount) }} <span class="text-[10px] text-slate-400 font-normal">({{ c.percentage }}%)</span></span>
+                                <div
+                                    class="flex items-center justify-between text-xs font-bold"
+                                >
+                                    <span
+                                        class="text-slate-700 dark:text-slate-200"
+                                        >{{ c.name }}</span
+                                    >
+                                    <span
+                                        class="font-mono text-slate-900 dark:text-slate-100"
+                                        >{{ vnd(c.amount) }}
+                                        <span
+                                            class="text-[10px] font-normal text-slate-400"
+                                            >({{ c.percentage }}%)</span
+                                        ></span
+                                    >
                                 </div>
                                 <!-- Progress bar -->
-                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                    <div class="h-full bg-amber-500 transition-all rounded-full" :style="`width: ${c.percentage}%`" />
+                                <div
+                                    class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                >
+                                    <div
+                                        class="h-full rounded-full bg-amber-500 transition-all"
+                                        :style="`width: ${c.percentage}%`"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -606,52 +774,68 @@ const chartMaxVal = computed(() => {
         <!-- ── TAB 2: EXPENSES LIST ── -->
         <div v-if="activeTab === 'expenses'" class="space-y-6">
             <!-- Filters Bar -->
-            <Card class="shadow-xs border-border">
-                <CardContent class="p-4 flex flex-col md:flex-row items-end gap-3 text-xs">
+            <Card class="border-border shadow-xs">
+                <CardContent
+                    class="flex flex-col items-end gap-3 p-4 text-xs md:flex-row"
+                >
                     <!-- Category filter -->
-                    <div class="space-y-1.5 w-full md:w-1/4">
-                        <Label class="text-[11px] font-bold text-slate-400">Danh mục:</Label>
-                        <select 
+                    <div class="w-full space-y-1.5 md:w-1/4">
+                        <Label class="text-[11px] font-bold text-slate-400"
+                            >Danh mục:</Label
+                        >
+                        <select
                             v-model="filterForm.category_id"
-                            class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2 outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
                         >
                             <option value="">-- Tất cả danh mục --</option>
-                            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+                            <option
+                                v-for="c in categories"
+                                :key="c.id"
+                                :value="c.id"
+                            >
+                                {{ c.name }}
+                            </option>
                         </select>
                     </div>
 
                     <!-- Start date -->
-                    <div class="space-y-1.5 w-full md:w-1/4">
-                        <Label class="text-[11px] font-bold text-slate-400">Từ ngày:</Label>
-                        <Input 
+                    <div class="w-full space-y-1.5 md:w-1/4">
+                        <Label class="text-[11px] font-bold text-slate-400"
+                            >Từ ngày:</Label
+                        >
+                        <Input
                             v-model="filterForm.start_date"
                             type="date"
-                            class="w-full text-xs h-8"
+                            class="h-8 w-full text-xs"
                         />
                     </div>
 
                     <!-- End date -->
-                    <div class="space-y-1.5 w-full md:w-1/4">
-                        <Label class="text-[11px] font-bold text-slate-400">Đến ngày:</Label>
-                        <Input 
+                    <div class="w-full space-y-1.5 md:w-1/4">
+                        <Label class="text-[11px] font-bold text-slate-400"
+                            >Đến ngày:</Label
+                        >
+                        <Input
                             v-model="filterForm.end_date"
                             type="date"
-                            class="w-full text-xs h-8"
+                            class="h-8 w-full text-xs"
                         />
                     </div>
 
                     <!-- Actions -->
-                    <div class="flex items-center gap-2 shrink-0 w-full md:w-auto">
-                        <Button 
+                    <div
+                        class="flex w-full shrink-0 items-center gap-2 md:w-auto"
+                    >
+                        <Button
                             @click="applyFilters"
-                            class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-4"
+                            class="h-8 bg-amber-600 px-4 text-xs font-bold text-white hover:bg-amber-700"
                         >
-                            <ListFilter class="size-3.5 mr-1" /> Lọc
+                            <ListFilter class="mr-1 size-3.5" /> Lọc
                         </Button>
-                        <Button 
+                        <Button
                             @click="resetFilters"
                             variant="outline"
-                            class="text-xs h-8 px-4 font-semibold"
+                            class="h-8 px-4 text-xs font-semibold"
                         >
                             Bỏ lọc
                         </Button>
@@ -660,15 +844,24 @@ const chartMaxVal = computed(() => {
             </Card>
 
             <!-- Table Card -->
-            <Card class="shadow-xs overflow-hidden border-border">
-                <CardHeader class="pb-3 border-b bg-slate-50/40 dark:bg-slate-900/10">
-                    <CardTitle class="text-sm font-bold">Chi phí phát sinh thực tế</CardTitle>
-                    <CardDescription class="text-xs">Danh sách các hóa đơn chi phí đã được ghi nhận trong hệ thống.</CardDescription>
+            <Card class="overflow-hidden border-border shadow-xs">
+                <CardHeader
+                    class="border-b bg-slate-50/40 pb-3 dark:bg-slate-900/10"
+                >
+                    <CardTitle class="text-sm font-bold"
+                        >Chi phí phát sinh thực tế</CardTitle
+                    >
+                    <CardDescription class="text-xs"
+                        >Danh sách các hóa đơn chi phí đã được ghi nhận trong hệ
+                        thống.</CardDescription
+                    >
                 </CardHeader>
-                <CardContent class="p-0 overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
+                <CardContent class="overflow-x-auto p-0">
+                    <table class="w-full border-collapse text-left text-xs">
                         <thead>
-                            <tr class="bg-slate-50/20 dark:bg-slate-900/5 border-b font-bold text-slate-500">
+                            <tr
+                                class="border-b bg-slate-50/20 font-bold text-slate-500 dark:bg-slate-900/5"
+                            >
                                 <th class="p-3 pl-5">Ngày chi</th>
                                 <th class="p-3">Danh mục</th>
                                 <th class="p-3">Nội dung ghi chú</th>
@@ -679,64 +872,90 @@ const chartMaxVal = computed(() => {
                                 <th class="p-3 text-center">Hành động</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-350">
+                        <tbody
+                            class="dark:text-slate-350 divide-y divide-slate-100 text-slate-600 dark:divide-slate-800"
+                        >
                             <tr v-if="expenses.data.length === 0">
-                                <td colspan="8" class="p-12 text-center text-slate-400 font-bold">Không tìm thấy bản ghi chi phí nào.</td>
-                            </tr>
-                            <tr 
-                                v-for="e in expenses.data" 
-                                :key="e.id"
-                                class="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors"
-                            >
-                                <td class="p-3 pl-5 font-bold font-mono">{{ e.expense_date }}</td>
-                                <td class="p-3 font-semibold text-slate-700 dark:text-slate-300">
-                                    {{ e.category ? e.category.name : 'Chưa phân loại' }}
+                                <td
+                                    colspan="8"
+                                    class="p-12 text-center font-bold text-slate-400"
+                                >
+                                    Không tìm thấy bản ghi chi phí nào.
                                 </td>
-                                <td class="p-3 max-w-xs truncate" :title="e.description || ''">
+                            </tr>
+                            <tr
+                                v-for="e in expenses.data"
+                                :key="e.id"
+                                class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                            >
+                                <td class="p-3 pl-5 font-mono font-bold">
+                                    {{ e.expense_date }}
+                                </td>
+                                <td
+                                    class="p-3 font-semibold text-slate-700 dark:text-slate-300"
+                                >
+                                    {{
+                                        e.category
+                                            ? e.category.name
+                                            : 'Chưa phân loại'
+                                    }}
+                                </td>
+                                <td
+                                    class="max-w-xs truncate p-3"
+                                    :title="e.description || ''"
+                                >
                                     {{ e.description || '—' }}
                                 </td>
-                                <td class="p-3 text-right font-bold text-slate-800 dark:text-slate-200 font-mono">
+                                <td
+                                    class="p-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200"
+                                >
                                     {{ vnd(e.amount) }}
                                 </td>
                                 <td class="p-3 text-center">
-                                    <span 
+                                    <span
                                         v-if="e.recurring_expense_id"
-                                        class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
+                                        class="rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold tracking-wider text-indigo-600 uppercase dark:bg-indigo-950/30 dark:text-indigo-400"
                                     >
                                         Định kỳ
                                     </span>
-                                    <span 
+                                    <span
                                         v-else
-                                        class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
+                                        class="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold tracking-wider text-amber-700 uppercase dark:bg-amber-950/20 dark:text-amber-400"
                                     >
                                         Thủ công
                                     </span>
                                 </td>
                                 <td class="p-3 text-center">
-                                    <button 
+                                    <button
                                         v-if="e.invoice_path"
-                                        @click="invoicePreviewUrl = e.invoice_path"
-                                        class="text-amber-600 hover:text-amber-700 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                                        @click="
+                                            invoicePreviewUrl = e.invoice_path
+                                        "
+                                        class="inline-flex cursor-pointer items-center gap-1 font-bold text-amber-600 hover:text-amber-700 hover:underline"
                                     >
                                         <FileText class="size-3.5" /> Xem
                                     </button>
                                     <span v-else class="text-slate-400">—</span>
                                 </td>
                                 <td class="p-3 text-center text-slate-400">
-                                    {{ e.creator ? e.creator.name : 'Hệ thống' }}
+                                    {{
+                                        e.creator ? e.creator.name : 'Hệ thống'
+                                    }}
                                 </td>
                                 <td class="p-3 text-center">
-                                    <div class="flex items-center justify-center gap-1.5">
-                                        <button 
+                                    <div
+                                        class="flex items-center justify-center gap-1.5"
+                                    >
+                                        <button
                                             @click="openEditExpenseModal(e)"
-                                            class="p-1 rounded-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-350 cursor-pointer"
+                                            class="dark:hover:text-slate-350 cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                                             title="Sửa chi phí"
                                         >
                                             <Edit2 class="size-3.5" />
                                         </button>
-                                        <button 
+                                        <button
                                             @click="deleteExpense(e)"
-                                            class="p-1 rounded-sm text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/25 hover:text-rose-600 cursor-pointer"
+                                            class="cursor-pointer rounded-sm p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/25"
                                             title="Xóa chi phí"
                                         >
                                             <Trash2 class="size-3.5" />
@@ -749,20 +968,29 @@ const chartMaxVal = computed(() => {
                 </CardContent>
 
                 <!-- Paginations -->
-                <div v-if="expenses.last_page > 1" class="border-t px-5 py-3.5 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/5">
-                    <span class="text-[11px] font-bold text-slate-400">Trang {{ expenses.current_page }} / {{ expenses.last_page }} · Tổng {{ expenses.total }} dòng</span>
-                    
+                <div
+                    v-if="expenses.last_page > 1"
+                    class="flex items-center justify-between border-t bg-slate-50/30 px-5 py-3.5 dark:bg-slate-900/5"
+                >
+                    <span class="text-[11px] font-bold text-slate-400"
+                        >Trang {{ expenses.current_page }} /
+                        {{ expenses.last_page }} · Tổng
+                        {{ expenses.total }} dòng</span
+                    >
+
                     <div class="flex gap-1">
-                        <Link 
-                            v-for="link in expenses.links" 
+                        <Link
+                            v-for="link in expenses.links"
                             :key="link.label"
                             :href="link.url || '#'"
                             :class="[
-                                'px-2.5 py-1 text-[11px] font-bold border rounded-lg transition-all',
-                                link.active 
-                                    ? 'bg-amber-600 border-amber-600 text-white' 
-                                    : 'bg-background hover:bg-muted text-slate-600 dark:text-slate-350',
-                                !link.url ? 'opacity-40 pointer-events-none' : ''
+                                'rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all',
+                                link.active
+                                    ? 'border-amber-600 bg-amber-600 text-white'
+                                    : 'dark:text-slate-350 bg-background text-slate-600 hover:bg-muted',
+                                !link.url
+                                    ? 'pointer-events-none opacity-40'
+                                    : '',
                             ]"
                             v-html="link.label"
                         />
@@ -773,78 +1001,134 @@ const chartMaxVal = computed(() => {
 
         <!-- ── TAB 3: RECURRING EXPENSES ── -->
         <div v-if="activeTab === 'recurring'" class="space-y-6">
-            <Card class="shadow-xs overflow-hidden border-border">
-                <CardHeader class="pb-3 border-b bg-slate-50/40 dark:bg-slate-900/10">
-                    <CardTitle class="text-sm font-bold">Cấu hình chi phí định kỳ cố định</CardTitle>
-                    <CardDescription class="text-xs">Thiết lập các chi phí cố định (tiền thuê nhà, bảo hiểm, phí dịch vụ...) tự động ghi nhận theo định kỳ.</CardDescription>
+            <Card class="overflow-hidden border-border shadow-xs">
+                <CardHeader
+                    class="border-b bg-slate-50/40 pb-3 dark:bg-slate-900/10"
+                >
+                    <CardTitle class="text-sm font-bold"
+                        >Cấu hình chi phí định kỳ cố định</CardTitle
+                    >
+                    <CardDescription class="text-xs"
+                        >Thiết lập các chi phí cố định (tiền thuê nhà, bảo hiểm,
+                        phí dịch vụ...) tự động ghi nhận theo định
+                        kỳ.</CardDescription
+                    >
                 </CardHeader>
-                <CardContent class="p-0 overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
+                <CardContent class="overflow-x-auto p-0">
+                    <table class="w-full border-collapse text-left text-xs">
                         <thead>
-                            <tr class="bg-slate-50/20 dark:bg-slate-900/5 border-b font-bold text-slate-500">
+                            <tr
+                                class="border-b bg-slate-50/20 font-bold text-slate-500 dark:bg-slate-900/5"
+                            >
                                 <th class="p-3 pl-5">Tên chi phí</th>
                                 <th class="p-3">Danh mục</th>
                                 <th class="p-3 text-center">Chu kỳ</th>
                                 <th class="p-3 text-right">Số tiền</th>
                                 <th class="p-3 text-center">Ngày bắt đầu</th>
                                 <th class="p-3 text-center">Ngày kết thúc</th>
-                                <th class="p-3 text-center">Ngày chạy gần nhất</th>
+                                <th class="p-3 text-center">
+                                    Ngày chạy gần nhất
+                                </th>
                                 <th class="p-3 text-center">Kích hoạt</th>
                                 <th class="p-3 text-center">Hành động</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-350">
+                        <tbody
+                            class="dark:text-slate-350 divide-y divide-slate-100 text-slate-600 dark:divide-slate-800"
+                        >
                             <tr v-if="recurringExpenses.length === 0">
-                                <td colspan="9" class="p-12 text-center text-slate-400 font-bold">Chưa tạo chi phí định kỳ nào.</td>
-                            </tr>
-                            <tr 
-                                v-for="r in recurringExpenses" 
-                                :key="r.id"
-                                class="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors"
-                            >
-                                <td class="p-3 pl-5 font-bold text-slate-800 dark:text-slate-200">{{ r.name }}</td>
-                                <td class="p-3 font-semibold">{{ r.category ? r.category.name : '—' }}</td>
-                                <td class="p-3 text-center font-bold text-slate-500">
-                                    <span v-if="r.frequency === 'weekly'">Hàng tuần</span>
-                                    <span v-else-if="r.frequency === 'monthly'">Hàng tháng</span>
-                                    <span v-else-if="r.frequency === 'quarterly'">Hàng quý</span>
-                                    <span v-else-if="r.frequency === 'yearly'">Hàng năm</span>
+                                <td
+                                    colspan="9"
+                                    class="p-12 text-center font-bold text-slate-400"
+                                >
+                                    Chưa tạo chi phí định kỳ nào.
                                 </td>
-                                <td class="p-3 text-right font-black font-mono text-slate-700 dark:text-slate-250">
+                            </tr>
+                            <tr
+                                v-for="r in recurringExpenses"
+                                :key="r.id"
+                                class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                            >
+                                <td
+                                    class="p-3 pl-5 font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    {{ r.name }}
+                                </td>
+                                <td class="p-3 font-semibold">
+                                    {{ r.category ? r.category.name : '—' }}
+                                </td>
+                                <td
+                                    class="p-3 text-center font-bold text-slate-500"
+                                >
+                                    <span v-if="r.frequency === 'weekly'"
+                                        >Hàng tuần</span
+                                    >
+                                    <span v-else-if="r.frequency === 'monthly'"
+                                        >Hàng tháng</span
+                                    >
+                                    <span
+                                        v-else-if="r.frequency === 'quarterly'"
+                                        >Hàng quý</span
+                                    >
+                                    <span v-else-if="r.frequency === 'yearly'"
+                                        >Hàng năm</span
+                                    >
+                                </td>
+                                <td
+                                    class="dark:text-slate-250 p-3 text-right font-mono font-black text-slate-700"
+                                >
                                     {{ vnd(r.amount) }}
                                 </td>
-                                <td class="p-3 text-center font-mono text-slate-500">{{ r.start_date }}</td>
-                                <td class="p-3 text-center font-mono text-slate-500">{{ r.end_date || 'Vô thời hạn' }}</td>
-                                <td class="p-3 text-center font-mono text-slate-400">{{ r.last_triggered_at || 'Chưa chạy' }}</td>
+                                <td
+                                    class="p-3 text-center font-mono text-slate-500"
+                                >
+                                    {{ r.start_date }}
+                                </td>
+                                <td
+                                    class="p-3 text-center font-mono text-slate-500"
+                                >
+                                    {{ r.end_date || 'Vô thời hạn' }}
+                                </td>
+                                <td
+                                    class="p-3 text-center font-mono text-slate-400"
+                                >
+                                    {{ r.last_triggered_at || 'Chưa chạy' }}
+                                </td>
                                 <td class="p-3 text-center">
                                     <!-- Switch / Toggle Status -->
-                                    <button 
+                                    <button
                                         @click="toggleRecurringStatus(r)"
                                         :class="[
-                                            'w-10 h-5 rounded-full p-0.5 transition-all outline-hidden cursor-pointer relative',
-                                            r.is_active ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                            'relative h-5 w-10 cursor-pointer rounded-full p-0.5 outline-hidden transition-all',
+                                            r.is_active
+                                                ? 'bg-emerald-500'
+                                                : 'bg-slate-300 dark:bg-slate-700',
                                         ]"
                                     >
-                                        <span 
+                                        <span
                                             :class="[
-                                                'w-4 h-4 rounded-full bg-white shadow-xs block transition-all',
-                                                r.is_active ? 'translate-x-5' : 'translate-x-0'
+                                                'block h-4 w-4 rounded-full bg-white shadow-xs transition-all',
+                                                r.is_active
+                                                    ? 'translate-x-5'
+                                                    : 'translate-x-0',
                                             ]"
                                         />
                                     </button>
                                 </td>
                                 <td class="p-3 text-center">
-                                    <div class="flex items-center justify-center gap-1.5">
-                                        <button 
+                                    <div
+                                        class="flex items-center justify-center gap-1.5"
+                                    >
+                                        <button
                                             @click="openEditRecurringModal(r)"
-                                            class="p-1 rounded-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 cursor-pointer"
+                                            class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                                             title="Sửa"
                                         >
                                             <Edit2 class="size-3.5" />
                                         </button>
-                                        <button 
+                                        <button
                                             @click="deleteRecurring(r)"
-                                            class="p-1 rounded-sm text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/25 hover:text-rose-600 cursor-pointer"
+                                            class="cursor-pointer rounded-sm p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/25"
                                             title="Xóa"
                                         >
                                             <Trash2 class="size-3.5" />
@@ -860,26 +1144,31 @@ const chartMaxVal = computed(() => {
 
         <!-- ── TAB 4: EXPENSE CATEGORIES ── -->
         <div v-if="activeTab === 'categories'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <!-- Loop over all categories -->
-                <Card 
-                    v-for="c in categories" 
+                <Card
+                    v-for="c in categories"
                     :key="c.id"
-                    class="shadow-xs border-border overflow-hidden"
+                    class="overflow-hidden border-border shadow-xs"
                 >
-                    <CardHeader class="pb-2 border-b bg-slate-50/30 dark:bg-slate-900/5 flex flex-row justify-between items-start">
+                    <CardHeader
+                        class="flex flex-row items-start justify-between border-b bg-slate-50/30 pb-2 dark:bg-slate-900/5"
+                    >
                         <div>
-                            <CardTitle class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ c.name }}</CardTitle>
-                            <CardDescription class="text-[10px] mt-1 font-bold">
-                                <span 
+                            <CardTitle
+                                class="text-sm font-bold text-slate-800 dark:text-slate-200"
+                                >{{ c.name }}</CardTitle
+                            >
+                            <CardDescription class="mt-1 text-[10px] font-bold">
+                                <span
                                     v-if="c.restaurant_id === null"
-                                    class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 dark:bg-slate-850 dark:text-slate-400 font-bold"
+                                    class="dark:bg-slate-850 rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-500 dark:text-slate-400"
                                 >
                                     Hệ thống dùng chung
                                 </span>
-                                <span 
+                                <span
                                     v-else
-                                    class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/25 dark:text-amber-400 font-bold"
+                                    class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700 dark:bg-amber-950/25 dark:text-amber-400"
                                 >
                                     Tùy chỉnh riêng
                                 </span>
@@ -887,51 +1176,84 @@ const chartMaxVal = computed(() => {
                         </div>
 
                         <!-- Trash icon for custom category -->
-                        <button 
+                        <button
                             v-if="c.restaurant_id !== null"
                             @click="deleteCategory(c)"
-                            class="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-sm cursor-pointer transition-colors"
+                            class="cursor-pointer rounded-sm p-1 text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30"
                             title="Xóa danh mục"
                         >
                             <Trash2 class="size-4" />
                         </button>
                     </CardHeader>
-                    <CardContent class="pt-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[50px]">
-                        {{ c.description || 'Chưa có mô tả chi tiết cho danh mục này.' }}
+                    <CardContent
+                        class="min-h-[50px] pt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+                    >
+                        {{
+                            c.description ||
+                            'Chưa có mô tả chi tiết cho danh mục này.'
+                        }}
                     </CardContent>
                 </Card>
             </div>
         </div>
 
         <!-- ── MODAL: CREATE/EDIT OPERATING EXPENSE ── -->
-        <div v-if="showExpenseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 border-border bg-card">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+        <div
+            v-if="showExpenseModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-lg animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+            >
+                <CardHeader class="border-b pb-3">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
                         <Receipt class="size-5 text-amber-600" />
-                        {{ editingExpense ? 'Sửa Chi Phí Vận Hành' : 'Ghi Nhận Khoản Chi Phí Vận Hành' }}
+                        {{
+                            editingExpense
+                                ? 'Sửa Chi Phí Vận Hành'
+                                : 'Ghi Nhận Khoản Chi Phí Vận Hành'
+                        }}
                     </CardTitle>
-                    <CardDescription class="text-xs">Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu COGS và lương nhân viên).</CardDescription>
+                    <CardDescription class="text-xs"
+                        >Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu
+                        COGS và lương nhân viên).</CardDescription
+                    >
                 </CardHeader>
                 <form @submit.prevent="saveExpense">
-                    <CardContent class="p-5 space-y-4 text-xs">
+                    <CardContent class="space-y-4 p-5 text-xs">
                         <!-- Category field -->
                         <div class="space-y-1.5">
-                            <Label for="expense-cat" class="text-xs font-bold text-slate-500">Danh mục chi phí:</Label>
-                            <select 
+                            <Label
+                                for="expense-cat"
+                                class="text-xs font-bold text-slate-500"
+                                >Danh mục chi phí:</Label
+                            >
+                            <select
                                 id="expense-cat"
                                 v-model="expenseForm.category_id"
-                                class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2.5 outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                                class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
                             >
-                                <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+                                <option
+                                    v-for="c in categories"
+                                    :key="c.id"
+                                    :value="c.id"
+                                >
+                                    {{ c.name }}
+                                </option>
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <!-- Amount -->
                             <div class="space-y-1.5">
-                                <Label for="expense-amount" class="text-xs font-bold text-slate-500">Số tiền chi tiêu (VND):</Label>
-                                <Input 
+                                <Label
+                                    for="expense-amount"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Số tiền chi tiêu (VND):</Label
+                                >
+                                <Input
                                     id="expense-amount"
                                     v-model.number="expenseForm.amount"
                                     type="number"
@@ -942,8 +1264,12 @@ const chartMaxVal = computed(() => {
 
                             <!-- Date -->
                             <div class="space-y-1.5">
-                                <Label for="expense-date" class="text-xs font-bold text-slate-500">Ngày ghi nhận:</Label>
-                                <Input 
+                                <Label
+                                    for="expense-date"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Ngày ghi nhận:</Label
+                                >
+                                <Input
                                     id="expense-date"
                                     v-model="expenseForm.expense_date"
                                     type="date"
@@ -954,50 +1280,93 @@ const chartMaxVal = computed(() => {
 
                         <!-- Description -->
                         <div class="space-y-1.5">
-                            <Label for="expense-desc" class="text-xs font-bold text-slate-500">Ghi chú chi tiết:</Label>
-                            <textarea 
+                            <Label
+                                for="expense-desc"
+                                class="text-xs font-bold text-slate-500"
+                                >Ghi chú chi tiết:</Label
+                            >
+                            <textarea
                                 id="expense-desc"
                                 v-model="expenseForm.description"
                                 rows="3"
                                 placeholder="Mô tả lý do chi, thông tin nhà cung cấp dịch vụ..."
-                                class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2 outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                                class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
                             ></textarea>
                         </div>
 
                         <!-- Invoice Proof Upload -->
                         <div class="space-y-2">
-                            <Label class="text-xs font-bold text-slate-500 block">Tải lên bill / hóa đơn chứng minh (Ảnh hoặc PDF):</Label>
+                            <Label
+                                class="block text-xs font-bold text-slate-500"
+                                >Tải lên bill / hóa đơn chứng minh (Ảnh hoặc
+                                PDF):</Label
+                            >
                             <div class="flex items-center gap-3">
-                                <label 
-                                    class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 dark:border-amber-900/50 hover:bg-amber-50/20 px-4 py-3 text-xs font-bold text-amber-600 transition-all select-none w-full text-center"
+                                <label
+                                    class="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 px-4 py-3 text-center text-xs font-bold text-amber-600 transition-all select-none hover:bg-amber-50/20 dark:border-amber-900/50"
                                 >
                                     <FileUp class="size-4" />
-                                    {{ expenseForm.invoice ? 'Đã chọn: ' + expenseForm.invoice.name : 'Chọn File/Chụp Ảnh Hóa Đơn...' }}
-                                    <input 
-                                        type="file" 
+                                    {{
+                                        expenseForm.invoice
+                                            ? 'Đã chọn: ' +
+                                              expenseForm.invoice.name
+                                            : 'Chọn File/Chụp Ảnh Hóa Đơn...'
+                                    }}
+                                    <input
+                                        type="file"
                                         accept="image/*,application/pdf"
-                                        class="hidden" 
+                                        class="hidden"
                                         @change="handleExpenseFileChange"
                                     />
                                 </label>
                             </div>
-                            <p class="text-[10px] text-slate-400 mt-1">Dung lượng tối đa 5MB. Định dạng: JPG, PNG, WEBP hoặc PDF.</p>
-                            <div v-if="editingExpense && editingExpense.invoice_path && !expenseForm.invoice" class="text-[10px] text-slate-500 flex items-center gap-1 bg-muted p-2 rounded-lg">
+                            <p class="mt-1 text-[10px] text-slate-400">
+                                Dung lượng tối đa 5MB. Định dạng: JPG, PNG, WEBP
+                                hoặc PDF.
+                            </p>
+                            <div
+                                v-if="
+                                    editingExpense &&
+                                    editingExpense.invoice_path &&
+                                    !expenseForm.invoice
+                                "
+                                class="flex items-center gap-1 rounded-lg bg-muted p-2 text-[10px] text-slate-500"
+                            >
                                 <FileText class="size-3.5 text-amber-600" />
-                                Hóa đơn hiện có: 
-                                <a :href="editingExpense.invoice_path" target="_blank" class="text-amber-600 font-bold hover:underline">Xem hóa đơn hiện tại</a>
+                                Hóa đơn hiện có:
+                                <a
+                                    :href="editingExpense.invoice_path"
+                                    target="_blank"
+                                    class="font-bold text-amber-600 hover:underline"
+                                    >Xem hóa đơn hiện tại</a
+                                >
                             </div>
                         </div>
                     </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/30 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showExpenseModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
-                            class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 flex items-center gap-1.5"
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showExpenseModal = false"
+                            class="h-9 text-xs font-semibold"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="flex h-9 items-center gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
                             :disabled="expenseForm.processing"
                         >
-                            <span v-if="expenseForm.processing" class="size-3 border-2 border-t-transparent border-white rounded-full animate-spin mr-1"></span>
-                            {{ editingExpense ? 'Lưu cập nhật' : 'Ghi nhận chi phí' }}
+                            <span
+                                v-if="expenseForm.processing"
+                                class="mr-1 size-3 animate-spin rounded-full border-2 border-white border-t-transparent"
+                            ></span>
+                            {{
+                                editingExpense
+                                    ? 'Lưu cập nhật'
+                                    : 'Ghi nhận chi phí'
+                            }}
                         </Button>
                     </div>
                 </form>
@@ -1005,22 +1374,41 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── MODAL: CREATE/EDIT RECURRING EXPENSE ── -->
-        <div v-if="showRecurringModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 border-border bg-card">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+        <div
+            v-if="showRecurringModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-lg animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+            >
+                <CardHeader class="border-b pb-3">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
                         <Clock class="size-5 text-indigo-600" />
-                        {{ editingRecurring ? 'Cập Nhật Cấu Hình Định Kỳ' : 'Tạo Mới Cấu Hình Chi Phí Định Kỳ' }}
+                        {{
+                            editingRecurring
+                                ? 'Cập Nhật Cấu Hình Định Kỳ'
+                                : 'Tạo Mới Cấu Hình Chi Phí Định Kỳ'
+                        }}
                     </CardTitle>
-                    <CardDescription class="text-xs">Định nghĩa khoản tiền cố định sẽ tự động sinh hóa đơn OPEX theo chu kỳ.</CardDescription>
+                    <CardDescription class="text-xs"
+                        >Định nghĩa khoản tiền cố định sẽ tự động sinh hóa đơn
+                        OPEX theo chu kỳ.</CardDescription
+                    >
                 </CardHeader>
                 <form @submit.prevent="saveRecurring">
-                    <CardContent class="p-5 space-y-4 text-xs">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <CardContent class="space-y-4 p-5 text-xs">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <!-- Name -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-name" class="text-xs font-bold text-slate-500">Tên chi phí (ví dụ: Thuê nhà mặt bằng):</Label>
-                                <Input 
+                                <Label
+                                    for="recurring-name"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Tên chi phí (ví dụ: Thuê nhà mặt
+                                    bằng):</Label
+                                >
+                                <Input
                                     id="recurring-name"
                                     v-model="recurringForm.name"
                                     type="text"
@@ -1031,22 +1419,36 @@ const chartMaxVal = computed(() => {
 
                             <!-- Category -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-cat" class="text-xs font-bold text-slate-500">Danh mục chi phí:</Label>
-                                <select 
+                                <Label
+                                    for="recurring-cat"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Danh mục chi phí:</Label
+                                >
+                                <select
                                     id="recurring-cat"
                                     v-model="recurringForm.category_id"
-                                    class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2.5 outline-hidden focus:ring-2 focus:ring-indigo-500/25"
+                                    class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-indigo-500/25"
                                 >
-                                    <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+                                    <option
+                                        v-for="c in categories"
+                                        :key="c.id"
+                                        :value="c.id"
+                                    >
+                                        {{ c.name }}
+                                    </option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <!-- Amount -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-amount" class="text-xs font-bold text-slate-500">Số tiền mỗi chu kỳ (VND):</Label>
-                                <Input 
+                                <Label
+                                    for="recurring-amount"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Số tiền mỗi chu kỳ (VND):</Label
+                                >
+                                <Input
                                     id="recurring-amount"
                                     v-model.number="recurringForm.amount"
                                     type="number"
@@ -1056,25 +1458,35 @@ const chartMaxVal = computed(() => {
 
                             <!-- Frequency -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-freq" class="text-xs font-bold text-slate-500">Chu kỳ lập lại:</Label>
-                                <select 
+                                <Label
+                                    for="recurring-freq"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Chu kỳ lập lại:</Label
+                                >
+                                <select
                                     id="recurring-freq"
                                     v-model="recurringForm.frequency"
-                                    class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2.5 outline-hidden focus:ring-2 focus:ring-indigo-500/25"
+                                    class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-indigo-500/25"
                                 >
                                     <option value="weekly">Hàng tuần</option>
-                                    <option value="monthly">Hàng tháng (Thuê mặt bằng, bảo hiểm)</option>
+                                    <option value="monthly">
+                                        Hàng tháng (Thuê mặt bằng, bảo hiểm)
+                                    </option>
                                     <option value="quarterly">Hàng quý</option>
                                     <option value="yearly">Hàng năm</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <!-- Start Date -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-start" class="text-xs font-bold text-slate-500">Ngày bắt đầu áp dụng:</Label>
-                                <Input 
+                                <Label
+                                    for="recurring-start"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Ngày bắt đầu áp dụng:</Label
+                                >
+                                <Input
                                     id="recurring-start"
                                     v-model="recurringForm.start_date"
                                     type="date"
@@ -1084,8 +1496,12 @@ const chartMaxVal = computed(() => {
 
                             <!-- End Date -->
                             <div class="space-y-1.5">
-                                <Label for="recurring-end" class="text-xs font-bold text-slate-500">Ngày kết thúc (Tùy chọn):</Label>
-                                <Input 
+                                <Label
+                                    for="recurring-end"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Ngày kết thúc (Tùy chọn):</Label
+                                >
+                                <Input
                                     id="recurring-end"
                                     v-model="recurringForm.end_date"
                                     type="date"
@@ -1096,24 +1512,39 @@ const chartMaxVal = computed(() => {
 
                         <!-- Description -->
                         <div class="space-y-1.5">
-                            <Label for="recurring-desc" class="text-xs font-bold text-slate-500">Mô tả chi tiết:</Label>
-                            <textarea 
+                            <Label
+                                for="recurring-desc"
+                                class="text-xs font-bold text-slate-500"
+                                >Mô tả chi tiết:</Label
+                            >
+                            <textarea
                                 id="recurring-desc"
                                 v-model="recurringForm.description"
                                 rows="3"
                                 placeholder="Ghi chú chi tiết cho hoạt động tự động phát sinh này..."
-                                class="w-full text-xs font-semibold rounded-lg border border-border bg-background px-3 py-2 outline-hidden focus:ring-2 focus:ring-indigo-500/25"
+                                class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-indigo-500/25"
                             ></textarea>
                         </div>
                     </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/30 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showRecurringModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 flex items-center gap-1.5"
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showRecurringModal = false"
+                            class="h-9 text-xs font-semibold"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="flex h-9 items-center gap-1.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                             :disabled="recurringForm.processing"
                         >
-                            <span v-if="recurringForm.processing" class="size-3 border-2 border-t-transparent border-white rounded-full animate-spin mr-1"></span>
+                            <span
+                                v-if="recurringForm.processing"
+                                class="mr-1 size-3 animate-spin rounded-full border-2 border-white border-t-transparent"
+                            ></span>
                             {{ editingRecurring ? 'Lưu cập nhật' : 'Tạo mới' }}
                         </Button>
                     </div>
@@ -1122,21 +1553,36 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── MODAL: CREATE CUSTOM CATEGORY ── -->
-        <div v-if="showCategoryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 border-border bg-card">
-                <CardHeader class="pb-3 border-b">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+        <div
+            v-if="showCategoryModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="w-full max-w-md animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+            >
+                <CardHeader class="border-b pb-3">
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
                         <Layers class="size-5 text-slate-800" />
                         Thêm Danh Mục Chi Phí Mới
                     </CardTitle>
-                    <CardDescription class="text-xs">Tạo danh mục chi phí riêng biệt của cửa hàng phục vụ phân nhóm.</CardDescription>
+                    <CardDescription class="text-xs"
+                        >Tạo danh mục chi phí riêng biệt của cửa hàng phục vụ
+                        phân nhóm.</CardDescription
+                    >
                 </CardHeader>
                 <form @submit.prevent="saveCategory">
-                    <CardContent class="p-5 space-y-4 text-xs">
+                    <CardContent class="space-y-4 p-5 text-xs">
                         <!-- Name -->
                         <div class="space-y-1.5">
-                            <Label for="cat-name" class="text-xs font-bold text-slate-500">Tên danh mục (ví dụ: Phí ship, Tiếp khách...):</Label>
-                            <Input 
+                            <Label
+                                for="cat-name"
+                                class="text-xs font-bold text-slate-500"
+                                >Tên danh mục (ví dụ: Phí ship, Tiếp
+                                khách...):</Label
+                            >
+                            <Input
                                 id="cat-name"
                                 v-model="categoryForm.name"
                                 type="text"
@@ -1147,8 +1593,12 @@ const chartMaxVal = computed(() => {
 
                         <!-- Description -->
                         <div class="space-y-1.5">
-                            <Label for="cat-desc" class="text-xs font-bold text-slate-500">Mô tả danh mục:</Label>
-                            <Input 
+                            <Label
+                                for="cat-desc"
+                                class="text-xs font-bold text-slate-500"
+                                >Mô tả danh mục:</Label
+                            >
+                            <Input
                                 id="cat-desc"
                                 v-model="categoryForm.description"
                                 type="text"
@@ -1157,11 +1607,19 @@ const chartMaxVal = computed(() => {
                             />
                         </div>
                     </CardContent>
-                    <div class="p-4 border-t flex justify-end gap-2 bg-slate-50/30 dark:bg-slate-900/10">
-                        <Button type="button" variant="outline" @click="showCategoryModal = false" class="text-xs h-9 font-semibold">Hủy</Button>
-                        <Button 
-                            type="submit" 
-                            class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs h-9"
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showCategoryModal = false"
+                            class="h-9 text-xs font-semibold"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="h-9 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900"
                             :disabled="categoryForm.processing"
                         >
                             Thêm danh mục
@@ -1172,50 +1630,72 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── MODAL: DOCUMENT PREVIEW ── -->
-        <div v-if="invoicePreviewUrl" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-4xl h-[90vh] shadow-2xl flex flex-col overflow-hidden border-border bg-card">
-                <CardHeader class="pb-3 border-b flex flex-row items-center justify-between">
+        <div
+            v-if="invoicePreviewUrl"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+        >
+            <Card
+                class="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-border bg-card shadow-2xl"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between border-b pb-3"
+                >
                     <div>
-                        <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-sm font-bold"
+                        >
                             <FileText class="size-5 text-amber-600" />
                             Xem Hóa Đơn Chứng Từ
                         </CardTitle>
-                        <CardDescription class="text-xs">Chứng từ đính kèm cho giao dịch.</CardDescription>
+                        <CardDescription class="text-xs"
+                            >Chứng từ đính kèm cho giao dịch.</CardDescription
+                        >
                     </div>
-                    <button 
+                    <button
                         @click="invoicePreviewUrl = null"
-                        class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer text-slate-500"
+                        class="cursor-pointer rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                     >
                         <X class="size-5" />
                     </button>
                 </CardHeader>
-                <div class="flex-1 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+                <div
+                    class="relative flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900"
+                >
                     <!-- PDF Embed -->
-                    <embed 
+                    <embed
                         v-if="invoicePreviewUrl.toLowerCase().endsWith('.pdf')"
-                        :src="invoicePreviewUrl" 
+                        :src="invoicePreviewUrl"
                         type="application/pdf"
-                        class="w-full h-full"
+                        class="h-full w-full"
                     />
                     <!-- Image Preview -->
-                    <div v-else class="w-full h-full flex items-center justify-center p-4">
-                        <img 
-                            :src="invoicePreviewUrl" 
+                    <div
+                        v-else
+                        class="flex h-full w-full items-center justify-center p-4"
+                    >
+                        <img
+                            :src="invoicePreviewUrl"
                             alt="Hóa đơn chứng từ"
-                            class="max-w-full max-h-full object-contain shadow-md border rounded-lg"
+                            class="max-h-full max-w-full rounded-lg border object-contain shadow-md"
                         />
                     </div>
                 </div>
-                <div class="p-4 border-t flex justify-end gap-2 bg-slate-50 dark:bg-slate-950">
-                    <a 
+                <div
+                    class="flex justify-end gap-2 border-t bg-slate-50 p-4 dark:bg-slate-950"
+                >
+                    <a
                         :href="invoicePreviewUrl"
                         download
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold hover:bg-muted transition cursor-pointer"
+                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold transition hover:bg-muted"
                     >
                         <Download class="size-3.5" />
                         Tải xuống file
                     </a>
-                    <Button @click="invoicePreviewUrl = null" class="text-xs font-semibold">Đóng</Button>
+                    <Button
+                        @click="invoicePreviewUrl = null"
+                        class="text-xs font-semibold"
+                        >Đóng</Button
+                    >
                 </div>
             </Card>
         </div>

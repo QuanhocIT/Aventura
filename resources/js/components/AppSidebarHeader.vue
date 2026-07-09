@@ -58,15 +58,20 @@ const handleBranchChange = (e: Event) => {
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
-            <nav v-else-if="user && !isSuperAdminRoute" class="hidden items-center gap-0.5 md:flex">
+            <nav
+                v-else-if="user && !isSuperAdminRoute"
+                class="hidden items-center gap-0.5 md:flex"
+            >
                 <Link
                     v-for="item in navItems"
                     :key="item.href"
                     :href="item.href"
                     class="rounded-md px-3 py-1.5 text-sm transition-colors"
-                    :class="page.url.startsWith(item.href)
-                        ? 'bg-muted text-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                    :class="
+                        page.url.startsWith(item.href)
+                            ? 'bg-muted font-medium text-foreground'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
                 >
                     {{ item.label }}
                 </Link>
@@ -75,12 +80,18 @@ const handleBranchChange = (e: Event) => {
 
         <div class="flex items-center gap-4">
             <!-- Branch context switcher -->
-            <div v-if="branches && branches.length > 1" class="flex items-center gap-1.5 mr-2">
-                <span class="text-[11px] text-muted-foreground hidden sm:inline font-medium uppercase tracking-wider">Chi nhánh:</span>
+            <div
+                v-if="branches && branches.length > 1"
+                class="mr-2 flex items-center gap-1.5"
+            >
+                <span
+                    class="hidden text-[11px] font-medium tracking-wider text-muted-foreground uppercase sm:inline"
+                    >Chi nhánh:</span
+                >
                 <select
                     :value="activeBranchId"
                     @change="handleBranchChange"
-                    class="h-8 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-ring hover:bg-accent cursor-pointer text-slate-800 dark:text-slate-200"
+                    class="h-8 cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-accent focus:ring-1 focus:ring-ring focus:outline-none dark:text-slate-200"
                 >
                     <option v-for="b in branches" :key="b.id" :value="b.id">
                         {{ b.name }}
@@ -93,20 +104,20 @@ const handleBranchChange = (e: Event) => {
             <!-- Flash notification indicator -->
             <button
                 v-if="user"
-                class="relative rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                class="relative cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Thông báo"
             >
                 <Bell class="size-4" />
                 <span
                     v-if="hasFlash"
-                    class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
+                    class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
                 />
             </button>
 
             <DropdownMenu v-if="user">
                 <DropdownMenuTrigger as-child>
                     <button
-                        class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                        class="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                         <Avatar class="h-9 w-9 border border-border">
                             <AvatarImage
@@ -123,11 +134,7 @@ const handleBranchChange = (e: Event) => {
                     </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent
-                    class="w-60"
-                    align="end"
-                    :side-offset="8"
-                >
+                <DropdownMenuContent class="w-60" align="end" :side-offset="8">
                     <UserMenuContent :user="user" />
                 </DropdownMenuContent>
             </DropdownMenu>

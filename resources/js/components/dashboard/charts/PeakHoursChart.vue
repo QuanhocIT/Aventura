@@ -14,7 +14,9 @@ const props = defineProps<{
 }>();
 
 const dataList = computed(() => props.peakHoursChartData ?? []);
-const maxCount = computed(() => Math.max(...dataList.value.map(d => d.count), 1));
+const maxCount = computed(() =>
+    Math.max(...dataList.value.map((d) => d.count), 1),
+);
 
 const hoveredIdx = ref<number | null>(null);
 
@@ -46,7 +48,10 @@ const barGap = computed(() => {
 
 const bars = computed(() => {
     return dataList.value.map((item, index) => {
-        const x = PADDING_LEFT + index * (barWidth.value + barGap.value) + barGap.value / 2;
+        const x =
+            PADDING_LEFT +
+            index * (barWidth.value + barGap.value) +
+            barGap.value / 2;
         const height = (item.count / maxCount.value) * chartHeight;
         const y = VIEW_HEIGHT - PADDING_BOTTOM - height;
 
@@ -56,55 +61,134 @@ const bars = computed(() => {
             width: barWidth.value,
             height: Math.max(height, 2), // min height of 2px
             raw: item,
-            index
+            index,
         };
     });
 });
 
-const hoveredBar = computed(() => hoveredIdx.value !== null ? bars.value[hoveredIdx.value] : null);
+const hoveredBar = computed(() =>
+    hoveredIdx.value !== null ? bars.value[hoveredIdx.value] : null,
+);
 </script>
 
 <template>
-    <Card class="bg-card text-card-foreground border border-border shadow-sm">
-        <CardHeader class="pb-2 border-b border-border/50">
-            <CardTitle class="text-base font-bold flex items-center gap-2">
+    <Card class="border border-border bg-card text-card-foreground shadow-sm">
+        <CardHeader class="border-b border-border/50 pb-2">
+            <CardTitle class="flex items-center gap-2 text-base font-bold">
                 <Activity class="size-4 text-rose-500" />
                 Phân phối giờ cao điểm
             </CardTitle>
-            <p class="text-xs text-muted-foreground mt-0.5">Tần suất đơn hàng theo các giờ trong ngày (30 ngày qua)</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+                Tần suất đơn hàng theo các giờ trong ngày (30 ngày qua)
+            </p>
         </CardHeader>
-        
-        <CardContent class="pt-6 relative">
-            <div class="relative w-full h-44">
-                <svg viewBox="0 0 500 160" class="w-full h-full overflow-visible select-none">
+
+        <CardContent class="relative pt-6">
+            <div class="relative h-44 w-full">
+                <svg
+                    viewBox="0 0 500 160"
+                    class="h-full w-full overflow-visible select-none"
+                >
                     <!-- Gradients for Peak/Normal hours -->
                     <defs>
-                        <linearGradient id="peakGrad" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient
+                            id="peakGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
                             <stop offset="0%" stop-color="#ec4899" />
                             <stop offset="100%" stop-color="#f59e0b" />
                         </linearGradient>
-                        <linearGradient id="normalGrad" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient
+                            id="normalGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
                             <stop offset="0%" stop-color="#6366f1" />
                             <stop offset="100%" stop-color="#4f46e5" />
                         </linearGradient>
                     </defs>
 
                     <!-- Horizontal Grid lines -->
-                    <g opacity="0.08" class="stroke-foreground" stroke-width="0.75" stroke-dasharray="3 3">
-                        <line :x1="PADDING_LEFT" :y1="PADDING_TOP" :x2="VIEW_WIDTH - PADDING_RIGHT" :y2="PADDING_TOP" />
-                        <line :x1="PADDING_LEFT" :y1="PADDING_TOP + chartHeight * 0.33" :x2="VIEW_WIDTH - PADDING_RIGHT" :y2="PADDING_TOP + chartHeight * 0.33" />
-                        <line :x1="PADDING_LEFT" :y1="PADDING_TOP + chartHeight * 0.66" :x2="VIEW_WIDTH - PADDING_RIGHT" :y2="PADDING_TOP + chartHeight * 0.66" />
-                        <line :x1="PADDING_LEFT" :y1="VIEW_HEIGHT - PADDING_BOTTOM" :x2="VIEW_WIDTH - PADDING_RIGHT" :y2="VIEW_HEIGHT - PADDING_BOTTOM" />
+                    <g
+                        opacity="0.08"
+                        class="stroke-foreground"
+                        stroke-width="0.75"
+                        stroke-dasharray="3 3"
+                    >
+                        <line
+                            :x1="PADDING_LEFT"
+                            :y1="PADDING_TOP"
+                            :x2="VIEW_WIDTH - PADDING_RIGHT"
+                            :y2="PADDING_TOP"
+                        />
+                        <line
+                            :x1="PADDING_LEFT"
+                            :y1="PADDING_TOP + chartHeight * 0.33"
+                            :x2="VIEW_WIDTH - PADDING_RIGHT"
+                            :y2="PADDING_TOP + chartHeight * 0.33"
+                        />
+                        <line
+                            :x1="PADDING_LEFT"
+                            :y1="PADDING_TOP + chartHeight * 0.66"
+                            :x2="VIEW_WIDTH - PADDING_RIGHT"
+                            :y2="PADDING_TOP + chartHeight * 0.66"
+                        />
+                        <line
+                            :x1="PADDING_LEFT"
+                            :y1="VIEW_HEIGHT - PADDING_BOTTOM"
+                            :x2="VIEW_WIDTH - PADDING_RIGHT"
+                            :y2="VIEW_HEIGHT - PADDING_BOTTOM"
+                        />
                     </g>
 
                     <!-- Axes -->
-                    <line :x1="PADDING_LEFT" :y1="VIEW_HEIGHT - PADDING_BOTTOM" :x2="VIEW_WIDTH - PADDING_RIGHT" :y2="VIEW_HEIGHT - PADDING_BOTTOM" class="stroke-border" stroke-width="1.5" />
-                    <line :x1="PADDING_LEFT" :y1="PADDING_TOP" :x2="PADDING_LEFT" :y2="VIEW_HEIGHT - PADDING_BOTTOM" class="stroke-border" stroke-width="1.5" />
+                    <line
+                        :x1="PADDING_LEFT"
+                        :y1="VIEW_HEIGHT - PADDING_BOTTOM"
+                        :x2="VIEW_WIDTH - PADDING_RIGHT"
+                        :y2="VIEW_HEIGHT - PADDING_BOTTOM"
+                        class="stroke-border"
+                        stroke-width="1.5"
+                    />
+                    <line
+                        :x1="PADDING_LEFT"
+                        :y1="PADDING_TOP"
+                        :x2="PADDING_LEFT"
+                        :y2="VIEW_HEIGHT - PADDING_BOTTOM"
+                        class="stroke-border"
+                        stroke-width="1.5"
+                    />
 
                     <!-- Axis ticks/labels Y -->
-                    <text :x="PADDING_LEFT - 8" :y="PADDING_TOP + 4" text-anchor="end" class="fill-muted-foreground text-[8px] font-mono">{{ maxCount }}</text>
-                    <text :x="PADDING_LEFT - 8" :y="PADDING_TOP + chartHeight / 2 + 3" text-anchor="end" class="fill-muted-foreground text-[8px] font-mono">{{ Math.round(maxCount / 2) }}</text>
-                    <text :x="PADDING_LEFT - 8" :y="VIEW_HEIGHT - PADDING_BOTTOM + 3" text-anchor="end" class="fill-muted-foreground text-[8px] font-mono">0</text>
+                    <text
+                        :x="PADDING_LEFT - 8"
+                        :y="PADDING_TOP + 4"
+                        text-anchor="end"
+                        class="fill-muted-foreground font-mono text-[8px]"
+                    >
+                        {{ maxCount }}
+                    </text>
+                    <text
+                        :x="PADDING_LEFT - 8"
+                        :y="PADDING_TOP + chartHeight / 2 + 3"
+                        text-anchor="end"
+                        class="fill-muted-foreground font-mono text-[8px]"
+                    >
+                        {{ Math.round(maxCount / 2) }}
+                    </text>
+                    <text
+                        :x="PADDING_LEFT - 8"
+                        :y="VIEW_HEIGHT - PADDING_BOTTOM + 3"
+                        text-anchor="end"
+                        class="fill-muted-foreground font-mono text-[8px]"
+                    >
+                        0
+                    </text>
 
                     <!-- Draw Bars -->
                     <g v-for="bar in bars" :key="bar.raw.hour">
@@ -125,10 +209,20 @@ const hoveredBar = computed(() => hoveredIdx.value !== null ? bars.value[hovered
                             :y="bar.y"
                             :width="bar.width"
                             :height="bar.height"
-                            :fill="isPeakHour(bar.raw.hour) ? 'url(#peakGrad)' : 'url(#normalGrad)'"
+                            :fill="
+                                isPeakHour(bar.raw.hour)
+                                    ? 'url(#peakGrad)'
+                                    : 'url(#normalGrad)'
+                            "
                             rx="3"
-                            class="transition-all duration-200 cursor-pointer hover:opacity-90"
-                            :class="{ 'opacity-100 filter drop-shadow-sm brightness-110': hoveredIdx === bar.index, 'opacity-85': hoveredIdx !== null && hoveredIdx !== bar.index }"
+                            class="cursor-pointer transition-all duration-200 hover:opacity-90"
+                            :class="{
+                                'opacity-100 brightness-110 drop-shadow-sm filter':
+                                    hoveredIdx === bar.index,
+                                'opacity-85':
+                                    hoveredIdx !== null &&
+                                    hoveredIdx !== bar.index,
+                            }"
                             @mouseenter="hoveredIdx = bar.index"
                             @mouseleave="hoveredIdx = null"
                         />
@@ -137,7 +231,7 @@ const hoveredBar = computed(() => hoveredIdx.value !== null ? bars.value[hovered
                             :x="bar.x + bar.width / 2"
                             :y="VIEW_HEIGHT - PADDING_BOTTOM + 12"
                             text-anchor="middle"
-                            class="fill-muted-foreground text-[8px] font-bold font-mono"
+                            class="fill-muted-foreground font-mono text-[8px] font-bold"
                         >
                             {{ bar.raw.label }}
                         </text>
@@ -147,20 +241,36 @@ const hoveredBar = computed(() => hoveredIdx.value !== null ? bars.value[hovered
                 <!-- Tooltip -->
                 <div
                     v-if="hoveredBar"
-                    class="absolute z-10 pointer-events-none rounded-lg border bg-background/95 backdrop-blur-xs p-2 shadow-lg text-[10px] font-bold flex flex-col gap-0.5 transition-all duration-75 text-foreground"
+                    class="pointer-events-none absolute z-10 flex flex-col gap-0.5 rounded-lg border bg-background/95 p-2 text-[10px] font-bold text-foreground shadow-lg backdrop-blur-xs transition-all duration-75"
                     :style="{
-                        left: `${(hoveredBar.x + hoveredBar.width / 2) / VIEW_WIDTH * 100}%`,
-                        top: `${(hoveredBar.y - 30) / VIEW_HEIGHT * 100}%`,
+                        left: `${((hoveredBar.x + hoveredBar.width / 2) / VIEW_WIDTH) * 100}%`,
+                        top: `${((hoveredBar.y - 30) / VIEW_HEIGHT) * 100}%`,
                         transform: 'translateX(-50%)',
-                        borderColor: isPeakHour(hoveredBar.raw.hour) ? '#ec489933' : '#6366f133',
+                        borderColor: isPeakHour(hoveredBar.raw.hour)
+                            ? '#ec489933'
+                            : '#6366f133',
                     }"
                 >
-                    <span class="text-[8px] uppercase tracking-wider text-muted-foreground font-mono">Giờ: {{ hoveredBar.raw.label }}</span>
-                    <span class="font-extrabold flex items-center gap-1">
-                        <span class="size-1.5 rounded-full" :class="isPeakHour(hoveredBar.raw.hour) ? 'bg-pink-500' : 'bg-indigo-500'"></span>
+                    <span
+                        class="font-mono text-[8px] tracking-wider text-muted-foreground uppercase"
+                        >Giờ: {{ hoveredBar.raw.label }}</span
+                    >
+                    <span class="flex items-center gap-1 font-extrabold">
+                        <span
+                            class="size-1.5 rounded-full"
+                            :class="
+                                isPeakHour(hoveredBar.raw.hour)
+                                    ? 'bg-pink-500'
+                                    : 'bg-indigo-500'
+                            "
+                        ></span>
                         {{ hoveredBar.raw.count }} đơn
                     </span>
-                    <span v-if="isPeakHour(hoveredBar.raw.hour)" class="text-[8px] text-pink-500 font-medium">🔥 Giờ cao điểm</span>
+                    <span
+                        v-if="isPeakHour(hoveredBar.raw.hour)"
+                        class="text-[8px] font-medium text-pink-500"
+                        >🔥 Giờ cao điểm</span
+                    >
                 </div>
             </div>
         </CardContent>

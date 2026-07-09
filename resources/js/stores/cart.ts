@@ -19,11 +19,20 @@ export const useCartStore = defineStore('cart', () => {
     });
 
     const totalAmount = computed(() => {
-        return items.value.reduce((total, item) => total + (item.price * item.quantity), 0);
+        return items.value.reduce(
+            (total, item) => total + item.price * item.quantity,
+            0,
+        );
     });
 
-    function addItem(product: { id: number; name: string; price: number }, quantity = 1, notes: string | null = null) {
-        const existingItem = items.value.find(item => item.product_id === product.id);
+    function addItem(
+        product: { id: number; name: string; price: number },
+        quantity = 1,
+        notes: string | null = null,
+    ) {
+        const existingItem = items.value.find(
+            (item) => item.product_id === product.id,
+        );
 
         if (existingItem) {
             existingItem.quantity += quantity;
@@ -37,17 +46,19 @@ export const useCartStore = defineStore('cart', () => {
                 name: product.name,
                 price: product.price,
                 quantity,
-                notes
+                notes,
             });
         }
     }
 
     function removeItem(productId: number) {
-        items.value = items.value.filter(item => item.product_id !== productId);
+        items.value = items.value.filter(
+            (item) => item.product_id !== productId,
+        );
     }
 
     function updateQuantity(productId: number, quantity: number) {
-        const item = items.value.find(item => item.product_id === productId);
+        const item = items.value.find((item) => item.product_id === productId);
 
         if (item) {
             item.quantity = Math.max(0.01, quantity);
@@ -55,7 +66,7 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     function updateNotes(productId: number, notes: string | null) {
-        const item = items.value.find(item => item.product_id === productId);
+        const item = items.value.find((item) => item.product_id === productId);
 
         if (item) {
             item.notes = notes;
@@ -83,6 +94,6 @@ export const useCartStore = defineStore('cart', () => {
         updateQuantity,
         updateNotes,
         setTable,
-        clearCart
+        clearCart,
     };
 });

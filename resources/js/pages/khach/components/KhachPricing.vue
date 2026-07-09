@@ -166,33 +166,34 @@ const staticPlans = [
 ];
 
 const planNotes: Record<string, string> = {
-    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
-    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
-    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
-    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+    free: 'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise:
+        'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
 };
 
 const ALL_FEATURES = [
-    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
-    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
-    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
-    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
-    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'kitchen_display', label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering', label: 'Đặt món qua QR' },
+    { key: 'inventory_basic', label: 'Quản lý Tồn kho' },
+    { key: 'hr_timekeeping', label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full', label: 'Lương & Nhân sự đầy đủ' },
     { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
-    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
-    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
-    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
-    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
-    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
-    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
-    { key: 'api_access',         label: 'Truy cập API' },
+    { key: 'realtime', label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
+    { key: 'email_reports', label: 'Email Báo cáo tự động' },
+    { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
+    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'ai_forecasting', label: 'AI Dự báo Tồn kho' },
+    { key: 'api_access', label: 'Truy cập API' },
 ];
 
 function buildDisplayPlan(db: DbPlan) {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
 
-    const mb  = (db.features.max_storage_mb as number) ?? 500;
+    const mb = (db.features.max_storage_mb as number) ?? 500;
     const storage = mb >= 1024 ? `${mb / 1024} GB lưu trữ` : `${mb} MB lưu trữ`;
     const rate = (db.features.api_rate_limit as number) ?? 60;
 
@@ -215,15 +216,21 @@ function buildDisplayPlan(db: DbPlan) {
     }
 
     return {
-        code:               db.code,
-        name:               db.name,
-        price:              db.price === 0 ? '0đ' : db.price.toLocaleString('vi-VN') + 'đ',
-        cycle:              db.billing_cycle === 'monthly' ? '/tháng' : '/năm',
-        note:               (db.features.description as string | undefined) || planNotes[db.code] || '',
+        code: db.code,
+        name: db.name,
+        price: db.price === 0 ? '0đ' : db.price.toLocaleString('vi-VN') + 'đ',
+        cycle: db.billing_cycle === 'monthly' ? '/tháng' : '/năm',
+        note:
+            (db.features.description as string | undefined) ||
+            planNotes[db.code] ||
+            '',
         features,
         unsupportedFeatures,
-        isRecommended:      db.code === 'pro',
-        yearlyDiscountPercent: db.features.yearly_discount_percent !== undefined ? Number(db.features.yearly_discount_percent) : 20,
+        isRecommended: db.code === 'pro',
+        yearlyDiscountPercent:
+            db.features.yearly_discount_percent !== undefined
+                ? Number(db.features.yearly_discount_percent)
+                : 20,
     };
 }
 
@@ -231,10 +238,12 @@ function buildDisplayPlan(db: DbPlan) {
 const billingCycle = ref<'monthly' | 'yearly'>('monthly');
 
 const displayPlans = computed(() => {
-    const plans = props.plans?.length ? props.plans.map(buildDisplayPlan) : staticPlans.map(p => ({ ...p, yearlyDiscountPercent: 20 }));
+    const plans = props.plans?.length
+        ? props.plans.map(buildDisplayPlan)
+        : staticPlans.map((p) => ({ ...p, yearlyDiscountPercent: 20 }));
 
     if (billingCycle.value === 'yearly') {
-        return plans.map(p => {
+        return plans.map((p) => {
             if (p.price === '0đ' || p.price === 'Miễn phí') {
                 return p;
             }
@@ -242,7 +251,7 @@ const displayPlans = computed(() => {
             let rawPrice = 0;
 
             if (props.plans?.length) {
-                const dbPlan = props.plans.find(d => d.code === p.code);
+                const dbPlan = props.plans.find((d) => d.code === p.code);
                 rawPrice = dbPlan ? Number(dbPlan.price) : 0;
             } else {
                 rawPrice = Number(p.price.replace(/[^\d]/g, ''));
@@ -253,7 +262,9 @@ const displayPlans = computed(() => {
             }
 
             const discountPercent = p.yearlyDiscountPercent ?? 20;
-            const yearlyMonthly = Math.round(rawPrice * (1 - discountPercent / 100));
+            const yearlyMonthly = Math.round(
+                rawPrice * (1 - discountPercent / 100),
+            );
 
             return {
                 ...p,
@@ -268,29 +279,51 @@ const displayPlans = computed(() => {
 </script>
 
 <template>
-    <section id="pricing" class="px-4 py-10 lg:py-12 lg:px-8">
+    <section id="pricing" class="px-4 py-10 lg:px-8 lg:py-12">
         <div class="mx-auto max-w-7xl">
-            <div class="reveal-on-scroll flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-full">
+            <div
+                class="reveal-on-scroll flex max-w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+            >
                 <div class="max-w-2xl">
-                    <h2 class="text-3xl font-semibold heading-section text-gradient-brand">Gói dịch vụ linh hoạt</h2>
+                    <h2
+                        class="heading-section text-gradient-brand text-3xl font-semibold"
+                    >
+                        Gói dịch vụ linh hoạt
+                    </h2>
                     <p class="mt-3 text-muted-foreground">
-                        Từ quán nhỏ đến chuỗi lớn — chọn gói phù hợp và nâng cấp bất kỳ lúc nào mà không mất dữ liệu.
+                        Từ quán nhỏ đến chuỗi lớn — chọn gói phù hợp và nâng cấp
+                        bất kỳ lúc nào mà không mất dữ liệu.
                     </p>
                 </div>
                 <!-- Billing toggle -->
-                <div class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 text-sm shrink-0 self-start sm:self-auto">
+                <div
+                    class="flex shrink-0 items-center gap-1 self-start rounded-xl border border-border bg-muted p-1 text-sm sm:self-auto"
+                >
                     <button
                         @click="billingCycle = 'monthly'"
                         class="rounded-lg px-4 py-1.5 font-medium transition-all"
-                        :class="billingCycle === 'monthly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
-                    >Tháng</button>
+                        :class="
+                            billingCycle === 'monthly'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                    >
+                        Tháng
+                    </button>
                     <button
                         @click="billingCycle = 'yearly'"
-                        class="rounded-lg px-4 py-1.5 font-medium transition-all flex items-center gap-1.5"
-                        :class="billingCycle === 'yearly' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-medium transition-all"
+                        :class="
+                            billingCycle === 'yearly'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
                         Năm
-                        <span class="text-[10px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+                        <span
+                            class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                            >-20%</span
+                        >
                     </button>
                 </div>
             </div>
@@ -302,7 +335,7 @@ const displayPlans = computed(() => {
                     :key="plan.code"
                     class="stagger-child flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                     :class="{
-                        'ring-2 ring-primary/40 border-primary/30 shadow-xl shadow-primary/10':
+                        'border-primary/30 shadow-xl ring-2 shadow-primary/10 ring-primary/40':
                             plan.isRecommended,
                         'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent':
                             plan.code === 'enterprise' || plan.code === 'ultra',
@@ -315,7 +348,8 @@ const displayPlans = computed(() => {
                                 :class="{
                                     'text-primary': plan.isRecommended,
                                     'text-violet-500':
-                                        plan.code === 'enterprise' || plan.code === 'ultra',
+                                        plan.code === 'enterprise' ||
+                                        plan.code === 'ultra',
                                 }"
                             >
                                 {{ plan.name }}
@@ -329,20 +363,27 @@ const displayPlans = computed(() => {
                                 >Khuyến nghị</Badge
                             >
                             <Badge
-                                v-else-if="plan.code === 'enterprise' || plan.code === 'ultra'"
+                                v-else-if="
+                                    plan.code === 'enterprise' ||
+                                    plan.code === 'ultra'
+                                "
                                 class="bg-violet-600 text-white hover:bg-violet-700"
                                 >VIP</Badge
                             >
                         </div>
-                        <div class="mt-2 flex items-end gap-1.5 min-h-[40px]">
+                        <div class="mt-2 flex min-h-[40px] items-end gap-1.5">
                             <Transition name="pricing-fade" mode="out-in">
-                                <div :key="plan.price" class="flex items-end gap-1.5 flex-wrap">
+                                <div
+                                    :key="plan.price"
+                                    class="flex flex-wrap items-end gap-1.5"
+                                >
                                     <span
                                         class="text-3xl font-extrabold text-foreground"
                                         :class="{
                                             'text-primary': plan.isRecommended,
                                             'text-violet-500':
-                                                plan.code === 'enterprise' || plan.code === 'ultra',
+                                                plan.code === 'enterprise' ||
+                                                plan.code === 'ultra',
                                         }"
                                     >
                                         {{ plan.price }}
@@ -352,9 +393,12 @@ const displayPlans = computed(() => {
                                         >{{ plan.cycle }}</span
                                     >
                                     <Badge
-                                        v-if="billingCycle === 'yearly' && plan.yearlyDiscountPercent > 0"
+                                        v-if="
+                                            billingCycle === 'yearly' &&
+                                            plan.yearlyDiscountPercent > 0
+                                        "
                                         variant="outline"
-                                        class="ml-1 text-[10px] font-bold border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-center"
+                                        class="ml-1 self-center border-emerald-500/20 bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
                                     >
                                         Giảm {{ plan.yearlyDiscountPercent }}%
                                     </Badge>
@@ -366,7 +410,9 @@ const displayPlans = computed(() => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent class="flex-grow text-xs">
-                        <div class="max-h-[180px] overflow-y-auto pr-1.5 custom-scrollbar space-y-2">
+                        <div
+                            class="custom-scrollbar max-h-[180px] space-y-2 overflow-y-auto pr-1.5"
+                        >
                             <p
                                 v-for="feat in plan.features"
                                 :key="feat"
@@ -377,7 +423,8 @@ const displayPlans = computed(() => {
                                     :class="{
                                         'text-primary': plan.isRecommended,
                                         'text-violet-500':
-                                            plan.code === 'enterprise' || plan.code === 'ultra',
+                                            plan.code === 'enterprise' ||
+                                            plan.code === 'ultra',
                                     }"
                                 />
                                 <span>{{ feat }}</span>
@@ -399,17 +446,30 @@ const displayPlans = computed(() => {
                             :variant="
                                 plan.isRecommended
                                     ? 'default'
-                                    : (plan.code === 'enterprise' || plan.code === 'ultra')
+                                    : plan.code === 'enterprise' ||
+                                        plan.code === 'ultra'
                                       ? 'default'
                                       : 'outline'
                             "
                             class="w-full text-xs font-semibold"
                             :class="{
                                 'border-0 bg-violet-600 text-white hover:bg-violet-700':
-                                    plan.code === 'enterprise' || plan.code === 'ultra',
+                                    plan.code === 'enterprise' ||
+                                    plan.code === 'ultra',
                             }"
                         >
-                            <Link :href="user ? `/billing/checkout?plan=${plan.code}&cycle=${billingCycle}` : login.url({ query: { status: 'Bạn cần đăng nhập tài khoản để nâng gói', plan: plan.code, cycle: billingCycle } })"
+                            <Link
+                                :href="
+                                    user
+                                        ? `/billing/checkout?plan=${plan.code}&cycle=${billingCycle}`
+                                        : login.url({
+                                              query: {
+                                                  status: 'Bạn cần đăng nhập tài khoản để nâng gói',
+                                                  plan: plan.code,
+                                                  cycle: billingCycle,
+                                              },
+                                          })
+                                "
                                 >Chọn {{ plan.name }}</Link
                             >
                         </Button>
@@ -424,7 +484,9 @@ const displayPlans = computed(() => {
 /* Pricing cross-fade switch */
 .pricing-fade-enter-active,
 .pricing-fade-leave-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
 }
 .pricing-fade-enter-from {
     opacity: 0;

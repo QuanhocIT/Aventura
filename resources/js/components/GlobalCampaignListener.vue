@@ -21,23 +21,28 @@ const user = computed(() => (page.props.auth?.user as any) ?? null);
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
 
-    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
 });
 const tenant = computed(() => (page.props as any).tenant ?? null);
 
-const isSuperAdmin = computed(() => roles.value.includes('super_admin') || roles.value.includes('admin'));
+const isSuperAdmin = computed(
+    () => roles.value.includes('super_admin') || roles.value.includes('admin'),
+);
 
 // Plays a premium double-beeping synthesizer sound
 function playNotificationChime() {
     try {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioContextClass =
+            window.AudioContext || (window as any).webkitAudioContext;
 
         if (!AudioContextClass) {
-return;
-}
-        
+            return;
+        }
+
         const ctx = new AudioContextClass();
-        
+
         // First beep
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
@@ -49,7 +54,7 @@ return;
         gain1.connect(ctx.destination);
         osc1.start();
         osc1.stop(ctx.currentTime + 0.3);
-        
+
         // Second beep (slightly offset)
         setTimeout(() => {
             const osc2 = ctx.createOscillator();
@@ -57,7 +62,10 @@ return;
             osc2.type = 'sine';
             osc2.frequency.setValueAtTime(880, ctx.currentTime); // A5
             gain2.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            gain2.gain.exponentialRampToValueAtTime(
+                0.001,
+                ctx.currentTime + 0.4,
+            );
             osc2.connect(gain2);
             gain2.connect(ctx.destination);
             osc2.start();
@@ -70,8 +78,8 @@ return;
 
 function handleBroadcast(data: CampaignBroadcastData) {
     if (!user.value) {
-return;
-} // Ignore if not logged in
+        return;
+    } // Ignore if not logged in
 
     // Superadmin always sees campaign alerts for testing and monitoring
     if (isSuperAdmin.value) {
@@ -129,10 +137,12 @@ function closeNotification() {
 
 onMounted(() => {
     if (window.Echo) {
-        window.Echo.channel('global.campaigns')
-            .listen('.campaign.broadcasted', (e: CampaignBroadcastData) => {
+        window.Echo.channel('global.campaigns').listen(
+            '.campaign.broadcasted',
+            (e: CampaignBroadcastData) => {
                 handleBroadcast(e);
-            });
+            },
+        );
     }
 });
 
@@ -145,35 +155,46 @@ onUnmounted(() => {
 
 <template>
     <Transition name="slide-fade">
-        <div 
+        <div
             v-if="isVisible && activeCampaign"
-            class="fixed bottom-4 right-4 z-50 max-w-sm w-full bg-slate-900/95 dark:bg-slate-950/95 text-white border border-indigo-500/40 rounded-xl shadow-2xl shadow-indigo-500/10 overflow-hidden backdrop-blur"
+            class="fixed right-4 bottom-4 z-50 w-full max-w-sm overflow-hidden rounded-xl border border-indigo-500/40 bg-slate-900/95 text-white shadow-2xl shadow-indigo-500/10 backdrop-blur dark:bg-slate-950/95"
         >
-            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 flex items-center justify-between">
+            <div
+                class="flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3"
+            >
                 <div class="flex items-center gap-2">
-                    <Megaphone class="size-4 shrink-0 animate-bounce text-amber-300" />
-                    <span class="text-xs font-bold uppercase tracking-wider text-indigo-100">Thông báo hệ thống</span>
+                    <Megaphone
+                        class="size-4 shrink-0 animate-bounce text-amber-300"
+                    />
+                    <span
+                        class="text-xs font-bold tracking-wider text-indigo-100 uppercase"
+                        >Thông báo hệ thống</span
+                    >
                 </div>
-                <button 
+                <button
                     @click="closeNotification"
-                    class="text-indigo-200 hover:text-white hover:bg-white/10 p-1 rounded-md transition-colors"
+                    class="rounded-md p-1 text-indigo-200 transition-colors hover:bg-white/10 hover:text-white"
                 >
                     <X class="size-4" />
                 </button>
             </div>
-            
+
             <div class="p-4">
-                <h4 class="font-bold text-base text-slate-100 mb-1 leading-snug">
+                <h4
+                    class="mb-1 text-base leading-snug font-bold text-slate-100"
+                >
                     {{ activeCampaign.title }}
                 </h4>
-                <p class="text-xs text-slate-300 line-clamp-4 whitespace-pre-wrap leading-relaxed">
+                <p
+                    class="line-clamp-4 text-xs leading-relaxed whitespace-pre-wrap text-slate-300"
+                >
                     {{ activeCampaign.content }}
                 </p>
-                
+
                 <div class="mt-3 flex justify-end">
-                    <button 
+                    <button
                         @click="closeNotification"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md cursor-pointer"
+                        class="cursor-pointer rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-all hover:bg-indigo-700"
                     >
                         Đã hiểu
                     </button>

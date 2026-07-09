@@ -59,7 +59,9 @@ const colorMap: Record<string, { ping: string; dot: string; glow: string }> = {
             />
         </span>
         <div v-if="label" class="min-w-0">
-            <p class="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            <p
+                class="text-[9px] font-extrabold tracking-wider text-muted-foreground uppercase"
+            >
                 {{ label }}
             </p>
             <p
