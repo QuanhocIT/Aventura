@@ -1058,9 +1058,7 @@ class SupplierController extends Controller
                     'due_date' => now()->toDateString(),
                 ]);
 
-                foreach ($itemsData as $itData) {
-                    $po->items()->create($itData);
-                }
+                $po->items()->createMany($itemsData);
 
                 $createdCount++;
             }
@@ -1246,10 +1244,12 @@ class SupplierController extends Controller
         }
 
         // 5. Compile payload
+        $inventoryMap = $inventories->keyBy(fn($i) => "{$i->branch_id}_{$i->ingredient_id}");
+
         $payload = [];
         foreach ($ingredients as $ing) {
             foreach ($branches as $branch) {
-                $inv = $inventories->first(fn($i) => $i->branch_id === $branch->id && $i->ingredient_id === $ing->id);
+                $inv = $inventoryMap->get("{$branch->id}_{$ing->id}");
                 $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
                 $avgDaily = $dailyUsageMap[$branch->id][$ing->id] ?? 0.0;
 
