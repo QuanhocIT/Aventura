@@ -247,7 +247,6 @@ class AuditLogController extends Controller
                 'employee_code' => 'EMP' . str_pad($user->id, 4, '0', STR_PAD_LEFT),
                 'job_title' => 'Quản lý',
                 'status' => 'active',
-                'salary_type' => 'monthly',
                 'base_salary' => 10000000,
             ]);
         }
@@ -256,9 +255,10 @@ class AuditLogController extends Controller
         $order = \App\Models\Order::create([
             'restaurant_id' => $restaurantId,
             'table_id' => $table->id,
+            'order_number' => 'ORD-' . strtoupper(uniqid()),
             'status' => 'pending',
             'total_amount' => 150000,
-            'subtotal_amount' => 150000,
+            'subtotal' => 150000,
         ]);
 
         // Audit Log 1: Order Created

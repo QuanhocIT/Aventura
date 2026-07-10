@@ -109,6 +109,18 @@ type ComparisonCards = {
     yesterday_orders: number;
 } | null;
 
+type TodayRealtimeStats = {
+    total_revenue: number;
+    total_orders: number;
+    active_orders: number;
+    active_revenue: number;
+    paid_orders: number;
+    paid_revenue: number;
+    cancelled_orders: number;
+    avg_order_value: number;
+    calculated_at: string;
+};
+
 type ProfitBreakdown = {
     gross_profit: number;
     total_cogs: number;
@@ -149,6 +161,7 @@ const props = defineProps<{
         revenue: number;
         qty: number;
     }[];
+    todayRealtimeStats: TodayRealtimeStats;
 }>();
 
 // ── Period ───────────────────────────────────────────────────────────────────
@@ -160,6 +173,7 @@ const setPeriod = (p: string) => {
 };
 
 const periodLabels: Record<string, string> = {
+    today: 'Hôm nay',
     '7days': '7 ngày',
     '30days': '30 ngày',
     month: 'Tháng này',
@@ -226,7 +240,7 @@ const profitMargin = computed(() =>
 );
 
 const hasData = computed(
-    () => props.summaries.length > 0 && props.totals.net_revenue > 0,
+    () => props.summaries.length > 0,
 );
 
 // ── Bar chart ─────────────────────────────────────────────────────────────────
@@ -507,50 +521,26 @@ function deltaBadge(pct: number | null) {
             class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
         >
             <div
-                class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                class="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                        :class="
-                            todaySummary
-                                ? 'bg-emerald-500/10'
-                                : 'bg-amber-500/10'
-                        "
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10"
                     >
-                        <CheckCircle2
-                            v-if="todaySummary"
-                            class="size-5 text-emerald-600 dark:text-emerald-400"
-                        />
-                        <RefreshCw
-                            v-else
-                            class="size-5 text-amber-600 dark:text-amber-400"
-                        />
+                        <BarChart3 class="size-5 text-violet-600 dark:text-violet-400" />
                     </div>
                     <div>
-                        <p v-if="todaySummary" class="text-sm font-semibold">
-                            Báo cáo hôm nay đã tổng hợp lúc
-                            {{ todaySummary.calculated_at }}
-                        </p>
-                        <p
-                            v-else
-                            class="text-sm font-semibold text-amber-600 dark:text-amber-400"
-                        >
-                            Chưa có báo cáo hôm nay — dự kiến tự động lúc 23:59
-                        </p>
-                        <p class="mt-0.5 text-xs text-muted-foreground">
-                            <template v-if="todaySummary">
-                                Doanh thu thuần:
-                                <span class="font-bold text-foreground">{{
-                                    formatCompact(todaySummary.net_revenue)
-                                }}</span>
-                                · {{ todaySummary.completed_count }} đơn hoàn
-                                thành
-                            </template>
-                            <template v-else
-                                >Nhấn "Tạo ngay" để tổng hợp dữ liệu thủ
-                                công</template
-                            >
+                        <div class="flex items-center gap-2">
+                            <span class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <p class="text-xs font-bold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase">
+                                Báo cáo hoạt động hôm nay (Thời gian thực)
+                            </p>
+                        </div>
+                        <p class="mt-0.5 text-[11px] text-muted-foreground">
+                            Hệ thống cập nhật thông tin mới nhất lúc {{ todayRealtimeStats.calculated_at }}
                         </p>
                     </div>
                 </div>
@@ -568,16 +558,10 @@ function deltaBadge(pct: number | null) {
                             class="size-3.5"
                             :class="generating ? 'animate-spin' : ''"
                         />
-                        {{
-                            generating
-                                ? 'Đang tạo...'
-                                : todaySummary
-                                  ? 'Tạo lại'
-                                  : 'Tạo ngay'
-                        }}
+                        {{ generating ? 'Đang tạo...' : 'Tổng hợp lại' }}
                     </button>
                     <button
-                        v-if="canSendEmail && todaySummary"
+                        v-if="canSendEmail"
                         @click="sendEmailReport"
                         :disabled="sendingMail"
                         class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
@@ -588,6 +572,69 @@ function deltaBadge(pct: number | null) {
                         />
                         {{ sendingMail ? 'Đang gửi...' : 'Gửi email' }}
                     </button>
+                </div>
+            </div>
+
+            <!-- Realtime Daily Stats Grid -->
+            <div class="grid grid-cols-2 gap-px bg-border md:grid-cols-5">
+                <!-- 1. Doanh thu hôm nay (Tạm tính) -->
+                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
+                    <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Doanh thu tạm tính</span>
+                        <Banknote class="size-4 text-emerald-500" />
+                    </div>
+                    <p class="text-base font-black text-emerald-600 dark:text-emerald-400">
+                        {{ vnd(todayRealtimeStats.total_revenue) }}
+                    </p>
+                    <p class="mt-1 text-[10px] text-muted-foreground">Đã thu + đơn hoạt động</p>
+                </div>
+
+                <!-- 2. Tổng số đơn hàng -->
+                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
+                    <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Tổng số đơn hàng</span>
+                        <ShoppingCart class="size-4 text-sky-500" />
+                    </div>
+                    <p class="text-base font-black text-foreground">
+                        {{ todayRealtimeStats.total_orders }} đơn
+                    </p>
+                    <p class="mt-1 text-[10px] text-muted-foreground">Phát sinh trong ngày</p>
+                </div>
+
+                <!-- 3. Đơn đã thanh toán -->
+                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
+                    <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đã thanh toán</span>
+                        <CheckCircle2 class="size-4 text-emerald-500" />
+                    </div>
+                    <p class="text-base font-black text-foreground">
+                        {{ todayRealtimeStats.paid_orders }} đơn
+                    </p>
+                    <p class="mt-1 text-[10px] text-muted-foreground">Đã thu: {{ formatCompact(todayRealtimeStats.paid_revenue) }}</p>
+                </div>
+
+                <!-- 4. Đơn đang hoạt động -->
+                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
+                    <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đang hoạt động</span>
+                        <Clock class="size-4 text-amber-500 animate-pulse" />
+                    </div>
+                    <p class="text-base font-black text-amber-600 dark:text-amber-400">
+                        {{ todayRealtimeStats.active_orders }} đơn
+                    </p>
+                    <p class="mt-1 text-[10px] text-muted-foreground">Tạm tính: {{ formatCompact(todayRealtimeStats.active_revenue) }}</p>
+                </div>
+
+                <!-- 5. Đơn đã hủy -->
+                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
+                    <div class="mb-1 flex items-center justify-between">
+                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đã hủy</span>
+                        <XCircle class="size-4 text-rose-500" />
+                    </div>
+                    <p class="text-base font-black text-rose-500">
+                        {{ todayRealtimeStats.cancelled_orders }} đơn
+                    </p>
+                    <p class="mt-1 text-[10px] text-muted-foreground">Đơn TB: {{ formatCompact(todayRealtimeStats.avg_order_value) }}</p>
                 </div>
             </div>
 

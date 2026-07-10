@@ -32,11 +32,17 @@ class GeoAnalyticsController extends Controller
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         $restaurant = $request->user()->restaurant;
+        $lat = (float) ($restaurant->latitude ?? 0.0);
+        $lng = (float) ($restaurant->longitude ?? 0.0);
+        if ($lat === 0.0 || $lng === 0.0) {
+            $lat = 10.776889;
+            $lng = 106.700806;
+        }
 
         return Inertia::render('geo-analytics/Index', [
             'restaurant' => [
-                'lat' => (float) ($restaurant->latitude ?? 0),
-                'lng' => (float) ($restaurant->longitude ?? 0),
+                'lat' => $lat,
+                'lng' => $lng,
                 'name' => $restaurant->name,
             ],
             'heatmap' => $this->geo->getOrderHeatmap($restaurantId, $days),

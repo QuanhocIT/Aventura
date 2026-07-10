@@ -135,8 +135,7 @@ const needleRotation = computed(() => {
                         Business Intelligence Dashboard
                     </h1>
                     <p class="text-sm text-muted-foreground">
-                        Góc nhìn chiến lược dài hạn — Unit Economics, Cohort,
-                        Break-even, Benchmark ngành F&B.
+                        Góc nhìn chiến lược dài hạn — Chỉ số Đơn vị (Unit Economics), Phân tích Nhóm (Cohort Analysis), Điểm hòa vốn (Break-even) và So sánh đối chuẩn ngành F&B.
                     </p>
                 </div>
             </div>
@@ -148,10 +147,10 @@ const needleRotation = computed(() => {
         >
             <button
                 v-for="tab in [
-                    { key: 'overview', label: 'Tổng quan & Unit Economics' },
-                    { key: 'cohort', label: 'Cohort Analysis' },
-                    { key: 'breakeven', label: 'Break-even' },
-                    { key: 'benchmark', label: 'Benchmark ngành' },
+                    { key: 'overview', label: 'Tổng quan & Chỉ số Đơn vị' },
+                    { key: 'cohort', label: 'Phân tích Nhóm (Cohort)' },
+                    { key: 'breakeven', label: 'Phân tích Điểm hòa vốn' },
+                    { key: 'benchmark', label: 'So sánh đối chuẩn ngành' },
                 ]"
                 :key="tab.key"
                 @click="activeTab = tab.key as any"
@@ -197,7 +196,7 @@ const needleRotation = computed(() => {
                         <div class="mb-2 flex items-center justify-between">
                             <span
                                 class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
-                                >Gross Margin</span
+                                >Tỷ suất Lợi nhuận gộp (Gross Margin)</span
                             >
                             <Percent class="size-4 text-emerald-500" />
                         </div>
@@ -223,7 +222,7 @@ const needleRotation = computed(() => {
                         <div class="mb-2 flex items-center justify-between">
                             <span
                                 class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
-                                >LTV</span
+                                >Giá trị trọn đời KH (LTV)</span
                             >
                             <TrendingUp class="size-4 text-blue-500" />
                         </div>
@@ -244,7 +243,7 @@ const needleRotation = computed(() => {
                         <div class="mb-2 flex items-center justify-between">
                             <span
                                 class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
-                                >CAC</span
+                                >Chi phí có khách hàng (CAC)</span
                             >
                             <TrendingDown class="size-4 text-amber-500" />
                         </div>
@@ -265,7 +264,7 @@ const needleRotation = computed(() => {
                         <div class="mb-2 flex items-center justify-between">
                             <span
                                 class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
-                                >LTV/CAC</span
+                                >Tỷ lệ LTV/CAC</span
                             >
                             <Scale class="size-4 text-violet-500" />
                         </div>
@@ -498,20 +497,20 @@ const needleRotation = computed(() => {
             <Card>
                 <CardContent class="pt-5">
                     <p class="mb-1 text-sm font-semibold">
-                        Customer Cohort Retention (6 tháng)
+                        Tỷ lệ giữ chân khách hàng (Cohort Retention - 6 tháng)
                     </p>
                     <p class="mb-4 text-xs text-muted-foreground">
-                        % khách hàng quay lại mua theo tháng sau khi đăng ký.
+                        % khách hàng quay lại mua theo tháng sau khi đăng ký tài khoản.
                     </p>
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="text-muted-foreground">
                                     <th class="px-2 py-1.5 text-left">
-                                        Cohort
+                                        Tháng đăng ký (Cohort)
                                     </th>
                                     <th class="px-2 py-1.5 text-center">
-                                        Size
+                                        Số lượng khách mới (Size)
                                     </th>
                                     <th
                                         v-for="m in [0, 1, 2, 3, 4, 5]"
@@ -627,7 +626,7 @@ const needleRotation = computed(() => {
                             >
                         </div>
                         <div class="flex justify-between border-t pt-2">
-                            <span>Contribution margin/đơn</span
+                            <span>Lợi nhuận đóng góp/đơn</span
                             ><span
                                 class="font-bold text-indigo-600 dark:text-indigo-400"
                                 >{{

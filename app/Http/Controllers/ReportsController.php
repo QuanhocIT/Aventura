@@ -54,6 +54,7 @@ class ReportsController extends Controller
 
         $endDate   = today();
         $startDate = match ($period) {
+            'today'  => today(),
             '30days' => today()->subDays(29),
             'month'  => today()->startOfMonth(),
             default  => today()->subDays(6),
@@ -64,27 +65,52 @@ class ReportsController extends Controller
         // ── Current period summaries ───────────────────────────────────────────
         $rawSummaries = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
             ->where('summary_type', 'daily')
-            ->whereBetween('summary_date', [$startDate, $endDate])
-            ->orderBy('summary_date')
-            ->get();
+            ->whereBetween('summary_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()
+            ->keyBy(fn ($s) => $s->summary_date->toDateString());
 
-        $summaries = $rawSummaries->map(fn ($s) => [
-            'date'                  => $s->summary_date->format('d/m'),
-            'date_full'             => $s->summary_date->toDateString(),
-            'order_count'           => (int) $s->order_count,
-            'completed_order_count' => (int) $s->completed_order_count,
-            'cancelled_count'       => (int) $s->cancelled_order_count,
-            'net_revenue'           => (float) $s->net_revenue,
-            'gross_revenue'         => (float) $s->gross_revenue,
-            'discount_total'        => (float) $s->discount_total,
-            'cogs_amount'           => (float) $s->cogs_amount,
-            'gross_profit'          => (float) $s->gross_profit,
-            'cash_revenue'          => (float) $s->cash_revenue,
-            'bank_transfer_revenue' => (float) $s->bank_transfer_revenue,
-            'card_revenue'          => (float) $s->card_revenue,
-            'ewallet_revenue'       => (float) $s->ewallet_revenue,
-            'average_order_value'   => (float) $s->average_order_value,
-        ]);
+        $summaries = collect();
+        for ($date = $startDate->copy(); $date->lte($endDate); $date = $date->addDay()) {
+            $dateString = $date->toDateString();
+            if ($rawSummaries->has($dateString)) {
+                $s = $rawSummaries->get($dateString);
+                $summaries->push([
+                    'date'                  => $s->summary_date->format('d/m'),
+                    'date_full'             => $s->summary_date->toDateString(),
+                    'order_count'           => (int) $s->order_count,
+                    'completed_order_count' => (int) $s->completed_order_count,
+                    'cancelled_count'       => (int) $s->cancelled_order_count,
+                    'net_revenue'           => (float) $s->net_revenue,
+                    'gross_revenue'         => (float) $s->gross_revenue,
+                    'discount_total'        => (float) $s->discount_total,
+                    'cogs_amount'           => (float) $s->cogs_amount,
+                    'gross_profit'          => (float) $s->gross_profit,
+                    'cash_revenue'          => (float) $s->cash_revenue,
+                    'bank_transfer_revenue' => (float) $s->bank_transfer_revenue,
+                    'card_revenue'          => (float) $s->card_revenue,
+                    'ewallet_revenue'       => (float) $s->ewallet_revenue,
+                    'average_order_value'   => (float) $s->average_order_value,
+                ]);
+            } else {
+                $summaries->push([
+                    'date'                  => $date->format('d/m'),
+                    'date_full'             => $dateString,
+                    'order_count'           => 0,
+                    'completed_order_count' => 0,
+                    'cancelled_count'       => 0,
+                    'net_revenue'           => 0.0,
+                    'gross_revenue'         => 0.0,
+                    'discount_total'        => 0.0,
+                    'cogs_amount'           => 0.0,
+                    'gross_profit'          => 0.0,
+                    'cash_revenue'          => 0.0,
+                    'bank_transfer_revenue' => 0.0,
+                    'card_revenue'          => 0.0,
+                    'ewallet_revenue'       => 0.0,
+                    'average_order_value'   => 0.0,
+                ]);
+            }
+        }
 
         // ── Period totals ─────────────────────────────────────────────────────
         $totals = [
@@ -280,24 +306,87 @@ class ReportsController extends Controller
         $bcgData        = $this->menuInsight->getBcgData($restaurantId, $days);
         $productMargins = $this->menuInsight->getProductMargins($restaurantId, $days);
 
+        // ── Realtime daily stats breakdown ────────────────────────────────────
+        $todayStart = Carbon::today()->startOfDay();
+        $todayEnd   = Carbon::today()->endOfDay();
+
+        // Tự động cập nhật báo cáo ngày hôm nay vào CSDL
+        try {
+            app(DailyReportService::class)->generateForRestaurant($restaurantId, today()->toDateString());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('ReportsController: Lỗi tự động cập nhật báo cáo ngày: ' . $e->getMessage());
+        }
+
+        // 1. Số đơn hàng đã thanh toán & doanh thu tương ứng
+        $todayPaidOrders = DB::table('orders')
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$todayStart, $todayEnd])
+            ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
+            ->first();
+        $todayPaidCount   = (int) $todayPaidOrders->count;
+        $todayPaidRevenue = (float) $todayPaidOrders->revenue;
+
+        // 2. Số đơn hàng đang hoạt động (chưa thanh toán) & doanh thu tạm tính
+        $todayActiveOrders = DB::table('orders')
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
+            ->first();
+        $todayActiveCount   = (int) $todayActiveOrders->count;
+        $todayActiveRevenue = (float) $todayActiveOrders->revenue;
+
+        // 3. Số đơn đã hủy hôm nay
+        $todayCancelledCount = DB::table('orders')
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'cancelled')
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->count();
+
+        // 4. Tổng số đơn hàng hôm nay
+        $todayTotalOrdersCount = DB::table('orders')
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->count();
+
+        // 5. Tổng doanh thu hôm nay (Paid + Active)
+        $todayTotalRevenue = $todayPaidRevenue + $todayActiveRevenue;
+
+        // 6. Giá trị trung bình/đơn hôm nay
+        $todayAvgOrderValue = $todayTotalOrdersCount > 0 ? $todayTotalRevenue / $todayTotalOrdersCount : 0;
+
+        $todayRealtimeStats = [
+            'total_revenue'    => $todayTotalRevenue,
+            'total_orders'     => $todayTotalOrdersCount,
+            'active_orders'    => $todayActiveCount,
+            'active_revenue'   => $todayActiveRevenue,
+            'paid_orders'      => $todayPaidCount,
+            'paid_revenue'     => $todayPaidRevenue,
+            'cancelled_orders' => $todayCancelledCount,
+            'avg_order_value'  => $todayAvgOrderValue,
+            'calculated_at'    => now()->format('H:i:s d/m/Y'),
+        ];
+
         return Inertia::render('reports/Index', [
-            'summaries'        => $summaries->values(),
-            'totals'           => $totals,
-            'topProducts'      => $topProducts,
-            'period'           => $period,
-            'dateRange'        => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
-            'paymentBreakdown' => $paymentBreakdown,
-            'periodComparison' => $periodComparison,
-            'cancelledStats'   => $cancelledStats,
-            'peakHours'        => $peakHours,
-            'todaySummary'     => $todaySummary,
-            'comparisonCards'  => $comparisonCards,
-            'profitBreakdown'  => $profitBreakdown,
-            'canGenerate'      => $user->hasAnyRole(['owner', 'manager']),
-            'canSendEmail'     => $user->hasAnyRole(['owner']),
+            'summaries'          => $summaries->values(),
+            'totals'             => $totals,
+            'topProducts'        => collect($topProducts)->values()->all(),
+            'period'             => $period,
+            'dateRange'          => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
+            'paymentBreakdown'   => $paymentBreakdown,
+            'periodComparison'   => $periodComparison,
+            'cancelledStats'     => $cancelledStats,
+            'peakHours'          => collect($peakHours)->values()->all(),
+            'todaySummary'       => $todaySummary,
+            'comparisonCards'    => $comparisonCards,
+            'profitBreakdown'    => $profitBreakdown,
+            'canGenerate'        => $user->hasAnyRole(['owner', 'manager']),
+            'canSendEmail'       => $user->hasAnyRole(['owner']),
             // Mới
-            'bcgData'          => $bcgData,
-            'productMargins'   => $productMargins,
+            'bcgData'            => collect($bcgData)->values()->all(),
+            'productMargins'     => collect($productMargins)->values()->all(),
+            'todayRealtimeStats' => $todayRealtimeStats,
         ]);
     }
 

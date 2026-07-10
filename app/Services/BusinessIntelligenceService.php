@@ -323,11 +323,11 @@ class BusinessIntelligenceService
         $economics = $this->getUnitEconomics($restaurantId, $days);
 
         $benchmarks = [
-            ['metric' => 'Gross Margin', 'value' => $economics['gross_margin'], 'unit' => '%', 'industry_low' => 55, 'industry_high' => 70, 'good_direction' => 'higher'],
-            ['metric' => 'Food Cost %', 'value' => $economics['revenue'] > 0 ? round(($economics['cogs'] / $economics['revenue']) * 100, 1) : 0, 'unit' => '%', 'industry_low' => 25, 'industry_high' => 35, 'good_direction' => 'lower'],
-            ['metric' => 'Waste %', 'value' => $economics['revenue'] > 0 ? round(($economics['waste_cost'] / $economics['revenue']) * 100, 1) : 0, 'unit' => '%', 'industry_low' => 3, 'industry_high' => 8, 'good_direction' => 'lower'],
-            ['metric' => 'LTV/CAC Ratio', 'value' => $economics['ltv_cac_ratio'], 'unit' => 'x', 'industry_low' => 2, 'industry_high' => 5, 'good_direction' => 'higher'],
-            ['metric' => 'Avg Order Value', 'value' => $economics['avg_order_value'], 'unit' => 'đ', 'industry_low' => 80000, 'industry_high' => 200000, 'good_direction' => 'higher'],
+            ['metric' => 'Tỷ suất Lợi nhuận gộp (Gross Margin)', 'value' => $economics['gross_margin'], 'unit' => '%', 'industry_low' => 55, 'industry_high' => 70, 'good_direction' => 'higher'],
+            ['metric' => 'Tỷ lệ Chi phí Nguyên vật liệu (Food Cost %)', 'value' => $economics['revenue'] > 0 ? round(($economics['cogs'] / $economics['revenue']) * 100, 1) : 0, 'unit' => '%', 'industry_low' => 25, 'industry_high' => 35, 'good_direction' => 'lower'],
+            ['metric' => 'Tỷ lệ Hao hụt/Hủy món (Waste %)', 'value' => $economics['revenue'] > 0 ? round(($economics['waste_cost'] / $economics['revenue']) * 100, 1) : 0, 'unit' => '%', 'industry_low' => 3, 'industry_high' => 8, 'good_direction' => 'lower'],
+            ['metric' => 'Tỷ lệ LTV/CAC', 'value' => $economics['ltv_cac_ratio'], 'unit' => 'x', 'industry_low' => 2, 'industry_high' => 5, 'good_direction' => 'higher'],
+            ['metric' => 'Giá trị đơn hàng trung bình (AOV)', 'value' => $economics['avg_order_value'], 'unit' => 'đ', 'industry_low' => 80000, 'industry_high' => 200000, 'good_direction' => 'higher'],
         ];
 
         foreach ($benchmarks as &$b) {
