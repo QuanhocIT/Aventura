@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Xác thực địa chỉ email - Aventura</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; }
+  .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); padding: 40px 32px; text-align: center; }
+  .header h1 { margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 15px; }
+  .body { padding: 40px 32px; text-align: center; }
+  .greeting { font-size: 20px; font-weight: 600; color: #1e3a5f; margin: 0 0 16px; }
+  .text { font-size: 15px; line-height: 1.7; color: #555; margin: 0 0 20px; }
+  .button { display: inline-block; background: #2d6a9f; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 36px; border-radius: 10px; margin: 8px 0 6px; }
+  .button-expiry { display: block; font-size: 12px; color: #999; margin-bottom: 28px; }
+  .divider { display: flex; align-items: center; text-align: center; color: #aaa; font-size: 13px; margin: 8px 0 24px; }
+  .divider::before, .divider::after { content: ""; flex: 1; border-bottom: 1px solid #e5e7eb; }
+  .divider span { padding: 0 14px; }
+  .otp-box { display: inline-block; background: #f0f7ff; border: 1px dashed #2d6a9f; border-radius: 12px; padding: 18px 36px; margin: 4px 0 12px; }
+  .otp-code { font-size: 32px; font-weight: 700; letter-spacing: 9px; color: #1e3a5f; }
+  .expiry { font-size: 13px; color: #b45309; background: #fff3cd; border: 1px solid #ffc107; border-radius: 20px; display: inline-block; padding: 6px 16px; }
+  .warning { font-size: 13px; color: #777; margin-top: 28px; }
+  .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; }
+  .footer p { margin: 4px 0; font-size: 13px; color: #888; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>✉️ Aventura</h1>
+    <p>Xác thực địa chỉ email của bạn</p>
+  </div>
+
+  <div class="body">
+    <p class="greeting">Xin chào{% if recipient_name %} {{ recipient_name }}{% endif %},</p>
+
+    <p class="text">
+      Cảm ơn bạn đã đăng ký / đăng nhập vào Aventura. Để hoàn tất, vui lòng xác thực địa chỉ email này
+      bằng MỘT trong hai cách dưới đây — chọn cách nào tiện cho bạn:
+    </p>
+
+    <p style="font-size: 14px; font-weight: 700; color: #1e3a5f; margin: 0 0 4px;">Cách 1 — Bấm vào nút xác nhận</p>
+    <a href="{{ verification_url }}" class="button" target="_blank" rel="noopener">Xác thực địa chỉ email</a>
+    <span class="button-expiry">Liên kết có hiệu lực trong {{ link_expires_in_minutes }} phút</span>
+
+    <div class="divider"><span>HOẶC</span></div>
+
+    <p style="font-size: 14px; font-weight: 700; color: #1e3a5f; margin: 0 0 4px;">Cách 2 — Nhập mã xác thực thủ công</p>
+    <div class="otp-box">
+      <span class="otp-code">{{ code }}</span>
+    </div>
+    <br />
+    <span class="expiry">⏰ Mã có hiệu lực trong {{ code_expires_in_minutes }} phút</span>
+
+    <p class="warning">
+      Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email và không chia sẻ mã/liên kết này cho bất kỳ ai
+      — kể cả nhân viên Aventura.
+    </p>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 Aventura — Hệ thống quản lý nhà hàng SaaS</p>
+    <p>Email này được gửi tự động, vui lòng không reply trực tiếp.</p>
+  </div>
+</div>
+</body>
+</html>

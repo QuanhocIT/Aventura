@@ -1,0 +1,73 @@
+# Aventura — production/staging stack.
+# Usage:
+#   cp .env.production.example .env    (điền giá trị thật, xem docs/setup/production-deploy.md)
+#   docker compose up -d --build
+#   docker compose exec app php artisan migrate --force
+#
+# Container `app` (từ Dockerfile) chạy: nginx + php-fpm + 2 queue worker + scheduler + reverb
+# qua supervisord. Các service phụ trợ (mysql/redis/meilisearch) chạy riêng bên dưới.
+
+services:
+  app:
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      meilisearch:
+        condition: service_started
+    env_file: .env
+    ports:
+      - "80:80"       # HTTP (đặt sau reverse-proxy/SSL như Caddy/Traefik ở production)
+      - "8080:8080"   # Reverb websocket (proxy wss qua domain ở production)
+    volumes:
+      - app_storage:/var/www/html/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=512M
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-aventura}
+      MYSQL_USER: ${DB_USERNAME:-aventura}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY}
+      MEILI_ENV: production
+    volumes:
+      - meili_data:/meili_data
+
+volumes:
+  mysql_data:
+  redis_data:
+  meili_data:
+  app_storage:
