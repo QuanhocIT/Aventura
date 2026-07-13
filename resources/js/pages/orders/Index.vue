@@ -857,10 +857,11 @@ onMounted(() => {
                                 <a
                                     v-if="o.payment_status === 'paid'"
                                     :href="`/orders/${o.id}/e-invoice.xml`"
-                                    class="inline-flex h-7 items-center rounded-lg border border-emerald-200 px-2 text-[10px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-                                    title="Tải XML hóa đơn điện tử (TT78)"
+                                    class="inline-flex h-7 items-center gap-1 rounded-lg border border-amber-200 px-2 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                                    title="Tải XML hóa đơn điện tử (TT78) — BẢN NHÁP, CHƯA KÝ SỐ. Cần nộp lên cổng nhà cung cấp (MISA/VNPT) để ký & phát hành hợp lệ."
                                 >
                                     HĐĐT
+                                    <span class="rounded bg-amber-100 px-1 text-[8px] font-bold tracking-wide text-amber-700 uppercase dark:bg-amber-950/60 dark:text-amber-400">nháp</span>
                                 </a>
                             </div>
                         </div>

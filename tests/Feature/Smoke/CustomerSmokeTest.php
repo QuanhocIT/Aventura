@@ -73,18 +73,22 @@ class CustomerSmokeTest extends TestCase
     public function test_storefront_browse_checkout_and_track(): void
     {
         $slug = 'smoke-store-' . uniqid();
-        OnlineStoreConfig::withoutGlobalScopes()->create([
-            'restaurant_id' => $this->rid,
-            'is_active' => true,
-            'slug' => $slug,
-            'min_order_amount' => 0,
-            'delivery_base_fee' => 0,
-            'delivery_fee_per_km' => 0,
-            'max_delivery_km' => 10,
-            'enable_takeaway' => true,
-            'enable_delivery' => true,
-            'enable_preorder' => false,
-        ]);
+        // updateOrCreate theo restaurant_id: tenant có thể đã có Online Store (backfill/
+        // onboarding) → tránh vi phạm unique(restaurant_id).
+        OnlineStoreConfig::withoutGlobalScopes()->updateOrCreate(
+            ['restaurant_id' => $this->rid],
+            [
+                'is_active' => true,
+                'slug' => $slug,
+                'min_order_amount' => 0,
+                'delivery_base_fee' => 0,
+                'delivery_fee_per_km' => 0,
+                'max_delivery_km' => 10,
+                'enable_takeaway' => true,
+                'enable_delivery' => true,
+                'enable_preorder' => false,
+            ]
+        );
 
         $this->get("/order/{$slug}")->assertOk();
         $this->get("/api/online/{$slug}/menu")->assertOk();

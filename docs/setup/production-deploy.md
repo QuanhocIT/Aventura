@@ -5,6 +5,25 @@ Yêu cầu tối thiểu: **VPS Linux ~4GB RAM, 2 vCPU**, Docker + Docker Compos
 
 Stack chạy trong `docker-compose.yml`: container `app` (nginx + php-fpm + 2 queue worker + scheduler + **Reverb**) + `mysql` + `redis` + `meilisearch`.
 
+> 💡 **Rẻ nhất để bắt đầu:** có thể chạy trên **Oracle Cloud Always Free** (4 CPU ARM + 24GB RAM, miễn phí vĩnh viễn — image `php:8.3-fpm-alpine`, mysql/redis/meilisearch đều có bản arm64). Domain .com ~250k/năm + Cloudflare (SSL/CDN free). Tổng ~0–150k/tháng.
+
+---
+
+## 0. QUICKSTART (copy-paste)
+
+```bash
+# Trên VPS đã cài Docker + Docker Compose, sau khi git clone và điền .env:
+cp .env.production.example .env      # rồi điền giá trị THẬT (xem mục 3 — xoay secret)
+bash docker/deploy.sh                # build + migrate + seed quyền + optimize + launch:check
+docker compose exec app php artisan demo:showcase   # (tuỳ chọn) tạo 1 nhà hàng mẫu để demo
+```
+
+Các lệnh trợ giúp go-live (chạy trong container: `docker compose exec app php artisan ...`):
+- **`launch:check`** — soi cấu hình production, báo đỏ chỗ chưa sẵn sàng (APP_DEBUG, secret, mail, SePay, SSL…).
+- **`demo:showcase`** — tạo nhanh 1 nhà hàng mẫu (menu + storefront) để demo/pilot.
+- **`menu:import file.csv --email=chuquan@quan.vn`** — nhập cả thực đơn từ CSV (dùng `menu:import --sample` để lấy file mẫu).
+- **`demo:cleanup --keep=chuquan@quan.vn`** — ẩn các nhà hàng demo (dry-run; thêm `--force` để thực thi).
+
 ---
 
 ## 1. Chuẩn bị

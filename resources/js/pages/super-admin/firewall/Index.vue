@@ -17,6 +17,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { confirmDialog } from '@/composables/useConfirm';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -87,8 +88,14 @@ const submitWhitelist = () => {
 };
 
 // Remove from Whitelist
-const removeWhitelist = (ip: string) => {
-    if (confirm(`Bạn có chắc chắn muốn xóa IP ${ip} khỏi danh sách trắng?`)) {
+const removeWhitelist = async (ip: string) => {
+    if (
+        await confirmDialog({
+            title: 'Xóa IP khỏi danh sách trắng',
+            description: `Bạn có chắc chắn muốn xóa IP ${ip} khỏi danh sách trắng?`,
+            variant: 'destructive',
+        })
+    ) {
         router.delete(`/super-admin/firewall/whitelist/${ip}`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Đã xóa IP khỏi danh sách trắng.'),
@@ -97,8 +104,14 @@ const removeWhitelist = (ip: string) => {
 };
 
 // Unblock IP
-const unblockIp = (ip: string) => {
-    if (confirm(`Mở khóa truy cập cho IP ${ip}?`)) {
+const unblockIp = async (ip: string) => {
+    if (
+        await confirmDialog({
+            title: 'Mở khóa IP',
+            description: `Mở khóa truy cập cho IP ${ip}?`,
+            variant: 'default',
+        })
+    ) {
         router.delete(`/super-admin/firewall/blocked/${ip}`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Đã mở khóa IP thành công.'),
