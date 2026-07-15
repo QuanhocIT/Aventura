@@ -272,6 +272,8 @@ class EmailMicroserviceClient
             '/send/weekly-digest' => "📊 Báo cáo tuần " . ($payload['week_label'] ?? '') . " · {$restaurantName}",
             '/send/absence-alert' => "⚠️ [{$restaurantName}] Nhân viên vắng không phép lúc " . now()->format('H:i'),
             '/send/revenue-anomaly' => "📉 [{$restaurantName}] Doanh thu hôm nay thấp bất thường — cần chú ý",
+            '/send/welcome' => 'Chào mừng đến với Aventura!',
+            '/send/invoice' => 'Hóa đơn thanh toán dịch vụ Aventura - ' . ($payload['invoice_number'] ?? ''),
             default => null,
         };
 
@@ -293,6 +295,8 @@ class EmailMicroserviceClient
             '/send/weekly-digest' => 'emails.weekly_digest',
             '/send/absence-alert' => 'emails.absence_alert',
             '/send/revenue-anomaly' => 'emails.revenue_anomaly',
+            '/send/welcome' => 'emails.welcome',
+            '/send/invoice' => 'emails.billing.invoice',
             default => null,
         };
 

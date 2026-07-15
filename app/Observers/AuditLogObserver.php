@@ -131,22 +131,26 @@ class AuditLogObserver
 
         if ($triggered) {
             try {
-                // 1. Create a Violation Report
-                $violation = ViolationReport::create([
-                    'restaurant_id'  => $restaurantId,
-                    'employee_id'    => $employeeId,
-                    'reported_by'    => null, // Reported by system
-                    'violation_type' => $type,
-                    'severity'       => $severity,
-                    'description'    => $description,
-                    'penalty_amount' => $penaltyAmount,
-                    'occurred_at'    => now(),
-                    'status'         => 'open',
-                ]);
+                $violationId = null;
+                if ($employeeId) {
+                    // 1. Create a Violation Report
+                    $violation = ViolationReport::create([
+                        'restaurant_id'  => $restaurantId,
+                        'employee_id'    => $employeeId,
+                        'reported_by'    => null, // Reported by system
+                        'violation_type' => $type,
+                        'severity'       => $severity,
+                        'description'    => $description,
+                        'penalty_amount' => $penaltyAmount,
+                        'occurred_at'    => now(),
+                        'status'         => 'open',
+                    ]);
+                    $violationId = $violation->id;
+                }
 
                 // 2. Dispatch Realtime WebSocket Event
                 $alertData = [
-                    'id'             => 'ai-realtime-' . $violation->id,
+                    'id'             => 'ai-realtime-' . ($violationId ?? uniqid()),
                     'employee_name'  => $employeeName,
                     'violation_type' => $type,
                     'severity'       => $severity,
@@ -160,7 +164,7 @@ class AuditLogObserver
 
                 Log::info("AuditLogObserver: Đã kích hoạt cảnh báo rủi ro gian lận", [
                     'restaurant_id' => $restaurantId,
-                    'violation_id'  => $violation->id,
+                    'violation_id'  => $violationId,
                     'type'          => $type
                 ]);
             } catch (\Throwable $e) {
