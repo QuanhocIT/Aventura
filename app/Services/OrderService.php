@@ -32,9 +32,10 @@ class OrderService
             $branchId = $user->branch_id;
             $orderNumber = 'ORD-' . strtoupper(uniqid());
 
-            // Pre-load các sản phẩm
+            // Pre-load các sản phẩm kèm recipes — tránh N+1 query trong loop bên dưới
             $productIds = array_column($data['items'], 'product_id');
-            $products = Product::where('restaurant_id', $restaurantId)
+            $products = Product::with('recipes')
+                ->where('restaurant_id', $restaurantId)
                 ->whereIn('id', $productIds)
                 ->get()
                 ->keyBy('id');
@@ -210,7 +211,7 @@ class OrderService
                 OrderItem::create($item);
 
                 // Reserve inventory (holding stock)
-                $product = Product::with('recipes')->find($item['product_id']);
+                $product = $products->get($item['product_id']);
                 if ($product && $product->track_inventory) {
                     foreach ($product->recipes as $recipe) {
                         $totalUsed = ($recipe->quantity * $item['quantity']) * (1 + ($recipe->waste_rate / 100));
@@ -267,6 +268,10 @@ class OrderService
                     $customer = \App\Models\Customer::find($order->customer_id);
                     if ($customer) {
                         $customer->update(['last_order_at' => now()]);
+                        // Earn loyalty points khi order hoàn thành (bất kể qua luồng nào)
+                        $loyaltyService = app(\App\Services\LoyaltyService::class);
+                        $loyaltyService->earnPoints($customer, $order, (float) $order->total_amount);
+                        $loyaltyService->recalculateTier($customer);
                         \App\Services\CdpService::calculateRfmForCustomer($customer);
                     }
                 }

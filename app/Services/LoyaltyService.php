@@ -169,51 +169,55 @@ class LoyaltyService
     {
         $totalExpired = 0;
 
-        $customerIds = LoyaltyTransaction::where('type', 'earn')
+        // Dùng chunk để tránh timeout/OOM khi có nhiều khách cần expire — xử lý 100 customer/lần
+        LoyaltyTransaction::where('type', 'earn')
             ->where('points_remaining', '>', 0)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
             ->distinct()
-            ->pluck('customer_id');
+            ->orderBy('customer_id')
+            ->pluck('customer_id')
+            ->chunk(100)
+            ->each(function ($customerIds) use (&$totalExpired) {
+                foreach ($customerIds as $customerId) {
+                    DB::transaction(function () use ($customerId, &$totalExpired) {
+                        $customer = Customer::lockForUpdate()->find($customerId);
+                        if (! $customer) {
+                            return;
+                        }
 
-        foreach ($customerIds as $customerId) {
-            DB::transaction(function () use ($customerId, &$totalExpired) {
-                $customer = Customer::lockForUpdate()->find($customerId);
-                if (! $customer) {
-                    return;
+                        $expiredTxs = LoyaltyTransaction::where('customer_id', $customerId)
+                            ->where('type', 'earn')
+                            ->where('points_remaining', '>', 0)
+                            ->where('expires_at', '<=', now())
+                            ->lockForUpdate()
+                            ->get();
+
+                        $pointsToExpire = $expiredTxs->sum('points_remaining');
+                        if ($pointsToExpire <= 0) {
+                            return;
+                        }
+
+                        foreach ($expiredTxs as $tx) {
+                            $tx->update(['points_remaining' => 0]);
+                        }
+
+                        $newBalance = max(0, $customer->loyalty_points - $pointsToExpire);
+
+                        LoyaltyTransaction::create([
+                            'restaurant_id' => $customer->restaurant_id,
+                            'customer_id' => $customer->id,
+                            'type' => 'expire',
+                            'points' => -$pointsToExpire,
+                            'balance_after' => $newBalance,
+                            'description' => "Hết hạn {$pointsToExpire} điểm",
+                        ]);
+
+                        $customer->update(['loyalty_points' => $newBalance]);
+                        $totalExpired += $pointsToExpire;
+                    });
                 }
-
-                $expiredTxs = LoyaltyTransaction::where('customer_id', $customerId)
-                    ->where('type', 'earn')
-                    ->where('points_remaining', '>', 0)
-                    ->where('expires_at', '<=', now())
-                    ->lockForUpdate()
-                    ->get();
-
-                $pointsToExpire = $expiredTxs->sum('points_remaining');
-                if ($pointsToExpire <= 0) {
-                    return;
-                }
-
-                foreach ($expiredTxs as $tx) {
-                    $tx->update(['points_remaining' => 0]);
-                }
-
-                $newBalance = max(0, $customer->loyalty_points - $pointsToExpire);
-
-                LoyaltyTransaction::create([
-                    'restaurant_id' => $customer->restaurant_id,
-                    'customer_id' => $customer->id,
-                    'type' => 'expire',
-                    'points' => -$pointsToExpire,
-                    'balance_after' => $newBalance,
-                    'description' => "Hết hạn {$pointsToExpire} điểm",
-                ]);
-
-                $customer->update(['loyalty_points' => $newBalance]);
-                $totalExpired += $pointsToExpire;
             });
-        }
 
         return $totalExpired;
     }

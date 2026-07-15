@@ -416,6 +416,14 @@ class OrdersController extends Controller
 
             try {
                 DB::transaction(function () use ($order, $customerId, $data, $user) {
+                    // Lock order row tr\u01b0\u1edbc \u2014 ng\u0103n concurrent payment v\u00e0o c\u00f9ng \u0111\u01a1n
+                    $order = \App\Models\Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
+
+                    // Idempotency guard: n\u1ebfu \u0111\u01a1n \u0111\u00e3 \u0111\u01b0\u1ee3c thanh to\u00e1n r\u1ed3i, kh\u00f4ng x\u1eed l\u00fd l\u1ea1i
+                    if ($order->status === 'completed' || $order->payment_status !== 'unpaid') {
+                        throw new \Exception('Đơn hàng này đã được xử lý thanh toán trước đó.');
+                    }
+
                     // Lock the customer row
                     $customer = \App\Models\Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
 
@@ -479,7 +487,7 @@ class OrdersController extends Controller
                         'paid_at' => null,
                     ]);
 
-                    // Deduct inventory
+                    // Deduct inventory (an toàn vì đã có idempotency guard ở trên)
                     app(\App\Services\InventoryService::class)->deductInventoryForOrder($order, $user);
 
                     // Update order to completed and payment_status to unpaid
@@ -495,8 +503,11 @@ class OrdersController extends Controller
                         \App\Models\RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
                     }
 
-                    // Customer updates
+                    // Customer updates + loyalty points
                     $customer->update(['last_order_at' => now()]);
+                    $loyaltyService = app(\App\Services\LoyaltyService::class);
+                    $loyaltyService->earnPoints($customer, $order, (float) $order->total_amount);
+                    $loyaltyService->recalculateTier($customer);
                     \App\Services\CdpService::calculateRfmForCustomer($customer);
 
                     \App\Models\AuditLog::log('order_paid_with_debt', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'unpaid']);

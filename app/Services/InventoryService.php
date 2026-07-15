@@ -192,13 +192,25 @@ class InventoryService
             ->lockForUpdate()
             ->first();
 
+        // Nếu chưa có inventory record, tạo record rỗng để đảm bảo tính nhất quán
+        // (không tạo orphaned transaction với inventory_id = null)
+        if (! $inventory) {
+            $inventory = Inventory::create([
+                'restaurant_id'       => $restaurantId,
+                'ingredient_id'       => $ingredient->id,
+                'quantity_on_hand'    => 0,
+                'theoretical_quantity'=> 0,
+                'last_cost'           => (float) $ingredient->average_cost,
+            ]);
+        }
+
         $wasteQty  = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
         $transaction = InventoryTransaction::create([
             'restaurant_id' => $restaurantId,
             'ingredient_id' => $ingredient->id,
-            'inventory_id'  => $inventory?->id,
+            'inventory_id'  => $inventory->id,
             'performed_by'  => $performedBy,
             'type'          => 'waste',
             'direction'     => 'out',
@@ -209,11 +221,10 @@ class InventoryService
             'occurred_at'   => now(),
         ]);
 
-        if ($inventory) {
-            $inventory->update([
-                'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
-            ]);
-        }
+        // Cập nhật tồn kho (không cho xuống âm)
+        $inventory->update([
+            'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
+        ]);
 
         event(new \App\Events\Customer\ProductStockUpdated($restaurantId));
 
