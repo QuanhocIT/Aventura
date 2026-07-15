@@ -37,22 +37,26 @@ class GlobalRevenueController extends Controller
         // 1. Revenue by Restaurant (shown only when no specific restaurant is filtered)
         $revenueByRestaurant = [];
         if (!$request->filled('restaurant_id')) {
-            $revenueByRestaurant = (clone $orderQuery)
+            $revenueData = (clone $orderQuery)
                 ->select('restaurant_id', DB::raw('SUM(total_amount) as revenue'), DB::raw('COUNT(*) as orders_count'))
                 ->groupBy('restaurant_id')
                 ->orderByDesc('revenue')
                 ->limit(20)
-                ->get()
-                ->map(function ($row) {
-                    $restaurant = Restaurant::find($row->restaurant_id);
-                    return [
-                        'id' => $row->restaurant_id,
-                        'name' => $restaurant?->name ?? '—',
-                        'code' => $restaurant?->code ?? '',
-                        'revenue' => (float) $row->revenue,
-                        'orders_count' => $row->orders_count,
-                    ];
-                });
+                ->get();
+
+            $restaurantIds = $revenueData->pluck('restaurant_id')->filter()->unique();
+            $restaurants = Restaurant::whereIn('id', $restaurantIds)->get()->keyBy('id');
+
+            $revenueByRestaurant = $revenueData->map(function ($row) use ($restaurants) {
+                $restaurant = $restaurants->get($row->restaurant_id);
+                return [
+                    'id' => $row->restaurant_id,
+                    'name' => $restaurant?->name ?? '—',
+                    'code' => $restaurant?->code ?? '',
+                    'revenue' => (float) $row->revenue,
+                    'orders_count' => $row->orders_count,
+                ];
+            });
         }
 
         // 1b. Revenue by Branch (shown only when a restaurant is selected)

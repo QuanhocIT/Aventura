@@ -34,6 +34,7 @@ class GoalTrackingService
         $goals = BusinessGoal::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->with('milestones')
             ->get();
 
         foreach ($goals as $goal) {

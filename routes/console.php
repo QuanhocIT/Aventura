@@ -47,25 +47,31 @@ Artisan::command('system:audit-consistency', function () {
 
     // 1. Kiểm tra đơn hàng vs thanh toán
     $inconsistentOrders = [];
-    $orders = \App\Models\Order::withoutGlobalScopes()
-        ->where('status', 'completed')
-        ->where('payment_status', 'paid')
+    $rows = \Illuminate\Support\Facades\DB::table('orders as o')
+        ->leftJoin('payments as p', function ($join) {
+            $join->on('p.order_id', '=', 'o.id')
+                ->where('p.status', '=', 'paid');
+        })
+        ->where('o.status', 'completed')
+        ->where('o.payment_status', 'paid')
+        ->select(
+            'o.id',
+            'o.order_number',
+            'o.total_amount',
+            'o.refund_amount',
+            \Illuminate\Support\Facades\DB::raw('COALESCE(SUM(p.amount), 0) as payments_total')
+        )
+        ->groupBy('o.id', 'o.order_number', 'o.total_amount', 'o.refund_amount')
         ->get();
 
-    foreach ($orders as $order) {
-        $paymentsTotal = (float) \App\Models\Payment::withoutGlobalScopes()
-            ->where('order_id', $order->id)
-            ->where('status', 'paid')
-            ->sum('amount');
-        
-        $expected = (float) $order->total_amount;
-        $refunded = (float) ($order->refund_amount ?? 0);
-        $expected = max(0.0, $expected - $refunded);
+    foreach ($rows as $row) {
+        $expected = max(0.0, (float) $row->total_amount - (float) ($row->refund_amount ?? 0));
+        $paymentsTotal = (float) $row->payments_total;
 
         if (abs($paymentsTotal - $expected) > 0.01) {
             $inconsistentOrders[] = [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
+                'order_id' => $row->id,
+                'order_number' => $row->order_number,
                 'expected' => $expected,
                 'actual' => $paymentsTotal,
             ];
@@ -74,11 +80,12 @@ Artisan::command('system:audit-consistency', function () {
 
     // 2. Kiểm tra bảng lương vs adjustments
     $inconsistentSalaries = [];
-    $salaries = \App\Models\Salary::withoutGlobalScopes()->get();
+    $salaries = \App\Models\Salary::withoutGlobalScopes()
+        ->with(['adjustments', 'employee'])
+        ->get();
+
     foreach ($salaries as $salary) {
-        $adjustments = \App\Models\SalaryAdjustment::withoutGlobalScopes()
-            ->where('salary_id', $salary->id)
-            ->get();
+        $adjustments = $salary->adjustments;
 
         $expectedBonuses = (float) $adjustments->where('type', 'bonus')->sum('amount');
         $expectedDeductions = (float) $adjustments

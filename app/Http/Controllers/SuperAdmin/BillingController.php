@@ -416,13 +416,13 @@ class BillingController extends Controller
 
         // 3. Commission Logs
         if (! $typeFilter || $typeFilter === 'commission') {
-            $commQuery = CommissionLog::query()
+            $commQuery = CommissionLog::with('restaurant')
                 ->whereBetween('created_at', [$dateFrom, $dateTo]);
             if ($restaurantId) {
                 $commQuery->where('restaurant_id', $restaurantId);
             }
             $commQuery->get()->each(function ($comm) use (&$entries) {
-                $restaurantName = Restaurant::find($comm->restaurant_id)?->name ?? '—';
+                $restaurantName = $comm->restaurant?->name ?? '—';
                 $entries->push([
                     'sort_date'    => $comm->created_at,
                     'date_label'   => $comm->created_at->format('d/m/Y H:i'),
@@ -531,10 +531,10 @@ class BillingController extends Controller
             ]);
         });
 
-        $commQ = CommissionLog::query()->whereBetween('created_at', [$dateFrom, $dateTo]);
+        $commQ = CommissionLog::with('restaurant')->whereBetween('created_at', [$dateFrom, $dateTo]);
         if ($restaurantId) $commQ->where('restaurant_id', $restaurantId);
         $commQ->get()->each(function ($comm) use (&$csv, $csvRow) {
-            $restaurantName = Restaurant::find($comm->restaurant_id)?->name ?? '—';
+            $restaurantName = $comm->restaurant?->name ?? '—';
             $csv .= $csvRow([
                 $comm->created_at->format('d/m/Y H:i'),
                 'Hoa hồng',
