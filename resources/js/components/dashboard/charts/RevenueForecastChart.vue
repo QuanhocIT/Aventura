@@ -3,7 +3,7 @@ import { TrendingUp, Sparkles, BarChart3 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFeatureGate } from '@/composables/useFeatureGate';
-import { Link } from '@inertiajs/vue3';
+import { Link, Deferred } from '@inertiajs/vue3';
 
 const { can } = useFeatureGate();
 
@@ -78,9 +78,18 @@ function formatMoneyFull(v: number): string {
 </script>
 
 <template>
-    <Card
-        class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm"
-    >
+    <Deferred data="revenueChartData">
+        <template #fallback>
+            <Card class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm">
+                <CardContent class="h-[350px] w-full animate-pulse flex flex-col items-center justify-center p-6 gap-3">
+                    <BarChart3 class="size-8 text-slate-350 dark:text-slate-650 animate-pulse" />
+                    <span class="text-xs text-slate-450 font-bold tracking-tight">Đang tải phân tích doanh thu...</span>
+                </CardContent>
+            </Card>
+        </template>
+        <Card
+            class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm"
+        >
         <CardHeader class="border-b border-border/50 pb-2">
             <div class="flex items-center justify-between">
                 <div>
@@ -296,4 +305,5 @@ function formatMoneyFull(v: number): string {
             </div>
         </CardContent>
     </Card>
+    </Deferred>
 </template>

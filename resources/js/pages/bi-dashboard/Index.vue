@@ -18,62 +18,97 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps<{
-    revenueTrend: {
-        month: string;
-        revenue: number;
-        orders: number;
-        avg_order: number;
-        yoy_growth: number | null;
-    }[];
-    unitEconomics: {
-        revenue: number;
-        cogs: number;
-        waste_cost: number;
-        gross_margin: number;
-        new_customers: number;
-        total_customers: number;
-        avg_order_value: number;
-        ltv: number;
-        cac: number;
-        ltv_cac_ratio: number;
-        avg_orders_per_customer: number;
-    };
-    cohorts: {
-        cohort: string;
-        size: number;
-        retention: { month: number; returning: number; rate: number }[];
-    }[];
-    breakEven: {
-        revenue: number;
-        variable_cost: number;
-        fixed_cost: number;
-        total_orders: number;
-        avg_order_value: number;
-        variable_cost_per_order: number;
-        contribution_margin: number;
-        break_even_orders: number;
-        break_even_revenue: number;
-        break_even_days: number;
-        is_profitable: boolean;
-    };
-    benchmarks: {
-        metric: string;
-        value: number;
-        unit: string;
-        industry_low: number;
-        industry_high: number;
-        status: string;
-    }[];
-    days: number;
-}>();
+const props = withDefaults(
+    defineProps<{
+        revenueTrend?: {
+            month: string;
+            revenue: number;
+            orders: number;
+            avg_order: number;
+            yoy_growth: number | null;
+        }[];
+        unitEconomics?: {
+            revenue: number;
+            cogs: number;
+            waste_cost: number;
+            gross_margin: number;
+            new_customers: number;
+            total_customers: number;
+            avg_order_value: number;
+            ltv: number;
+            cac: number;
+            ltv_cac_ratio: number;
+            avg_orders_per_customer: number;
+        };
+        cohorts?: {
+            cohort: string;
+            size: number;
+            retention: { month: number; returning: number; rate: number }[];
+        }[];
+        breakEven?: {
+            revenue: number;
+            variable_cost: number;
+            fixed_cost: number;
+            total_orders: number;
+            avg_order_value: number;
+            variable_cost_per_order: number;
+            contribution_margin: number;
+            break_even_orders: number;
+            break_even_revenue: number;
+            break_even_days: number;
+            is_profitable: boolean;
+        };
+        benchmarks?: {
+            metric: string;
+            value: number;
+            unit: string;
+            industry_low: number;
+            industry_high: number;
+            status: string;
+        }[];
+        days: number;
+    }>(),
+    {
+        revenueTrend: () => [],
+        unitEconomics: () => ({
+            revenue: 0, cogs: 0, waste_cost: 0, gross_margin: 0,
+            new_customers: 0, total_customers: 0, avg_order_value: 0,
+            ltv: 0, cac: 0, ltv_cac_ratio: 0, avg_orders_per_customer: 0
+        }),
+        cohorts: () => [],
+        breakEven: () => ({
+            revenue: 0, variable_cost: 0, fixed_cost: 0, total_orders: 0,
+            avg_order_value: 0, variable_cost_per_order: 0, contribution_margin: 0,
+            break_even_orders: 0, break_even_revenue: 0, break_even_days: 0,
+            is_profitable: false
+        }),
+        benchmarks: () => [],
+    }
+);
 
 const activeTab = ref<'overview' | 'cohort' | 'breakeven' | 'benchmark'>(
     'overview',
 );
 
-const maxRevenue = Math.max(...props.revenueTrend.map((r) => r.revenue), 1);
-const ue = props.unitEconomics;
+const maxRevenue = computed(() => {
+    return props.revenueTrend && props.revenueTrend.length
+        ? Math.max(...props.revenueTrend.map((r) => r.revenue), 1)
+        : 1;
+});
+
+const ue = computed(() => props.unitEconomics || {
+    revenue: 0,
+    cogs: 0,
+    waste_cost: 0,
+    gross_margin: 0,
+    new_customers: 0,
+    total_customers: 0,
+    avg_order_value: 0,
+    ltv: 0,
+    cac: 0,
+    ltv_cac_ratio: 0,
+    avg_orders_per_customer: 0,
+});
 
 const statusColor: Record<string, string> = {
     excellent: 'text-green-600 bg-green-100',
@@ -107,7 +142,7 @@ function retentionColor(rate: number): string {
 }
 
 const needleRotation = computed(() => {
-    const ratio = props.unitEconomics.ltv_cac_ratio;
+    const ratio = props.unitEconomics?.ltv_cac_ratio ?? 0;
     // Map ratio range [0, 4] to rotation [-90, 90] degrees
     const pct = Math.min(1, Math.max(0, ratio / 4));
     return -90 + pct * 180;
@@ -165,8 +200,52 @@ const needleRotation = computed(() => {
             </button>
         </div>
 
-        <!-- Overview tab -->
-        <div v-if="activeTab === 'overview'" class="space-y-6">
+        <Deferred :data="['revenueTrend', 'unitEconomics', 'cohorts', 'breakEven', 'benchmarks']">
+            <template #fallback>
+                <div class="space-y-6 animate-pulse">
+                    <!-- 1. KPI cards row -->
+                    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                        <div v-for="n in 6" :key="n" class="rounded-2xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div class="h-8 w-8 rounded bg-slate-100 dark:bg-slate-800/60" />
+                            </div>
+                            <div class="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded mb-2" />
+                            <div class="h-3 w-20 bg-slate-100 dark:bg-slate-800/40 rounded" />
+                        </div>
+                    </div>
+
+                    <!-- 2. Chart grid -->
+                    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <div class="lg:col-span-2 rounded-2xl border border-slate-100 bg-white p-6 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div class="h-4 w-20 bg-slate-100 dark:bg-slate-800/60 rounded" />
+                            </div>
+                            <div class="h-[250px] w-full flex items-end gap-3 pt-4">
+                                <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/40 rounded-t-lg" :style="{ height: [40, 60, 45, 80, 55, 75, 30, 85, 50, 70, 40, 20][n-1] + '%' }" />
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-white p-6 dark:border-slate-800 dark:bg-slate-900/40 flex flex-col justify-between">
+                            <div>
+                                <div class="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded mb-4" />
+                                <div class="h-[150px] w-full flex items-center justify-center pt-4">
+                                    <div class="h-28 w-28 rounded-full border-[10px] border-slate-100 dark:border-slate-800/60 flex items-center justify-center">
+                                        <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2 mt-4">
+                                <div class="h-3 w-full bg-slate-100 dark:bg-slate-800/40 rounded" />
+                                <div class="h-3 w-2/3 bg-slate-100 dark:bg-slate-800/40 rounded" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Overview tab -->
+            <div v-if="activeTab === 'overview'" class="space-y-6">
             <!-- Unit Economics KPI -->
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <!-- 1. Doanh thu -->
@@ -349,7 +428,7 @@ const needleRotation = computed(() => {
                             </div>
                         </div>
                         <p
-                            v-if="!revenueTrend.length"
+                            v-if="!revenueTrend?.length"
                             class="py-8 text-center text-muted-foreground"
                         >
                             Chưa có dữ liệu.
@@ -567,7 +646,7 @@ const needleRotation = computed(() => {
                         </table>
                     </div>
                     <p
-                        v-if="!cohorts.length"
+                        v-if="!cohorts?.length"
                         class="py-12 text-center text-muted-foreground"
                     >
                         Chưa có dữ liệu cohort.
@@ -743,5 +822,6 @@ const needleRotation = computed(() => {
                 </CardContent>
             </Card>
         </div>
+        </Deferred>
     </div>
 </template>

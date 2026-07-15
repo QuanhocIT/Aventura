@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage, router } from '@inertiajs/vue3';
+import { Head, Link, usePage, router, Deferred } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import {
     Building2,
@@ -496,6 +496,7 @@ function getTableStatusInfo(status: string) {
                     </div>
                     <Link
                         href="/billing/history"
+                        prefetch
                         class="shrink-0 rounded-xl bg-gradient-to-r from-primary to-amber-500 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-primary/20 transition-all hover:from-primary/90 hover:to-amber-400"
                     >
                         Nâng cấp ngay →
@@ -619,6 +620,7 @@ function getTableStatusInfo(status: string) {
                         <div class="grid grid-cols-2 gap-3">
                             <Link
                                 href="/orders"
+                                prefetch
                                 class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
@@ -633,6 +635,7 @@ function getTableStatusInfo(status: string) {
                             </Link>
                             <Link
                                 href="/tables"
+                                prefetch
                                 class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
@@ -647,6 +650,7 @@ function getTableStatusInfo(status: string) {
                             </Link>
                             <Link
                                 href="/products"
+                                prefetch
                                 class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
@@ -661,6 +665,7 @@ function getTableStatusInfo(status: string) {
                             </Link>
                             <Link
                                 href="/customers"
+                                prefetch
                                 class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
@@ -678,13 +683,25 @@ function getTableStatusInfo(status: string) {
                 </Card>
             </div>
 
-            <!-- Doanh thu + Sidebar -->
             <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
                 <div class="lg:col-span-2">
-                    <RevenueForecastChart
-                        :revenue-chart-data="props.revenueChartData"
-                        :forecast-data="null"
-                    />
+                    <Deferred data="revenueChartData">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                                </div>
+                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
+                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                </div>
+                            </div>
+                        </template>
+                        <RevenueForecastChart
+                            :revenue-chart-data="props.revenueChartData"
+                            :forecast-data="null"
+                        />
+                    </Deferred>
                 </div>
                 <div>
                     <DashboardSidebar
@@ -884,6 +901,7 @@ function getTableStatusInfo(status: string) {
                         >
                         <Link
                             href="/orders"
+                            prefetch
                             class="flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
                             >Xem tất cả <ChevronRight class="size-3.5"
                         /></Link>
@@ -1073,17 +1091,56 @@ function getTableStatusInfo(status: string) {
                 class="animate-enter stagger-5 grid grid-cols-1 gap-5 lg:grid-cols-3"
             >
                 <div class="space-y-6 lg:col-span-2">
-                    <RevenueForecastChart
-                        :revenue-chart-data="props.revenueChartData"
-                        :forecast-data="null"
-                    />
+                    <Deferred data="revenueChartData">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                                </div>
+                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
+                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                </div>
+                            </div>
+                        </template>
+                        <RevenueForecastChart
+                            :revenue-chart-data="props.revenueChartData"
+                            :forecast-data="null"
+                        />
+                    </Deferred>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <ChannelShareChart
-                            :channel-chart-data="props.channelChartData"
-                        />
-                        <PeakHoursChart
-                            :peak-hours-chart-data="props.peakHoursChartData"
-                        />
+                        <Deferred data="channelChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="flex items-center justify-center h-[200px]">
+                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
+                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <ChannelShareChart
+                                :channel-chart-data="props.channelChartData"
+                            />
+                        </Deferred>
+                        <Deferred data="peakHoursChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
+                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    </div>
+                                </div>
+                            </template>
+                            <PeakHoursChart
+                                :peak-hours-chart-data="props.peakHoursChartData"
+                            />
+                        </Deferred>
                     </div>
                     <Card
                         class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
@@ -1248,6 +1305,7 @@ function getTableStatusInfo(status: string) {
                         >
                         <Link
                             href="/orders"
+                            prefetch
                             class="flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
                             >Xem tất cả <ChevronRight class="size-3.5"
                         /></Link>
@@ -1436,21 +1494,81 @@ function getTableStatusInfo(status: string) {
                 class="animate-enter stagger-5 grid grid-cols-1 gap-5 pb-14 lg:grid-cols-3"
             >
                 <div class="space-y-6 lg:col-span-2">
-                    <RevenueForecastChart
-                        :revenue-chart-data="props.revenueChartData"
-                        :forecast-data="null"
-                    />
+                    <Deferred data="revenueChartData">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                                </div>
+                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
+                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                </div>
+                            </div>
+                        </template>
+                        <RevenueForecastChart
+                            :revenue-chart-data="props.revenueChartData"
+                            :forecast-data="null"
+                        />
+                    </Deferred>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <ChannelShareChart
-                            :channel-chart-data="props.channelChartData"
-                        />
-                        <PeakHoursChart
-                            :peak-hours-chart-data="props.peakHoursChartData"
-                        />
+                        <Deferred data="channelChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="flex items-center justify-center h-[200px]">
+                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
+                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <ChannelShareChart
+                                :channel-chart-data="props.channelChartData"
+                            />
+                        </Deferred>
+                        <Deferred data="peakHoursChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
+                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    </div>
+                                </div>
+                            </template>
+                            <PeakHoursChart
+                                :peak-hours-chart-data="props.peakHoursChartData"
+                            />
+                        </Deferred>
                     </div>
-                    <TopProductsLeaderboard
-                        :top-products-chart-data="props.topProductsChartData"
-                    />
+                    <Deferred data="topProductsChartData">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-5">
+                                    <div class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                </div>
+                                <div class="space-y-4">
+                                    <div v-for="n in 5" :key="n" class="flex items-center justify-between gap-4">
+                                        <div class="flex items-center gap-3 w-full">
+                                            <div class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
+                                            <div class="space-y-1.5 w-full">
+                                                <div class="h-3 w-1/3 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                                                <div class="h-2 w-1/2 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                                            </div>
+                                        </div>
+                                        <div class="h-4 w-12 bg-slate-200 dark:bg-slate-800 rounded animate-pulse shrink-0" />
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <TopProductsLeaderboard
+                            :top-products-chart-data="props.topProductsChartData"
+                        />
+                    </Deferred>
                     <OperationsCenter
                         :operation-feed="props.operationFeed"
                         :tables-data="props.tablesData"
@@ -1476,6 +1594,7 @@ function getTableStatusInfo(status: string) {
                                 >
                                 <Link
                                     href="/orders"
+                                    prefetch
                                     class="flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
                                     >Xem tất cả <ChevronRight class="size-3.5"
                                 /></Link>
@@ -1740,21 +1859,81 @@ function getTableStatusInfo(status: string) {
                 class="animate-enter stagger-5 grid grid-cols-1 gap-5 pb-14 lg:grid-cols-3"
             >
                 <div class="space-y-6 lg:col-span-2">
-                    <RevenueForecastChart
-                        :revenue-chart-data="props.revenueChartData"
-                        :forecast-data="props.forecastData"
-                    />
+                    <Deferred :data="['revenueChartData', 'forecastData']">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                                </div>
+                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
+                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                </div>
+                            </div>
+                        </template>
+                        <RevenueForecastChart
+                            :revenue-chart-data="props.revenueChartData"
+                            :forecast-data="props.forecastData"
+                        />
+                    </Deferred>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <ChannelShareChart
-                            :channel-chart-data="props.channelChartData"
-                        />
-                        <PeakHoursChart
-                            :peak-hours-chart-data="props.peakHoursChartData"
-                        />
+                        <Deferred data="channelChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="flex items-center justify-center h-[200px]">
+                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
+                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <ChannelShareChart
+                                :channel-chart-data="props.channelChartData"
+                            />
+                        </Deferred>
+                        <Deferred data="peakHoursChartData">
+                            <template #fallback>
+                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
+                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    </div>
+                                </div>
+                            </template>
+                            <PeakHoursChart
+                                :peak-hours-chart-data="props.peakHoursChartData"
+                            />
+                        </Deferred>
                     </div>
-                    <TopProductsLeaderboard
-                        :top-products-chart-data="props.topProductsChartData"
-                    />
+                    <Deferred data="topProductsChartData">
+                        <template #fallback>
+                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between mb-5">
+                                    <div class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                </div>
+                                <div class="space-y-4">
+                                    <div v-for="n in 5" :key="n" class="flex items-center justify-between gap-4">
+                                        <div class="flex items-center gap-3 w-full">
+                                            <div class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
+                                            <div class="space-y-1.5 w-full">
+                                                <div class="h-3 w-1/3 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                                                <div class="h-2 w-1/2 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                                            </div>
+                                        </div>
+                                        <div class="h-4 w-12 bg-slate-200 dark:bg-slate-800 rounded animate-pulse shrink-0" />
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <TopProductsLeaderboard
+                            :top-products-chart-data="props.topProductsChartData"
+                        />
+                    </Deferred>
                     <OperationsCenter
                         :operation-feed="props.operationFeed"
                         :tables-data="props.tablesData"
@@ -1780,6 +1959,7 @@ function getTableStatusInfo(status: string) {
                                 >
                                 <Link
                                     href="/orders"
+                                    prefetch
                                     class="flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
                                     >Xem tất cả <ChevronRight class="size-3.5"
                                 /></Link>

@@ -303,90 +303,90 @@ class ReportsController extends Controller
 
         // ── Product analysis (BCG + margins) ─────────────────────────────────
         $days = $startDate->diffInDays($endDate) + 1;
-        $bcgData        = $this->menuInsight->getBcgData($restaurantId, $days);
-        $productMargins = $this->menuInsight->getProductMargins($restaurantId, $days);
 
-        // ── Realtime daily stats breakdown ────────────────────────────────────
-        $todayStart = Carbon::today()->startOfDay();
-        $todayEnd   = Carbon::today()->endOfDay();
-
-        // Tự động cập nhật báo cáo ngày hôm nay vào CSDL
-        try {
-            app(DailyReportService::class)->generateForRestaurant($restaurantId, today()->toDateString());
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('ReportsController: Lỗi tự động cập nhật báo cáo ngày: ' . $e->getMessage());
+        // Tự động cập nhật báo cáo ngày hôm nay vào CSDL (có cooldown 10 phút để tránh quá tải DB)
+        $cooldownKey = "reports_generate_cooldown:{$restaurantId}";
+        if (!Cache::has($cooldownKey)) {
+            try {
+                app(DailyReportService::class)->generateForRestaurant($restaurantId, today()->toDateString());
+                Cache::put($cooldownKey, true, 600); // 10 minutes cooldown
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('ReportsController: Lỗi tự động cập nhật báo cáo ngày: ' . $e->getMessage());
+            }
         }
-
-        // 1. Số đơn hàng đã thanh toán & doanh thu tương ứng
-        $todayPaidOrders = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'completed')
-            ->whereBetween('completed_at', [$todayStart, $todayEnd])
-            ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
-            ->first();
-        $todayPaidCount   = (int) $todayPaidOrders->count;
-        $todayPaidRevenue = (float) $todayPaidOrders->revenue;
-
-        // 2. Số đơn hàng đang hoạt động (chưa thanh toán) & doanh thu tạm tính
-        $todayActiveOrders = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->whereNotIn('status', ['completed', 'cancelled'])
-            ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
-            ->first();
-        $todayActiveCount   = (int) $todayActiveOrders->count;
-        $todayActiveRevenue = (float) $todayActiveOrders->revenue;
-
-        // 3. Số đơn đã hủy hôm nay
-        $todayCancelledCount = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'cancelled')
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->count();
-
-        // 4. Tổng số đơn hàng hôm nay
-        $todayTotalOrdersCount = DB::table('orders')
-            ->where('restaurant_id', $restaurantId)
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->count();
-
-        // 5. Tổng doanh thu hôm nay (Paid + Active)
-        $todayTotalRevenue = $todayPaidRevenue + $todayActiveRevenue;
-
-        // 6. Giá trị trung bình/đơn hôm nay
-        $todayAvgOrderValue = $todayTotalOrdersCount > 0 ? $todayTotalRevenue / $todayTotalOrdersCount : 0;
-
-        $todayRealtimeStats = [
-            'total_revenue'    => $todayTotalRevenue,
-            'total_orders'     => $todayTotalOrdersCount,
-            'active_orders'    => $todayActiveCount,
-            'active_revenue'   => $todayActiveRevenue,
-            'paid_orders'      => $todayPaidCount,
-            'paid_revenue'     => $todayPaidRevenue,
-            'cancelled_orders' => $todayCancelledCount,
-            'avg_order_value'  => $todayAvgOrderValue,
-            'calculated_at'    => now()->format('H:i:s d/m/Y'),
-        ];
 
         return Inertia::render('reports/Index', [
             'summaries'          => $summaries->values(),
             'totals'             => $totals,
-            'topProducts'        => collect($topProducts)->values()->all(),
+            'topProducts'        => Inertia::defer(fn() => collect($topProducts)->values()->all()),
             'period'             => $period,
             'dateRange'          => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
             'paymentBreakdown'   => $paymentBreakdown,
             'periodComparison'   => $periodComparison,
             'cancelledStats'     => $cancelledStats,
-            'peakHours'          => collect($peakHours)->values()->all(),
+            'peakHours'          => Inertia::defer(fn() => collect($peakHours)->values()->all()),
             'todaySummary'       => $todaySummary,
             'comparisonCards'    => $comparisonCards,
             'profitBreakdown'    => $profitBreakdown,
             'canGenerate'        => $user->hasAnyRole(['owner', 'manager']),
             'canSendEmail'       => $user->hasAnyRole(['owner']),
-            // Mới
-            'bcgData'            => collect($bcgData)->values()->all(),
-            'productMargins'     => collect($productMargins)->values()->all(),
-            'todayRealtimeStats' => $todayRealtimeStats,
+            'bcgData'            => Inertia::defer(fn() => collect($this->menuInsight->getBcgData($restaurantId, $days))->values()->all()),
+            'productMargins'     => Inertia::defer(fn() => collect($this->menuInsight->getProductMargins($restaurantId, $days))->values()->all()),
+            'todayRealtimeStats' => Inertia::defer(function() use ($restaurantId) {
+                $todayStart = Carbon::today()->startOfDay();
+                $todayEnd   = Carbon::today()->endOfDay();
+
+                // 1. Số đơn hàng đã thanh toán & doanh thu tương ứng
+                $todayPaidOrders = DB::table('orders')
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('status', 'completed')
+                    ->whereBetween('completed_at', [$todayStart, $todayEnd])
+                    ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
+                    ->first();
+                $todayPaidCount   = (int) ($todayPaidOrders->count ?? 0);
+                $todayPaidRevenue = (float) ($todayPaidOrders->revenue ?? 0.0);
+
+                // 2. Số đơn hàng đang hoạt động (chưa thanh toán) & doanh thu tạm tính
+                $todayActiveOrders = DB::table('orders')
+                    ->where('restaurant_id', $restaurantId)
+                    ->whereBetween('created_at', [$todayStart, $todayEnd])
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
+                    ->first();
+                $todayActiveCount   = (int) ($todayActiveOrders->count ?? 0);
+                $todayActiveRevenue = (float) ($todayActiveOrders->revenue ?? 0.0);
+
+                // 3. Số đơn đã hủy hôm nay
+                $todayCancelledCount = DB::table('orders')
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('status', 'cancelled')
+                    ->whereBetween('created_at', [$todayStart, $todayEnd])
+                    ->count();
+
+                // 4. Tổng số đơn hàng hôm nay
+                $todayTotalOrdersCount = DB::table('orders')
+                    ->where('restaurant_id', $restaurantId)
+                    ->whereBetween('created_at', [$todayStart, $todayEnd])
+                    ->count();
+
+                // 5. Tổng doanh thu hôm nay (Paid + Active)
+                $todayTotalRevenue = $todayPaidRevenue + $todayActiveRevenue;
+
+                // 6. Giá trị trung bình/đơn hôm nay
+                $todayAvgOrderValue = $todayTotalOrdersCount > 0 ? $todayTotalRevenue / $todayTotalOrdersCount : 0;
+
+                return [
+                    'total_revenue'    => $todayTotalRevenue,
+                    'total_orders'     => $todayTotalOrdersCount,
+                    'active_orders'    => $todayActiveCount,
+                    'active_revenue'   => $todayActiveRevenue,
+                    'paid_orders'      => $todayPaidCount,
+                    'paid_revenue'     => $todayPaidRevenue,
+                    'cancelled_orders' => $todayCancelledCount,
+                    'avg_order_value'  => $todayAvgOrderValue,
+                    'calculated_at'    => now()->format('H:i:s d/m/Y'),
+                ];
+            }),
         ]);
     }
 

@@ -148,14 +148,15 @@ const props = defineProps<{
     profitBreakdown: ProfitBreakdown;
     canGenerate: boolean;
     canSendEmail: boolean;
-    bcgData?: {
+    bcgData: {
         name: string;
         product_id: number;
         total_revenue: number;
         total_qty: number;
         quadrant: string;
+        ai_recommendation: string;
     }[];
-    productMargins?: {
+    productMargins: {
         name: string;
         margin: number | null;
         revenue: number;
@@ -326,6 +327,7 @@ const donutPaths = computed(() => {
 // ── Product pie ───────────────────────────────────────────────────────────────
 
 const pieSlices = computed(() => {
+    if (!props.topProducts) return [];
     const top5 = props.topProducts.slice(0, 5);
     const top5Rev = top5.reduce((s, p) => s + p.total_revenue, 0);
     const other = Math.max(props.totals.net_revenue - top5Rev, 0);
@@ -378,12 +380,13 @@ const piePaths = computed(() => {
 
 // ── Peak hours ────────────────────────────────────────────────────────────────
 
-const topPeakHours = computed(() =>
-    [...props.peakHours]
+const topPeakHours = computed(() => {
+    if (!props.peakHours) return [];
+    return [...props.peakHours]
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 3)
-        .map((h) => h.hour),
-);
+        .map((h) => h.hour);
+});
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 
@@ -518,11 +521,18 @@ function deltaBadge(pct: number | null) {
 
         <!-- ── Daily Report Status Bar ─────────────────────────────────────── -->
         <div
-            class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+            class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm min-h-[120px]"
         >
-            <div
-                class="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-            >
+            <Deferred data="todayRealtimeStats">
+                <template #fallback>
+                    <div class="flex h-[120px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
+                        <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                        Đang tải báo cáo realtime hôm nay...
+                    </div>
+                </template>
+                <div
+                    class="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
                 <div class="flex items-center gap-3">
                     <div
                         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10"
@@ -733,6 +743,7 @@ function deltaBadge(pct: number | null) {
                     </p>
                 </div>
             </div>
+            </Deferred>
         </div>
 
         <!-- ── Empty state ──────────────────────────────────────────────────── -->
@@ -1394,15 +1405,21 @@ function deltaBadge(pct: number | null) {
                     </CardContent>
                 </Card>
 
-                <!-- Top products -->
                 <Card>
-                    <CardContent class="pt-5">
-                        <p class="mb-1 text-sm font-semibold">
-                            Top món bán chạy
-                        </p>
-                        <p class="mb-4 text-xs text-muted-foreground">
-                            Dựa trên đơn hoàn thành trong kỳ
-                        </p>
+                    <Deferred data="topProducts">
+                        <template #fallback>
+                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
+                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                                Đang tải top món bán chạy...
+                            </CardContent>
+                        </template>
+                        <CardContent class="pt-5">
+                            <p class="mb-1 text-sm font-semibold">
+                                Top món bán chạy
+                            </p>
+                            <p class="mb-4 text-xs text-muted-foreground">
+                                Dựa trên đơn hoàn thành trong kỳ
+                            </p>
 
                         <div
                             v-if="topProducts.length === 0"
@@ -1448,6 +1465,7 @@ function deltaBadge(pct: number | null) {
                             </div>
                         </div>
                     </CardContent>
+                    </Deferred>
                 </Card>
             </div>
 
@@ -1551,10 +1569,16 @@ function deltaBadge(pct: number | null) {
                     </CardContent>
                 </Card>
 
-                <!-- Peak hours -->
                 <Card>
-                    <CardContent class="pt-5">
-                        <div class="mb-4 flex items-center gap-2">
+                    <Deferred data="peakHours">
+                        <template #fallback>
+                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
+                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                                Đang tải giờ cao điểm...
+                            </CardContent>
+                        </template>
+                        <CardContent class="pt-5">
+                            <div class="mb-4 flex items-center gap-2">
                             <Clock class="size-4 text-muted-foreground" />
                             <p class="text-sm font-semibold">
                                 Giờ cao điểm trong kỳ
@@ -1605,6 +1629,7 @@ function deltaBadge(pct: number | null) {
                             </div>
                         </div>
                     </CardContent>
+                    </Deferred>
                 </Card>
             </div>
 
@@ -1665,8 +1690,25 @@ function deltaBadge(pct: number | null) {
             </Card>
 
             <!-- ── BCG Matrix ─────────────────────────────────────────────────────── -->
-            <Card v-if="bcgData && bcgData.length > 0">
-                <CardContent class="pt-5">
+            <Deferred :data="['bcgData', 'productMargins']">
+                <template #fallback>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card>
+                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
+                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                                Đang tải phân tích ma trận BCG...
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
+                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                                Đang tải phân tích biên lợi nhuận món...
+                            </CardContent>
+                        </Card>
+                    </div>
+                </template>
+                <Card v-if="bcgData && bcgData.length > 0">
+                    <CardContent class="pt-5">
                     <p
                         class="mb-1 flex items-center gap-2 text-sm font-semibold"
                     >
@@ -1842,6 +1884,7 @@ function deltaBadge(pct: number | null) {
                     </div>
                 </CardContent>
             </Card>
+            </Deferred>
         </template>
     </div>
 </template>

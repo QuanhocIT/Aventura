@@ -9,74 +9,93 @@ import {
     ShoppingCart,
     Banknote,
 } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps<{
-    restaurant: { lat: number; lng: number; name: string };
-    heatmap: { lat: number; lng: number; count: number; revenue: number }[];
-    zoneStats: {
-        zones: {
-            zone: string;
+const props = withDefaults(
+    defineProps<{
+        restaurant: { lat: number; lng: number; name: string };
+        heatmap?: { lat: number; lng: number; count: number; revenue: number }[];
+        zoneStats?: {
+            zones: {
+                zone: string;
+                orders: number;
+                revenue: number;
+                avg_order: number;
+            }[];
+            avg_distance: number;
+            max_distance: number;
+            total_deliveries: number;
+        };
+        topAreas?: { area: string; orders: number; revenue: number }[];
+        channels?: {
+            channel: string;
+            label: string;
             orders: number;
             revenue: number;
-            avg_order: number;
         }[];
-        avg_distance: number;
-        max_distance: number;
-        total_deliveries: number;
-    };
-    topAreas: { area: string; orders: number; revenue: number }[];
-    channels: {
-        channel: string;
-        label: string;
-        orders: number;
-        revenue: number;
-    }[];
-    branchSuggestions: {
-        lat: number;
-        lng: number;
-        reason: string;
-        score: number;
-    }[];
-    days: number;
-}>();
+        branchSuggestions?: {
+            lat: number;
+            lng: number;
+            reason: string;
+            score: number;
+        }[];
+        days: number;
+    }>(),
+    {
+        heatmap: () => [],
+        zoneStats: () => ({ zones: [], avg_distance: 0, max_distance: 0, total_deliveries: 0 }),
+        topAreas: () => [],
+        channels: () => [],
+        branchSuggestions: () => [],
+    }
+);
 
-const totalDeliveryRevenue = props.zoneStats.zones.reduce(
-    (s, z) => s + z.revenue,
-    0,
-);
-const totalOrders = computed(() =>
-    props.channels.reduce((s, c) => s + c.orders, 0),
-);
-const maxZoneOrders = Math.max(
-    ...props.zoneStats.zones.map((z) => z.orders),
-    1,
-);
+const isLoading = computed(() => {
+    return !props.zoneStats || !props.heatmap || !props.topAreas || !props.channels || !props.branchSuggestions;
+});
+
+const totalDeliveryRevenue = computed(() => {
+    return props.zoneStats?.zones?.reduce((s, z) => s + z.revenue, 0) ?? 0;
+});
+const totalOrders = computed(() => {
+    return props.channels?.reduce((s, c) => s + c.orders, 0) ?? 0;
+});
+const maxZoneOrders = computed(() => {
+    return Math.max(...(props.zoneStats?.zones?.map((z) => z.orders) ?? []), 1);
+});
 
 const mapContainer = ref<HTMLElement | null>(null);
 let map: any = null;
 let L: any = null;
 
-onMounted(async () => {
-    if (!mapContainer.value) {
+// Layer groups for reactive rendering
+let restaurantMarker: any = null;
+let heatmapGroup: any = null;
+let suggestionsGroup: any = null;
+
+const initMap = async () => {
+    if (!mapContainer.value || map || isLoading.value) {
         return;
     }
 
     try {
+        // Clear leaflet id on DOM element to prevent "Map container is already initialized" error
+        if (mapContainer.value) {
+            delete (mapContainer.value as any)._leaflet_id;
+        }
+
         L = (await import('leaflet')).default;
         await import('leaflet/dist/leaflet.css');
 
         // Fix default Leaflet icon paths
         const DefaultIcon = L.icon({
-            iconUrl:
-                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl:
-                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
             popupAnchor: [1, -34],
@@ -97,19 +116,38 @@ onMounted(async () => {
 
         L.control.attribution({ prefix: false }).addTo(map);
 
-        // 1. Restaurant Marker
-        L.marker([props.restaurant.lat, props.restaurant.lng])
-            .addTo(map)
-            .bindPopup(
-                `<strong>${props.restaurant.name}</strong><br/>📍 Cửa hàng chính`,
-            )
-            .openPopup();
+        // Create Layer Groups
+        heatmapGroup = L.layerGroup().addTo(map);
+        suggestionsGroup = L.layerGroup().addTo(map);
 
-        // 2. Heatmap points (Circles)
+        drawRestaurantMarker();
+        drawMapLayers();
+    } catch (err) {
+        console.error('Lỗi khởi tạo bản đồ Leaflet:', err);
+    }
+};
+
+const drawRestaurantMarker = () => {
+    if (!map || !L) return;
+    if (restaurantMarker) map.removeLayer(restaurantMarker);
+
+    restaurantMarker = L.marker([props.restaurant.lat, props.restaurant.lng])
+        .addTo(map)
+        .bindPopup(`<strong>${props.restaurant.name}</strong><br/>📍 Cửa hàng chính`);
+};
+
+const drawMapLayers = () => {
+    if (!map || !L || isLoading.value) return;
+
+    if (heatmapGroup) heatmapGroup.clearLayers();
+    if (suggestionsGroup) suggestionsGroup.clearLayers();
+
+    // 1. Heatmap points
+    if (props.heatmap && props.heatmap.length > 0) {
         const maxCount = Math.max(...props.heatmap.map((h) => h.count), 1);
         props.heatmap.forEach((point) => {
             const ratio = point.count / maxCount;
-            const radius = 150 + ratio * 250; // Radius in meters
+            const radius = 150 + ratio * 250;
             L.circle([point.lat, point.lng], {
                 color: '#ef4444',
                 fillColor: '#f87171',
@@ -117,13 +155,13 @@ onMounted(async () => {
                 radius: radius,
                 stroke: false,
             })
-                .addTo(map)
-                .bindPopup(
-                    `<strong>Vùng giao hàng</strong><br/>Số đơn: ${point.count}<br/>Doanh thu: ${point.revenue.toLocaleString()}đ`,
-                );
+                .addTo(heatmapGroup)
+                .bindPopup(`<strong>Vùng giao hàng</strong><br/>Số đơn: ${point.count}<br/>Doanh thu: ${point.revenue.toLocaleString()}đ`);
         });
+    }
 
-        // 3. AI Branch Suggestions
+    // 2. AI Suggestions
+    if (props.branchSuggestions && props.branchSuggestions.length > 0) {
         props.branchSuggestions.forEach((suggestion, idx) => {
             const suggestionIcon = L.divIcon({
                 className: 'custom-branch-icon',
@@ -134,7 +172,9 @@ onMounted(async () => {
 
             L.marker([suggestion.lat, suggestion.lng], {
                 icon: suggestionIcon,
-            }).addTo(map).bindPopup(`
+            })
+                .addTo(suggestionsGroup)
+                .bindPopup(`
                     <div class="p-1 min-w-[200px]">
                         <span class="inline-block bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 font-bold text-[10px] px-2 py-0.5 rounded-full mb-1">
                             Gợi ý chi nhánh ${idx + 1} (Điểm: ${suggestion.score}/100)
@@ -144,14 +184,34 @@ onMounted(async () => {
                     </div>
                 `);
         });
-    } catch (err) {
-        console.error('Lỗi khởi tạo bản đồ Leaflet:', err);
+    }
+};
+
+onMounted(() => {
+    if (!isLoading.value) {
+        initMap();
     }
 });
 
+watch(isLoading, (loading) => {
+    if (!loading) {
+        setTimeout(() => {
+            initMap();
+        }, 100);
+    }
+});
+
+watch(() => [props.heatmap, props.branchSuggestions], () => {
+    drawMapLayers();
+}, { deep: true });
+
 onUnmounted(() => {
     if (map) {
-        map.remove();
+        try {
+            map.remove();
+        } catch (e) {
+            console.error('Error removing map on unmount:', e);
+        }
         map = null;
     }
 });
@@ -160,7 +220,55 @@ onUnmounted(() => {
 <template>
     <Head title="Phân tích địa lý" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
+    <!-- Skeleton loading state -->
+    <div v-if="isLoading" class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6 animate-pulse">
+        <!-- Header skeleton -->
+        <div class="flex items-center gap-3 border-b border-border pb-5">
+            <div class="h-11 w-11 rounded-2xl bg-muted"></div>
+            <div class="space-y-2">
+                <div class="h-5 w-48 rounded bg-muted"></div>
+                <div class="h-3 w-72 rounded bg-muted"></div>
+            </div>
+        </div>
+        <!-- Map skeleton -->
+        <Card class="border border-border bg-card">
+            <CardContent class="p-0">
+                <div class="p-5 space-y-2">
+                    <div class="h-4 w-36 rounded bg-muted"></div>
+                    <div class="h-3 w-64 rounded bg-muted"></div>
+                </div>
+                <div class="h-[450px] w-full bg-muted/40"></div>
+            </CardContent>
+        </Card>
+        <!-- KPI cards skeleton -->
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Card v-for="i in 4" :key="i">
+                <CardContent class="p-4 space-y-3">
+                    <div class="h-3 w-16 rounded bg-muted"></div>
+                    <div class="h-6 w-24 rounded bg-muted"></div>
+                    <div class="h-2 w-20 rounded bg-muted"></div>
+                </CardContent>
+            </Card>
+        </div>
+        <!-- 3 columns skeleton -->
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Card v-for="i in 3" :key="i">
+                <CardContent class="p-5 space-y-4">
+                    <div class="h-4 w-40 rounded bg-muted"></div>
+                    <div class="space-y-2" v-for="j in 4" :key="j">
+                        <div class="flex justify-between">
+                            <div class="h-3 w-20 rounded bg-muted"></div>
+                            <div class="h-3 w-16 rounded bg-muted"></div>
+                        </div>
+                        <div class="h-2 w-full rounded bg-muted"></div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    </div>
+
+    <!-- Main content loaded state -->
+    <div v-else class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <div
             class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
@@ -200,6 +308,7 @@ onUnmounted(() => {
                 </div>
                 <div
                     ref="mapContainer"
+                    key="geo-map-container"
                     class="z-10 h-[450px] w-full border-t border-border"
                 ></div>
             </CardContent>
@@ -363,7 +472,7 @@ onUnmounted(() => {
                         </div>
                     </div>
                     <p
-                        v-if="!topAreas.length"
+                        v-if="!topAreas?.length"
                         class="py-4 text-center text-sm text-muted-foreground"
                     >
                         Chưa có dữ liệu.
@@ -407,7 +516,7 @@ onUnmounted(() => {
                         </div>
                     </div>
                     <p
-                        v-if="!channels.length"
+                        v-if="!channels?.length"
                         class="py-4 text-center text-sm text-muted-foreground"
                     >
                         Chưa có dữ liệu.
@@ -487,7 +596,7 @@ onUnmounted(() => {
                     </tbody>
                 </table>
                 <p
-                    v-if="!heatmap.length"
+                    v-if="!heatmap?.length"
                     class="py-12 text-center text-muted-foreground"
                 >
                     Chưa có dữ liệu tọa độ giao hàng.
@@ -496,7 +605,7 @@ onUnmounted(() => {
         </Card>
 
         <!-- Branch Suggestions -->
-        <Card v-if="branchSuggestions.length">
+        <Card v-if="branchSuggestions?.length">
             <CardContent class="space-y-4 pt-5">
                 <div class="pb-1">
                     <div class="mb-1 flex items-center gap-2">

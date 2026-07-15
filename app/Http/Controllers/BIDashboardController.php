@@ -31,11 +31,11 @@ class BIDashboardController extends Controller
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         return Inertia::render('bi-dashboard/Index', [
-            'revenueTrend' => $this->bi->getRevenueTrend($restaurantId, 12),
-            'unitEconomics' => $this->bi->getUnitEconomics($restaurantId, $days),
-            'cohorts' => $this->bi->getCohortAnalysis($restaurantId),
-            'breakEven' => $this->bi->getBreakEvenAnalysis($restaurantId, $days),
-            'benchmarks' => $this->bi->getBenchmark($restaurantId, $days),
+            'revenueTrend' => Inertia::defer(fn() => $this->bi->getRevenueTrend($restaurantId, 12)),
+            'unitEconomics' => Inertia::defer(fn() => $this->bi->getUnitEconomics($restaurantId, $days)),
+            'cohorts' => Inertia::defer(fn() => $this->bi->getCohortAnalysis($restaurantId)),
+            'breakEven' => Inertia::defer(fn() => $this->bi->getBreakEvenAnalysis($restaurantId, $days)),
+            'benchmarks' => Inertia::defer(fn() => $this->bi->getBenchmark($restaurantId, $days)),
             'days' => $days,
         ]);
     }

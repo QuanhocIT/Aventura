@@ -2,6 +2,7 @@
 import { Package } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Deferred } from '@inertiajs/vue3';
 
 interface TopProductStat {
     name: string;
@@ -31,7 +32,16 @@ function formatMoneyFull(v: number): string {
 </script>
 
 <template>
-    <Card class="border border-border bg-card text-card-foreground shadow-sm">
+    <Deferred data="topProductsChartData">
+        <template #fallback>
+            <Card class="border border-border bg-card text-card-foreground shadow-sm">
+                <CardContent class="h-[250px] w-full animate-pulse flex flex-col items-center justify-center p-6 gap-3">
+                    <Package class="size-6 text-slate-350 dark:text-slate-650 animate-pulse" />
+                    <span class="text-xs text-slate-400 font-bold tracking-tight">Đang tải xếp hạng sản phẩm...</span>
+                </CardContent>
+            </Card>
+        </template>
+        <Card class="border border-border bg-card text-card-foreground shadow-sm">
         <CardHeader class="border-b border-border/50 pb-2">
             <CardTitle class="flex items-center gap-2 text-base font-bold">
                 <Package class="size-4 text-emerald-500" />
@@ -112,4 +122,5 @@ function formatMoneyFull(v: number): string {
             </div>
         </CardContent>
     </Card>
+    </Deferred>
 </template>

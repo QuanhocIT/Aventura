@@ -1019,7 +1019,7 @@ const submitSwapReject = () => {
         <!-- Add Employee Form Modal Overlay -->
         <div
             v-if="showAddEmployee"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 backdrop-blur-xs overflow-y-auto"
         >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
@@ -1297,7 +1297,7 @@ const submitSwapReject = () => {
         <!-- Edit Employee Modal -->
         <div
             v-if="editingEmployee"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 backdrop-blur-xs overflow-y-auto"
         >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"

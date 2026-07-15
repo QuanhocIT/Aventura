@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, Deferred } from '@inertiajs/vue3';
 import {
     Activity,
     BarChart3,
@@ -165,7 +165,24 @@ function formatMoneyFull(v: number): string {
 </script>
 
 <template>
-    <div class="space-y-6">
+    <Deferred :data="['operationFeed', 'tablesData', 'lowStockInventory', 'ownerSummary', 'shiftRevenue']">
+        <template #fallback>
+            <div class="space-y-6">
+                <!-- Simple header skeleton -->
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="h-6 w-48 animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg" />
+                    <div class="h-10 w-64 animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg" />
+                </div>
+                <!-- Main skeleton card -->
+                <div class="h-[400px] w-full animate-pulse rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 flex items-center justify-center">
+                    <div class="flex flex-col items-center gap-2">
+                        <Activity class="size-6 text-slate-350 dark:text-slate-650 animate-pulse" />
+                        <span class="text-xs text-slate-400 font-bold tracking-tight">Đang tải trung tâm vận hành...</span>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <div class="space-y-6">
         <!-- Section Header and Tabs selector -->
         <div
             class="flex flex-col justify-between gap-4 border-b border-slate-100 pb-3 md:flex-row md:items-center dark:border-slate-800"
@@ -714,4 +731,5 @@ function formatMoneyFull(v: number): string {
             <ShiftHeatmap :shift-revenue="shiftRevenue" />
         </div>
     </div>
+    </Deferred>
 </template>

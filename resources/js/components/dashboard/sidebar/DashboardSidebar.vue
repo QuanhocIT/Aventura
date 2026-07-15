@@ -441,7 +441,14 @@ function formatMoneyFull(v: number): string {
         </div>
 
         <!-- ── 3. Cảnh báo & Nhắc nhở ─────────────────── -->
-        <div v-if="alertsList.length > 0">
+        <div v-if="props.alerts === undefined">
+            <h2 class="text-base font-semibold">Cảnh báo & Nhắc nhở</h2>
+            <div class="mt-4 flex flex-col gap-2">
+                <div class="h-[74px] w-full animate-pulse rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"></div>
+                <div class="h-[74px] w-full animate-pulse rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"></div>
+            </div>
+        </div>
+        <div v-else-if="alertsList.length > 0">
             <div class="flex items-center gap-2">
                 <h2 class="text-base font-semibold">Cảnh báo & Nhắc nhở</h2>
                 <span

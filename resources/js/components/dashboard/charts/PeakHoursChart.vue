@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Activity } from 'lucide-vue-next';
+import { Deferred } from '@inertiajs/vue3';
 
 interface HourStat {
     hour: number;
@@ -72,7 +73,16 @@ const hoveredBar = computed(() =>
 </script>
 
 <template>
-    <Card class="border border-border bg-card text-card-foreground shadow-sm">
+    <Deferred data="peakHoursChartData">
+        <template #fallback>
+            <Card class="border border-border bg-card text-card-foreground shadow-sm">
+                <CardContent class="h-[250px] w-full animate-pulse flex flex-col items-center justify-center p-6 gap-3">
+                    <Activity class="size-6 text-slate-350 dark:text-slate-650 animate-pulse" />
+                    <span class="text-xs text-slate-400 font-bold tracking-tight">Đang tải biểu đồ giờ cao điểm...</span>
+                </CardContent>
+            </Card>
+        </template>
+        <Card class="border border-border bg-card text-card-foreground shadow-sm">
         <CardHeader class="border-b border-border/50 pb-2">
             <CardTitle class="flex items-center gap-2 text-base font-bold">
                 <Activity class="size-4 text-rose-500" />
@@ -275,4 +285,5 @@ const hoveredBar = computed(() =>
             </div>
         </CardContent>
     </Card>
+    </Deferred>
 </template>

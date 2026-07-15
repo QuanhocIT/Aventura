@@ -475,9 +475,76 @@ const addUpsellItem = async () => {
         toast.info(
             `Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`,
         );
-        showUpsellModal.value = false;
     }
 };
+
+const showAnalytics = ref(true);
+
+const channelStats = computed(() => {
+    const stats = { qr: 0, pos: 0, delivery: 0, other: 0 };
+    const amounts = { qr: 0, pos: 0, delivery: 0, other: 0 };
+    props.orders.forEach(o => {
+        const chan = o.channel?.toLowerCase() || 'other';
+        if (chan in stats) {
+            stats[chan as keyof typeof stats]++;
+            amounts[chan as keyof typeof amounts] += o.total_amount;
+        } else {
+            stats.other++;
+            amounts.other += o.total_amount;
+        }
+    });
+    return { stats, amounts };
+});
+
+const aiEvaluation = computed(() => {
+    if (!props.summary.total) {
+        return {
+            status: 'neutral',
+            title: 'Chưa đủ dữ liệu phân tích',
+            text: 'Hệ thống chưa ghi nhận đơn hàng nào trong ngày hôm nay để thực hiện đánh giá hiệu suất.',
+            tips: [
+                'Bật kênh QR Order để cho phép khách quét mã gọi món tự động.',
+                'Đảm bảo thiết bị thu ngân (POS) đang trực tuyến để nhận đơn.',
+                'Kiểm tra trạng thái ca làm việc của nhân sự trước giờ cao điểm.'
+            ]
+        };
+    }
+
+    const completionRate = props.summary.total > 0 ? (props.summary.completed / props.summary.total) * 100 : 0;
+    const cancelRate = props.summary.total > 0 ? (props.summary.cancelled / props.summary.total) * 100 : 0;
+    const pendingCount = props.summary.pending;
+
+    let status = 'good';
+    let title = 'Hiệu suất vận hành Xuất sắc';
+    let text = 'Hệ thống đang hoạt động với hiệu suất tối ưu. Tỷ lệ hoàn thành đơn hàng ở mức cao và tỷ lệ hủy thấp.';
+    const tips = [];
+
+    if (cancelRate > 15) {
+        status = 'warning';
+        title = 'Tỷ lệ hủy đơn hàng cao';
+        text = `Cảnh báo: Tỷ lệ hủy đơn đạt ${cancelRate.toFixed(1)}%. Khách hàng hoặc nhà bếp đang hủy nhiều đơn.`;
+        tips.push('Kiểm tra lại kho nguyên liệu để cập nhật thực đơn tức thì.');
+        tips.push('Rà soát lại quy trình chuẩn bị để tránh quá tải bếp.');
+    } else if (pendingCount > 4) {
+        status = 'attention';
+        title = 'Nhiều đơn chờ xác nhận';
+        text = `Có ${pendingCount} đơn hàng chờ xác nhận. Thu ngân cần xử lý duyệt đơn để chuyển nhanh vào bếp.`;
+        tips.push('Đẩy nhanh tiến độ duyệt đơn để giảm thời gian chờ của khách.');
+        tips.push('Bật tính năng tự động thanh toán ca cuối để tối ưu quy trình.');
+    } else {
+        tips.push('Mọi chỉ số đều nằm trong ngưỡng an toàn.');
+        tips.push('Khuyến khích khách sử dụng QR Order để giảm tải trong giờ cao điểm.');
+    }
+
+    // Kênh bán hàng
+    const qrCount = channelStats.value.stats.qr;
+    const posCount = channelStats.value.stats.pos;
+    if (qrCount > posCount) {
+        tips.push('Kênh QR Order hoạt động vượt trội, tối ưu hóa năng suất phục vụ bàn.');
+    }
+
+    return { status, title, text, tips };
+});
 
 onMounted(() => {
     // Check if there is an active tab parameter in the URL
@@ -638,6 +705,140 @@ onMounted(() => {
                 <p class="mt-0.5 text-xs text-emerald-600/70">Doanh thu</p>
             </div>
         </div>
+
+        <!-- AI Analytics & Data Evaluation Panel -->
+        <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
+            <CardHeader class="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center gap-2">
+                    <Bot class="size-5 text-indigo-500 animate-bounce" />
+                    <div>
+                        <CardTitle class="text-sm font-bold">Phân tích Hiệu suất & Đánh giá Vận hành AI</CardTitle>
+                        <p class="text-[10px] text-muted-foreground">Tự động phân tích biểu đồ cơ cấu và chẩn đoán hoạt động dựa trên dữ liệu thực tế</p>
+                    </div>
+                </div>
+                <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    class="h-8 text-xs text-indigo-650 dark:text-indigo-400"
+                    @click="showAnalytics = !showAnalytics"
+                >
+                    {{ showAnalytics ? 'Thu gọn' : 'Mở rộng' }}
+                </Button>
+            </CardHeader>
+
+            <CardContent v-if="showAnalytics" class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Column 1: Sales Channel Breakdown (Chart) -->
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
+                            <Sparkles class="size-3.5 text-indigo-500" /> Cơ cấu Kênh bán hàng (Đơn)
+                        </h4>
+                        
+                        <!-- Mini SVG Donut Chart -->
+                        <div class="flex items-center gap-4">
+                            <div class="relative w-24 h-24 flex items-center justify-center">
+                                <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" stroke-width="4" class="dark:stroke-slate-800" />
+                                    <!-- QR Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#6366f1" stroke-width="4" 
+                                        :stroke-dasharray="`${(channelStats.stats.qr / (summary.total || 1)) * 100} ${100 - (channelStats.stats.qr / (summary.total || 1)) * 100}`"
+                                        stroke-dashoffset="0" />
+                                    <!-- POS Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" stroke-width="4" 
+                                        :stroke-dasharray="`${(channelStats.stats.pos / (summary.total || 1)) * 100} ${100 - (channelStats.stats.pos / (summary.total || 1)) * 100}`"
+                                        :stroke-dashoffset="`-${(channelStats.stats.qr / (summary.total || 1)) * 100}`" />
+                                    <!-- Delivery Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f59e0b" stroke-width="4" 
+                                        :stroke-dasharray="`${(channelStats.stats.delivery / (summary.total || 1)) * 100} ${100 - (channelStats.stats.delivery / (summary.total || 1)) * 100}`"
+                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos) / (summary.total || 1)) * 100}`" />
+                                    <!-- Other Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#64748b" stroke-width="4" 
+                                        :stroke-dasharray="`${(channelStats.stats.other / (summary.total || 1)) * 100} ${100 - (channelStats.stats.other / (summary.total || 1)) * 100}`"
+                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos + channelStats.stats.delivery) / (summary.total || 1)) * 100}`" />
+                                </svg>
+                                <div class="absolute flex flex-col items-center justify-center">
+                                    <span class="text-sm font-black text-slate-800 dark:text-slate-100">{{ summary.total }}</span>
+                                    <span class="text-[8px] text-muted-foreground uppercase">Tổng đơn</span>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 space-y-1.5 text-[11px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> QR Code</span>
+                                    <span class="font-bold">{{ channelStats.stats.qr }} đơn</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tại quầy (POS)</span>
+                                    <span class="font-bold">{{ channelStats.stats.pos }} đơn</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Giao hàng</span>
+                                    <span class="font-bold">{{ channelStats.stats.delivery }} đơn</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-500"></span> Khác</span>
+                                    <span class="font-bold">{{ channelStats.stats.other }} đơn</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Order Conversion & Completion (KPI Progress) -->
+                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
+                            <Activity class="size-3.5 text-emerald-500" /> Tỷ lệ Hoàn thành & Chuyển đổi
+                        </h4>
+                        <div class="space-y-3 pt-1">
+                            <div>
+                                <div class="flex items-center justify-between text-[11px] mb-1">
+                                    <span class="text-muted-foreground">Tỷ lệ hoàn thành (Completion Rate)</span>
+                                    <span class="font-bold text-emerald-600">{{ summary.total > 0 ? ((summary.completed / summary.total) * 100).toFixed(1) : 0 }}%</span>
+                                </div>
+                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                    <div class="h-full bg-emerald-500 rounded-full" :style="{ width: `${summary.total > 0 ? (summary.completed / summary.total) * 100 : 0}%` }"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between text-[11px] mb-1">
+                                    <span class="text-muted-foreground">Tỷ lệ hủy đơn (Cancellation Rate)</span>
+                                    <span class="font-bold text-rose-500">{{ summary.total > 0 ? ((summary.cancelled / summary.total) * 100).toFixed(1) : 0 }}%</span>
+                                </div>
+                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                    <div class="h-full bg-rose-500 rounded-full" :style="{ width: `${summary.total > 0 ? (summary.cancelled / summary.total) * 100 : 0}%` }"></div>
+                                </div>
+                            </div>
+
+                            <div class="text-[10px] text-muted-foreground bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg">
+                                Doanh thu trung bình mỗi đơn hoàn thành: <strong class="font-mono text-slate-800 dark:text-slate-200">{{ formatCurrency(summary.completed > 0 ? summary.revenue / summary.completed : 0) }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: AI Diagnosis and Recommendations -->
+                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
+                        <div class="flex items-center gap-1.5">
+                            <span class="flex h-2 w-2 rounded-full" :class="{
+                                'bg-emerald-500': aiEvaluation.status === 'good',
+                                'bg-amber-500': aiEvaluation.status === 'attention',
+                                'bg-rose-500': aiEvaluation.status === 'warning',
+                                'bg-slate-400': aiEvaluation.status === 'neutral',
+                            }"></span>
+                            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350">{{ aiEvaluation.title }}</h4>
+                        </div>
+                        <p class="text-[11px] text-muted-foreground leading-relaxed">{{ aiEvaluation.text }}</p>
+                        
+                        <div class="space-y-1.5 pt-1">
+                            <div v-for="(tip, idx) in aiEvaluation.tips" :key="idx" class="flex items-start gap-1.5 text-[10px] text-slate-700 dark:text-slate-400">
+                                <span class="text-indigo-500 select-none">•</span>
+                                <span>{{ tip }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- Primary Tabs Navigation -->
         <div

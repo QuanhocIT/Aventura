@@ -257,23 +257,25 @@ class MenuInsightService
         $endAt = $test->end_at ?? now();
         $midpoint = $startAt->copy()->addSeconds($startAt->diffInSeconds($endAt) / 2);
 
-        // Orders trước midpoint = original price, sau midpoint = test price
-        $ordersOriginal = DB::table('order_items_unified')
-            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
-            ->where('orders_unified.restaurant_id', $test->restaurant_id)
-            ->where('orders_unified.status', 'completed')
-            ->where('order_items_unified.product_id', $test->product_id)
-            ->whereBetween('orders_unified.completed_at', [$startAt, $midpoint])
-            ->selectRaw('COUNT(*) as count, SUM(order_items_unified.line_total) as revenue')
+        // Orders trước midpoint = original price, sau midpoint = test price (truy cập bảng hot trực tiếp để dùng Index)
+        $ordersOriginal = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->where('orders.restaurant_id', $test->restaurant_id)
+            ->where('orders.status', 'completed')
+            ->whereNull('orders.deleted_at')
+            ->where('order_items.product_id', $test->product_id)
+            ->whereBetween('orders.completed_at', [$startAt, $midpoint])
+            ->selectRaw('COUNT(*) as count, SUM(order_items.line_total) as revenue')
             ->first();
 
-        $ordersTest = DB::table('order_items_unified')
-            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
-            ->where('orders_unified.restaurant_id', $test->restaurant_id)
-            ->where('orders_unified.status', 'completed')
-            ->where('order_items_unified.product_id', $test->product_id)
-            ->whereBetween('orders_unified.completed_at', [$midpoint, $endAt])
-            ->selectRaw('COUNT(*) as count, SUM(order_items_unified.line_total) as revenue')
+        $ordersTest = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->where('orders.restaurant_id', $test->restaurant_id)
+            ->where('orders.status', 'completed')
+            ->whereNull('orders.deleted_at')
+            ->where('order_items.product_id', $test->product_id)
+            ->whereBetween('orders.completed_at', [$midpoint, $endAt])
+            ->selectRaw('COUNT(*) as count, SUM(order_items.line_total) as revenue')
             ->first();
 
         $origCount = (int) ($ordersOriginal?->count ?? 0);
@@ -329,23 +331,65 @@ class MenuInsightService
         $from = now()->subDays($days + $offsetDays);
         $to = now()->subDays($offsetDays);
 
-        return DB::table('order_items_unified')
-            ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
-            ->join('products', 'order_items_unified.product_id', '=', 'products.id')
-            ->where('orders_unified.restaurant_id', $restaurantId)
-            ->where('orders_unified.status', 'completed')
-            ->whereBetween('orders_unified.completed_at', [$from, $to])
+        // 1. Lấy dữ liệu từ bảng hot (orders & order_items) - Dùng Index tối đa
+        $active = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->where('orders.restaurant_id', $restaurantId)
+            ->where('orders.status', 'completed')
+            ->whereNull('orders.deleted_at')
+            ->whereBetween('orders.completed_at', [$from, $to])
             ->select(
                 'products.id as product_id',
                 'products.name',
                 'products.price',
                 'products.cost_price',
-                DB::raw('SUM(order_items_unified.quantity) as total_qty'),
-                DB::raw('SUM(order_items_unified.line_total) as total_revenue')
+                DB::raw('SUM(order_items.quantity) as total_qty'),
+                DB::raw('SUM(order_items.line_total) as total_revenue')
             )
             ->groupBy('products.id', 'products.name', 'products.price', 'products.cost_price')
-            ->orderByDesc('total_revenue')
             ->get();
+
+        // 2. Lấy dữ liệu từ bảng archive (orders_archive & order_items_archive)
+        $archived = DB::table('order_items_archive')
+            ->join('orders_archive', 'order_items_archive.order_id', '=', 'orders_archive.id')
+            ->join('products', 'order_items_archive.product_id', '=', 'products.id')
+            ->where('orders_archive.restaurant_id', $restaurantId)
+            ->where('orders_archive.status', 'completed')
+            ->whereBetween('orders_archive.completed_at', [$from, $to])
+            ->select(
+                'products.id as product_id',
+                'products.name',
+                'products.price',
+                'products.cost_price',
+                DB::raw('SUM(order_items_archive.quantity) as total_qty'),
+                DB::raw('SUM(order_items_archive.line_total) as total_revenue')
+            )
+            ->groupBy('products.id', 'products.name', 'products.price', 'products.cost_price')
+            ->get();
+
+        // 3. Gộp kết quả của cả hai bảng trong PHP
+        $merged = collect();
+
+        foreach ($active as $p) {
+            $p->total_qty = (float) $p->total_qty;
+            $p->total_revenue = (float) $p->total_revenue;
+            $merged->put($p->product_id, $p);
+        }
+
+        foreach ($archived as $p) {
+            $p->total_qty = (float) $p->total_qty;
+            $p->total_revenue = (float) $p->total_revenue;
+            if ($merged->has($p->product_id)) {
+                $existing = $merged->get($p->product_id);
+                $existing->total_qty += $p->total_qty;
+                $existing->total_revenue += $p->total_revenue;
+            } else {
+                $merged->put($p->product_id, $p);
+            }
+        }
+
+        return $merged->sortByDesc('total_revenue')->values();
     }
 }
 

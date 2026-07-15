@@ -159,6 +159,53 @@ const loading = ref(false);
 const lastRefreshed = ref<Date | null>(null);
 const selectedOrders = ref<Set<number>>(new Set());
 
+const showDeliveryAnalytics = ref(true);
+
+const deliverySuccessRate = computed(() => {
+    const total = stats.value.delivered_today + stats.value.failed_today;
+    if (total === 0) return 100;
+    return (stats.value.delivered_today / total) * 100;
+});
+
+const deliveryEvaluation = computed(() => {
+    const totalToday = stats.value.delivered_today + stats.value.failed_today;
+    const shippersCount = stats.value.active_shippers;
+    const pendingCount = stats.value.pending_orders;
+    const successRate = deliverySuccessRate.value;
+
+    let status = 'good';
+    let title = 'Hệ thống vận hành Ổn định';
+    let text = 'Đội ngũ giao nhận đang duy trì hiệu suất tốt. Tất cả chuyến đi đang được theo dõi qua GPS.';
+    const tips = [];
+
+    if (pendingCount > 0) {
+        status = 'attention';
+        title = 'Có đơn hàng đang chờ điều phối';
+        text = `Hiện đang có ${pendingCount} đơn hàng giao vận đang chờ tài xế. Cần xếp chuyến sớm để đảm bảo thời gian cam kết (ETA).`;
+        tips.push(`Khuyên dùng: Sử dụng tính năng "Smart Routing" để tự động gộp đơn tối ưu.`);
+    }
+
+    if (shippersCount === 0) {
+        status = 'warning';
+        title = 'Không có shipper hoạt động';
+        text = 'Cảnh báo: Hiện tại chưa có nhân viên giao hàng nào đang hoạt động trực tuyến trên hệ thống.';
+        tips.push('Nhắc nhở shipper đăng nhập và bật định vị GPS.');
+    } else {
+        tips.push(`Đang có ${shippersCount} shipper trực tuyến hỗ trợ giao hàng.`);
+    }
+
+    if (totalToday > 0 && successRate < 90) {
+        status = 'warning';
+        title = 'Tỷ lệ giao thất bại cao';
+        text = `Cảnh báo: Tỷ lệ giao hàng thành công chỉ đạt ${successRate.toFixed(1)}%. Có dấu hiệu chậm trễ hoặc từ chối đơn.`;
+        tips.push('Liên hệ các tài xế để hỗ trợ giải quyết sự cố dọc đường.');
+    } else if (totalToday > 0) {
+        tips.push(`Hiệu suất giao hàng đạt ${successRate.toFixed(1)}% thành công.`);
+    }
+
+    return { status, title, text, tips };
+});
+
 // Map
 const mapTab = ref<'all' | 'pending' | 'active'>('all');
 const focusedShipperId = ref<number | null>(null);
@@ -1208,6 +1255,124 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+
+        <!-- AI Delivery Analytics & Performance Panel -->
+        <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
+            <CardHeader class="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center gap-2">
+                    <Bot class="size-5 text-indigo-500 animate-bounce" />
+                    <div>
+                        <CardTitle class="text-sm font-bold">Phân tích & Đánh giá Hiệu suất Giao hàng AI</CardTitle>
+                        <p class="text-[10px] text-muted-foreground">Phân tích tỷ lệ giao nhận thành công và đề xuất điều phối tối ưu thời gian thực</p>
+                    </div>
+                </div>
+                <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    class="h-8 text-xs text-indigo-650 dark:text-indigo-400"
+                    @click="showDeliveryAnalytics = !showDeliveryAnalytics"
+                >
+                    {{ showDeliveryAnalytics ? 'Thu gọn' : 'Mở rộng' }}
+                </Button>
+            </CardHeader>
+
+            <CardContent v-if="showDeliveryAnalytics" class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Column 1: Delivery Status Breakdown (Chart) -->
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
+                            <Sparkles class="size-3.5 text-indigo-500" /> Tỷ lệ Giao hàng Thành công
+                        </h4>
+                        
+                        <!-- Mini SVG Pie Chart -->
+                        <div class="flex items-center gap-4">
+                            <div class="relative w-24 h-24 flex items-center justify-center">
+                                <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" stroke-width="4" class="dark:stroke-slate-800" />
+                                    <!-- Success Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" stroke-width="4" 
+                                        :stroke-dasharray="`${deliverySuccessRate} ${100 - deliverySuccessRate}`"
+                                        stroke-dashoffset="0" />
+                                    <!-- Failed Segment -->
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" stroke-width="4" 
+                                        :stroke-dasharray="`${100 - deliverySuccessRate} ${deliverySuccessRate}`"
+                                        :stroke-dashoffset="`-${deliverySuccessRate}`" />
+                                </svg>
+                                <div class="absolute flex flex-col items-center justify-center">
+                                    <span class="text-xs font-black text-slate-800 dark:text-slate-100">{{ deliverySuccessRate.toFixed(0) }}%</span>
+                                    <span class="text-[8px] text-muted-foreground uppercase">Thành công</span>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 space-y-1.5 text-[11px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Đã giao</span>
+                                    <span class="font-bold">{{ stats.delivered_today }} đơn</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Thất bại</span>
+                                    <span class="font-bold">{{ stats.failed_today }} đơn</span>
+                                </div>
+                                <div class="flex items-center justify-between text-muted-foreground border-t pt-1 mt-1">
+                                    <span>Tổng chuyến</span>
+                                    <span class="font-bold">{{ stats.delivered_today + stats.failed_today }} đơn</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Logistics Load & Efficiency (KPI Progress) -->
+                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
+                            <Activity class="size-3.5 text-emerald-500" /> Tải lượng & Hiệu suất Shipper
+                        </h4>
+                        <div class="space-y-3 pt-1">
+                            <div>
+                                <div class="flex items-center justify-between text-[11px] mb-1">
+                                    <span class="text-muted-foreground">Tận dụng Shipper (Active Shippers)</span>
+                                    <span class="font-bold text-indigo-600">{{ stats.active_shippers > 0 ? ((stats.active_batches / stats.active_shippers) * 100).toFixed(0) : 0 }}%</span>
+                                </div>
+                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                    <div class="h-full bg-indigo-500 rounded-full" :style="{ width: `${stats.active_shippers > 0 ? Math.min(100, (stats.active_batches / stats.active_shippers) * 100) : 0}%` }"></div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                                <div class="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg text-center">
+                                    <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ stats.active_batches }}</div>
+                                    <div class="text-[9px] text-muted-foreground">Batch đang chạy</div>
+                                </div>
+                                <div class="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg text-center">
+                                    <div class="text-xs font-bold text-emerald-600 dark:text-emerald-400">{{ stats.active_shippers }}</div>
+                                    <div class="text-[9px] text-muted-foreground">Tài xế online</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: AI Logistics Recommendations -->
+                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
+                        <div class="flex items-center gap-1.5">
+                            <span class="flex h-2 w-2 rounded-full" :class="{
+                                'bg-emerald-500': deliveryEvaluation.status === 'good',
+                                'bg-amber-500': deliveryEvaluation.status === 'attention',
+                                'bg-rose-500': deliveryEvaluation.status === 'warning',
+                            }"></span>
+                            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350">{{ deliveryEvaluation.title }}</h4>
+                        </div>
+                        <p class="text-[11px] text-muted-foreground leading-relaxed">{{ deliveryEvaluation.text }}</p>
+                        
+                        <div class="space-y-1.5 pt-1">
+                            <div v-for="(tip, idx) in deliveryEvaluation.tips" :key="idx" class="flex items-start gap-1.5 text-[10px] text-slate-700 dark:text-slate-400">
+                                <span class="text-indigo-500 select-none">•</span>
+                                <span>{{ tip }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- ── Main grid ───────────────────────────────────────────────────── -->
         <div

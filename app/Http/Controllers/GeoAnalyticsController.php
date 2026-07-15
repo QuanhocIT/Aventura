@@ -45,11 +45,11 @@ class GeoAnalyticsController extends Controller
                 'lng' => $lng,
                 'name' => $restaurant->name,
             ],
-            'heatmap' => $this->geo->getOrderHeatmap($restaurantId, $days),
-            'zoneStats' => $this->geo->getDeliveryZoneStats($restaurantId, $days),
-            'topAreas' => $this->geo->getTopAreas($restaurantId, $days),
-            'channels' => $this->geo->getChannelBreakdown($restaurantId, $days),
-            'branchSuggestions' => $this->geo->getBranchSuggestions($restaurantId),
+            'heatmap' => Inertia::defer(fn() => $this->geo->getOrderHeatmap($restaurantId, $days)),
+            'zoneStats' => Inertia::defer(fn() => $this->geo->getDeliveryZoneStats($restaurantId, $days)),
+            'topAreas' => Inertia::defer(fn() => $this->geo->getTopAreas($restaurantId, $days)),
+            'channels' => Inertia::defer(fn() => $this->geo->getChannelBreakdown($restaurantId, $days)),
+            'branchSuggestions' => Inertia::defer(fn() => $this->geo->getBranchSuggestions($restaurantId)),
             'days' => $days,
         ]);
     }
