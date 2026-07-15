@@ -939,6 +939,41 @@ Hệ thống CDP mini tích hợp ngay trong Aventura giúp cá nhân hóa trả
 •   Máy trạng thái 3 cấp (Closed, Open, Half-Open): Khi số lần kết nối lỗi vượt quá ngưỡng cho phép (ví dụ 3 lần liên tiếp), mạch chuyển sang trạng thái OPEN, lập tức chặn các cuộc gọi API tiếp theo và định tuyến trực tiếp đến hàm xử lý dự phòng (fallback) để giữ cho giao diện người dùng không bị đơ/timeout. Sau khoảng thời gian cooldown, mạch tự động chuyển sang HALF_OPEN để thăm dò (probe) và khôi phục trạng thái CLOSED nếu dịch vụ đích đã ổn định trở lại.
 •   Hệ thống giám sát hiệu năng Pulse & Horizon: ServiceMonitorService giám sát liên tục tình trạng RAM/CPU, backlog của Redis Queue và trạng thái hàng đợi để tự động gửi thông tin cảnh báo qua Webhook Discord/Telegram cho đội ngũ kỹ thuật khi có dấu hiệu quá tải hệ thống. 
 
+15.15. Phân hệ Báo cáo & Thống kê Nghiệp vụ Chuyên sâu (Advanced Analytical Reports)
+Nhằm cung cấp cho Chủ nhà hàng (Owner) và Quản lý (Manager) cái nhìn toàn diện và chính xác nhất về mọi khía cạnh vận hành, hệ thống tích hợp bộ công cụ báo cáo phân tích chuyên sâu được hỗ trợ bởi Python Microservice và dữ liệu đối soát thực tế.
+
+1. Báo cáo Hiệu suất Thực đơn & Ma trận BCG (Menu Analytics & BCG Matrix)
+•   Phân nhóm ma trận BCG (Boston Consulting Group): MenuInsightService tự động xếp hạng toàn bộ sản phẩm trong thực đơn vào 4 nhóm dựa trên sản lượng bán ra (Volume) và biên lợi nhuận (Margin):
+    o   Ngôi sao (Stars - Lợi nhuận cao, Bán chạy): Đề xuất giữ nguyên giá và vị trí bắt mắt trên thực đơn.
+    o   Bò sữa (Plowhorses - Lợi nhuận thấp, Bán chạy): Đề xuất thương thảo giảm giá nguyên liệu đầu vào, hoặc tăng giá bán nhẹ (3-5%).
+    o   Câu đố (Puzzles - Lợi nhuận cao, Bán chậm): Đề xuất ghép món vào các COMBO khuyến mại để kích cầu hoặc tăng vị trí hiển thị.
+    o   Thú cưng (Dogs - Lợi nhuận thấp, Bán chậm): Cân nhắc loại bỏ hoàn toàn hoặc thay đổi công thức chế biến.
+•   Cảnh báo biên lợi nhuận thấp (Low Margin Alerts): Tự động gắn cờ cảnh báo đối với các món ăn có biên lợi nhuận ròng rơi xuống dưới ngưỡng an toàn (25%) để chủ quán kịp thời điều chỉnh giá vốn hoặc giá bán.
+
+2. Báo cáo Kết quả Kinh doanh & Lợi nhuận ròng (P&L - Profit and Loss Reporting)
+•   Tính toán giá vốn hàng bán (COGS): ProfitLossService tổng hợp chi phí nguyên vật liệu tiêu hao thực tế từ công thức định lượng (product_recipes) kết hợp với giá vốn bình quân (average_cost) do hệ thống tính toán.
+•   Khấu trừ chi phí vận hành & nhân sự: Báo cáo tự động cấn trừ chi phí lương nhân viên, chi phí thất thoát kho bãi, và các khoản đền bù/phạt âm két ca trực để tính toán ra Lợi nhuận ròng (Net Profit) thực tế của nhà hàng.
+
+3. Báo cáo Hiệu suất & Chỉ số KPI Nhân viên (Employee KPI Report)
+•   Tự động tính toán điểm số năng lực nhân viên: KpiService tự động thu thập và xử lý số liệu hiệu suất theo từng vai trò cụ thể:
+    o   Phục vụ (Waiter): Đo lường thời gian phục vụ trung bình (serving time), tổng số bàn phục vụ thành công, và tỷ lệ phản hồi tích cực từ khách hàng.
+    o   Bếp/Pha chế (Kitchen): Đo lường thời gian chế biến món, tỷ lệ kiểm soát hao hụt kho, và điểm đánh giá chất lượng món ăn.
+    o   Thu ngân (Cashier): Đo lường tốc độ xử lý thanh toán, tần suất chênh lệch quỹ két ca trực, và tỷ lệ upselling (mời khách áp dụng voucher/gọi thêm món).
+•   Cơ sở xếp lịch và tăng lương: Điểm số KPI là bằng chứng minh bạch giúp chủ nhà hàng đánh giá nhân sự, tự động cộng thưởng chuyên cần hoặc khấu trừ vi phạm vào bảng lương cuối tháng.
+
+4. Báo cáo Phân tích Hao hụt & Rác thải thực phẩm (Inventory Waste Analytics)
+•   Tính toán tỷ lệ hao hụt (Waste Ratio): WasteAnalyticsService tổng hợp toàn bộ các giao dịch xuất kho hao hụt (type = 'waste') để tính toán tỷ lệ chi phí hao hụt trên tổng doanh thu.
+•   Đánh giá định mức (Benchmarking): Phân loại tình trạng kiểm soát hao hụt của chi nhánh theo ba mức độ: Xuất sắc (≤5% doanh thu), Bình thường (5-10%), và Nguy cấp (>10% - cần có sự can thiệp của quản lý).
+•   Top nguyên liệu hao hụt: Liệt kê chi tiết danh sách các nguyên vật liệu bị lãng phí nhiều nhất kèm theo giá trị quy đổi thành tiền mặt để chủ quán điều chỉnh quy trình bảo quản hoặc định lượng món ăn.
+
+5. Báo cáo Biến động Giá & Đánh giá Nhà cung cấp (Price Elasticity & Procurement Analysis)
+•   Biểu đồ xu hướng giá: PriceAnalyticsService kết nối với Python để phân tích lịch sử biến động giá của từng nguyên vật liệu từ các nhà cung cấp khác nhau (Supplier Price History).
+•   Khuyến nghị mua sắm thông minh: Đưa ra cảnh báo và khuyến nghị hành động cụ thể khi giá của một mặt hàng có xu hướng tăng đột biến, giúp chủ quán chủ động ký hợp đồng dài hạn nhằm bao thầu giá tốt hoặc tìm kiếm đối tác cung ứng thay thế.
+
+6. Báo cáo Hiệu quả Chiến dịch Tiếp thị (Promotion ROI Analytics)
+•   Đo lường doanh thu từ khuyến mãi: PromotionAnalyticsService phân tích hiệu quả hoạt động của các chương trình giảm giá và mã voucher.
+•   Tính toán chỉ số ROI của chiến dịch: Xác định rõ tỷ lệ doanh thu tăng thêm so với chi phí giảm giá đã bỏ ra, giúp nhà hàng tối ưu hóa các chiến dịch tiếp thị tiếp theo, tránh việc chạy các chương trình khuyến mãi kém hiệu quả gây lãng phí ngân sách.
+
 16. Các vấn đề cần lưu ý khi thiết kế và phát triển hệ thống SaaS quản lý nhà hàng bằng Laravel và Vue.js
 
 16.1 Kiến trúc Backend & Logic Nghiệp vụ (Clean Architecture)
