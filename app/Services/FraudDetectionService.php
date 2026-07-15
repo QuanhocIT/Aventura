@@ -89,7 +89,7 @@ class FraudDetectionService
             'cancellation_cashiers'   => (int) ($cancelCount->cnt ?? 0),
             'waste_flagged_entries'   => (int) ($wasteCount->cnt ?? 0),
             'revenue_flagged_days'    => (int) ($revenueCount->cnt ?? 0),
-            'ai_flagged_alerts'       => max(2, (int) ($aiCount->cnt ?? 0)), // Luôn có ít nhất 2 cảnh báo mô phỏng AI cho WOW factor
+            'ai_flagged_alerts'       => (int) ($aiCount->cnt ?? 0),
             'audit_logs_count'        => (int) ($auditCount->cnt ?? 0),
         ];
     }
@@ -119,7 +119,7 @@ class FraudDetectionService
             }
         }
 
-        // 3. Fallback PHP preparation: Fetch audit logs for fallback data
+        // 3. Fallback PHP: Phân tích audit_logs thực tế — KHÔNG dùng dữ liệu giả
         $logs = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
@@ -127,41 +127,8 @@ class FraudDetectionService
             ->take(15)
             ->get();
 
-        // 3. Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
-        $emp1 = \App\Models\Employee::where('restaurant_id', $restaurantId)->first() ?? \App\Models\Employee::first();
-        $emp2 = \App\Models\Employee::where('restaurant_id', $restaurantId)->skip(1)->first() ?? \App\Models\Employee::first();
-
-        $emp1Name = $emp1 ? $emp1->full_name : 'Nguyễn Văn Hùng';
-        $emp1Id   = $emp1 ? $emp1->id : 1;
-        $emp2Name = $emp2 ? $emp2->full_name : 'Lê Thị Tuyết';
-        $emp2Id   = $emp2 ? $emp2->id : 2;
-
-        $alerts = [
-            [
-                'id'             => 'ai-1',
-                'employee_id'    => $emp1Id,
-                'employee_name'  => $emp1Name,
-                'violation_type' => 'AI: Sửa giá món nhiều lần',
-                'severity'       => 'high',
-                'description'    => "Phát hiện nhân viên sửa giá món ăn trên đơn #ORD-8812 liên tiếp 4 lần trong vòng 5 phút (Tăng từ 50,000đ lên 150,000đ rồi hạ xuống 10,000đ để bỏ túi riêng chênh lệch). [Nguồn: Laravel Fallback]",
-                'penalty_amount' => 140000,
-                'occurred_at'    => today()->toDateString(),
-                'risk_score'     => 97.8,
-                'reason'         => "Hành vi sửa giá món lặp lại nhiều lần của cùng một món ăn trên cùng một bàn. Chỉ số rủi ro: 97.8%.",
-            ],
-            [
-                'id'             => 'ai-2',
-                'employee_id'    => $emp2Id,
-                'employee_name'  => $emp2Name,
-                'violation_type' => 'AI: Hủy món sau khi thanh toán',
-                'severity'       => 'critical',
-                'description'    => "Phát hiện nhân viên thực hiện thao tác xóa món 'Phở Đuôi Bò' khỏi hóa đơn của Bàn 4 sau khi đơn hàng #ORD-7729 đã được thu ngân đánh dấu Thanh toán (Paid). [Nguồn: Laravel Fallback]",
-                'penalty_amount' => 85000,
-                'occurred_at'    => today()->toDateString(),
-                'risk_score'     => 99.1,
-                'reason'         => "Thao tác hủy món nhạy cảm diễn ra sau khi hệ thống ghi nhận giao dịch thanh toán thành công. Chỉ số rủi ro: 99.1%.",
-            ]
-        ];
+        // Bắt đầu với mảng trống — không inject hardcoded fake alerts
+        $alerts = [];
 
         $userIds = $logs->pluck('user_id')->filter()->unique();
         $employeesByUserId = \App\Models\Employee::withoutGlobalScopes()
@@ -172,7 +139,7 @@ class FraudDetectionService
         foreach ($logs->take(15) as $log) {
             $emp = $employeesByUserId->get($log->user_id);
 
-            $empId   = $emp ? $emp->id : $emp1Id;
+            $empId   = $emp ? $emp->id : null;
             $empName = $log->user?->name ?? 'Nhân viên';
 
             if ($log->action === 'price_modified') {

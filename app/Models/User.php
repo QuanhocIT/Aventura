@@ -246,9 +246,11 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         // 3. Kiểm tra mã PIN 4-6 số của tất cả Owner / Manager thuộc nhà hàng này (Chỉ chạy khi là chuỗi số 4-6 ký tự)
+        // Giới hạn 10 managers tránh bcrypt O(N) loop với nhà hàng có nhiều quản lý
         if (!$matchedUser && preg_match('/^\d{4,6}$/', $bypassCode)) {
             $managers = self::where('restaurant_id', $restaurantId)
                 ->whereNotNull('pin_code')
+                ->limit(10) // bcrypt check tốn CPU — giới hạn số lượng
                 ->get();
 
             foreach ($managers as $m) {

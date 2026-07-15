@@ -381,13 +381,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
         $service = new FraudDetectionService();
         $alerts = $service->detectAiFraudAlerts($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
 
-        // Verify both fallback static alerts AND the parsed database audit log alert exist!
-        $this->assertCount(3, $alerts);
-
-        $simulatedAlert1 = collect($alerts)->firstWhere('employee_name', 'Nguyễn Thị Thu');
-        $this->assertNotNull($simulatedAlert1);
-        $this->assertEquals('AI: Sửa giá món nhiều lần', $simulatedAlert1['violation_type']);
-        $this->assertEquals(97.8, $simulatedAlert1['risk_score']);
+        // Verify the parsed database audit log alert exists!
+        $this->assertCount(1, $alerts);
 
         $dbAlert = collect($alerts)->firstWhere('violation_type', 'AI: Sửa đổi giá món nhạy cảm');
         $this->assertNotNull($dbAlert);
