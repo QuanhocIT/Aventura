@@ -122,6 +122,10 @@ class ExpenseController extends Controller
         }
         usort($categoryBreakdown, fn($a, $b) => $b['amount'] <=> $a['amount']);
 
+        $year = (int) ($request->input('year') ?? now()->year);
+        $month = (int) ($request->input('month') ?? now()->month);
+        $profitLossService = app(\App\Services\ProfitLossService::class);
+
         $analytics = [
             'total_this_month' => $totalThisMonth,
             'total_last_month' => $totalLastMonth,
@@ -140,7 +144,10 @@ class ExpenseController extends Controller
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'category_id' => $categoryId,
-            ]
+                'year' => $year,
+                'month' => $month,
+            ],
+            'profitLossReport' => Inertia::defer(fn() => $profitLossService->buildWithComparison($restaurantId, $year, $month)),
         ]);
     }
 

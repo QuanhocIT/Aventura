@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
+import ProfitLossTab from '@/components/expenses/ProfitLossTab.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -114,12 +115,15 @@ const props = defineProps<{
         start_date: string | null;
         end_date: string | null;
         category_id: string | null;
+        year?: number;
+        month?: number;
     };
+    profitLossReport?: any;
 }>();
 
 // --- Active Tab State ---
-const activeTab = ref<'analytics' | 'expenses' | 'recurring' | 'categories'>(
-    'analytics',
+const activeTab = ref<'analytics' | 'expenses' | 'recurring' | 'categories' | 'profit-loss'>(
+    props.filters.year || props.filters.month ? 'profit-loss' : 'analytics',
 );
 
 // --- VND Formatter Helper ---
@@ -548,6 +552,19 @@ const chartMaxVal = computed(() => {
             >
                 <span class="flex items-center gap-1.5"
                     ><Layers class="size-3.5" /> Danh mục chi phí</span
+                >
+            </button>
+            <button
+                @click="activeTab = 'profit-loss'"
+                :class="[
+                    'border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all',
+                    activeTab === 'profit-loss'
+                        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200',
+                ]"
+            >
+                <span class="flex items-center gap-1.5"
+                    ><FileText class="size-3.5" /> Báo cáo Lãi/Lỗ</span
                 >
             </button>
         </div>
@@ -1195,6 +1212,40 @@ const chartMaxVal = computed(() => {
                     </CardContent>
                 </Card>
             </div>
+        </div>
+
+        <!-- ── TAB 5: PROFIT & LOSS REPORT ── -->
+        <div v-if="activeTab === 'profit-loss'">
+            <Deferred data="profitLossReport">
+                <template #fallback>
+                    <div class="space-y-6">
+                        <div class="flex flex-wrap items-center justify-between gap-4">
+                            <div class="flex items-center gap-4">
+                                <div class="h-10 w-10 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+                                <div class="space-y-2">
+                                    <div class="h-4 w-40 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"></div>
+                                    <div class="h-3 w-64 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"></div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="h-9 w-28 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"></div>
+                                <div class="h-9 w-24 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"></div>
+                            </div>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                        </div>
+                        <div class="h-56 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                    </div>
+                </template>
+                <ProfitLossTab
+                    v-if="props.profitLossReport"
+                    :report="props.profitLossReport"
+                    :filters="{ year: props.filters.year || new Date().getFullYear(), month: props.filters.month || (new Date().getMonth() + 1) }"
+                />
+            </Deferred>
         </div>
 
         <!-- ── MODAL: CREATE/EDIT OPERATING EXPENSE ── -->

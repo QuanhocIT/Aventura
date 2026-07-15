@@ -444,12 +444,6 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
-            title: 'Báo cáo Lãi/Lỗ',
-            href: '/reports/profit-loss',
-            icon: Wallet,
-            permission: 'view_report',
-        },
-        {
             title: 'Trợ lý AI Chiến lược',
             href: '/ai-advisor',
             icon: Bot,
