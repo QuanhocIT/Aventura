@@ -29,8 +29,24 @@ class ScheduleAssignment extends Model
             }
         };
 
+        $clearCache = function (self $model) {
+            try {
+                $date = \Carbon\Carbon::parse($model->scheduled_date);
+                $startOfMonth = $date->copy()->startOfMonth()->toDateString();
+                $endOfMonth = $date->copy()->endOfMonth()->toDateString();
+                
+                \Illuminate\Support\Facades\Cache::forget("schedule_monthly_assignments:{$model->restaurant_id}:{$startOfMonth}:{$endOfMonth}");
+                \Illuminate\Support\Facades\Cache::forget("schedule_staffing_tips:{$model->restaurant_id}");
+            } catch (\Exception $e) {
+                // Prevent model failures if cache issues arise
+            }
+        };
+
         static::updating($lockCheck);
         static::deleting($lockCheck);
+
+        static::saved($clearCache);
+        static::deleted($clearCache);
     }
 
     protected function casts(): array

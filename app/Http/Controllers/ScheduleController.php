@@ -115,57 +115,67 @@ class ScheduleController extends Controller
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
-            $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
-            $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
+            $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments) {
+                return \Illuminate\Support\Facades\Cache::remember("schedule_staffing_tips:{$restaurantId}", 300, function () use ($restaurantId, $shifts, $assignments) {
+                    $isSqlite = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite';
+                    $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : "HOUR(completed_at)";
 
-            $peakHours = \Illuminate\Support\Facades\Cache::remember("schedule_peak_hours:{$restaurantId}", 3600, function () use ($restaurantId, $hourExpr) {
-                return \Illuminate\Support\Facades\DB::table('orders_unified')
-                    ->where('restaurant_id', $restaurantId)
-                    ->where('status', 'completed')
-                    ->where('completed_at', '>=', now()->subDays(30))
-                    ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
-                    ->groupBy(\Illuminate\Support\Facades\DB::raw($hourExpr))
-                    ->orderByDesc('revenue')
-                    ->get();
-            });
+                    $peakHoursData = \Illuminate\Support\Facades\Cache::remember("schedule_peak_hours:{$restaurantId}", 3600, function () use ($restaurantId, $hourExpr) {
+                        return \Illuminate\Support\Facades\DB::table('orders_unified')
+                            ->where('restaurant_id', $restaurantId)
+                            ->where('status', 'completed')
+                            ->where('completed_at', '>=', now()->subDays(30))
+                            ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
+                            ->groupBy(\Illuminate\Support\Facades\DB::raw($hourExpr))
+                            ->orderByDesc('revenue')
+                            ->get()
+                            ->map(fn($item) => (array)$item)
+                            ->toArray();
+                    });
 
-            $totalRevenuePeak = $peakHours->sum('revenue');
-            $staffingTips = [];
+                    $peakHours = collect($peakHoursData)->map(fn($item) => (object)$item);
 
-            if ($peakHours->count() && $totalRevenuePeak > 0) {
-                foreach ($shifts as $shift) {
-                    // Xác định giờ trong ca
-                    $startH = (int) substr($shift['start'], 0, 2);
-                    $endH   = (int) substr($shift['end'],   0, 2);
-                    if ($endH <= $startH) $endH += 24; // overnight
+                    $totalRevenuePeak = $peakHours->sum('revenue');
+                    $tips = [];
 
-                    $shiftRevenue = $peakHours
-                        ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
-                        ->sum('revenue');
-                    $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
+                    if ($peakHours->count() && $totalRevenuePeak > 0) {
+                        foreach ($shifts as $shift) {
+                            // Xác định giờ trong ca
+                            $startH = (int) substr($shift['start'], 0, 2);
+                            $endH   = (int) substr($shift['end'],   0, 2);
+                            if ($endH <= $startH) $endH += 24; // overnight
 
-                    $currentStaff = $assignments
-                        ->where('shift_name', $shift['name'])
-                        ->whereIn('status', ['scheduled', 'checked_in'])
-                        ->count();
+                            $shiftRevenue = $peakHours
+                                ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
+                                ->sum('revenue');
+                            $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
 
-                    if ($pct >= 35 && $currentStaff < 3) {
-                        $staffingTips[] = [
-                            'shift'   => $shift['name'],
-                            'pct'     => $pct,
-                            'message' => "Ca <strong>{$shift['name']}</strong> chiếm {$pct}% doanh thu — hiện chỉ có {$currentStaff} nhân viên. Nên bố trí ít nhất 3 người.",
-                            'level'   => 'warning',
-                        ];
-                    } elseif ($pct < 10 && $currentStaff > 2) {
-                        $staffingTips[] = [
-                            'shift'   => $shift['name'],
-                            'pct'     => $pct,
-                            'message' => "Ca <strong>{$shift['name']}</strong> chỉ chiếm {$pct}% doanh thu — {$currentStaff} nhân viên có thể hơi nhiều. Cân nhắc tối ưu chi phí lương.",
-                            'level'   => 'info',
-                        ];
+                            $currentStaff = $assignments
+                                ->where('shift_name', $shift['name'])
+                                ->whereIn('status', ['scheduled', 'checked_in'])
+                                ->count();
+
+                            if ($pct >= 35 && $currentStaff < 3) {
+                                $tips[] = [
+                                    'shift'   => $shift['name'],
+                                    'pct'     => $pct,
+                                    'message' => "Ca <strong>{$shift['name']}</strong> chiếm {$pct}% doanh thu — hiện chỉ có {$currentStaff} nhân viên. Nên bố trí ít nhất 3 người.",
+                                    'level'   => 'warning',
+                                ];
+                            } elseif ($pct < 10 && $currentStaff > 2) {
+                                $tips[] = [
+                                    'shift'   => $shift['name'],
+                                    'pct'     => $pct,
+                                    'message' => "Ca <strong>{$shift['name']}</strong> chỉ chiếm {$pct}% doanh thu — {$currentStaff} nhân viên có thể hơi nhiều. Cân nhắc tối ưu chi phí lương.",
+                                    'level'   => 'info',
+                                ];
+                            }
+                        }
                     }
-                }
-            }
+
+                    return $tips;
+                });
+            });
 
             $registrations = ScheduleRegistration::where('restaurant_id', $restaurantId)
                 ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
@@ -207,44 +217,48 @@ class ScheduleController extends Controller
             $startOfMonth = Carbon::now()->startOfMonth()->toDateString();
             $endOfMonth = Carbon::now()->endOfMonth()->toDateString();
 
-            $monthlyAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
-                ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
-                ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
-                ->get()
-                ->map(function ($a) use ($restaurant) {
-                    $durationHours = 0;
-                    if ($a->check_in_at && $a->check_out_at) {
-                        $diffInSeconds = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at));
-                        $durationHours = round($diffInSeconds / 3600.0, 2);
-                    }
+            $monthlyAssignments = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant) {
+                return \Illuminate\Support\Facades\Cache::remember("schedule_monthly_assignments:{$restaurantId}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant) {
+                    return ScheduleAssignment::where('restaurant_id', $restaurantId)
+                        ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
+                        ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
+                        ->get()
+                        ->map(function ($a) use ($restaurant) {
+                            $durationHours = 0;
+                            if ($a->check_in_at && $a->check_out_at) {
+                                $diffInSeconds = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at));
+                                $durationHours = round($diffInSeconds / 3600.0, 2);
+                            }
 
-                    $lateMin = null;
-                    if ($a->check_in_at && $a->shift) {
-                        $shiftStart = Carbon::parse(($a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString()) . ' ' . $a->shift->start_time);
-                        $graceEnd = $shiftStart->copy()->addMinutes($restaurant?->grace_period_minutes ?? 10);
-                        $checkIn = Carbon::parse($a->check_in_at);
-                        if ($checkIn->greaterThan($graceEnd)) {
-                            $lateMin = round($checkIn->diffInMinutes($graceEnd));
-                        }
-                    }
+                            $lateMin = null;
+                            if ($a->check_in_at && $a->shift) {
+                                $shiftStart = Carbon::parse(($a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString()) . ' ' . $a->shift->start_time);
+                                $graceEnd = $shiftStart->copy()->addMinutes($restaurant?->grace_period_minutes ?? 10);
+                                $checkIn = Carbon::parse($a->check_in_at);
+                                if ($checkIn->greaterThan($graceEnd)) {
+                                    $lateMin = round($checkIn->diffInMinutes($graceEnd));
+                                }
+                            }
 
-                    return [
-                        'id' => $a->id,
-                        'employee_id' => $a->employee_id,
-                        'employee_name' => $a->employee?->full_name ?? 'Không rõ',
-                        'employee_code' => $a->employee?->employee_code ?? '—',
-                        'job_title' => $a->employee?->job_title ?? '—',
-                        'compensation_type' => $a->employee?->compensation_type ?? 'fixed',
-                        'pay_rate' => (float) ($a->employee?->pay_rate ?? 0),
-                        'base_salary' => (float) ($a->employee?->base_salary ?? 0),
-                        'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
-                        'status' => $a->status,
-                        'duration_hours' => $durationHours,
-                        'late_minutes' => $lateMin,
-                        'shift_id' => $a->shift_id,
-                        'shift_name' => $a->shift?->name ?? '—',
-                    ];
+                            return [
+                                'id' => $a->id,
+                                'employee_id' => $a->employee_id,
+                                'employee_name' => $a->employee?->full_name ?? 'Không rõ',
+                                'employee_code' => $a->employee?->employee_code ?? '—',
+                                'job_title' => $a->employee?->job_title ?? '—',
+                                'compensation_type' => $a->employee?->compensation_type ?? 'fixed',
+                                'pay_rate' => (float) ($a->employee?->pay_rate ?? 0),
+                                'base_salary' => (float) ($a->employee?->base_salary ?? 0),
+                                'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
+                                'status' => $a->status,
+                                'duration_hours' => $durationHours,
+                                'late_minutes' => $lateMin,
+                                'shift_id' => $a->shift_id,
+                                'shift_name' => $a->shift?->name ?? '—',
+                            ];
+                        })->all();
                 });
+            });
 
             return Inertia::render('schedules/Index', [
                 'isAdmin'          => true,
