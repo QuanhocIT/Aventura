@@ -34,7 +34,11 @@ class BusinessGoalController extends Controller
 
         $restaurantId = $request->user()->restaurant_id;
 
-        $this->tracking->syncAllActive($restaurantId);
+        $cooldownKey = "goals_sync_cooldown:{$restaurantId}";
+        if (!\Illuminate\Support\Facades\Cache::has($cooldownKey)) {
+            $this->tracking->syncAllActive($restaurantId);
+            \Illuminate\Support\Facades\Cache::put($cooldownKey, true, 1800); // 30 minutes cooldown
+        }
 
         $activeGoals = BusinessGoal::where('restaurant_id', $restaurantId)
             ->where('status', 'active')

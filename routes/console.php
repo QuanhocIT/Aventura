@@ -138,3 +138,19 @@ Artisan::command('system:audit-consistency', function () {
 
 app(Schedule::class)->command('system:audit-consistency')->dailyAt('03:00');
 
+Artisan::command('goals:sync', function () {
+    $this->info('Starting business goals sync...');
+    
+    $restaurants = \App\Models\Restaurant::where('status', 'active')->get();
+    $tracker = app(\App\Services\GoalTrackingService::class);
+    
+    $totalSynced = 0;
+    foreach ($restaurants as $restaurant) {
+        $count = $tracker->syncAllActive($restaurant->id);
+        $totalSynced += $count;
+    }
+    
+    $this->info("Completed business goals sync. Synced {$totalSynced} active goals across all restaurants.");
+})->purpose('Synchronize all active business goals/OKRs progress');
+
+app(Schedule::class)->command('goals:sync')->hourly();
