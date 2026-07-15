@@ -37,7 +37,7 @@ o	Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối ưu
 •	Postman: Công cụ chủ đạo trong việc kiểm thử và xây dựng tài liệu hướng dẫn sử dụng API.
 ________________________________________
 3. Vai trò của các công nghệ trong hệ thống
-Hệ thống BepsoViet được xây dựng dựa trên sự kết hợp giữa Laravel, Vue.js và Python, trong đó mỗi công nghệ đảm nhiệm một vai trò riêng nhằm tối ưu hiệu suất, khả năng mở rộng và trải nghiệm người dùng. Việc tách rõ trách nhiệm giữa các công nghệ giúp hệ thống dễ bảo trì, nâng cấp và phù hợp với mô hình SaaS nhiều doanh nghiệp cùng sử dụng.
+Hệ thống Aventura được xây dựng dựa trên sự kết hợp giữa Laravel, Vue.js và Python, trong đó mỗi công nghệ đảm nhiệm một vai trò riêng nhằm tối ưu hiệu suất, khả năng mở rộng và trải nghiệm người dùng. Việc tách rõ trách nhiệm giữa các công nghệ giúp hệ thống dễ bảo trì, nâng cấp và phù hợp với mô hình SaaS nhiều doanh nghiệp cùng sử dụng.
 3.1 Vai trò của Laravel trong hệ thống
 Laravel đóng vai trò là backend chính của hệ thống, chịu trách nhiệm xử lý toàn bộ logic nghiệp vụ cốt lõi, quản lý dữ liệu, phân quyền và cung cấp API cho frontend. Laravel giúp tổ chức mã nguồn theo mô hình MVC, hỗ trợ phát triển nhanh, bảo mật tốt và dễ mở rộng trong tương lai.
 Laravel đảm nhiệm các chức năng như:
@@ -139,7 +139,7 @@ Ví dụ:
 •	Laravel hiển thị trên dashboard 
 ________________________________________
 5. Thành phần hệ thống chi tiết
-Hệ thống BepsoViet được thiết kế theo kiến trúc tách biệt giữa giao diện, nghiệp vụ và phân tích dữ liệu. 
+Hệ thống Aventura được thiết kế theo kiến trúc tách biệt giữa giao diện, nghiệp vụ và phân tích dữ liệu. 
 5.1 Các thành phần lõi
 •	Frontend Vue.js: Xây dựng dưới dạng Single Page Application (SPA) để tối ưu trải nghiệm người dùng, giảm tải việc tải lại trang và giao tiếp hoàn toàn qua REST API. 
 •	Backend Laravel API: Đóng vai trò là trung tâm xử lý logic nghiệp vụ, quản lý xác thực (JWT/Sanctum), và kết nối các dịch vụ khác. 
@@ -182,9 +182,9 @@ o	view_report: Xem báo cáo doanh thu và hiệu suất theo ngày/tuần/thán
 Lưu ý: Tất cả các hành động nhạy cảm như sửa giá, hủy đơn hoặc sửa dữ liệu kho đều được hệ thống tự động ghi lại vào Audit Log để phục vụ việc tra soát minh bạch sau này. 
 ________________________________________
 7. KIẾN TRÚC DỮ LIỆU
-Hệ thống BepsoViet được thiết kế với kiến trúc dữ liệu chú trọng vào khả năng cô lập dữ liệu người dùng và khả năng truy vết hành vi, đảm bảo tính bảo mật và minh bạch cao nhất cho mô hình SaaS. 
+Hệ thống Aventura được thiết kế với kiến trúc dữ liệu chú trọng vào khả năng cô lập dữ liệu người dùng và khả năng truy vết hành vi, đảm bảo tính bảo mật và minh bạch cao nhất cho mô hình SaaS. 
 7.1 Mô hình Multi-tenant (Kiến trúc đa người thuê)
-Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Database - Shared Schema, trong đó toàn bộ các doanh nghiệp dùng chung cơ sở dữ liệu nhưng được cô lập hoàn toàn về mặt logic. Đây là mô hình cân bằng tốt nhất giữa chi phí vận hành hạ tầng và khả năng quản lý tập trung cho hệ thống BepsoViet.
+Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Database - Shared Schema, trong đó toàn bộ các doanh nghiệp dùng chung cơ sở dữ liệu nhưng được cô lập hoàn toàn về mặt logic. Đây là mô hình cân bằng tốt nhất giữa chi phí vận hành hạ tầng và khả năng quản lý tập trung cho hệ thống Aventura.
 •	Cơ chế phân tách và cô lập dữ liệu:
 o	Khóa định danh (Tenant Key): Mọi bảng dữ liệu liên quan đến vận hành bắt buộc chứa cột restaurant_id làm khóa ngoại để phân tách dữ liệu giữa các nhà hàng.
 o	Global Scope (Laravel): Hệ thống áp dụng cơ chế lọc tự động ở tầng Model (Global Scope). Điều này đảm bảo mọi câu lệnh truy vấn (SELECT, UPDATE, DELETE) luôn mặc định kèm theo điều kiện WHERE restaurant_id = ?, ngăn chặn tuyệt đối nguy cơ rò rỉ dữ liệu giữa các doanh nghiệp.
@@ -246,7 +246,7 @@ Hệ thống chuẩn hóa các trạng thái cho mọi thực thể chính để
 7.9 Cơ chế xử lý đồng thời (Concurrency Handling)
 •	Hệ thống sử dụng cơ chế Locking để giải quyết các tranh chấp dữ liệu khi nhiều người cùng thao tác. 
 •	Ví dụ: Ngăn chặn trường hợp 2 nhân viên cùng trừ kho một nguyên liệu tại cùng một thời điểm, dẫn đến số lượng tồn kho bị âm hoặc sai lệch. 
-Việc kết hợp chặt chẽ giữa phân tách dữ liệu theo Tenant, ghi nhật ký Audit Log và tối ưu hóa hiệu năng giúp BepsoViet không chỉ là một phần mềm quản lý mà còn là một nền tảng dữ liệu tin cậy cho các chủ doanh nghiệp. 
+Việc kết hợp chặt chẽ giữa phân tách dữ liệu theo Tenant, ghi nhật ký Audit Log và tối ưu hóa hiệu năng giúp Aventura không chỉ là một phần mềm quản lý mà còn là một nền tảng dữ liệu tin cậy cho các chủ doanh nghiệp. 
 
 8. Các tác nhân
 Hệ thống phân chia rõ rệt 5 tầng tác nhân để đảm bảo tính chuyên môn hóa: 
@@ -324,7 +324,7 @@ Quyền:
 9.2 Authorization (RBAC)
 Đây là bước phân quyền để trả lời  câu hỏi: "Bạn là ai, và bạn có quyền làm gì?". 
 •	RBAC (Role-Based Access Control): Bạn chia người dùng vào các nhóm như: Super Admin, Chủ quán, Thu ngân, Bếp. 
-•	Nguyên tắc thiết kế hệ thống: BepsoViet áp dụng mô hình phân quyền hướng hành động (Permission-based Access). Toàn bộ logic nghiệp vụ ở cả Backend (Laravel API) và Frontend (Vue.js SPA) đều được rào chắn dựa trên các Permission tĩnh (như create_order, payment_order, view_report). Hệ thống hoàn toàn không hard-code tên vai trò (Role) trong mã nguồn, cho phép Chủ nhà hàng tùy biến hoặc nâng cấp, tước quyền của bất kỳ nhân sự nào một cách linh hoạt mà không cần can thiệp vào mã nguồn.
+•	Nguyên tắc thiết kế hệ thống: Aventura áp dụng mô hình phân quyền hướng hành động (Permission-based Access). Toàn bộ logic nghiệp vụ ở cả Backend (Laravel API) và Frontend (Vue.js SPA) đều được rào chắn dựa trên các Permission tĩnh (như create_order, payment_order, view_report). Hệ thống hoàn toàn không hard-code tên vai trò (Role) trong mã nguồn, cho phép Chủ nhà hàng tùy biến hoặc nâng cấp, tước quyền của bất kỳ nhân sự nào một cách linh hoạt mà không cần can thiệp vào mã nguồn.
 •	Cách thức: Thay vì kiểm tra trực tiếp chức vụ, hệ thống kiểm tra "Quyền" (Permission). 
 o	Ví dụ: Cả Quản lý và Chủ quán đều có quyền view_report, nhưng chỉ Chủ quán mới có quyền delete_restaurant. 
 9.3 Chống SQL Injection
@@ -335,7 +335,7 @@ XSS xảy ra khi ai đó nhập mã JavaScript vào một ô nhập liệu (ví 
 •	Cách bảo vệ: * Vue.js: Tự động mã hóa các dữ liệu bạn hiển thị ra màn hình. 
 o	Laravel: Khi bạn trả về JSON từ API, các ký tự đặc biệt đã được xử lý an toàn. 
 9.5 Chống CSRF (Cross-Site Request Forgery)
-Đây là kiểu tấn công "mượn tay". Kẻ xấu lừa bạn bấm vào một link lạ khi bạn đang đăng nhập vào BepsoViet, và link đó tự động gửi một lệnh (như "Xóa nhân viên") đến server. 
+Đây là kiểu tấn công "mượn tay". Kẻ xấu lừa bạn bấm vào một link lạ khi bạn đang đăng nhập vào Aventura, và link đó tự động gửi một lệnh (như "Xóa nhân viên") đến server. 
 •	Lưu ý cho sinh viên: Vì bạn dùng API (Sanctum/JWT), bạn thường sẽ không cần dùng CSRF Token truyền thống giống như các trang web load lại trang (MPA). Laravel Sanctum có cơ chế bảo vệ riêng cho SPA rất an toàn. 
 9.6 Rate Limiting
 Đây là cơ chế "giới hạn tốc độ". 
@@ -417,7 +417,7 @@ Chiến lược tối ưu hóa bổ sung:
 •	Global Scope: Tự động áp dụng WHERE restaurant_id = ? cho mọi truy vấn để đảm bảo an toàn dữ liệu tuyệt đối giữa các nhà hàng
 ________________________________________
 12. Tính năng nâng cao
-Để tạo sự khác biệt thương mại và tối ưu hóa vận hành toàn diện cho các nhà hàng, nền tảng BepsoViet triển khai bộ tính năng nâng cao dựa trên sự phối hợp giữa Laravel 12, Vue.js và Python Microservice: 
+Để tạo sự khác biệt thương mại và tối ưu hóa vận hành toàn diện cho các nhà hàng, nền tảng Aventura triển khai bộ tính năng nâng cao dựa trên sự phối hợp giữa Laravel 12, Vue.js và Python Microservice: 
 •	· Realtime Order (Đặt món thời gian thực): Tích hợp hệ sinh thái Laravel Reverb (WebSocket) và Laravel Echo. Khi khách hàng quét mã QR tại bàn hoặc nhân viên phục vụ lên đơn, thông tin món ăn được đẩy thẳng xuống màn hình chuyên dụng của Bếp theo thời gian thực dưới dạng dòng chảy sự kiện (Event-Driven) với độ trễ < 500ms mà không cần tải lại trang. ·
 •	 Offline Mode (Chế độ vận hành ngoại tuyến): Ứng dụng Vue.js SPA kết hợp công nghệ Service Workers và IndexedDB ở Frontend để lưu trữ tạm thời dữ liệu thực đơn, sơ đồ bàn và các đơn hàng đang phục vụ. Khi nhà hàng gặp sự cố mất kết nối Internet, luồng gọi món và in bill tại quầy POS vẫn hoạt động bình thường; dữ liệu giao dịch sẽ tự động đồng bộ ngược lên MySQL trung tâm ngay khi có mạng trở lại. ·
 •	Multi-branch (Quản lý đa chi nhánh): Cho phép chủ doanh nghiệp quản lý chuỗi nhiều cơ sở trên cùng một tài khoản Owner. Hệ thống phân tách mạch lạc báo cáo tài chính, danh mục kho bãi và nhân sự theo từng branch_id, đồng thời hỗ trợ luồng luân chuyển nguyên liệu nội bộ giữa các chi nhánh. 
@@ -437,7 +437,7 @@ ________________________________________
 •	Backup dữ liệu định kỳ: Cấu hình hệ thống tự động sao lưu sao chép (Automated Backup) toàn bộ cơ sở dữ liệu MySQL định kỳ hằng ngày và đồng bộ tệp tin hóa đơn, hình ảnh kho bãi lên Cloud Storage (MinIO/S3) để sẵn sàng kích hoạt phương án khôi phục thảm họa (Disaster Recovery) ngay khi server gặp sự cố vật lý. 
 14. Các giao diện cần thiết
 Hệ thống thiết kế một nền tảng Frontend Vue.js SPA đồng nhất nhưng áp dụng cơ chế phân quyền dựa trên hành động (Permission-based Access Control). Tùy thuộc vào Token danh tính và vai trò được cấp, người dùng sẽ được điều hướng vào các phân hệ giao diện chuyên biệt: 
-•	Giao diện 1: Super Admin (Quản trị hệ thống SaaS): Dành riêng cho chủ nền tảng BepsoViet để theo dõi tổng doanh thu bản quyền, quản lý vòng đời các Tenant, cấu hình hạn mức tài nguyên của các gói dịch vụ (Free/Pro) và tiếp nhận yêu cầu hỗ trợ kỹ thuật (Ticket System). 
+•	Giao diện 1: Super Admin (Quản trị hệ thống SaaS): Dành riêng cho chủ nền tảng Aventura để theo dõi tổng doanh thu bản quyền, quản lý vòng đời các Tenant, cấu hình hạn mức tài nguyên của các gói dịch vụ (Free/Pro) và tiếp nhận yêu cầu hỗ trợ kỹ thuật (Ticket System). 
 •	Giao diện 2: Khách của Super Admin (Landing Page & Portal Đăng ký): Hệ thống website mặt tiền giới thiệu tính năng, bảng giá, AI Chatbot tư vấn và form Onboarding tự động để các chủ nhà hàng mới tự đăng ký doanh nghiệp, tự động chạy seeder dữ liệu kho mẫu để dùng thử hệ thống.
 •	 Giao diện 3: Admin (Chủ doanh nghiệp) / Quản lý nhà hàng: Màn hình Dashboard quản trị tối cao cấp doanh nghiệp. Hiển thị báo cáo doanh thu, lợi nhuận chuyên sâu, module cấu hình menu/định lượng món, quản lý nhập/xuất kho bãi, duyệt đơn xin nghỉ và lập bảng tính lương nhân sự. 
 •	 Giao diện 4: Order / Thu ngân / Bếp (Phân hệ Vận hành trực tiếp tại quán): Giao diện đặc thù có tính kết nối Realtime cực cao: 
@@ -455,7 +455,7 @@ o	Nhân viên Bếp: Giao diện tối giản chia làm 2 màn hình (Đơn chư
 15. Định hướng phát triển từng phần
 
 15.1. Phát triển Super Admin (SaaS Management Layer)
-Đây là tầng quản trị cao nhất của nền tảng BepsoViet, chịu trách nhiệm quản lý toàn bộ hệ thống và các doanh nghiệp sử dụng nền tảng. Mục tiêu của module này là đảm bảo hệ thống hoạt động ổn định, dễ mở rộng, tối ưu hóa hạ tầng và cô lập dữ liệu tuyệt đối giữa hàng trăm doanh nghiệp.
+Đây là tầng quản trị cao nhất của nền tảng Aventura, chịu trách nhiệm quản lý toàn bộ hệ thống và các doanh nghiệp sử dụng nền tảng. Mục tiêu của module này là đảm bảo hệ thống hoạt động ổn định, dễ mở rộng, tối ưu hóa hạ tầng và cô lập dữ liệu tuyệt đối giữa hàng trăm doanh nghiệp.
 ? Một hệ thống SaaS có nhiều nhà hàng sẽ được quản lý như thế nào? Giải pháp: Hệ thống áp dụng mô hình Multi-tenant (Shared Database - Shared Schema). Tất cả dữ liệu như nhân viên, menu, kho, bàn, đơn hàng và doanh thu sẽ được lưu trữ chung nhưng phân tách logic nghiêm ngặt thông qua định danh restaurant_id. Kết hợp với cơ chế Global Scope trong Laravel, hệ thống tự động lọc dữ liệu theo từng nhà hàng, ngăn chặn tuyệt đối rò rỉ thông tin giữa các bên. Đối với tài khoản Super Admin, hệ thống sẽ ứng dụng phương thức withoutGlobalScopes() để vượt qua bộ lọc tự động này, cho phép đứng từ tầng vĩ mô quản lý toàn bộ các Tenant.
 ________________________________________
 Các phân hệ chức năng chính
@@ -547,7 +547,7 @@ Thứ tự ưu tiên phát triển module (Roadmap)
 7.	Tích hợp công cụ giám sát hạ tầng thời gian thực, điều phối Queue Worker và Ticket Support hệ thống (DevOps Monitoring & Customer Support).
 ________________________________________
 15.2 Phát triển giao diện khách để tiếp đón doanh nghiệp
-Đây là giao diện marketing và onboarding, đóng vai trò là "mặt tiền" của nền tảng SaaS F&BViet. Giao diện này giúp các chủ doanh nghiệp F&B dễ dàng tiếp cận nền tảng, tìm hiểu các tính năng cốt lõi, trải nghiệm thử và đăng ký sử dụng hệ thống một cách nhanh chóng, tự động hóa hoàn toàn.
+Đây là giao diện marketing và onboarding, đóng vai trò là "mặt tiền" của nền tảng SaaS Aventura. Giao diện này giúp các chủ doanh nghiệp F&B dễ dàng tiếp cận nền tảng, tìm hiểu các tính năng cốt lõi, trải nghiệm thử và đăng ký sử dụng hệ thống một cách nhanh chóng, tự động hóa hoàn toàn.
 ? Làm sao để doanh nghiệp hiểu được hệ thống có phù hợp với họ hay không?
 Giải pháp: Thiết kế một Landing Page chuyên nghiệp, trực quan với cấu trúc phân tầng thông tin rõ ràng. Tích hợp đầy đủ các tài liệu giới thiệu chức năng nổi bật, lợi ích thực tế, video demo quy trình vận hành thực tế (phục vụ - bếp - thu ngân), hình ảnh mô phỏng giao diện đa thiết bị (máy POS, máy tính bảng, điện thoại) và một trợ lý AI Chatbot tư vấn trực tuyến.
 Các chức năng chính
@@ -556,7 +556,7 @@ Các chức năng chính
 o	Bảng so sánh gói dịch vụ: Minh bạch về tính năng và giới hạn tài nguyên giữa hai gói Free và Pro.
 o	Trải nghiệm nhanh (Interactive Demo): Khu vực tương tác giả lập cho phép khách hàng click dùng thử nhanh một số tính năng cơ bản của màn hình POS bán hàng.
 o	AI Chatbot hỗ trợ: Trợ lý ảo trả lời nhanh các thắc mắc thường gặp (FAQs) về giá cả, cách vận hành, hỗ trợ kỹ thuật và thiết bị tương thích.
-o	Khách hàng thực tế (Social Proof): Các bài viết đánh giá, câu chuyện thành công từ các nhà hàng đang sử dụng F&BViet.
+o	Khách hàng thực tế (Social Proof): Các bài viết đánh giá, câu chuyện thành công từ các nhà hàng đang sử dụng Aventura.
 •	Ví dụ: Doanh nghiệp truy cập trang chủ có thể ngay lập tức xem video demo luồng order tại bàn bằng mã QR, cách hệ thống tự động trừ kho nguyên liệu sau khi thanh toán, và hỏi AI Chatbot: "Hệ thống có hỗ trợ quản lý chuỗi nhiều chi nhánh không?" để nhận câu trả lời ngay lập tức.
 •	Mục tiêu:
 o	Giảm tối đa rào cản tiếp cận thông tin cho khách hàng mới.
@@ -597,7 +597,7 @@ o	Ngày thứ 2 (Chuẩn hóa vận hành): Hệ thống gợi ý và hướng d
 o	Ngày thứ 3 (Quản trị nhân sự): Gợi ý chủ quán thêm tài khoản nhân viên, phân quyền (Thu ngân, Bếp) và hướng dẫn cách xếp lịch làm việc hàng tuần.
 •	Mục tiêu:
 o	Giảm tỷ lệ khách hàng bỏ dùng sớm (Drop-off Rate) do giao diện quản lý F&B quá nhiều thông tin và khó tiếp cận.
-o	Giúp khách hàng khai thác tối đa giá trị của phần mềm, biến F&BViet thành công cụ không thể thiếu trong vận hành hàng ngày của họ.
+o	Giúp khách hàng khai thác tối đa giá trị của phần mềm, biến Aventura thành công cụ không thể thiếu trong vận hành hàng ngày của họ.
 o	Nâng cao tỷ lệ gia hạn dịch vụ dài hạn.
 Thứ tự phát triển ưu tiên của module
 1.	Giai đoạn 1 (Core Marketing): Thiết kế Landing Page và trang giới thiệu tính năng tĩnh để kiểm tra mức độ thu hút khách hàng.
@@ -892,6 +892,52 @@ Chức năng và Khả năng xử lý của các Tài khoản trong luồng QR-O
 •	Chức năng giám sát lịch sử hủy yêu cầu (Rejected Logs Monitoring): Xem danh sách toàn bộ các yêu cầu gọi món QR bị nhân viên ấn hủy trong ngày (hiển thị rõ số bàn, danh sách món bị hủy, thời gian hủy và tên nhân viên thực hiện hủy) để đối chiếu, ngăn chặn tình trạng nhân viên tự ý hủy đơn thật của khách nhằm trục lợi hoặc che giấu doanh thu. 
 4. AI hỗ trợ nâng cao doanh thu tại bàn (Smart Upselling Engine)
 •	Hệ thống tích hợp Microservice của Python (FastAPI) chạy ngầm. Ngay tại thời điểm nhân viên cầm máy POS/máy tính bảng ra bàn xác nhận món ăn cho khách , giao diện của nhân viên sẽ hiển thị thêm một gợi ý thông minh từ thuật toán AI (Scikit-learn) dựa trên lịch sử mua hàng : "AI đề xuất: Khách gọi Lẩu, mời dùng thêm Coca-Cola hoặc Mì thả lẩu để nhận chiết khấu 10%". Giúp nhân viên có cơ sở tăng tính thuyết phục khi mời chào khách, tối ưu hóa lợi nhuận thực tế trên từng bàn ăn. 
+
+15.7. Phân hệ Hóa đơn điện tử và Tích hợp Cơ quan Thuế (E-Invoicing Integration Service)
+Nhằm tuân thủ quy định pháp luật và hiện đại hóa giao dịch tài chính, hệ thống Aventura tích hợp sẵn giải pháp hóa đơn điện tử tự động hóa hoàn toàn.
+•   Tự động sinh dữ liệu XML chuẩn Thông tư 78/2021/TT-BTC: Khi thu ngân hoàn tất thanh toán cho đơn hàng, hệ thống tự động gọi EInvoiceService để biên dịch toàn bộ dữ liệu đơn hàng thành tệp dữ liệu XML theo đúng định dạng chuẩn do Tổng cục Thuế ban hành (Quyết định 1450/TCT).
+•   Tách thuế VAT tự động: Hệ thống tự động bóc tách thuế suất GTGT 8% (hoặc thuế suất hiện hành đối với ngành hàng ăn uống F&B) để tính toán chính xác doanh thu trước thuế và số thuế GTGT đầu ra tương ứng.
+•   Lưu trữ đối soát chéo: File XML hóa đơn sau khi được tạo sẽ được lưu trữ an toàn trên Cloud Storage (S3/R2/MinIO) để phục vụ việc tải về và tích hợp trực tiếp với chữ ký số doanh nghiệp cũng như các nhà cung cấp dịch vụ HĐĐT đầu mối (như Viettel, VNPT, MISA meInvoice).
+
+15.8. Phân hệ Quản lý & Xếp chồng Khuyến mại (Advanced Promotion Stacking Engine)
+Để giải quyết bài toán tiếp thị phức tạp mà vẫn bảo vệ được biên lợi nhuận ròng của quán, Aventura thiết kế một công cụ tính toán khuyến mại đa tầng.
+•   Cơ chế kiểm soát lồng ghép khuyến mại (Promotion Stacking): Hệ thống sử dụng PromotionStackingService để điều phối thứ tự ưu tiên áp dụng giữa: Khuyến mãi món ăn -> Giảm giá danh mục sản phẩm -> Mã Voucher giảm giá hóa đơn -> Ưu đãi từ thứ hạng thẻ thành viên.
+•   Ngăn ngừa lạm dụng chiết khấu: Thuật toán tự động tính toán tổng số tiền giảm trừ tối đa trên một đơn hàng, ngăn chặn tình huống nhân viên áp dụng chồng chéo nhiều loại mã làm phát sinh đơn hàng 0đ hoặc gây lỗ chéo cho nhà hàng.
+•   Tích lũy & Sử dụng Điểm linh hoạt: Kết hợp PromotionTriggerService để tự động kích hoạt quà tặng/voucher dựa trên hóa đơn hiện thời và cấp hạng thẻ Loyalty hiện tại của khách hàng.
+
+15.9. Phân hệ Bản đồ nhiệt và Phân tích Không gian (Geo-spatial & Order Heatmap Analytics)
+Phục vụ nhu cầu mở rộng quy mô kinh doanh và tối ưu hóa hậu cần giao hàng, hệ thống thu thập và xử lý tọa độ địa lý của các đơn hàng.
+•   Dựng bản đồ nhiệt giao hàng (Order Heatmap): GeoAnalyticsService tự động phân tích và gom cụm các tọa độ địa lý (GPS) nhận từ delivery_details của các đơn hàng trực tuyến đã giao thành công trong vòng 30 ngày.
+•   Tối ưu hóa chiến lược chuỗi: Dữ liệu được cache an toàn trên Redis để hiển thị trực quan bản đồ nhiệt mật độ đơn hàng và phân vùng doanh thu theo khu vực địa lý cho chủ nhà hàng (Owner). Giúp chủ quán dễ dàng đưa ra quyết định mở thêm chi nhánh mới ở khu vực tập trung đông khách hàng mục tiêu, hoặc tối ưu hóa bán kính giao hàng của chi nhánh hiện tại.
+
+15.10. Phân hệ Dự báo Nhu cầu theo Thời tiết và Mùa vụ (Weather-based Demand Forecasting)
+Tính năng thông minh giúp tối thiểu hóa việc lãng phí thực phẩm hoặc cháy kho nguyên liệu do sự thay đổi của thời tiết.
+•   Tích hợp OpenWeatherMap API: WeatherForecastService tự động kết nối API thời tiết thời gian thực để trích xuất dự báo nhiệt độ, lượng mưa của 7 ngày kế tiếp dựa trên tọa độ GPS đã cấu hình của từng chi nhánh nhà hàng.
+•   Mô hình dự đoán nhu cầu nguyên liệu: Hệ thống liên kết dữ liệu bán hàng 30 ngày qua của chi nhánh và đối chiếu với thời tiết hiện tại. Nếu có biến động thời tiết (như trời lạnh đột ngột hoặc mưa kéo dài), thuật toán Python sẽ tính toán hệ số tác động cầu (ví dụ: món Lẩu/súp tăng 40%, đồ uống đá lạnh giảm 30%) để đưa ra gợi ý nhập kho nguyên vật liệu chính xác nhất cho quản lý chi nhánh.
+
+15.11. Phân hệ Phân tích Cảm xúc Phản hồi Khách hàng (Lexicon-based Sentiment Analysis)
+Chủ động kiểm soát chất lượng phục vụ và xử lý khủng hoảng truyền thông nội bộ từ sớm.
+•   Thuật toán Lexicon-based cho tiếng Việt F&B: Hệ thống tích hợp SentimentAnalysisService chuyên trách chấm điểm cảm xúc các bình luận, phản hồi của khách hàng. Thuật toán phân tích chuỗi văn bản dựa trên từ điển hàng trăm từ khóa tích cực (ngon, nhanh, sạch...) và tiêu cực (tệ, chán, dơ, thái độ...) có ngữ cảnh F&B Việt Nam.
+•   Xử lý từ phủ định: Nhận diện chính xác ngữ nghĩa phủ định như "không ngon", "không sạch", "không hài lòng" để tránh sai lệch điểm số.
+•   Báo động đỏ phản hồi tiêu cực: Nếu phản hồi có điểm cảm xúc bị đánh giá là Tiêu cực (Negative), hệ thống tự động gắn cờ đỏ cảnh báo và gửi thông báo khẩn cấp (Push Notification) đến Quản lý chi nhánh và Chủ nhà hàng thông qua Redis Queue để họ trực tiếp xử lý bồi thường hoặc chấn chỉnh nhân sự ca trực.
+
+15.12. Phân hệ Hồ sơ Khách hàng & Phân tích RFM (CDP - Customer Data Platform)
+Hệ thống CDP mini tích hợp ngay trong Aventura giúp cá nhân hóa trải nghiệm khách hàng và tối ưu hóa tỷ lệ quay lại.
+•   Thu thập hành vi số (Digital Footprint): CdpService theo dõi và ghi lại toàn bộ hành trình tương tác của khách hàng từ lúc quét mã QR (view_product, search_menu, add_to_cart, checkout). Dữ liệu này được gom cụm theo phiên làm việc (session) và tự động đồng bộ khi khách hàng định danh.
+•   Phân nhóm RFM (Recency, Frequency, Monetary): Tự động tính toán các chỉ số: Số ngày kể từ đơn hàng cuối cùng (Recency), Tần suất mua hàng (Frequency) và Tổng chi tiêu (Monetary) của từng khách hàng.
+•   Gợi ý tiếp thị cá nhân hóa: Python Service phân tích dữ liệu RFM để phân loại khách hàng thành các nhóm: "Khách hàng VIP" (giữ chân đặc biệt), "Khách hàng có nguy cơ rời bỏ" (gửi voucher khuyến mãi tự động), "Khách hàng mới tiềm năng".
+
+15.13. Cổng tích hợp Cổng thanh toán Tự động (Automated Payment Gateways & Sepay)
+Đảm bảo dòng tiền được đối soát tự động theo thời gian thực và loại bỏ hoàn toàn các lỗi nhập tay hóa đơn thủ công.
+•   Tích hợp sâu dịch vụ SePay Checkout: SepayCheckoutService cung cấp cổng thanh toán quét mã QR động tự động chèn mã giao dịch duy nhất cho từng yêu cầu gia hạn/nâng cấp gói SaaS của nhà hàng.
+•   Xử lý Webhook tức thì: Nhận tín hiệu Webhook từ cổng thanh toán tự động, so khớp mã chuyển khoản (transaction_code) để kích hoạt ngay lập tức gói cước, gia hạn thời gian hết hạn (expired_at) và thay đổi trạng thái của Tenant mà không cần nhân sự duyệt thủ công.
+•   Lưu giữ lịch sử giao dịch: Lưu vết chi tiết toàn bộ hóa đơn thanh toán phục vụ việc xuất hóa đơn và khai báo đối soát tài chính SaaS.
+
+15.14. Phân hệ Giám sát Dịch vụ & Cơ chế Chịu lỗi (Service Monitor & Circuit Breaker)
+Đảm bảo hệ thống SaaS luôn hoạt động bền bỉ, ổn định ngay cả khi các dịch vụ bên ngoài bị sập hoặc gặp sự cố quá tải.
+•   Cơ chế ngắt mạch tự động (Circuit Breaker): Để ngăn chặn lỗi cascading (sập dây chuyền), hệ thống triển khai CircuitBreaker cho các kết nối liên microservice (như gọi sang Python API, Mail Server hoặc cổng thanh toán).
+•   Máy trạng thái 3 cấp (Closed, Open, Half-Open): Khi số lần kết nối lỗi vượt quá ngưỡng cho phép (ví dụ 3 lần liên tiếp), mạch chuyển sang trạng thái OPEN, lập tức chặn các cuộc gọi API tiếp theo và định tuyến trực tiếp đến hàm xử lý dự phòng (fallback) để giữ cho giao diện người dùng không bị đơ/timeout. Sau khoảng thời gian cooldown, mạch tự động chuyển sang HALF_OPEN để thăm dò (probe) và khôi phục trạng thái CLOSED nếu dịch vụ đích đã ổn định trở lại.
+•   Hệ thống giám sát hiệu năng Pulse & Horizon: ServiceMonitorService giám sát liên tục tình trạng RAM/CPU, backlog của Redis Queue và trạng thái hàng đợi để tự động gửi thông tin cảnh báo qua Webhook Discord/Telegram cho đội ngũ kỹ thuật khi có dấu hiệu quá tải hệ thống. 
 
 16. Các vấn đề cần lưu ý khi thiết kế và phát triển hệ thống SaaS quản lý nhà hàng bằng Laravel và Vue.js
 
