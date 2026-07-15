@@ -441,13 +441,15 @@ class DashboardController extends Controller
         }
         $yesterdaySummary = $yesterdaySummary->first();
 
-        $ordersToday = Order::where('restaurant_id', $rid)
+        $ordersStats = Order::where('restaurant_id', $rid)
             ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()])
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId));
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled')
+            ->first();
 
-        $totalToday     = (clone $ordersToday)->count();
-        $completedToday = (clone $ordersToday)->where('status', 'completed')->count();
-        $cancelledToday = (clone $ordersToday)->where('status', 'cancelled')->count();
+        $totalToday     = (int) ($ordersStats->total ?? 0);
+        $completedToday = (int) ($ordersStats->completed ?? 0);
+        $cancelledToday = (int) ($ordersStats->cancelled ?? 0);
 
         $revenueToday     = (float) ($todaySummary?->net_revenue ?? 0);
         $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
@@ -464,41 +466,46 @@ class DashboardController extends Controller
         $cancellationRate = $totalToday > 0 ? ($cancelledToday / $totalToday) * 100 : 0;
         $revenueGrowthScore = $revTrend !== null ? min(100, max(0, 50 + $revTrend)) : 50;
 
-        // Punctuality
-        $scheduledToday = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
+        // Punctuality — Fetch assignments and check times in PHP to avoid correlated subquery and driver-specific CONCAT
+        $assignmentsToday = \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
             ->where('scheduled_date', today())
             ->when($branchId, function ($q) use ($branchId) {
                 $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
+            })
+            ->get();
+
+        $scheduledToday = $assignmentsToday->count();
+        $checkedInOnTime = null;
+
+        if ($scheduledToday > 0) {
+            $shiftIds = $assignmentsToday->pluck('shift_id')->unique()->filter()->values();
+            $shiftsMap = \App\Models\WorkShift::whereIn('id', $shiftIds)
+                ->pluck('start_time', 'id');
+
+            $checkedInOnTime = $assignmentsToday->filter(function ($a) use ($shiftsMap) {
+                if (! $a->check_in_at) return false;
+                $startTime = $shiftsMap->get($a->shift_id);
+                if (! $startTime) return false;
+                $dateStr = $a->scheduled_date instanceof \Carbon\Carbon ? $a->scheduled_date->toDateString() : \Carbon\Carbon::parse($a->scheduled_date)->toDateString();
+                $deadline = \Carbon\Carbon::parse($dateStr . ' ' . $startTime);
+                return \Carbon\Carbon::parse($a->check_in_at)->lte($deadline);
             })->count();
-        $checkedInOnTime = $scheduledToday > 0
-            ? \App\Models\ScheduleAssignment::where('restaurant_id', $rid)
-                ->where('scheduled_date', today())
-                ->when($branchId, function ($q) use ($branchId) {
-                    $q->whereHas('employee', fn($emp) => $emp->where('branch_id', $branchId));
-                })
-                ->whereNotNull('check_in_at')
-                ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw(
-                    \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite'
-                        ? 'scheduled_date || " " || (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id)'
-                        : 'CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'
-                ))
-                ->count()
-            : null;
+        }
+
         $punctualityScore = $scheduledToday > 0 && $checkedInOnTime !== null
             ? min(100, ($checkedInOnTime / $scheduledToday) * 100)
             : 75;
 
-        // Inventory
-        $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->count();
-        $safeIngredients  = $totalIngredients > 0
-            ? \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                ->where('inventories.restaurant_id', $rid)
-                ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
-                ->whereRaw('inventories.quantity_on_hand > ingredients.min_stock_level')
-                ->count()
-            : null;
+        // Inventory — Combine counts into one query
+        $inventoryStats = \App\Models\Inventory::join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+            ->where('inventories.restaurant_id', $rid)
+            ->when($branchId, fn($q) => $q->where('inventories.branch_id', $branchId))
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN inventories.quantity_on_hand > ingredients.min_stock_level THEN 1 ELSE 0 END) as safe')
+            ->first();
+
+        $totalIngredients = (int) ($inventoryStats->total ?? 0);
+        $safeIngredients  = $totalIngredients > 0 ? (int) ($inventoryStats->safe ?? 0) : null;
+
         $inventoryScore = $totalIngredients > 0 && $safeIngredients !== null
             ? ($safeIngredients / $totalIngredients) * 100
             : 80;
@@ -776,20 +783,29 @@ class DashboardController extends Controller
             ->groupBy('employees.branch_id')
             ->pluck('cnt', 'employees.branch_id');
 
-        // Checked in on time
-        $checkedInOnTime = \App\Models\ScheduleAssignment::where('schedule_assignments.restaurant_id', $rid)
+        // Checked in on time — dùng PHP thay vì correlated subquery để tránh N+1 SQL
+        // Pre-fetch tất cả shifts liên quan đến assignments hôm nay
+        $assignmentsToday = \App\Models\ScheduleAssignment::where('schedule_assignments.restaurant_id', $rid)
             ->where('scheduled_date', today())
             ->whereHas('employee', fn($q) => $q->whereIn('branch_id', $uncachedIds))
             ->whereNotNull('check_in_at')
-            ->whereColumn('check_in_at', '<=', \Illuminate\Support\Facades\DB::raw(
-                \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite'
-                    ? 'scheduled_date || " " || (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id)'
-                    : 'CONCAT(scheduled_date, " ", (SELECT start_time FROM work_shifts WHERE id = schedule_assignments.shift_id))'
-            ))
             ->join('employees', 'schedule_assignments.employee_id', '=', 'employees.id')
-            ->selectRaw('employees.branch_id, COUNT(*) as cnt')
-            ->groupBy('employees.branch_id')
-            ->pluck('cnt', 'employees.branch_id');
+            ->select('schedule_assignments.shift_id', 'schedule_assignments.check_in_at',
+                     'schedule_assignments.scheduled_date', 'employees.branch_id')
+            ->get();
+
+        // Pre-fetch all shifts used in today's assignments (single query)
+        $shiftIds = $assignmentsToday->pluck('shift_id')->unique()->filter()->values();
+        $shiftsMap = \App\Models\WorkShift::whereIn('id', $shiftIds)
+            ->pluck('start_time', 'id');
+
+        // Count on-time check-ins per branch using PHP
+        $checkedInOnTime = $assignmentsToday->filter(function ($a) use ($shiftsMap) {
+            $startTime = $shiftsMap->get($a->shift_id);
+            if (! $startTime) return false;
+            $deadline = \Carbon\Carbon::parse($a->scheduled_date->toDateString() . ' ' . $startTime);
+            return \Carbon\Carbon::parse($a->check_in_at)->lte($deadline);
+        })->groupBy('branch_id')->map->count();
 
         // 4. Pre-query inventories
         $totalIngredients = \App\Models\Inventory::where('restaurant_id', $rid)
@@ -949,9 +965,10 @@ class DashboardController extends Controller
 
             $currentCash = 0.0;
             if ($activeRegister) {
-                $in = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'in')->sum('amount');
-                $out = (float) \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'out')->sum('amount');
-                $currentCash = (float) $activeRegister->opening_balance + $in - $out;
+                $totals = \App\Models\CashTransaction::where('cash_register_id', $activeRegister->id)
+                    ->selectRaw("SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END) as total_in, SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END) as total_out")
+                    ->first();
+                $currentCash = (float) $activeRegister->opening_balance + (float) ($totals->total_in ?? 0) - (float) ($totals->total_out ?? 0);
             }
 
             $sevenDaysAgo = now()->subDays(6)->startOfDay();

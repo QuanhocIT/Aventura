@@ -24,7 +24,7 @@ class OrderStatsCacheService
     /**
      * Trả về thống kê đơn hàng hôm nay (có cache).
      *
-     * @return array{total: int, completed: int, cancelled: int, pending: int, revenue_today: float}
+     * @return array{total: int, completed: int, cancelled: int, pending: int}
      */
     public function getTodayStats(int $restaurantId, ?int $branchId = null): array
     {

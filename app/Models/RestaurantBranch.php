@@ -20,6 +20,18 @@ class RestaurantBranch extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        // Xóa cache branches trong Inertia share khi branch thay đổi
+        $invalidate = function (self $branch) {
+            \Illuminate\Support\Facades\Cache::forget("tenant_branches:{$branch->restaurant_id}");
+        };
+
+        static::created($invalidate);
+        static::updated($invalidate);
+        static::deleted($invalidate);
+    }
+
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);

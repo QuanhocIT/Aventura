@@ -49,6 +49,15 @@ class HandleInertiaRequests extends Middleware
         if ($user && $user->restaurant_id) {
             $restaurant = $user->restaurant;
             if ($restaurant) {
+                // Cache branches per restaurant (5 phút) — không query DB mỗi request
+                $branches = ($user->hasAnyRole(['owner', 'manager']))
+                    ? Cache::remember(
+                        "tenant_branches:{$restaurant->id}",
+                        300,
+                        fn () => $restaurant->branches()->select('id', 'name')->get()->toArray()
+                    )
+                    : [];
+
                 $tenant = [
                     'id'                   => $restaurant->id,
                     'name'                 => $restaurant->name,
@@ -68,9 +77,7 @@ class HandleInertiaRequests extends Middleware
                         120, // 2 phút
                         fn () => app(\App\Services\QuotaService::class)->getSummary($restaurant)
                     ),
-                    'branches'             => $user->hasAnyRole(['owner', 'manager']) 
-                        ? $restaurant->branches()->select('id', 'name')->get()->toArray()
-                        : [],
+                    'branches'             => $branches,
                     'active_branch_id'     => $user->branch_id,
                 ];
             }
@@ -95,19 +102,36 @@ class HandleInertiaRequests extends Middleware
                 ->all();
         });
 
-        // Không gán trực tiếp roles vào user để tránh lỗi update DB
+        // Chỉ expose các trường an toàn cần thiết — không dùng toArray() rãi rác
+        $safeUser = $user ? [
+            'id'                => $user->id,
+            'name'              => $user->name,
+            'email'             => $user->email,
+            'phone'             => $user->phone,
+            'avatar_url'        => $user->avatar_url,
+            'restaurant_id'     => $user->restaurant_id,
+            'branch_id'         => $user->branch_id,
+            'supplier_id'       => $user->supplier_id,
+            'status'            => $user->status,
+            'onboarding_status' => $user->onboarding_status,
+            'email_verified_at' => $user->email_verified_at,
+            'last_login_at'     => $user->last_login_at,
+            'referral_code'     => $user->referral_code,
+            'has_pin'           => !empty($user->pin_code), // chỉ gửi boolean, không gửi hash
+            'two_factor_enabled'=> !empty($user->two_factor_confirmed_at),
+            'permissions' => Cache::remember(
+                "user_permissions:{$user->id}",
+                300,
+                fn () => $user->getAllPermissions()->pluck('name')->toArray()
+            ),
+            'roles' => $roles->toArray(),
+        ] : null;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $user ? array_merge($user->toArray(), [
-                    'permissions' => Cache::remember(
-                        "user_permissions:{$user->id}",
-                        300,
-                        fn () => $user->getAllPermissions()->pluck('name')->toArray()
-                    ),
-                    'roles' => $roles->toArray(),
-                ]) : null,
+                'user' => $safeUser,
                 'shift_allowed_until' => session('shift_allowed_until'),
             ],
             'roles'           => $roles,
