@@ -778,6 +778,34 @@ JavaScript
 v-if="user.permissions.includes('manage_feedback')"
 để tự động render Menu "Phản hồi & Khủng hoảng". Cách này giúp Frontend hoạt động mượt mà, render chính xác menu chức năng theo đúng những gì Backend cấp phép mà không cần tải lại trang . Sau này, nếu Chủ quán muốn tạo thêm một vai trò "Phó Quản lý" và chỉ cấp cho họ 3 quyền nhất định, Frontend vẫn tự động thích ứng mà bạn không cần sửa lại mã nguồn. 
 
+6. Cụm Quản trị Tích hợp, Quy trình & Tài sản (Integration, Asset & Process Management)
+Để vận hành một chuỗi nhà hàng chuyên nghiệp và kết nối với các đối tác bên thứ ba, Owner nắm toàn quyền cấu hình các cổng tích hợp, quy trình phê duyệt nội bộ và kiểm soát khấu hao tài sản.
+
+6.1. Tích hợp Đa kênh & Quản lý thiết bị POS
+Hệ thống hóa hạ tầng phần cứng và phần mềm, kết nối trực tiếp với các đối tác F&B bên ngoài:
+•   Đăng ký và cấp quyền thiết bị POS (PosDeviceController): Cho phép Owner đăng ký, cấp phép và quản lý các thiết bị máy POS được dùng tại quầy hoặc máy POS cầm tay của nhân viên phục vụ. Chỉ thiết bị được cấp phép và kích hoạt mới được quyền gọi API bán hàng.
+•   Quản lý cổng kết nối & API Key (ApiKeyController, IntegrationSettingsController, WebhookEndpointController): Chủ nhà hàng tự cấu hình tích hợp với các ứng dụng giao hàng bên thứ ba (như GrabFood, ShopeeFood) và cổng thanh toán. Hệ thống hỗ trợ tạo API Key bảo mật cho các hệ thống kế toán hoặc ERP khác của doanh nghiệp để đồng bộ dữ liệu.
+
+6.2. Quy trình Phê duyệt & Checklists Vận hành
+Giảm thiểu rủi ro lạm quyền của cấp dưới và đảm bảo quy chuẩn nhà hàng được thực thi nghiêm ngặt:
+•   Hệ thống phê duyệt vượt cấp (ApprovalController): Cung cấp một cổng kiểm soát (Approvals). Mọi hành động nhạy cảm vượt thẩm quyền của Manager (như điều chỉnh giảm tồn kho đột xuất với giá trị lớn, duyệt chi phí vận hành ngoài hạn mức, duyệt đổi ca làm việc của nhân sự) bắt buộc phải gửi yêu cầu lên cổng chờ duyệt của Owner trước khi có hiệu lực trong DB.
+•   Checklist vận hành hằng ngày (OperationsChecklistController): Owner tạo các danh sách công việc bắt buộc nhân viên thực hiện vào đầu ca (mở cửa, vệ sinh máy POS, kiểm kho ban đầu) và cuối ca (dọn dẹp bếp, tắt điện, bàn giao két). Nhân viên phải tích chọn xác nhận hoàn thành, giúp giảm thiểu sai sót do con người.
+
+6.3. Quản lý Tài sản Thiết bị & Luân chuyển kho chuỗi
+Tối ưu hóa nguồn lực tài sản cố định và lưu thông nguyên vật liệu:
+•   Theo dõi thiết bị và khấu hao tài sản (EquipmentController): Lưu trữ thông tin toàn bộ thiết bị nhà bếp, bàn ghế, hệ thống lạnh... kèm theo hạn bảo trì, lịch sử sửa chữa và tự động tính toán khấu hao tài sản để đưa vào chi phí vận hành.
+•   Luân chuyển kho nội bộ chi nhánh (InternalTransferController): Cho phép Owner thực hiện điều phối nguyên vật liệu giữa các kho của các chi nhánh khác nhau trong cùng một chuỗi nhà hàng (Ví dụ: chi nhánh A đang thừa thịt bò nhưng thiếu bánh phở, chi nhánh B ngược lại), tự động sinh vận đơn luân chuyển nội bộ và trừ kho đối ứng mà không tạo giao dịch bán hàng ảo.
+
+6.4. Quản lý Công nợ Đối tác & Đấu thầu báo giá RFP
+Kiểm soát dòng tiền công nợ và tối ưu giá vốn hàng bán:
+•   Theo dõi công nợ toàn diện (DebtController): Quản lý các khoản nợ phải trả cho nhà cung cấp nguyên liệu và các khoản nợ phải thu từ khách hàng lớn (hợp đồng tiệc, công ty đặt hàng định kỳ). Tự động thông báo nhắc nợ khi đến hạn.
+•   Đấu thầu báo giá nguyên liệu (RfpController): Chủ nhà hàng có thể gửi yêu cầu chào hàng và báo giá (Request for Proposal) đối với danh sách nguyên liệu cần mua định kỳ đến nhiều nhà phân phối. Giúp Owner dễ dàng đối chiếu, đấu giá để chọn đối tác cung ứng có giá và chất lượng tốt nhất.
+
+6.5. Đào tạo Nhân sự & Cấu hình Cửa hàng Online
+Đảm bảo chất lượng chuyên môn đồng đều và mở rộng kênh bán hàng trực tuyến:
+•   Cổng đào tạo nhân viên trực tuyến (TrainingController): Nơi Owner đăng tải các tài liệu quy chuẩn phục vụ, video hướng dẫn nghiệp vụ, công thức pha chế mẫu và các bài kiểm tra trắc nghiệm năng lực nhân sự. Nhân viên bắt buộc phải hoàn thành khóa học và đạt điểm đỗ trước khi được xếp ca chính thức.
+•   Thiết lập cửa hàng trực tuyến (OnlineStoreSettingsController): Cấu hình trang web đặt món trực tuyến (Online Ordering Web) của riêng nhà hàng bao gồm giao diện, menu hiển thị trực tuyến, phương thức thanh toán chuyển khoản và phí giao hàng theo khu vực.
+
 15.4: Phát triển nhân viên quán ( order, thu ngân, bếp )
 15.4.1: Phát triển nhân viên thu ngân
 ?  Tài khoản hoạt động khi nào: dựa vào bảng “Lịch làm mà chủ quán/quản lý” xếp, ví dụ: ca làm của tài khoản này là 16 giờ 00 đến 23 giờ 00 thứ 3 ngày... thì trong khoảng thời gian đó sẽ được mở, ngoài ra khung thời gian đó sẽ bị vô hiệu. => Mục đích: tránh vào đơn ko có thực khi ngoài giờ làm, ảnh hưởng tới người trực ca và doanh thu thực
