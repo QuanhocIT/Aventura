@@ -93,7 +93,7 @@ class RestaurantOnboardingService
                 ],
             ]);
 
-            $this->seedDefaults($restaurant, $user);
+            dispatch(new \App\Jobs\SeedRestaurantDefaultDataJob($restaurant->id, $user->id))->afterCommit();
 
             return $user;
         });
@@ -104,7 +104,7 @@ class RestaurantOnboardingService
     }
 
 
-    private function seedDefaults(Restaurant $restaurant, User $owner): void
+    public function seedDefaults(Restaurant $restaurant, User $owner): void
     {
         $branchId = null;
 
