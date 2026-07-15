@@ -217,24 +217,55 @@ class InventoryManagementController extends Controller
 
         $data = $request->validate([
             'product_id' => ['required', 'exists:products,id'],
-            'ingredient_id' => ['required', 'exists:ingredients,id'],
-            'quantity' => ['required', 'numeric', 'min:0.001'],
-            'waste_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items' => ['nullable', 'array'],
+            'items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'items.*.waste_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        $ingredient = Ingredient::findOrFail($data['ingredient_id']);
+        $productId = $data['product_id'];
+        $submittedIngredientIds = [];
 
-        ProductRecipe::updateOrCreate([
-            'product_id' => $data['product_id'],
-            'ingredient_id' => $data['ingredient_id'],
-        ], [
-            'restaurant_id' => $user->restaurant_id,
-            'unit_id' => $ingredient->unit_id,
-            'quantity' => $data['quantity'],
-            'waste_rate' => $data['waste_rate'] ?? 0,
-        ]);
+        if (!empty($data['items'])) {
+            foreach ($data['items'] as $item) {
+                $ingredient = Ingredient::findOrFail($item['ingredient_id']);
+                
+                ProductRecipe::updateOrCreate([
+                    'product_id' => $productId,
+                    'ingredient_id' => $item['ingredient_id'],
+                ], [
+                    'restaurant_id' => $user->restaurant_id,
+                    'unit_id' => $ingredient->unit_id,
+                    'quantity' => $item['quantity'],
+                    'waste_rate' => $item['waste_rate'] ?? 0,
+                ]);
 
-        return back()->with('success', 'Đã cập nhật định lượng công thức nguyên liệu.');
+                $submittedIngredientIds[] = $item['ingredient_id'];
+            }
+        }
+
+        // Delete any recipes for this product that were NOT submitted (synced out)
+        ProductRecipe::where('product_id', $productId)
+            ->where('restaurant_id', $user->restaurant_id)
+            ->whereNotIn('ingredient_id', $submittedIngredientIds)
+            ->delete();
+
+        return back()->with('success', 'Đã lưu công thức định lượng thành công.');
+    }
+
+    /**
+     * Xóa định lượng nguyên liệu cho món ăn (ProductRecipe).
+     */
+    public function deleteRecipe(Request $request, $id): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $recipe = ProductRecipe::where('restaurant_id', $request->user()->restaurant_id)
+            ->findOrFail($id);
+
+        $recipe->delete();
+
+        return back()->with('success', 'Đã xóa nguyên liệu khỏi công thức định lượng.');
     }
 
     /**
