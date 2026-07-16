@@ -144,6 +144,27 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasAnyRole(config('auth.super_admin_roles', ['super_admin']));
     }
 
+    public function isExemptFromShiftLock(): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->hasAnyRole(['owner', 'manager', 'supplier', 'quản lý', 'quan_ly', 'quanly'])) {
+            return true;
+        }
+
+        $employee = $this->employee;
+        if ($employee) {
+            $jobTitle = mb_strtolower($employee->job_title);
+            if (str_contains($jobTitle, 'manager') || str_contains($jobTitle, 'quản lý')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Chỉ tài khoản Super Admin mới bắt buộc xác thực email qua Gmail; các tài khoản
      * khác được coi như đã xác thực để middleware `verified` không chặn họ.

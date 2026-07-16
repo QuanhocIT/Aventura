@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ImpersonateController extends Controller
 {
-    public function start(Request $request, User $user): RedirectResponse
+    public function start(Request $request, User $user): Response
     {
         /** @var User $currentUser */
         $currentUser = $request->user();
@@ -52,10 +53,15 @@ class ImpersonateController extends Controller
             'user_agent'    => $request->userAgent(),
         ]);
 
+        if ($request->header('X-Inertia')) {
+            $request->session()->flash('success', "Bạn đã đăng nhập sắm vai thành công dưới danh nghĩa \"{$user->name}\".");
+            return \Inertia\Inertia::location(route('dashboard'));
+        }
+
         return redirect()->route('dashboard')->with('success', "Bạn đã đăng nhập sắm vai thành công dưới danh nghĩa \"{$user->name}\".");
     }
 
-    public function stop(Request $request): RedirectResponse
+    public function stop(Request $request): Response
     {
         // 1. Kiểm tra xem session có chứa khóa sắm vai gốc hay không
         if (!$request->session()->has('impersonate_original_user_id')) {
@@ -91,6 +97,11 @@ class ImpersonateController extends Controller
             'ip_address'    => $request->ip(),
             'user_agent'    => $request->userAgent(),
         ]);
+
+        if ($request->header('X-Inertia')) {
+            $request->session()->flash('success', 'Đã thoát chế độ sắm vai và quay lại tài khoản Super Admin.');
+            return \Inertia\Inertia::location(route('superadmin.accounts.index'));
+        }
 
         return redirect()->route('superadmin.accounts.index')->with('success', 'Đã thoát chế độ sắm vai và quay lại tài khoản Super Admin.');
     }

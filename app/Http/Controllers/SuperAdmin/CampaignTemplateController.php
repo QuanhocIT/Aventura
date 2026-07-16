@@ -16,22 +16,30 @@ class CampaignTemplateController extends Controller
         $templates = CampaignTemplate::orderBy('season')
             ->orderBy('name')
             ->get()
-            ->map(fn (CampaignTemplate $t) => [
-                'id' => $t->id,
-                'name' => $t->name,
-                'slug' => $t->slug,
-                'season' => $t->season,
-                'description' => $t->description,
-                'discount_type' => $t->discount_type,
-                'discount_value' => $t->discount_value,
-                'default_duration_days' => $t->default_duration_days,
-                'default_budget_cap' => $t->default_budget_cap,
-                'default_max_uses' => $t->default_max_uses,
-                'code_prefix' => $t->code_prefix,
-                'theme_color' => $t->theme_color,
-                'is_active' => $t->is_active,
-                'batches_count' => $t->batches()->count(),
-            ]);
+            ->map(function (CampaignTemplate $t) {
+                $batchIds = $t->batches()->pluck('id');
+                $totalCodes = $t->batches()->sum('code_count');
+                $totalUsages = \App\Models\Coupon::whereIn('batch_id', $batchIds)->sum('uses_count');
+
+                return [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'slug' => $t->slug,
+                    'season' => $t->season,
+                    'description' => $t->description,
+                    'discount_type' => $t->discount_type,
+                    'discount_value' => $t->discount_value,
+                    'default_duration_days' => $t->default_duration_days,
+                    'default_budget_cap' => $t->default_budget_cap,
+                    'default_max_uses' => $t->default_max_uses,
+                    'code_prefix' => $t->code_prefix,
+                    'theme_color' => $t->theme_color,
+                    'is_active' => $t->is_active,
+                    'batches_count' => $t->batches()->count(),
+                    'total_codes' => (int) $totalCodes,
+                    'total_usages' => (int) $totalUsages,
+                ];
+            });
 
         $seasons = [
             'tet' => 'Tết Nguyên Đán',
@@ -128,4 +136,78 @@ class CampaignTemplateController extends Controller
 
         return back()->with('success', "Đang tạo {$data['code_count']} mã coupon. Kiểm tra tiến độ tại trang Coupon.");
     }
+
+    public function seedDefaults(Request $request)
+    {
+        $userId = $request->user()->id;
+        
+        $defaults = [
+            [
+                'name' => 'Khuyến mãi Tết Nguyên Đán',
+                'slug' => 'tet-nguyen-dan',
+                'season' => 'tet',
+                'discount_type' => 'percent',
+                'discount_value' => 20,
+                'default_duration_days' => 14,
+                'default_max_uses' => 500,
+                'default_budget_cap' => 10000000,
+                'code_prefix' => 'TET',
+                'theme_color' => '#ef4444',
+                'description' => 'Chiến dịch tri ân đối tác dịp Tết Nguyên Đán với mã giảm 20% cho tất cả các gói dịch vụ.',
+                'created_by' => $userId,
+            ],
+            [
+                'name' => 'Chiến dịch Valentine ngọt ngào',
+                'slug' => 'valentine-love',
+                'season' => 'valentine',
+                'discount_type' => 'fixed',
+                'discount_value' => 100000,
+                'default_duration_days' => 5,
+                'default_max_uses' => 200,
+                'default_budget_cap' => 5000000,
+                'code_prefix' => 'VAL',
+                'theme_color' => '#ec4899',
+                'description' => 'Mã giảm giá cố định 100,000₫ cho các cửa hàng đăng ký/gia hạn gói dịch vụ Pro trở lên.',
+                'created_by' => $userId,
+            ],
+            [
+                'name' => 'Giáng Sinh ấm áp',
+                'slug' => 'noel-christmas',
+                'season' => 'noel',
+                'discount_type' => 'percent',
+                'discount_value' => 15,
+                'default_duration_days' => 10,
+                'default_max_uses' => 300,
+                'default_budget_cap' => 8000000,
+                'code_prefix' => 'NOEL',
+                'theme_color' => '#10b981',
+                'description' => 'Giảm 15% tất cả các dịch vụ để chào đón mùa Giáng Sinh an lành cùng Aventura.',
+                'created_by' => $userId,
+            ],
+            [
+                'name' => 'Siêu ưu đãi Black Friday',
+                'slug' => 'black-friday-sale',
+                'season' => 'black-friday',
+                'discount_type' => 'percent',
+                'discount_value' => 30,
+                'default_duration_days' => 3,
+                'default_max_uses' => 1000,
+                'default_budget_cap' => 30000000,
+                'code_prefix' => 'BFRI',
+                'theme_color' => '#0f172a',
+                'description' => 'Đợt giảm giá sâu nhất trong năm lên tới 30% cho khách hàng đăng ký hoặc gia hạn dài hạn.',
+                'created_by' => $userId,
+            ]
+        ];
+
+        foreach ($defaults as $data) {
+            CampaignTemplate::updateOrCreate(
+                ['slug' => $data['slug']],
+                $data
+            );
+        }
+
+        return back()->with('success', 'Đã khởi tạo các bản mẫu chiến dịch theo mùa thành công.');
+    }
 }
+

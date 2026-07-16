@@ -47,30 +47,20 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-interface OrderItem {
-    id: number;
-    product_name: string;
-    quantity: number;
-    price: string;
-    total: string;
-}
-
 interface OrderItemData {
     id: number;
     order_number: string;
     restaurant: string;
     restaurant_code: string;
+    plan_name: string;
+    billing_cycle: string;
     status: string;
-    payment_status: string;
     total_amount: string;
     total_raw: number;
-    channel: string;
-    note: string | null;
+    type: string;
     created_at: string;
-    customer_name: string;
-    customer_phone: string;
-    table_name: string;
-    items: OrderItem[];
+    due_on: string;
+    recipient_email: string;
 }
 
 interface RevenueTrendPoint {
@@ -103,7 +93,7 @@ const props = defineProps<{
     filters: {
         restaurant_id?: string;
         status?: string;
-        payment_status?: string;
+        type?: string;
         search?: string;
         date_from?: string;
         date_to?: string;
@@ -112,7 +102,7 @@ const props = defineProps<{
 
 const restaurantId = ref(props.filters.restaurant_id ?? '');
 const status = ref(props.filters.status ?? '');
-const paymentStatus = ref(props.filters.payment_status ?? '');
+const type = ref(props.filters.type ?? '');
 const search = ref(props.filters.search ?? '');
 const dateFrom = ref(props.filters.date_from ?? '');
 const dateTo = ref(props.filters.date_to ?? '');
@@ -129,7 +119,7 @@ function applyFilter() {
         {
             restaurant_id: restaurantId.value || undefined,
             status: status.value || undefined,
-            payment_status: paymentStatus.value || undefined,
+            type: type.value || undefined,
             search: search.value || undefined,
             date_from: dateFrom.value || undefined,
             date_to: dateTo.value || undefined,
@@ -142,7 +132,7 @@ function hasActiveFilter() {
     return !!(
         restaurantId.value ||
         status.value ||
-        paymentStatus.value ||
+        type.value ||
         search.value ||
         dateFrom.value ||
         dateTo.value
@@ -152,7 +142,7 @@ function hasActiveFilter() {
 function resetFilters() {
     restaurantId.value = '';
     status.value = '';
-    paymentStatus.value = '';
+    type.value = '';
     search.value = '';
     dateFrom.value = '';
     dateTo.value = '';
@@ -163,6 +153,7 @@ function formatVND(val: number) {
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
+        maximumFractionDigits: 0,
     }).format(val);
 }
 
@@ -180,30 +171,37 @@ const averageOrderValue = computed(() => {
 });
 
 const statusLabel: Record<string, string> = {
-    pending: 'Chờ xử lý',
-    confirmed: 'Đã xác nhận',
-    preparing: 'Đang chuẩn bị',
-    ready: 'Sẵn sàng',
-    completed: 'Hoàn thành',
-    cancelled: 'Đã hủy',
+    paid: 'Đã thanh toán',
+    unpaid: 'Chưa thanh toán',
+    draft: 'Bản nháp',
+    void: 'Đã hủy bỏ',
+    write_off: 'Bỏ ghi',
 };
 
-const channelLabel: Record<string, string> = {
-    pos: 'POS',
-    qr: 'QR Order',
-    online: 'Online',
-    delivery: 'Giao hàng',
+const typeLabel: Record<string, string> = {
+    registration: 'Đăng ký mới',
+    renewal: 'Gia hạn',
+    upgrade: 'Nâng cấp',
+    adjustment: 'Điều chỉnh',
+};
+
+const billingCycleLabel: Record<string, string> = {
+    monthly: 'Hàng tháng',
+    yearly: 'Hàng năm',
 };
 
 // Order Details Modal State
 const selectedOrder = ref<OrderItemData | null>(null);
+const showDetails = ref(false);
 
 const openOrderDetails = (order: OrderItemData) => {
     selectedOrder.value = order;
+    showDetails.value = true;
 };
 
 const closeOrderDetails = () => {
     selectedOrder.value = null;
+    showDetails.value = false;
 };
 
 // SVG Donut slices for channels breakdown
@@ -298,13 +296,13 @@ const chartAreaPath = computed(() => {
 </script>
 
 <template>
-    <Head title="Đơn hàng toàn hệ thống" />
+    <Head title="Đơn hàng gói dịch vụ" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Đơn hàng toàn hệ thống"
-            subtitle="Xem và theo dõi tất cả đơn hàng từ mọi nhà hàng trong hệ thống."
+            title="Đơn hàng gói dịch vụ"
+            subtitle="Xem và theo dõi tất cả hóa đơn đăng ký gói dịch vụ của các nhà hàng."
             :icon="ShoppingCart"
         />
 
@@ -318,7 +316,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-sky-600 uppercase dark:text-sky-400"
                     >
-                        Đơn hôm nay
+                        Hóa đơn hôm nay
                     </p>
                     <div
                         class="font-mono text-2xl font-black text-sky-600 dark:text-sky-400"
@@ -339,7 +337,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
                     >
-                        Doanh thu hôm nay
+                        Doanh thu gói hôm nay
                     </p>
                     <div
                         class="truncate px-1 font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400"
@@ -347,7 +345,7 @@ const chartAreaPath = computed(() => {
                         {{ formatVND(stats.revenue_today) }}
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Đơn đã hoàn thành
+                        Đã thanh toán thành công
                     </p>
                 </CardContent>
             </Card>
@@ -360,7 +358,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-violet-600 uppercase dark:text-violet-400"
                     >
-                        Hoàn thành
+                        Đã thanh toán
                     </p>
                     <div
                         class="flex items-center justify-center gap-1 font-mono text-2xl font-black text-violet-600 dark:text-violet-400"
@@ -369,7 +367,7 @@ const chartAreaPath = computed(() => {
                         {{ stats.completed_today }}
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Đã giao hàng / Phục vụ
+                        Hóa đơn thu tiền thành công
                     </p>
                 </CardContent>
             </Card>
@@ -386,7 +384,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-rose-600 uppercase dark:text-rose-400"
                     >
-                        Đã hủy
+                        Chưa thanh toán
                     </p>
                     <div
                         class="flex items-center justify-center gap-1 font-mono text-2xl font-black text-rose-600 dark:text-rose-400"
@@ -395,7 +393,7 @@ const chartAreaPath = computed(() => {
                         {{ stats.cancelled_today }}
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Đơn bị hủy trong ngày
+                        Hóa đơn đang chờ thanh toán
                     </p>
                 </CardContent>
             </Card>
@@ -408,7 +406,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-amber-600 uppercase dark:text-amber-400"
                     >
-                        Tỷ lệ hoàn thành
+                        Tỷ lệ thanh toán
                     </p>
                     <div
                         class="flex items-center justify-center gap-0.5 font-mono text-2xl font-black text-amber-600 dark:text-amber-400"
@@ -417,7 +415,7 @@ const chartAreaPath = computed(() => {
                         {{ completionRate }}%
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Hiệu suất vận hành
+                        Tỷ lệ hóa đơn hoàn thành
                     </p>
                 </CardContent>
             </Card>
@@ -430,7 +428,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
                     >
-                        Đơn trung bình (AOV)
+                        Hóa đơn trung bình
                     </p>
                     <div
                         class="truncate px-1 font-mono text-2xl font-black text-indigo-600 dark:text-indigo-400"
@@ -438,7 +436,7 @@ const chartAreaPath = computed(() => {
                         {{ formatVND(averageOrderValue) }}
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Giá trị / đơn hoàn thành
+                        Trị giá / đơn thanh toán
                     </p>
                 </CardContent>
             </Card>
@@ -459,10 +457,10 @@ const chartAreaPath = computed(() => {
                                 <TrendingUp
                                     class="size-4 animate-pulse text-emerald-500"
                                 />
-                                Xu hướng Doanh thu 7 ngày gần đây
+                                Xu xu hướng Doanh thu gói dịch vụ 7 ngày
                             </h3>
                             <p class="text-[11px] text-muted-foreground">
-                                Biểu đồ tổng doanh thu các đơn hàng hoàn thành
+                                Biểu đồ tổng doanh thu các gói dịch vụ đã thanh toán
                             </p>
                         </div>
                         <div
@@ -568,7 +566,7 @@ const chartAreaPath = computed(() => {
                                             1,
                                         )) *
                                         75
-                                "
+                                  "
                                 r="3.5"
                                 fill="#ffffff"
                                 stroke="#10b981"
@@ -604,10 +602,10 @@ const chartAreaPath = computed(() => {
                             class="flex items-center gap-1 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-200"
                         >
                             <BarChart2 class="size-4 text-primary" />
-                            Cơ cấu Kênh đặt hàng
+                            Cơ cấu Gói dịch vụ
                         </h3>
                         <p class="text-[11px] text-muted-foreground">
-                            Tỷ trọng các kênh đơn phát sinh hôm nay
+                            Tỷ trọng các gói dịch vụ đã bán hôm nay
                         </p>
                     </div>
 
@@ -674,7 +672,7 @@ const chartAreaPath = computed(() => {
                                 </span>
                                 <span
                                     class="text-[7px] font-bold text-slate-400 uppercase"
-                                    >Đơn</span
+                                    >Gói</span
                                 >
                             </div>
                         </div>
@@ -691,7 +689,7 @@ const chartAreaPath = computed(() => {
                 />
                 <Input
                     v-model="search"
-                    placeholder="Tìm mã đơn..."
+                    placeholder="Tìm số hóa đơn, tên nhà hàng..."
                     class="pl-9"
                 />
             </div>
@@ -715,21 +713,22 @@ const chartAreaPath = computed(() => {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="">Tất cả trạng thái</SelectItem>
-                    <SelectItem value="pending">Chờ xử lý</SelectItem>
-                    <SelectItem value="confirmed">Đã xác nhận</SelectItem>
-                    <SelectItem value="preparing">Đang chuẩn bị</SelectItem>
-                    <SelectItem value="completed">Hoàn thành</SelectItem>
-                    <SelectItem value="cancelled">Đã hủy</SelectItem>
-                </SelectContent>
-            </Select>
-            <Select v-model="paymentStatus" @update:model-value="applyFilter">
-                <SelectTrigger class="w-[150px]">
-                    <SelectValue placeholder="Thanh toán" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="">Tất cả thanh toán</SelectItem>
                     <SelectItem value="paid">Đã thanh toán</SelectItem>
                     <SelectItem value="unpaid">Chưa thanh toán</SelectItem>
+                    <SelectItem value="draft">Bản nháp</SelectItem>
+                    <SelectItem value="void">Đã hủy bỏ</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select v-model="type" @update:model-value="applyFilter">
+                <SelectTrigger class="w-[150px]">
+                    <SelectValue placeholder="Loại giao dịch" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">Tất cả loại</SelectItem>
+                    <SelectItem value="registration">Đăng ký mới</SelectItem>
+                    <SelectItem value="renewal">Gia hạn</SelectItem>
+                    <SelectItem value="upgrade">Nâng cấp</SelectItem>
+                    <SelectItem value="adjustment">Điều chỉnh</SelectItem>
                 </SelectContent>
             </Select>
             <Input
@@ -755,7 +754,7 @@ const chartAreaPath = computed(() => {
             </template>
         </FilterBar>
 
-        <!-- Orders Table -->
+        <!-- Invoices Table -->
         <Card class="overflow-hidden border border-border/60 shadow-xs">
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-left">
@@ -763,17 +762,17 @@ const chartAreaPath = computed(() => {
                         <tr
                             class="border-b border-border/60 bg-muted/40 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
                         >
-                            <th class="w-[160px] p-4">Mã đơn</th>
+                            <th class="w-[160px] p-4">Số hóa đơn</th>
                             <th class="p-4">Nhà hàng</th>
-                            <th class="w-[120px] p-4 text-center">Kênh</th>
+                            <th class="w-[180px] p-4 text-center">Gói dịch vụ</th>
                             <th class="w-[130px] p-4 text-center">
                                 Trạng thái
                             </th>
                             <th class="w-[130px] p-4 text-center">
-                                Thanh toán
+                                Chu kỳ
                             </th>
                             <th class="w-[140px] p-4 text-right">Tổng tiền</th>
-                            <th class="w-[160px] p-4 text-center">Thời gian</th>
+                            <th class="w-[160px] p-4 text-center">Ngày tạo</th>
                             <th class="w-[120px] p-4 pr-6 text-right">
                                 Thao tác
                             </th>
@@ -786,11 +785,11 @@ const chartAreaPath = computed(() => {
                             class="cursor-pointer transition-all duration-150 hover:bg-muted/20"
                             @click="openOrderDetails(order)"
                         >
-                            <!-- Order Number -->
+                            <!-- Invoice Number -->
                             <td
                                 class="p-4 font-mono font-bold text-slate-800 dark:text-slate-200"
                             >
-                                #{{ order.order_number }}
+                                {{ order.order_number }}
                             </td>
 
                             <!-- Restaurant details -->
@@ -807,39 +806,23 @@ const chartAreaPath = computed(() => {
                                 </div>
                             </td>
 
-                            <!-- Channel -->
+                            <!-- Plan Name -->
                             <td class="p-4 text-center">
-                                <span
-                                    class="inline-block rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase"
-                                    :class="[
-                                        order.channel === 'pos'
-                                            ? 'border-blue-500/20 bg-blue-500/10 text-blue-600'
-                                            : order.channel === 'qr'
-                                              ? 'border-purple-500/20 bg-purple-500/10 text-purple-600'
-                                              : order.channel === 'online'
-                                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                                : 'border-orange-500/20 bg-orange-500/10 text-orange-600',
-                                    ]"
-                                >
-                                    {{
-                                        channelLabel[order.channel] ??
-                                        order.channel
-                                    }}
+                                <span class="font-bold text-slate-700 dark:text-slate-300">
+                                    {{ order.plan_name }}
                                 </span>
                             </td>
 
-                            <!-- Order Status -->
+                            <!-- Invoice Status -->
                             <td class="p-4 text-center">
                                 <span
                                     class="inline-block rounded-lg border px-2 py-0.5 text-[10px] font-bold"
                                     :class="[
-                                        order.status === 'completed'
+                                        order.status === 'paid'
                                             ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                            : order.status === 'cancelled'
+                                            : order.status === 'unpaid'
                                               ? 'animate-pulse border-rose-500/20 bg-rose-500/10 text-rose-600'
-                                              : order.status === 'pending'
-                                                ? 'border-amber-500/20 bg-amber-500/10 text-amber-600'
-                                                : 'border-blue-500/20 bg-blue-500/10 text-blue-600',
+                                              : 'border-amber-500/20 bg-amber-500/10 text-amber-600',
                                     ]"
                                 >
                                     {{
@@ -849,20 +832,19 @@ const chartAreaPath = computed(() => {
                                 </span>
                             </td>
 
-                            <!-- Payment status -->
+                            <!-- Billing Cycle -->
                             <td class="p-4 text-center">
                                 <span
                                     class="inline-block rounded-lg border px-2 py-0.5 text-[10px] font-bold"
                                     :class="[
-                                        order.payment_status === 'paid'
-                                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                            : 'animate-pulse border-rose-500/20 bg-rose-500/10 text-rose-600',
+                                        order.billing_cycle === 'yearly'
+                                            ? 'border-indigo-500/20 bg-indigo-500/10 text-indigo-600'
+                                            : 'border-slate-500/20 bg-slate-500/10 text-slate-600',
                                     ]"
                                 >
                                     {{
-                                        order.payment_status === 'paid'
-                                            ? 'Đã TT'
-                                            : 'Chưa TT'
+                                        billingCycleLabel[order.billing_cycle] ??
+                                        order.billing_cycle
                                     }}
                                 </span>
                             </td>
@@ -874,7 +856,7 @@ const chartAreaPath = computed(() => {
                                 {{ order.total_amount }}đ
                             </td>
 
-                            <!-- Order time -->
+                            <!-- Created time -->
                             <td
                                 class="p-4 text-center font-mono text-[11px] text-muted-foreground"
                             >
@@ -897,7 +879,7 @@ const chartAreaPath = computed(() => {
                                 colspan="8"
                                 class="p-8 text-center font-medium text-muted-foreground italic"
                             >
-                                Không tìm thấy đơn hàng nào phù hợp với bộ lọc.
+                                Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
                             </td>
                         </tr>
                     </tbody>
@@ -913,7 +895,7 @@ const chartAreaPath = computed(() => {
                     Đang hiển thị trang
                     <strong>{{ orders.current_page }}</strong> trên tổng số
                     <strong>{{ orders.last_page }}</strong> trang (Tổng số
-                    {{ orders.total }} đơn hàng)
+                    {{ orders.total }} hóa đơn)
                 </p>
                 <div class="flex gap-1">
                     <Link
@@ -935,21 +917,20 @@ const chartAreaPath = computed(() => {
             </div>
         </Card>
 
-        <!-- Order Detail Dialog -->
-        <Dialog :open="selectedOrder !== null" @update:open="closeOrderDetails">
+        <!-- Invoice Detail Dialog -->
+        <Dialog v-model:open="showDetails">
             <DialogContent
                 class="flex max-h-[90vh] flex-col overflow-hidden p-6 sm:max-w-[500px]"
             >
                 <DialogHeader class="shrink-0">
                     <DialogTitle
-                        class="flex items-center gap-2 font-mono text-slate-800 dark:text-slate-100"
+                        class="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100"
                     >
-                        <Utensils class="size-5 text-emerald-500" />
-                        Đơn hàng: #{{ selectedOrder?.order_number }}
+                        <ShoppingCart class="size-5 text-emerald-500" />
+                        Hóa đơn: {{ selectedOrder?.order_number }}
                     </DialogTitle>
                     <DialogDescription class="text-xs">
-                        Chi tiết các món ăn, thông tin nhà hàng và khách hàng
-                        của đơn.
+                        Chi tiết thanh toán, gói dịch vụ và thời hạn đăng ký của nhà hàng.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -976,7 +957,7 @@ const chartAreaPath = computed(() => {
                         </div>
                         <div>
                             <span class="block font-bold text-slate-400"
-                                >Thời gian tạo</span
+                                >Thời gian lập</span
                             >
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-mono font-bold text-slate-700 dark:text-slate-300"
@@ -987,39 +968,66 @@ const chartAreaPath = computed(() => {
                         </div>
                         <div>
                             <span class="block font-bold text-slate-400"
-                                >Kênh đặt đơn</span
+                                >Gói dịch vụ đăng ký</span
                             >
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                <ArrowUpRight class="size-3.5 text-slate-400" />
-                                {{
-                                    channelLabel[selectedOrder.channel] ??
-                                    selectedOrder.channel
-                                }}
+                                {{ selectedOrder.plan_name }}
                             </span>
                         </div>
                         <div>
                             <span class="block font-bold text-slate-400"
-                                >Bàn phục vụ</span
+                                >Hạn thanh toán</span
+                            >
+                            <span
+                                class="mt-0.5 flex items-center gap-1 font-mono font-bold text-slate-700 dark:text-slate-300"
+                            >
+                                <Calendar class="size-3.5 text-slate-400" />
+                                {{ selectedOrder.due_on }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block font-bold text-slate-400"
+                                >Chu kỳ thanh toán</span
                             >
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                <MapPin class="size-3.5 text-slate-400" /> Bàn:
-                                {{ selectedOrder.table_name }}
+                                {{ billingCycleLabel[selectedOrder.billing_cycle] ?? selectedOrder.billing_cycle }}
                             </span>
                         </div>
                         <div>
                             <span class="block font-bold text-slate-400"
-                                >Trạng thái</span
+                                >Loại hóa đơn</span
+                            >
+                            <span
+                                class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
+                            >
+                                {{ typeLabel[selectedOrder.type] ?? selectedOrder.type }}
+                            </span>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="block font-bold text-slate-400"
+                                >Email nhận hóa đơn</span
+                            >
+                            <span
+                                class="mt-0.5 block font-medium text-slate-700 dark:text-slate-300 truncate font-mono"
+                                :title="selectedOrder.recipient_email"
+                            >
+                                {{ selectedOrder.recipient_email }}
+                            </span>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="block font-bold text-slate-400"
+                                >Trạng thái thanh toán</span
                             >
                             <span
                                 class="mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold"
                                 :class="
-                                    selectedOrder.status === 'completed'
+                                    selectedOrder.status === 'paid'
                                         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                        : 'border-amber-500/20 bg-amber-500/10 text-amber-600'
+                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-600'
                                 "
                             >
                                 {{
@@ -1028,139 +1036,20 @@ const chartAreaPath = computed(() => {
                                 }}
                             </span>
                         </div>
-                        <div>
-                            <span class="block font-bold text-slate-400"
-                                >Thanh toán</span
-                            >
-                            <span
-                                class="mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold"
-                                :class="
-                                    selectedOrder.payment_status === 'paid'
-                                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-600'
-                                "
-                            >
-                                {{
-                                    selectedOrder.payment_status === 'paid'
-                                        ? 'Đã thanh toán'
-                                        : 'Chưa thanh toán'
-                                }}
-                            </span>
-                        </div>
                     </div>
 
-                    <!-- Customer Info Section -->
-                    <div class="space-y-2 border-b border-border/40 pb-3">
-                        <h4
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-400 uppercase"
-                        >
-                            <User class="size-3.5" /> Thông tin khách hàng
-                        </h4>
-                        <div
-                            class="flex items-center justify-between px-2 text-xs"
-                        >
-                            <div
-                                class="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300"
-                            >
-                                <span>{{ selectedOrder.customer_name }}</span>
-                            </div>
-                            <div
-                                class="flex items-center gap-0.5 font-mono text-[11px] text-slate-500"
-                            >
-                                <Phone class="size-3" />
-                                {{ selectedOrder.customer_phone }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Items list -->
-                    <div class="space-y-2.5">
-                        <h4
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-400 uppercase"
-                        >
-                            <Utensils class="size-3.5" /> Danh sách món ăn đặt
-                            mua
-                        </h4>
-
-                        <div
-                            class="overflow-hidden rounded-xl border border-border/40 bg-slate-50/50 dark:bg-slate-900/30"
-                        >
-                            <div
-                                class="grid grid-cols-12 border-b border-border/40 bg-muted/40 p-3 text-[10px] font-black text-muted-foreground uppercase"
-                            >
-                                <div class="col-span-6">Sản phẩm</div>
-                                <div class="col-span-2 text-center">SL</div>
-                                <div class="col-span-2 text-right">Đơn giá</div>
-                                <div class="col-span-2 text-right">Tổng</div>
-                            </div>
-                            <div
-                                class="max-h-[160px] divide-y divide-border/30 overflow-y-auto"
-                            >
-                                <div
-                                    v-for="item in selectedOrder.items"
-                                    :key="item.id"
-                                    class="grid grid-cols-12 items-center p-3 text-xs text-slate-600 dark:text-slate-300"
-                                >
-                                    <div
-                                        class="col-span-6 font-bold text-slate-700 dark:text-slate-200"
-                                    >
-                                        {{ item.product_name }}
-                                    </div>
-                                    <div
-                                        class="col-span-2 text-center font-mono font-bold"
-                                    >
-                                        {{ item.quantity }}
-                                    </div>
-                                    <div
-                                        class="col-span-2 text-right font-mono text-[11px]"
-                                    >
-                                        {{ item.price }}đ
-                                    </div>
-                                    <div
-                                        class="col-span-2 text-right font-mono font-bold text-slate-800 dark:text-slate-100"
-                                    >
-                                        {{ item.total }}đ
-                                    </div>
-                                </div>
-                                <div
-                                    v-if="selectedOrder.items.length === 0"
-                                    class="py-4 text-center text-xs text-muted-foreground italic"
-                                >
-                                    Không có thông tin món ăn chi tiết.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Order Total Calculation Summary -->
+                    <!-- Total Calculation Summary -->
                     <div
                         class="flex shrink-0 items-center justify-between rounded-xl bg-slate-950 p-3 font-mono text-white"
                     >
                         <span
                             class="flex items-center gap-1 text-xs font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            <CreditCard class="size-4 text-emerald-400" /> Tổng
-                            tiền thanh toán
+                            <CreditCard class="size-4 text-emerald-400" /> Tổng tiền thanh toán
                         </span>
                         <span class="text-base font-black text-emerald-400">
                             {{ selectedOrder.total_amount }}đ
                         </span>
-                    </div>
-
-                    <!-- Customer Notes -->
-                    <div
-                        v-if="selectedOrder.note"
-                        class="space-y-1 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3"
-                    >
-                        <span
-                            class="block text-[10px] font-bold tracking-widest text-amber-500 uppercase"
-                            >Ghi chú đơn hàng</span
-                        >
-                        <p
-                            class="text-xs leading-relaxed font-medium text-amber-700 italic dark:text-amber-300"
-                        >
-                            "{{ selectedOrder.note }}"
-                        </p>
                     </div>
                 </div>
 

@@ -17,6 +17,7 @@ import {
     Activity,
     Sparkles,
     ThumbsUp,
+    ChevronLeft,
     ChevronRight,
     BarChart3,
     ShieldAlert,
@@ -31,7 +32,7 @@ import {
     Check,
     Globe,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import AreaChart from '@/components/charts/AreaChart.vue';
 import {
@@ -149,6 +150,28 @@ const search = ref(props.filters.search ?? '');
 const status = ref(props.filters.status ?? '');
 const planFilter = ref(props.filters.plan ?? '');
 const flaggedFilter = ref(props.filters.flagged ?? '');
+
+// Plan distribution pagination
+const planPage = ref(1);
+const planPageSize = 4;
+const paginatedPlanDistribution = computed(() => {
+    const start = (planPage.value - 1) * planPageSize;
+    const end = start + planPageSize;
+    return props.planDistribution?.slice(start, end) ?? [];
+});
+const totalPlanPages = computed(() => {
+    return Math.ceil((props.planDistribution?.length ?? 0) / planPageSize);
+});
+function prevPlanPage() {
+    if (planPage.value > 1) {
+        planPage.value--;
+    }
+}
+function nextPlanPage() {
+    if (planPage.value < totalPlanPages.value) {
+        planPage.value++;
+    }
+}
 
 let searchTimer: ReturnType<typeof setTimeout>;
 watch(search, () => {
@@ -442,7 +465,7 @@ function submitStatus() {
 
                     <div class="mt-5 space-y-3.5">
                         <div
-                            v-for="plan in planDistribution"
+                            v-for="plan in paginatedPlanDistribution"
                             :key="plan.code"
                             class="space-y-1.5"
                         >
@@ -485,6 +508,36 @@ function submitStatus() {
                                         width: `${(plan.count / (stats?.active || 1)) * 100}%`,
                                     }"
                                 ></div>
+                            </div>
+                        </div>
+
+                        <!-- Pagination Controls -->
+                        <div
+                            v-if="totalPlanPages > 1"
+                            class="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs font-semibold"
+                        >
+                            <span class="text-muted-foreground">
+                                Trang {{ planPage }} / {{ totalPlanPages }}
+                            </span>
+                            <div class="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-7 rounded-lg"
+                                    :disabled="planPage === 1"
+                                    @click="prevPlanPage"
+                                >
+                                    <ChevronLeft class="size-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    class="size-7 rounded-lg"
+                                    :disabled="planPage === totalPlanPages"
+                                    @click="nextPlanPage"
+                                >
+                                    <ChevronRight class="size-4" />
+                                </Button>
                             </div>
                         </div>
                     </div>

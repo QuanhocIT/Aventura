@@ -14,7 +14,7 @@ class GlobalOrdersController extends Controller
     {
         $filters = $request->only(['restaurant_id', 'status', 'payment_status', 'search', 'date_from', 'date_to']);
 
-        $query = Order::with(['items.product', 'customer', 'table'])->withoutGlobalScopes();
+        $query = \App\Models\BillingInvoice::with(['restaurant', 'subscription.plan'])->latest();
 
         if (!empty($filters['restaurant_id'])) {
             $query->where('restaurant_id', $filters['restaurant_id']);
@@ -24,12 +24,19 @@ class GlobalOrdersController extends Controller
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['payment_status'])) {
-            $query->where('payment_status', $filters['payment_status']);
+        if (!empty($filters['type'])) {
+            $query->where('type', $filters['type']);
         }
 
         if (!empty($filters['search'])) {
-            $query->where('order_number', 'like', "%{$filters['search']}%");
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('restaurant', function ($qr) use ($search) {
+                      $qr->where('name', 'like', "%{$search}%")
+                         ->orWhere('code', 'like', "%{$search}%");
+                  });
+            });
         }
 
         if (!empty($filters['date_from'])) {
@@ -40,63 +47,68 @@ class GlobalOrdersController extends Controller
             $query->whereDate('created_at', '<=', $filters['date_to']);
         }
 
-        $restaurantCache = Restaurant::pluck('name', 'id')->toArray();
-        $restaurantCodeCache = Restaurant::pluck('code', 'id')->toArray();
-
-        $orders = $query->latest()->paginate(20)->through(fn (Order $o) => [
-            'id' => $o->id,
-            'order_number' => $o->order_number,
-            'restaurant' => $restaurantCache[$o->restaurant_id] ?? '—',
-            'restaurant_code' => $restaurantCodeCache[$o->restaurant_id] ?? '',
-            'status' => $o->status,
-            'payment_status' => $o->payment_status,
-            'total_amount' => number_format($o->total_amount ?? 0, 0, ',', '.'),
-            'total_raw' => (float)($o->total_amount ?? 0),
-            'channel' => $o->channel ?? 'pos',
-            'note' => $o->note,
-            'created_at' => $o->created_at?->format('d/m/Y H:i'),
-            'customer_name' => $o->customer?->name ?? 'Khách vãng lai',
-            'customer_phone' => $o->customer?->phone ?? '—',
-            'table_name' => $o->table?->name ?? '—',
-            'items' => $o->items->map(fn($item) => [
-                'id' => $item->id,
-                'product_name' => $item->product?->name ?? 'Sản phẩm đã xóa',
-                'quantity' => $item->quantity,
-                'price' => number_format($item->price ?? 0, 0, ',', '.'),
-                'total' => number_format(($item->price * $item->quantity) ?? 0, 0, ',', '.'),
-            ])->toArray(),
+        $orders = $query->paginate(10)->withQueryString()->through(fn (\App\Models\BillingInvoice $invoice) => [
+            'id' => $invoice->id,
+            'order_number' => $invoice->invoice_number,
+            'restaurant' => $invoice->restaurant?->name ?? '—',
+            'restaurant_code' => $invoice->restaurant?->code ?? '',
+            'plan_name' => $invoice->subscription?->plan?->name ?? 'Gói tùy chỉnh',
+            'billing_cycle' => $invoice->subscription?->billing_meta['cycle'] ?? 'monthly',
+            'status' => $invoice->status,
+            'total_amount' => number_format($invoice->total ?? 0, 0, ',', '.'),
+            'total_raw' => (float)($invoice->total ?? 0),
+            'type' => $invoice->type,
+            'created_at' => $invoice->created_at?->format('d/m/Y H:i'),
+            'due_on' => $invoice->due_on?->format('d/m/Y'),
+            'recipient_email' => $invoice->recipient_email ?? '—',
         ]);
 
         $today = now()->toDateString();
         
-        $posToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'pos')->count();
-        $qrToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'qr')->count();
-        $onlineToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'online')->count();
-        $deliveryToday = Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('channel', 'delivery')->count();
+        $totalToday = \App\Models\BillingInvoice::whereDate('created_at', $today)->count();
+        $revenueToday = (float)\App\Models\BillingInvoice::whereDate('created_at', $today)->where('status', 'paid')->sum('total');
+        $paidToday = \App\Models\BillingInvoice::whereDate('created_at', $today)->where('status', 'paid')->count();
+        $unpaidToday = \App\Models\BillingInvoice::whereDate('created_at', $today)->where('status', 'unpaid')->count();
 
         $revenueTrend = collect(range(6, 0))->map(function($daysAgo) {
             $date = now()->subDays($daysAgo)->toDateString();
             $label = now()->subDays($daysAgo)->format('d/m');
-            $revenue = Order::withoutGlobalScopes()
-                ->whereDate('created_at', $date)
-                ->where('status', 'completed')
-                ->sum('total_amount') ?? 0;
+            $revenue = \App\Models\BillingInvoice::whereDate('created_at', $date)
+                ->where('status', 'paid')
+                ->sum('total') ?? 0;
             return [
                 'date' => $label,
                 'revenue' => (float)$revenue,
             ];
         })->toArray();
 
+        $starterCount = \App\Models\BillingInvoice::whereHas('subscription.plan', function($q) {
+            $q->where('code', 'starter');
+        })->where('status', 'paid')->count();
+
+        $proCount = \App\Models\BillingInvoice::whereHas('subscription.plan', function($q) {
+            $q->where('code', 'pro');
+        })->where('status', 'paid')->count();
+
+        $enterpriseCount = \App\Models\BillingInvoice::whereHas('subscription.plan', function($q) {
+            $q->where('code', 'enterprise');
+        })->where('status', 'paid')->count();
+
+        $customCount = \App\Models\BillingInvoice::where(function($q) {
+            $q->whereNull('restaurant_subscription_id')
+              ->orWhereDoesntHave('subscription.plan');
+        })->where('status', 'paid')->count();
+
         $stats = [
-            'total_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->count(),
-            'revenue_today' => (float)Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'completed')->sum('total_amount'),
-            'completed_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'completed')->count(),
-            'cancelled_today' => Order::withoutGlobalScopes()->whereDate('created_at', $today)->where('status', 'cancelled')->count(),
+            'total_today' => $totalToday,
+            'revenue_today' => $revenueToday,
+            'completed_today' => $paidToday,
+            'cancelled_today' => $unpaidToday,
             
-            'pos_today' => $posToday,
-            'qr_today' => $qrToday,
-            'online_today' => $onlineToday,
-            'delivery_today' => $deliveryToday,
+            'pos_today' => $starterCount,
+            'qr_today' => $proCount,
+            'online_today' => $enterpriseCount,
+            'delivery_today' => $customCount,
             'revenue_trend' => $revenueTrend,
         ];
 

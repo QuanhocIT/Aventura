@@ -24,6 +24,7 @@ class SubscriptionPlan extends Model
     protected function casts(): array
     {
         return [
+            'price' => 'integer',
             'features' => 'array',
             'is_custom' => 'boolean',
             'max_dishes' => 'integer',

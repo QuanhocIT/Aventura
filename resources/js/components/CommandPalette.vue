@@ -229,19 +229,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <!-- Keyboard helper tag -->
-    <div class="fixed right-4 bottom-4 z-40 hidden md:block">
-        <div
-            class="flex items-center gap-1.5 rounded-xl border border-border/80 bg-background/80 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-lg backdrop-blur"
-        >
-            <span>Tìm kiếm nhanh</span>
-            <kbd
-                class="pointer-events-none inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-bold text-muted-foreground opacity-100 select-none"
-            >
-                <span>Ctrl</span>+<span>K</span>
-            </kbd>
-        </div>
-    </div>
 
     <!-- Modal Backdrop -->
     <div

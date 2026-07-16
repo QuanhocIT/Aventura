@@ -297,12 +297,12 @@ const chartAreaPath = computed(() => {
 </script>
 
 <template>
-    <Head title="Quản lý Coupon" />
+    <Head title="Quản lý Khuyến mãi" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Quản lý Coupon"
+            title="Quản lý Khuyến mãi"
             subtitle="Tạo và quản lý mã giảm giá cho toàn hệ thống."
             :icon="BadgePercent"
         >
@@ -312,13 +312,13 @@ const chartAreaPath = computed(() => {
                     class="cursor-pointer rounded-xl text-xs font-bold"
                     @click="router.get('/super-admin/coupons/batches')"
                 >
-                    <Layers class="mr-2 size-4" /> Coupon hàng loạt
+                    <Layers class="mr-2 size-4" /> Khuyến mãi hàng loạt
                 </Button>
                 <Button
                     class="cursor-pointer rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm"
                     @click="openCreateForm"
                 >
-                    <Plus class="mr-2 size-4" /> Tạo coupon
+                    <Plus class="mr-2 size-4" /> Tạo khuyến mãi
                 </Button>
             </template>
         </PageHeader>
@@ -333,7 +333,7 @@ const chartAreaPath = computed(() => {
                     <p
                         class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
                     >
-                        Tổng coupon
+                        Tổng khuyến mãi
                     </p>
                     <h3
                         class="mt-1 font-mono text-2xl font-black tracking-tight"
@@ -452,7 +452,7 @@ const chartAreaPath = computed(() => {
                                 <TrendingUp
                                     class="size-4 animate-pulse text-primary"
                                 />
-                                Xu hướng sử dụng Coupon (6 tháng qua)
+                                Xu hướng sử dụng Khuyến mãi (6 tháng qua)
                             </CardTitle>
                             <p class="mt-0.5 text-[10px] text-muted-foreground">
                                 Biểu đồ thống kê số lượt áp dụng mã giảm giá
@@ -600,7 +600,7 @@ const chartAreaPath = computed(() => {
                             class="text-[11px] leading-relaxed font-semibold text-muted-foreground"
                         >
                             <span v-if="stats.total_uses === 0">
-                                Chưa ghi nhận lượt áp dụng coupon nào. Hệ thống
+                                Chưa ghi nhận lượt áp dụng khuyến mãi nào. Hệ thống
                                 khuyên bạn nên chạy chiến dịch khuyến mãi dùng
                                 mã
                                 <code
@@ -610,8 +610,8 @@ const chartAreaPath = computed(() => {
                                 để kích cầu đối tác.
                             </span>
                             <span v-else-if="stats.active > 0">
-                                Chiến dịch coupon đang vận hành ổn định. Tỷ lệ
-                                coupon hoạt động đạt {{ couponSuccessRate }}%.
+                                Chiến dịch khuyến mãi đang vận hành ổn định. Tỷ lệ
+                                khuyến mãi hoạt động đạt {{ couponSuccessRate }}%.
                                 Hãy cân nhắc tung mã cố định thay vì % để đo
                                 lường lòng trung thành của chủ nhà hàng.
                             </span>
@@ -646,7 +646,7 @@ const chartAreaPath = computed(() => {
                 />
                 <Input
                     v-model="search"
-                    placeholder="Tìm mã coupon, mô tả..."
+                    placeholder="Tìm mã khuyến mãi, mô tả..."
                     class="pl-9"
                 />
             </div>
@@ -668,9 +668,9 @@ const chartAreaPath = computed(() => {
         >
             <CardHeader class="border-b border-border/40 bg-muted/10 pb-3">
                 <CardTitle class="text-sm font-bold">
-                    Danh sách coupon
+                    Danh sách khuyến mãi
                     <span class="ml-1 text-xs font-bold text-muted-foreground"
-                        >({{ coupons.total }} coupon)</span
+                        >({{ coupons.total }} khuyến mãi)</span
                     >
                 </CardTitle>
             </CardHeader>
@@ -682,7 +682,7 @@ const chartAreaPath = computed(() => {
                                 class="border-b border-border/60 pb-3 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
                             >
                                 <th class="pb-3 text-left font-black">
-                                    Mã coupon
+                                    Mã khuyến mãi
                                 </th>
                                 <th class="pb-3 text-left font-black">Loại</th>
                                 <th class="pb-3 text-left font-black">
@@ -851,7 +851,7 @@ const chartAreaPath = computed(() => {
                         v-if="!coupons.data.length"
                         class="py-12 text-center text-sm font-semibold text-muted-foreground"
                     >
-                        Không có coupon nào phù hợp.
+                        Không có khuyến mãi nào phù hợp.
                     </p>
                 </div>
 
@@ -909,7 +909,7 @@ const chartAreaPath = computed(() => {
                         <span>{{
                             editingCoupon
                                 ? `Chỉnh sửa — ${editingCoupon.code}`
-                                : 'Tạo mã coupon mới'
+                                : 'Tạo mã khuyến mãi mới'
                         }}</span>
                     </h2>
                     <button
@@ -929,7 +929,7 @@ const chartAreaPath = computed(() => {
                             class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
                         >
                             <Tag class="size-3.5 text-orange-500" />
-                            Mã coupon <span class="text-rose-500">*</span>
+                            Mã khuyến mãi <span class="text-rose-500">*</span>
                         </Label>
                         <div class="relative flex items-center">
                             <span
@@ -1088,7 +1088,7 @@ const chartAreaPath = computed(() => {
                         @click="submitForm"
                     >
                         <Check class="mr-1.5 size-4" />
-                        {{ editingCoupon ? 'Cập nhật' : 'Tạo coupon' }}
+                        {{ editingCoupon ? 'Cập nhật' : 'Tạo khuyến mãi' }}
                     </Button>
                 </div>
             </div>

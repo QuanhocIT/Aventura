@@ -8,8 +8,14 @@ import {
     Trash2,
     Pencil,
     Zap,
+    Tag,
+    Link as LinkIcon,
+    Percent,
+    Clock,
+    FileText,
+    DollarSign,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import {
     PageHeader,
     StatCard,
@@ -100,6 +106,90 @@ const form = useForm({
     theme_color: '#6366f1',
 });
 
+const currentMonth = new Date().getMonth() + 1; // 1-12
+const currentYear = new Date().getFullYear();
+
+const aiRecommendation = computed(() => {
+    if (currentMonth === 11 || currentMonth === 12) {
+        return {
+            title: "Lên kế hoạch Tết Nguyên Đán",
+            text: `Hôm nay là cuối năm ${currentYear}. Tết Nguyên Đán sắp diễn ra trong khoảng 1-2 tháng tới. AI khuyên bạn khởi tạo chiến dịch khuyến mãi Tết với mức giảm 20% (Tiền tố TET) để kích cầu doanh thu tối đa trong dịp lễ lớn này.`,
+            season: "tet"
+        };
+    } else if (currentMonth === 1 || currentMonth === 2) {
+        return {
+            title: "Chiến dịch Valentine ngọt ngào",
+            text: "Dịp lễ Valentine (14/2) đang cận kề. Đây là cơ hội vàng để tung gói khuyến mãi cố định (ví dụ: Giảm 100k - Tiền tố VAL) nhắm tới các thương hiệu F&B muốn mở rộng kênh bán hàng trực tuyến.",
+            season: "valentine"
+        };
+    } else if (currentMonth >= 8 && currentMonth <= 9) {
+        return {
+            title: "Chiến dịch Thu - Giáng Sinh sớm",
+            text: "Tháng 8-9 là giai đoạn chuẩn bị cho mùa lễ hội cuối năm. AI gợi ý chuẩn bị trước chiến dịch Halloween hoặc thiết lập sớm mã giảm giá Trung Thu để thúc đẩy đăng ký mới.",
+            season: "mid_autumn"
+        };
+    } else if (currentMonth === 10) {
+        return {
+            title: "Black Friday & Noel đang đến gần",
+            text: `Sắp tới tháng 11 với ngày hội mua sắm Black Friday lớn nhất năm. AI khuyến nghị bạn chuẩn bị cấu hình sẵn chiến dịch Black Friday với mức chiết khấu sâu (25% - 30%) để thu hút các đối tác F&B lớn nâng cấp gói dịch vụ dài hạn.`,
+            season: "black-friday"
+        };
+    } else {
+        // Mặc định hoặc mùa hè
+        return {
+            title: "Tối ưu hóa các chiến dịch giữa năm",
+            text: "Giai đoạn giữa năm là thời điểm thích hợp để chạy các chương trình khuyến mãi nhỏ kích cầu. AI gợi ý tạo một template chiến dịch tùy chỉnh (Custom) với mức giảm giá 10% - 15% để duy trì tăng trưởng thuê bao ổn định.",
+            season: "custom"
+        };
+    }
+});
+
+function applyAiRecommendation() {
+    const rec = aiRecommendation.value;
+    form.reset();
+    form.season = rec.season;
+    
+    if (rec.season === 'tet') {
+        form.name = `Khuyến mãi Tết Nguyên Đán ${currentYear + 1}`;
+        form.slug = `tet-nguyen-dan-${currentYear + 1}`;
+        form.discount_type = 'percent';
+        form.discount_value = 20;
+        form.default_duration_days = 14;
+        form.code_prefix = 'TET';
+        form.description = `Chiến dịch tri ân đối tác dịp Tết Nguyên Đán với mã giảm 20% cho tất cả các gói dịch vụ.`;
+    } else if (rec.season === 'valentine') {
+        form.name = `Chiến dịch Valentine ngọt ngào ${currentYear}`;
+        form.slug = `valentine-love-${currentYear}`;
+        form.discount_type = 'fixed';
+        form.discount_value = 100000;
+        form.default_duration_days = 5;
+        form.code_prefix = 'VAL';
+        form.description = `Mã giảm giá cố định 100,000₫ cho các cửa hàng đăng ký/gia hạn gói dịch vụ Pro trở lên.`;
+    } else if (rec.season === 'black-friday') {
+        form.name = `Siêu ưu đãi Black Friday ${currentYear}`;
+        form.slug = `black-friday-${currentYear}`;
+        form.discount_type = 'percent';
+        form.discount_value = 30;
+        form.default_duration_days = 3;
+        form.code_prefix = 'BFRI';
+        form.description = `Đợt giảm giá sâu nhất trong năm lên tới 30% dịp Black Friday ${currentYear} cho khách hàng đăng ký hoặc gia hạn dài hạn.`;
+    } else {
+        form.name = `Khuyến mãi Hè ${currentYear}`;
+        form.slug = `uu-dai-he-${currentYear}`;
+        form.discount_type = 'percent';
+        form.discount_value = 10;
+        form.default_duration_days = 7;
+        form.code_prefix = 'SUMMER';
+        form.description = `Chương trình khuyến mãi mùa hè kích cầu tăng trưởng thuê bao giữa năm ${currentYear}.`;
+    }
+    
+    showCreate.value = true;
+}
+
+function seedDefaults() {
+    router.post('/super-admin/campaign-templates/seed-defaults');
+}
+
 const generateForm = useForm({
     code_count: 100,
     starts_at: '',
@@ -160,11 +250,44 @@ async function deleteTemplate(id: number) {
             :icon="Calendar"
         >
             <template #actions>
+                <Button @click="seedDefaults" variant="outline" class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
+                    <Sparkles class="size-4 text-amber-500 animate-pulse" /> Khởi tạo bản mẫu
+                </Button>
                 <Button @click="showCreate = true" class="gap-1.5">
                     <Plus class="size-4" /> Tạo template mới
                 </Button>
             </template>
         </PageHeader>
+
+        <!-- AI Advisor Banner -->
+        <div
+            class="flex flex-col gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04] p-5 shadow-2xs backdrop-blur-md animate-in fade-in duration-500 md:flex-row md:items-center md:justify-between"
+        >
+            <div class="flex items-start gap-3.5">
+                <div
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                >
+                    <Sparkles class="size-5 animate-pulse" />
+                </div>
+                <div class="space-y-1">
+                    <h4 class="text-sm font-bold text-indigo-950 dark:text-indigo-200">
+                        AI Advisor & Gợi ý chiến dịch: {{ aiRecommendation.title }}
+                    </h4>
+                    <p class="text-xs leading-relaxed text-indigo-700/80 dark:text-indigo-300/80">
+                        {{ aiRecommendation.text }}
+                    </p>
+                </div>
+            </div>
+            <div class="flex shrink-0 items-center gap-2 self-end md:self-center">
+                <Button
+                    size="sm"
+                    class="bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                    @click="applyAiRecommendation"
+                >
+                    <Zap class="mr-1.5 size-3.5" /> Áp dụng ngay
+                </Button>
+            </div>
+        </div>
 
         <!-- Template Gallery -->
         <div
@@ -197,22 +320,34 @@ async function deleteTemplate(id: number) {
                     {{ seasons[t.season] ?? t.season }}
                 </p>
 
-                <div class="mt-3 flex items-center gap-2">
+                <div class="mt-3 flex flex-wrap items-center gap-2">
                     <span
                         class="rounded-md bg-card/80 px-2 py-1 font-mono text-xs font-bold text-primary"
                     >
                         {{
                             t.discount_type === 'percent'
-                                ? `${t.discount_value}%`
-                                : `${t.discount_value}₫`
+                                ? `${parseInt(t.discount_value)}%`
+                                : `${parseInt(t.discount_value).toLocaleString('vi')}₫`
                         }}
                     </span>
-                    <span class="text-[10px] text-muted-foreground"
+                    <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold"
                         >{{ t.default_duration_days }} ngày</span
                     >
-                    <span class="font-mono text-[10px] text-muted-foreground"
+                    <span class="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-semibold"
                         >{{ t.code_prefix }}-XXX</span
                     >
+                </div>
+
+                <!-- Budget & Usage Stats -->
+                <div class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground">
+                    <div>
+                        <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Batch đã tạo</p>
+                        <p class="font-mono text-xs font-bold text-foreground">{{ t.batches_count }} đợt</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Mã / Lượt dùng</p>
+                        <p class="font-mono text-xs font-bold text-foreground">{{ t.total_codes }} mã / {{ t.total_usages }} lượt</p>
+                    </div>
                 </div>
 
                 <p
@@ -223,11 +358,8 @@ async function deleteTemplate(id: number) {
                 </p>
 
                 <div
-                    class="mt-4 flex items-center justify-between border-t border-border/30 pt-3"
+                    class="mt-4 flex items-center justify-end gap-1 border-t border-border/30 pt-3"
                 >
-                    <span class="text-[10px] text-muted-foreground"
-                        >{{ t.batches_count }} batch đã tạo</span
-                    >
                     <div class="flex gap-1">
                         <Button
                             variant="ghost"
@@ -257,108 +389,231 @@ async function deleteTemplate(id: number) {
             description="Tạo template cho các dịp lễ như Tết, Valentine, Black Friday để generate mã coupon hàng loạt."
         >
             <template #action>
-                <Button @click="showCreate = true" class="gap-1.5"
-                    ><Plus class="size-4" /> Tạo template</Button
-                >
+                <div class="flex items-center gap-3">
+                    <Button @click="seedDefaults" variant="outline" class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
+                        <Sparkles class="size-4 animate-pulse text-amber-500" /> Khởi tạo bản mẫu gợi ý
+                    </Button>
+                    <Button @click="showCreate = true" class="gap-1.5">
+                        <Plus class="size-4" /> Tạo template
+                    </Button>
+                </div>
             </template>
         </EmptyState>
     </div>
 
     <!-- Create Dialog -->
     <Dialog v-model:open="showCreate">
-        <DialogContent class="max-w-lg">
-            <DialogHeader>
-                <DialogTitle>Tạo template chiến dịch mới</DialogTitle>
+        <DialogContent class="sm:max-w-4xl rounded-2xl p-8">
+            <DialogHeader class="border-b border-border/40 pb-4">
+                <DialogTitle class="flex items-center gap-2 text-base font-bold">
+                    <div
+                        class="flex size-7 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                    >
+                        <Calendar class="size-4" />
+                    </div>
+                    <span>Tạo template chiến dịch mới</span>
+                </DialogTitle>
             </DialogHeader>
-            <form @submit.prevent="submitCreate" class="grid gap-4 py-2">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Tên chiến dịch *</Label>
-                        <Input
-                            v-model="form.name"
-                            placeholder="Khuyến mãi Tết 2027"
-                            required
-                        />
+            <form @submit.prevent="submitCreate" class="py-2">
+                <div class="grid grid-cols-1 gap-8 md:grid-cols-5">
+                    <!-- Left: Form inputs -->
+                    <div class="md:col-span-3 space-y-5">
+                        <!-- Name -->
+                        <div class="grid gap-1.5">
+                            <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Tên chiến dịch *</Label>
+                            <div class="relative flex items-center">
+                                <Gift class="absolute left-3 size-4 text-muted-foreground" />
+                                <Input
+                                    v-model="form.name"
+                                    placeholder="Khuyến mãi Tết 2027"
+                                    required
+                                    class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Slug & Season -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Slug *</Label>
+                                <div class="relative flex items-center">
+                                    <LinkIcon class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Input
+                                        v-model="form.slug"
+                                        placeholder="tet-2027"
+                                        required
+                                        class="pl-9 font-mono text-xs focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Mùa/Dịp *</Label>
+                                <Select v-model="form.season">
+                                    <SelectTrigger class="h-9 rounded-xl focus:border-primary focus:ring-primary/20">
+                                        <SelectValue placeholder="Chọn..." />
+                                    </SelectTrigger>
+                                    <SelectContent class="rounded-xl">
+                                        <SelectItem
+                                            v-for="(label, key) in seasons"
+                                            :key="key"
+                                            :value="key"
+                                            >{{ label }}</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <!-- Discount Type & Value -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Loại giảm giá</Label>
+                                <Select v-model="form.discount_type">
+                                    <SelectTrigger class="h-9 rounded-xl focus:border-primary focus:ring-primary/20">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent class="rounded-xl">
+                                        <SelectItem value="percent">Phần trăm (%)</SelectItem>
+                                        <SelectItem value="fixed">Số tiền cố định (₫)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Giá trị giảm</Label>
+                                <div class="relative flex items-center">
+                                    <component :is="form.discount_type === 'percent' ? Percent : DollarSign" class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Input
+                                        v-model.number="form.discount_value"
+                                        type="number"
+                                        min="0"
+                                        required
+                                        class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prefix & Duration -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Tiền tố mã *</Label>
+                                <div class="relative flex items-center">
+                                    <Tag class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Input
+                                        v-model="form.code_prefix"
+                                        placeholder="TET"
+                                        maxlength="10"
+                                        required
+                                        class="pl-9 font-mono font-bold tracking-wider uppercase focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    />
+                                </div>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Thời hạn (ngày)</Label>
+                                <div class="relative flex items-center">
+                                    <Clock class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Input
+                                        v-model.number="form.default_duration_days"
+                                        type="number"
+                                        min="1"
+                                        required
+                                        class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="grid gap-1.5">
+                            <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Mô tả</Label>
+                            <div class="relative flex items-center">
+                                <FileText class="absolute left-3 size-4 text-muted-foreground" />
+                                <Input
+                                    v-model="form.description"
+                                    placeholder="Mô tả chiến dịch..."
+                                    class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div class="grid gap-1.5">
-                        <Label>Slug *</Label>
-                        <Input
-                            v-model="form.slug"
-                            placeholder="tet-2027"
-                            required
-                        />
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Mùa/Dịp *</Label>
-                        <Select v-model="form.season">
-                            <SelectTrigger
-                                ><SelectValue placeholder="Chọn..."
-                            /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem
-                                    v-for="(label, key) in seasons"
-                                    :key="key"
-                                    :value="key"
-                                    >{{ label }}</SelectItem
+
+                    <!-- Right: Live Preview -->
+                    <div class="md:col-span-2 flex flex-col border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-8 justify-start">
+                        <p class="mb-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Xem trước hiển thị</p>
+                        
+                        <div
+                            :class="[
+                                'group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-5 shadow-md border-border/40 transition-all duration-300 w-full',
+                                seasonColors[form.season] ?? seasonColors.custom,
+                            ]"
+                        >
+                            <div class="flex items-start justify-between">
+                                <div class="text-3xl">
+                                    {{ seasonEmojis[form.season] ?? '⚡' }}
+                                </div>
+                                <StatusBadge
+                                    status="active"
+                                    size="sm"
                                 >
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Loại giảm giá</Label>
-                        <Select v-model="form.discount_type">
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="percent"
-                                    >Phần trăm (%)</SelectItem
+                                    Active
+                                </StatusBadge>
+                            </div>
+                            <h3 class="mt-3 text-base font-bold text-foreground truncate">
+                                {{ form.name || 'Tên chiến dịch' }}
+                            </h3>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ seasons[form.season] || 'Tùy chỉnh' }}
+                            </p>
+
+                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                <span
+                                    class="rounded-md bg-card/80 px-2 py-1 font-mono text-xs font-bold text-primary"
                                 >
-                                <SelectItem value="fixed"
-                                    >Số tiền cố định (₫)</SelectItem
+                                    {{
+                                        form.discount_type === 'percent'
+                                            ? `${form.discount_value || 0}%`
+                                            : `${(form.discount_value || 0).toLocaleString('vi')}₫`
+                                    }}
+                                </span>
+                                <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold"
+                                    >{{ form.default_duration_days || 0 }} ngày</span
                                 >
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Giá trị giảm</Label>
-                        <Input
-                            v-model.number="form.discount_value"
-                            type="number"
-                            min="0"
-                        />
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Tiền tố mã *</Label>
-                        <Input
-                            v-model="form.code_prefix"
-                            placeholder="TET"
-                            maxlength="10"
-                            required
-                        />
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label>Thời hạn (ngày)</Label>
-                        <Input
-                            v-model.number="form.default_duration_days"
-                            type="number"
-                            min="1"
-                        />
-                    </div>
-                    <div class="col-span-2 grid gap-1.5">
-                        <Label>Mô tả</Label>
-                        <Input
-                            v-model="form.description"
-                            placeholder="Mô tả chiến dịch..."
-                        />
+                                <span class="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-semibold"
+                                    >{{ (form.code_prefix || 'PREFIX').toUpperCase() }}-XXX</span
+                                >
+                            </div>
+
+                            <!-- Dummy performance stats for preview -->
+                            <div class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground">
+                                <div>
+                                    <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Batch đã tạo</p>
+                                    <p class="font-mono text-xs font-bold text-foreground">0 đợt</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Mã / Lượt dùng</p>
+                                    <p class="font-mono text-xs font-bold text-foreground">0 mã / 0 lượt</p>
+                                </div>
+                            </div>
+
+                            <p
+                                v-if="form.description"
+                                class="mt-2 line-clamp-2 text-xs text-muted-foreground"
+                            >
+                                {{ form.description }}
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <DialogFooter>
+
+                <DialogFooter class="mt-6 border-t border-border/40 pt-4">
                     <Button
                         type="button"
                         variant="outline"
                         @click="showCreate = false"
+                        class="rounded-xl font-bold"
                         >Hủy</Button
                     >
-                    <Button type="submit" :disabled="form.processing"
+                    <Button type="submit" :disabled="form.processing" class="rounded-xl font-bold"
                         >Tạo template</Button
                     >
                 </DialogFooter>
