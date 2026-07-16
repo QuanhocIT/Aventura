@@ -50,6 +50,7 @@ interface Service {
     last_status: string;
     last_latency: number;
     error_message: string | null;
+    circuit_breaker_state: string | null;
 }
 
 const props = defineProps<{
@@ -178,6 +179,36 @@ async function saveMaintenanceMessage() {
         toast.error('Lỗi khi cập nhật thông báo.');
     } finally {
         isSavingMessage.value = false;
+    }
+}
+
+async function resetCircuit(service: Service) {
+    try {
+        const response = await fetch(
+            `/super-admin/service-monitor/${service.service_key}/reset-circuit-breaker`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        (
+                            document.querySelector(
+                                'meta[name="csrf-token"]',
+                            ) as HTMLMetaElement
+                        )?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            },
+        );
+        const data = await response.json();
+        if (data.success) {
+            service.circuit_breaker_state = 'closed';
+            toast.success(`Đã khôi phục (Reset) mạch cho ${service.name}`);
+        } else {
+            throw new Error();
+        }
+    } catch {
+        toast.error('Không thể reset Circuit Breaker.');
     }
 }
 
@@ -397,6 +428,40 @@ function formatTime(timeStr: string | null): string {
                                     class="peer h-6 w-11 rounded-full bg-muted peer-checked:bg-amber-500 peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-border after:bg-background after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"
                                 />
                             </label>
+                        </div>
+
+                        <!-- Circuit Breaker Status (For microservices) -->
+                        <div
+                            v-if="service.circuit_breaker_state !== undefined && service.circuit_breaker_state !== null"
+                            class="flex items-center justify-between border-t pt-4"
+                        >
+                            <div class="space-y-0.5">
+                                <span class="text-xs font-bold text-foreground">Circuit Breaker</span>
+                                <p class="text-[11px] leading-relaxed text-muted-foreground">
+                                    Mạch ngắt kết nối microservice tự động.
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span
+                                    :class="[
+                                        'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase',
+                                        service.circuit_breaker_state === 'closed' ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20' :
+                                        service.circuit_breaker_state === 'open' ? 'bg-rose-500/10 text-rose-450 border border-rose-500/20 animate-pulse' :
+                                        'bg-amber-500/10 text-amber-450 border border-amber-500/20'
+                                    ]"
+                                >
+                                    {{ service.circuit_breaker_state }}
+                                </span>
+                                <Button
+                                    v-if="service.circuit_breaker_state !== 'closed'"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-7 text-[10px] px-2 border-slate-700 text-slate-350 hover:bg-slate-800"
+                                    @click="resetCircuit(service)"
+                                >
+                                    Reset mạch
+                                </Button>
+                            </div>
                         </div>
 
                         <!-- Message area -->

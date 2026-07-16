@@ -23,9 +23,16 @@ class ServiceMonitorController extends Controller
     {
         $services = ServiceMaintenanceStatus::all()->map(function ($s) {
             [$host, $port] = $this->monitorService->getServiceConnectionDetails($s->service_key);
+            
+            $circuitBreakerState = null;
+            if (in_array($s->service_key, ['email_service', 'chatbot_service', 'analytics_service'])) {
+                $circuitBreakerState = app(\App\Services\CircuitBreaker::class)->for($s->service_key)->state();
+            }
+
             return array_merge($s->toArray(), [
                 'host' => $host,
                 'port' => $port,
+                'circuit_breaker_state' => $circuitBreakerState,
             ]);
         });
 
@@ -43,9 +50,16 @@ class ServiceMonitorController extends Controller
         
         $services = ServiceMaintenanceStatus::all()->map(function ($s) {
             [$host, $port] = $this->monitorService->getServiceConnectionDetails($s->service_key);
+
+            $circuitBreakerState = null;
+            if (in_array($s->service_key, ['email_service', 'chatbot_service', 'analytics_service'])) {
+                $circuitBreakerState = app(\App\Services\CircuitBreaker::class)->for($s->service_key)->state();
+            }
+
             return array_merge($s->toArray(), [
                 'host' => $host,
                 'port' => $port,
+                'circuit_breaker_state' => $circuitBreakerState,
             ]);
         });
 
@@ -97,6 +111,20 @@ class ServiceMonitorController extends Controller
             'success' => true,
             'message' => $message,
             'db_updated' => $updated,
+        ]);
+    }
+
+    /**
+     * Reset Circuit Breaker for a service.
+     */
+    public function resetCircuitBreaker(string $serviceKey): JsonResponse
+    {
+        \Illuminate\Support\Facades\Cache::forget("circuit_breaker:{$serviceKey}");
+        \Illuminate\Support\Facades\Cache::forget("circuit_breaker_probe:{$serviceKey}");
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã reset Circuit Breaker cho {$serviceKey} thành công."
         ]);
     }
 }
