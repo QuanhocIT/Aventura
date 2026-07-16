@@ -6,8 +6,34 @@
 #
 # Container `app` (từ Dockerfile) chạy: nginx + php-fpm + 2 queue worker + scheduler + reverb
 # qua supervisord. Các service phụ trợ (mysql/redis/meilisearch) chạy riêng bên dưới.
+# Caddy đóng vai trò reverse proxy + SSL termination tự động (Let's Encrypt).
 
 services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # CADDY — Reverse Proxy + SSL/TLS tự động (Let's Encrypt)
+  # ─────────────────────────────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Lưu certificate Let's Encrypt
+      - caddy_config:/config
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2019/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # APP — Laravel (Nginx + PHP-FPM + Queue Worker + Scheduler + Reverb)
+  # ─────────────────────────────────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -21,9 +47,10 @@ services:
       meilisearch:
         condition: service_started
     env_file: .env
-    ports:
-      - "80:80"       # HTTP (đặt sau reverse-proxy/SSL như Caddy/Traefik ở production)
-      - "8080:8080"   # Reverb websocket (proxy wss qua domain ở production)
+    # Không expose port trực tiếp ra host — Caddy làm reverse proxy
+    expose:
+      - "80"
+      - "8080"
     volumes:
       - app_storage:/var/www/html/storage
     healthcheck:
@@ -33,6 +60,9 @@ services:
       retries: 5
       start_period: 40s
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # MYSQL 8 — Database chính
+  # ─────────────────────────────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     restart: unless-stopped
@@ -50,13 +80,29 @@ services:
       timeout: 5s
       retries: 10
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # REDIS 7 — Cache + Queue + Session + Pub/Sub
+  # ─────────────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass "${REDIS_PASSWORD}"
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # MEILISEARCH — Full-text search
+  # ─────────────────────────────────────────────────────────────────────────────
   meilisearch:
     image: getmeili/meilisearch:v1.6
     restart: unless-stopped
@@ -65,9 +111,85 @@ services:
       MEILI_ENV: production
     volumes:
       - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PYTHON MICROSERVICES
+  # ─────────────────────────────────────────────────────────────────────────────
+  email-service:
+    build:
+      context: ./services/email_service
+    restart: unless-stopped
+    expose:
+      - "8001"
+    environment:
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  chatbot-service:
+    build:
+      context: ./services/chatbot_service
+    restart: unless-stopped
+    expose:
+      - "8002"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: ${DB_DATABASE:-aventura}
+      DB_USERNAME: ${DB_USERNAME:-aventura}
+      DB_PASSWORD: ${DB_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  analytics-service:
+    build:
+      context: ./services/analytics_service
+    restart: unless-stopped
+    expose:
+      - "8003"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: ${DB_DATABASE:-aventura}
+      DB_USERNAME: ${DB_USERNAME:-aventura}
+      DB_PASSWORD: ${DB_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VOLUMES
+# ─────────────────────────────────────────────────────────────────────────────
 volumes:
   mysql_data:
   redis_data:
   meili_data:
   app_storage:
+  caddy_data:
+  caddy_config:
