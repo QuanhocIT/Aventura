@@ -229,6 +229,24 @@ class CustomerSuccessService
                 } else {
                     Log::warning("No owner email found for at-risk restaurant: {$restaurant->name} (Code: {$restaurant->code})");
                 }
+
+                // Tự động tạo Support Ticket cho bộ phận chăm sóc khách hàng
+                try {
+                    SupportTicket::create([
+                        'restaurant_id' => $restaurant->id,
+                        'title' => '[Tự động] Nhà hàng có nguy cơ rời bỏ cao - ' . $restaurant->name,
+                        'description' => "Hệ thống phát hiện nhà hàng {$restaurant->name} ({$restaurant->code}) đang có nguy cơ rời bỏ cao (Health Score: {$restaurant->health_score}).\n\n" .
+                                         "Lý do cảnh báo:\n- " . str_replace(' | ', "\n- ", $metrics['churn_risk_reason']) . "\n\n" .
+                                         "Đề xuất hành động:\nCSKH liên hệ thăm hỏi tình hình vận hành và gửi mã coupon giảm giá 30% gia hạn dịch vụ: {$coupon->code}.",
+                        'status' => 'open',
+                        'priority' => 'high',
+                        'category' => 'Retention',
+                        'created_by' => 1, // System / Admin
+                        'sla_due_at' => now()->addDays(2),
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to create automated support ticket for churn risk of restaurant ID {$restaurant->id}: " . $e->getMessage());
+                }
             }
         }
 
