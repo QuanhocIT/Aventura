@@ -61,6 +61,8 @@ Route::prefix('super-admin')
             Route::patch('restaurants/{restaurant}/plan', [RestaurantController::class, 'updatePlan'])->name('restaurants.plan');
             Route::patch('restaurants/{restaurant}/unflag', [RestaurantController::class, 'unflag'])->name('restaurants.unflag');
             Route::patch('restaurants/{restaurant}/storage-quota', [RestaurantController::class, 'updateStorageQuota'])->name('restaurants.storage-quota');
+            Route::get('restaurants/{restaurant}/export', [\App\Http\Controllers\SuperAdmin\TenantPortabilityController::class, 'export'])->name('restaurants.export');
+            Route::post('restaurants/{restaurant}/sandbox', [\App\Http\Controllers\SuperAdmin\TenantPortabilityController::class, 'createSandbox'])->name('restaurants.sandbox');
 
             Route::post('restaurants/{restaurant}/notes', [RestaurantCrmController::class, 'storeNote'])->name('restaurants.notes.store');
             Route::delete('restaurants/{restaurant}/notes/{note}', [RestaurantCrmController::class, 'destroyNote'])->name('restaurants.notes.destroy');
@@ -119,6 +121,7 @@ Route::prefix('super-admin')
             Route::put('campaign-templates/{campaignTemplate}', [CampaignTemplateController::class, 'update'])->name('campaign-templates.update');
             Route::delete('campaign-templates/{campaignTemplate}', [CampaignTemplateController::class, 'destroy'])->name('campaign-templates.destroy');
             Route::post('campaign-templates/{campaignTemplate}/generate', [CampaignTemplateController::class, 'generate'])->name('campaign-templates.generate');
+            Route::post('campaign-templates/seed-defaults', [CampaignTemplateController::class, 'seedDefaults'])->name('campaign-templates.seed-defaults');
 
             Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
             Route::post('plans', [SubscriptionPlanController::class, 'store'])->name('plans.store');
@@ -192,6 +195,8 @@ Route::prefix('super-admin')
             Route::post('settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::post('settings/test-email', [SystemSettingController::class, 'testEmail'])->name('settings.test-email');
 
+            Route::get('resource-limits', [\App\Http\Controllers\SuperAdmin\ResourceLimitController::class, 'index'])->name('resource-limits.index');
+
             // Firewall & WAF Management
             Route::get('firewall', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'index'])->name('firewall.index');
             Route::delete('firewall/blocked/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'unblock'])->name('firewall.unblock');
@@ -199,10 +204,14 @@ Route::prefix('super-admin')
             Route::delete('firewall/whitelist/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'removeWhitelist'])->name('firewall.whitelist.remove');
             Route::post('firewall/settings', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'updateSettings'])->name('firewall.settings');
 
+            Route::get('security-center', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'index'])->name('security-center.index');
+            Route::post('security-center/sessions/{id}/revoke', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'revokeSession'])->name('security-center.revoke-session');
+
             Route::get('service-monitor', [ServiceMonitorController::class, 'index'])->name('service-monitor.index');
             Route::post('service-monitor/ping', [ServiceMonitorController::class, 'pingAll'])->name('service-monitor.ping');
             Route::post('service-monitor/{service}/toggle-maintenance', [ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
             Route::post('service-monitor/{service}/update-message', [ServiceMonitorController::class, 'updateMessage'])->name('service-monitor.update-message');
+            Route::post('service-monitor/{service}/reset-circuit-breaker', [ServiceMonitorController::class, 'resetCircuitBreaker'])->name('service-monitor.reset-circuit-breaker');
 
             Route::get('maintenance-schedules', [MaintenanceScheduleController::class, 'index'])->name('maintenance-schedules.index');
             Route::post('maintenance-schedules', [MaintenanceScheduleController::class, 'store'])->name('maintenance-schedules.store');
