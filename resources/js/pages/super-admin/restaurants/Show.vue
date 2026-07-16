@@ -299,6 +299,23 @@ function submitCustomPlan() {
     );
 }
 
+async function createSandbox() {
+    if (
+        await confirmDialog({
+            title: 'Nhân bản Sandbox',
+            description: `Bạn có chắc muốn tạo một bản sao Sandbox thử nghiệm cho nhà hàng "${props.restaurant.name}" không? Quá trình này sẽ clone cấu trúc chi nhánh, bàn, thực đơn và nhân sự.`,
+            variant: 'default',
+        })
+    ) {
+        router.post(`/super-admin/restaurants/${props.restaurant.id}/sandbox`, {}, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Đang thực hiện nhân bản sandbox...');
+            }
+        });
+    }
+}
+
 async function impersonateUser() {
     if (!props.restaurant.owner?.id) {
         toast.error('Không tìm thấy tài khoản chủ sở hữu để sắm vai.');
@@ -2212,6 +2229,37 @@ const tagBgColors: Record<string, string> = {
                         >
                             Chua co lich su subscription.
                         </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader class="pb-3">
+                        <CardTitle class="flex items-center gap-2 text-base">
+                            <Database class="size-4 text-emerald-600" />
+                            Portability & Sandbox
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent class="space-y-3">
+                        <p class="text-xs text-muted-foreground">
+                            Sao lưu cấu hình hoặc tạo môi trường Sandbox thử nghiệm biệt lập cho Restaurant này.
+                        </p>
+                        <div class="grid gap-2">
+                            <a :href="`/super-admin/restaurants/${restaurant.id}/export`" class="w-full">
+                                <Button variant="outline" size="sm" class="w-full gap-1.5 justify-center">
+                                    <ExternalLink class="size-3.5" />
+                                    Xuất dữ liệu cấu hình (JSON)
+                                </Button>
+                            </a>
+                            <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                class="w-full gap-1.5 justify-center"
+                                @click="createSandbox"
+                            >
+                                <RefreshCcw class="size-3.5" />
+                                Tạo bản sao Sandbox
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
