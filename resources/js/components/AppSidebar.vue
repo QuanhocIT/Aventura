@@ -288,6 +288,18 @@ const superAdminNav = computed<NavItem[]>(() => {
             icon: Database,
             perm: 'superadmin.system.manage',
         },
+        {
+            title: 'Giám sát tài nguyên',
+            href: '/super-admin/resource-limits',
+            icon: Activity,
+            perm: 'superadmin.system.manage',
+        },
+        {
+            title: 'Trung tâm bảo mật',
+            href: '/super-admin/security-center',
+            icon: ShieldCheck,
+            perm: 'superadmin.system.manage',
+        },
     ];
 
     return all.filter((item) => !item.perm || canAdmin(item.perm));
