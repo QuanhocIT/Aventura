@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
 import pandas as pd
 import numpy as np
 from typing import List
@@ -14,6 +14,7 @@ from models import (
     TransferRecommendationsRequest,
     WeatherMenuForecastRequest
 )
+from auth import require_api_key
 
 
 app = FastAPI(
@@ -22,11 +23,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Dependency bảo mật chung — áp dụng lên toàn bộ route POST
+_auth = [Depends(require_api_key)]
+
 @app.get("/")
 def read_root():
     return {"status": "online", "service": "analytics_service"}
 
-@app.post("/api/analytics/basket-analysis")
+@app.post("/api/analytics/basket-analysis", dependencies=_auth)
 def perform_basket_analysis(request: BasketAnalysisRequest):
     if not request.orders:
         return {"rules": []}
@@ -93,7 +97,7 @@ def perform_basket_analysis(request: BasketAnalysisRequest):
         "rules": rules[:30] # Lấy tối đa 30 gợi ý tốt nhất
     }
 
-@app.post("/api/analytics/upsell-suggestion")
+@app.post("/api/analytics/upsell-suggestion", dependencies=_auth)
 def get_upsell_suggestion(request: UpsellSuggestionRequest):
     if not request.items:
         return {"suggestion": None, "recommended_item": None}
@@ -151,7 +155,7 @@ def get_upsell_suggestion(request: UpsellSuggestionRequest):
     }
 
 # --- AI Fraud Detection Endpoint ---
-@app.post("/api/analytics/fraud-detection")
+@app.post("/api/analytics/fraud-detection", dependencies=_auth)
 def perform_fraud_detection(request: FraudDetectionRequest):
     if not request.logs:
         return {"alerts": []}
@@ -240,7 +244,7 @@ def perform_fraud_detection(request: FraudDetectionRequest):
     return {"alerts": alerts}
 
 # --- AI Inventory Forecast Endpoint ---
-@app.post("/api/analytics/inventory-forecast")
+@app.post("/api/analytics/inventory-forecast", dependencies=_auth)
 def perform_inventory_forecast(request: InventoryForecastRequest):
     forecast_results = []
     
@@ -303,7 +307,7 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
     return {"success": True, "forecast": forecast_results}
 
 # --- AI Revenue Forecast Endpoint ---
-@app.post("/api/analytics/revenue-forecast")
+@app.post("/api/analytics/revenue-forecast", dependencies=_auth)
 def perform_revenue_forecast(request: RevenueForecastRequest):
     if not request.history:
         return {
@@ -362,7 +366,7 @@ def perform_revenue_forecast(request: RevenueForecastRequest):
         "next_7_days": next_7_days
     }
 
-@app.post("/api/analytics/price-analytics")
+@app.post("/api/analytics/price-analytics", dependencies=_auth)
 def perform_price_analytics(request: PriceAnalyticsRequest):
     if not request.history:
         return {"trend": "stable", "percentage_change": 0.0, "monthly_averages": [], "recommendation": "Không có đủ dữ liệu lịch sử giá."}
@@ -395,7 +399,7 @@ def perform_price_analytics(request: PriceAnalyticsRequest):
         "recommendation": recommendation
     }
 
-@app.post("/api/analytics/inventory-forecast-replenish")
+@app.post("/api/analytics/inventory-forecast-replenish", dependencies=_auth)
 def forecast_inventory(request: InventoryForecastRequest):
     forecasts = []
     
@@ -436,7 +440,7 @@ def forecast_inventory(request: InventoryForecastRequest):
         
     return {"forecasts": forecasts}
 
-@app.post("/api/analytics/ocr-invoice")
+@app.post("/api/analytics/ocr-invoice", dependencies=_auth)
 def ocr_invoice(
     file: UploadFile = File(...),
     po_context: str = Form(None)
@@ -470,7 +474,7 @@ def ocr_invoice(
         "confidence": 0.96
     }
 
-@app.post("/api/analytics/transfer-recommendations")
+@app.post("/api/analytics/transfer-recommendations", dependencies=_auth)
 def get_transfer_recommendations(request: TransferRecommendationsRequest):
     if not request.inventories:
         return {"recommendations": []}
@@ -548,7 +552,7 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
     return {"recommendations": recommendations}
 
 
-@app.post("/api/analytics/weather-menu-forecast")
+@app.post("/api/analytics/weather-menu-forecast", dependencies=_auth)
 def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
     forecast_results = []
     

@@ -23,7 +23,7 @@ class SetTenantContext
 
         if ($user && $user->status === 'active') {
             if (!$request->is('logout') && !$request->routeIs('logout')) {
-                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager', 'supplier'])) {
+                if ($user->restaurant_id && !$user->isExemptFromShiftLock()) {
                     if (!app()->runningUnitTests() || self::$enforceShiftLockInTests) {
                         // Fallback check to populate session data for pre-existing sessions or test settings
                         if (!session()->has('employee_id') || !session()->has('shift_allowed_until')) {

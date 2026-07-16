@@ -156,7 +156,9 @@ class EmailMicroserviceClient
 
         return app(CircuitBreaker::class)->for('email_service')->attempt(
             function () use ($endpoint, $payload) {
-                $response = Http::timeout(3)->post($this->baseUrl.$endpoint, $payload);
+                $response = Http::timeout(3)
+                    ->withHeaders(['X-Internal-API-Key' => config('services.microservices.internal_api_key', '')])
+                    ->post($this->baseUrl.$endpoint, $payload);
 
                 if (!$response->successful()) {
                     throw new \RuntimeException("Email microservice trả lỗi HTTP {$response->status()}");

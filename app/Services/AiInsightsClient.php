@@ -31,7 +31,9 @@ class AiInsightsClient
 
             return app(CircuitBreaker::class)->for('email_service')->attempt(
                 function () use ($restaurants, $tenantGrowth) {
-                    $response = Http::timeout(3)->post($this->baseUrl . '/ai/insights', [
+                    $response = Http::timeout(3)
+                        ->withHeaders(['X-Internal-API-Key' => config('services.microservices.internal_api_key', '')])
+                        ->post($this->baseUrl . '/ai/insights', [
                         'restaurants'   => $restaurants,
                         'tenant_growth' => $tenantGrowth,
                     ]);
