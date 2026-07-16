@@ -139,8 +139,10 @@ onBeforeUnmount(() => {
 
 // Tự động gửi mã OTP qua email ngay khi vào trang xác thực, để người dùng
 // không cần thêm thao tác bấm "Gửi mã qua email".
+// Đồng thời pre-fetch QR code để khi user mở panel là hiển thị ngay, không bị lag.
 onMounted(() => {
     requestEmailCode();
+    fetchQrCode();
 });
 
 // ── QR Code setup panel ──────────────────────────────────────────────────────
@@ -153,12 +155,8 @@ const qrLoading = ref<boolean>(false);
 const qrError = ref<string>('');
 const qrCopied = ref<boolean>(false);
 
-const toggleQrPanel = async (): Promise<void> => {
+const toggleQrPanel = (): void => {
     showQrPanel.value = !showQrPanel.value;
-
-    if (showQrPanel.value && !qrSvg.value && !qrLoading.value) {
-        await fetchQrCode();
-    }
 };
 
 const fetchQrCode = async (): Promise<void> => {
@@ -407,9 +405,14 @@ const copySetupKey = (): void => {
                                     <div class="mt-3 flex justify-center">
                                         <div
                                             class="overflow-hidden rounded-xl border border-blue-200 bg-white p-2 dark:border-blue-800/60"
-                                            style="width: 148px; height: 148px"
-                                            v-html="qrSvg"
-                                        />
+                                            style="display: inline-block; line-height: 0; max-width: 100%"
+                                        >
+                                            <!-- eslint-disable-next-line vue/no-v-html -->
+                                            <div
+                                                style="width: 192px; max-width: 100%"
+                                                v-html="qrSvg"
+                                            />
+                                        </div>
                                     </div>
 
                                     <!-- Setup key (manual entry) -->
