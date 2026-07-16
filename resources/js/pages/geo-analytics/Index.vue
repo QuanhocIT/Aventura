@@ -347,7 +347,7 @@ onUnmounted(() => {
         </Card>
 
         <!-- KPI Cards -->
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div v-if="zoneStats" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <!-- 1. Tổng đơn giao hàng -->
             <Card>
                 <CardContent class="px-4 pt-4 pb-4">
@@ -440,7 +440,7 @@ onUnmounted(() => {
                         Phân bố vùng giao hàng
                     </p>
                     <div
-                        v-for="zone in zoneStats.zones"
+                        v-for="zone in zoneStats?.zones"
                         :key="zone.zone"
                         class="space-y-1"
                     >
@@ -466,7 +466,7 @@ onUnmounted(() => {
                         </p>
                     </div>
                     <p
-                        v-if="!zoneStats.zones.length"
+                        v-if="!zoneStats?.zones?.length"
                         class="py-4 text-center text-sm text-muted-foreground"
                     >
                         Chưa có dữ liệu giao hàng.
@@ -558,7 +558,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Heatmap data (table view since no map library) -->
-        <Card>
+        <Card v-if="heatmap?.length">
             <CardContent class="p-0 pt-5">
                 <div class="px-5 pb-3">
                     <div class="mb-1 flex items-center gap-2">
@@ -586,7 +586,7 @@ onUnmounted(() => {
                     </thead>
                     <tbody>
                         <tr
-                            v-for="(point, idx) in heatmap.slice(0, 20)"
+                            v-for="(point, idx) in heatmap!.slice(0, 20)"
                             :key="idx"
                             class="border-b last:border-0"
                         >
@@ -615,7 +615,7 @@ onUnmounted(() => {
                                                     (point.count /
                                                         Math.max(
                                                             1,
-                                                            heatmap[0]?.count ??
+                                                            heatmap![0]?.count ??
                                                                 1,
                                                         )) *
                                                         100,

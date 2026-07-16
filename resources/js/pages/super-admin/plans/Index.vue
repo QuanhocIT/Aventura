@@ -979,7 +979,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="form.max_branches === -1 ? 'text' : 'number'"
                                             :value="form.max_branches === -1 ? 'Vô hạn (Không giới hạn)' : form.max_branches"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (form.max_branches !== -1) {
                                                     form.max_branches = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1011,7 +1011,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="form.max_tables === -1 ? 'text' : 'number'"
                                             :value="form.max_tables === -1 ? 'Vô hạn (Không giới hạn)' : form.max_tables"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (form.max_tables !== -1) {
                                                     form.max_tables = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1043,7 +1043,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="form.max_users === -1 ? 'text' : 'number'"
                                             :value="form.max_users === -1 ? 'Vô hạn (Không giới hạn)' : form.max_users"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (form.max_users !== -1) {
                                                     form.max_users = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1075,7 +1075,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="form.max_areas === -1 ? 'text' : 'number'"
                                             :value="form.max_areas === -1 ? 'Vô hạn (Không giới hạn)' : form.max_areas"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (form.max_areas !== -1) {
                                                     form.max_areas = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1429,7 +1429,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="createForm.max_branches === -1 ? 'text' : 'number'"
                                             :value="createForm.max_branches === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_branches"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (createForm.max_branches !== -1) {
                                                     createForm.max_branches = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1461,7 +1461,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="createForm.max_tables === -1 ? 'text' : 'number'"
                                             :value="createForm.max_tables === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_tables"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (createForm.max_tables !== -1) {
                                                     createForm.max_tables = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1493,7 +1493,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="createForm.max_users === -1 ? 'text' : 'number'"
                                             :value="createForm.max_users === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_users"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (createForm.max_users !== -1) {
                                                     createForm.max_users = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }
@@ -1525,7 +1525,7 @@ const planIcon: Record<string, any> = {
                                         <Input
                                             :type="createForm.max_areas === -1 ? 'text' : 'number'"
                                             :value="createForm.max_areas === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_areas"
-                                            @input="e => {
+                                            @input="(e: Event) => {
                                                 if (createForm.max_areas !== -1) {
                                                     createForm.max_areas = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
                                                 }

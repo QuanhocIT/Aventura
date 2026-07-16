@@ -49,6 +49,7 @@ type Ingredient = {
 };
 type RecipeItem = {
     id: number;
+    ingredient_id: number;
     ingredient_name: string;
     quantity: number;
     unit_symbol: string;
@@ -283,7 +284,7 @@ const submitIngredient = () => {
 
 const activeProductRecipes = computed(() => {
     if (!activeProduct.value) return [];
-    const updatedProduct = props.products.find(p => p.id === activeProduct.value.id);
+    const updatedProduct = props.products.find(p => p.id === activeProduct.value!.id);
     return updatedProduct ? updatedProduct.recipes : [];
 });
 
@@ -1714,8 +1715,7 @@ const submitWaste = () => {
                                                 v-for="ing in ingredients"
                                                 :key="ing.id"
                                                 :value="String(ing.id)"
-                                                :disabled="recipeForm.items.some((x, idx) => x.ingredient_id === String(ing.id) && idx !== index)"
-                                            >
+                                                :disabled="recipeForm.items.some((x: { ingredient_id: string }, idx: number) => x.ingredient_id === String(ing.id) && idx !== index)"                                            >
                                                 {{ ing.name }} ({{ ing.unit?.symbol ?? 'đơn vị' }})
                                             </option>
                                         </select>
@@ -1755,7 +1755,7 @@ const submitWaste = () => {
                                             variant="ghost"
                                             size="sm"
                                             class="h-8 w-8 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
-                                            @click="removeRecipeRow(index)"
+                                            @click="removeRecipeRow(Number(index))"
                                         >
                                             <Trash2 class="size-4" />
                                         </Button>
