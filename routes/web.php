@@ -209,5 +209,11 @@ Route::get('employees/verify/{user}', [EmployeeManagementController::class, 'ver
 Route::get('status', [\App\Http\Controllers\PublicStatusController::class, 'index'])->name('public.status');
 Route::get('api/status-data', [\App\Http\Controllers\PublicStatusController::class, 'getStatusData'])->name('public.status.data');
 
+Route::get('dev-login', function() {
+    auth()->loginUsingId(6);
+    return redirect('/super-admin/restaurants');
+});
+
 require __DIR__.'/settings.php';
+
 

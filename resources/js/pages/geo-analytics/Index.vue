@@ -12,12 +12,12 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = withDefaults(
-    defineProps<{
+const props = defineProps<{
         restaurant: { lat: number; lng: number; name: string };
         heatmap?: { lat: number; lng: number; count: number; revenue: number }[];
         zoneStats?: {
@@ -45,15 +45,7 @@ const props = withDefaults(
             score: number;
         }[];
         days: number;
-    }>(),
-    {
-        heatmap: () => [],
-        zoneStats: () => ({ zones: [], avg_distance: 0, max_distance: 0, total_deliveries: 0 }),
-        topAreas: () => [],
-        channels: () => [],
-        branchSuggestions: () => [],
-    }
-);
+    }>();
 
 const isLoading = computed(() => {
     return !props.zoneStats || !props.heatmap || !props.topAreas || !props.channels || !props.branchSuggestions;
@@ -78,8 +70,28 @@ let restaurantMarker: any = null;
 let heatmapGroup: any = null;
 let suggestionsGroup: any = null;
 
+const showMap = ref(false);
+
+const toggleMap = () => {
+    showMap.value = !showMap.value;
+    if (showMap.value) {
+        setTimeout(() => {
+            initMap();
+        }, 100);
+    } else {
+        if (map) {
+            try {
+                map.remove();
+            } catch (e) {
+                console.error('Lỗi khi hủy bản đồ:', e);
+            }
+            map = null;
+        }
+    }
+};
+
 const initMap = async () => {
-    if (!mapContainer.value || map || isLoading.value) {
+    if (!mapContainer.value || map || isLoading.value || !showMap.value) {
         return;
     }
 
@@ -188,13 +200,13 @@ const drawMapLayers = () => {
 };
 
 onMounted(() => {
-    if (!isLoading.value) {
+    if (!isLoading.value && showMap.value) {
         initMap();
     }
 });
 
 watch(isLoading, (loading) => {
-    if (!loading) {
+    if (!loading && showMap.value) {
         setTimeout(() => {
             initMap();
         }, 100);
@@ -292,19 +304,39 @@ onUnmounted(() => {
         </div>
 
         <!-- Interactive Map Container -->
-        <Card class="overflow-hidden border border-border bg-card shadow-sm">
+        <Card v-if="!showMap" class="border border-border bg-card shadow-sm">
+            <CardContent class="flex flex-col items-center justify-center p-12 text-center">
+                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                    <MapPin class="size-8 animate-bounce" />
+                </div>
+                <h3 class="mb-2 text-lg font-semibold">Bản đồ nhiệt & Gợi ý mở rộng</h3>
+                <p class="mb-6 max-w-md text-sm text-muted-foreground">
+                    Tải và hiển thị mật độ đơn hàng thực tế của nhà hàng cùng các khu vực đề xuất mở chi nhánh do AI đề xuất trên bản đồ tương tác.
+                </p>
+                <Button @click="toggleMap" class="bg-teal-600 hover:bg-teal-700 text-white shadow-sm font-semibold transition-all">
+                    <Navigation class="mr-2 size-4" />
+                    Vị trí trên bản đồ
+                </Button>
+            </CardContent>
+        </Card>
+
+        <Card v-else class="overflow-hidden border border-border bg-card shadow-sm animate-in fade-in duration-300">
             <CardContent class="relative p-0">
-                <div class="px-5 pt-5 pb-3">
-                    <div class="mb-1 flex items-center gap-2">
-                        <Navigation class="size-4 text-teal-500" />
-                        <p class="text-sm font-semibold">
-                            Bản đồ nhiệt & Địa điểm đề xuất mở rộng
+                <div class="px-5 pt-5 pb-3 flex justify-between items-center">
+                    <div>
+                        <div class="mb-1 flex items-center gap-2">
+                            <Navigation class="size-4 text-teal-500" />
+                            <p class="text-sm font-semibold">
+                                Bản đồ nhiệt & Địa điểm đề xuất mở rộng
+                            </p>
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            Xem mật độ đơn hàng thực tế (Vòng tròn đỏ) và các khu vực AI gợi ý mở chi nhánh (Marker số màu tím).
                         </p>
                     </div>
-                    <p class="text-xs text-muted-foreground">
-                        Xem mật độ đơn hàng thực tế (Vòng tròn đỏ) và các khu
-                        vực AI gợi ý mở chi nhánh (Marker số màu tím).
-                    </p>
+                    <Button @click="toggleMap" variant="outline" size="sm" class="font-semibold text-xs border-border hover:bg-muted text-muted-foreground hover:text-foreground">
+                        Ẩn bản đồ
+                    </Button>
                 </div>
                 <div
                     ref="mapContainer"
