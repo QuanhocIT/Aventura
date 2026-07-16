@@ -33,6 +33,7 @@ import AreaChart from '@/components/charts/AreaChart.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -233,6 +234,18 @@ const props = defineProps<{
 }>();
 
 const selectedKpiIdx = ref(0);
+
+const planPerformancePage = ref(1);
+const planPerformancePerPage = 5;
+
+const paginatedPlanPerformance = computed(() => {
+    const start = (planPerformancePage.value - 1) * planPerformancePerPage;
+    return props.planPerformance.slice(start, start + planPerformancePerPage);
+});
+
+const planPerformanceTotalPages = computed(() => {
+    return Math.ceil(props.planPerformance.length / planPerformancePerPage);
+});
 
 // --- F2: Cập nhật real-time qua Reverb/Echo — làm mới các chỉ số thay đổi nhanh
 // (ticket mở, cảnh báo ngưỡng...) mà không cần tải lại trang ---
@@ -3386,7 +3399,7 @@ function cohortCellStyle(value: number | null): string {
                             </thead>
                             <tbody class="divide-y divide-border/60">
                                 <tr
-                                    v-for="plan in planPerformance"
+                                    v-for="plan in paginatedPlanPerformance"
                                     :key="plan.plan_code"
                                     class="font-medium text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
                                 >
@@ -3440,6 +3453,39 @@ function cohortCellStyle(value: number | null): string {
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Phân trang cục bộ cho bảng hiệu suất -->
+                    <div
+                        v-if="planPerformanceTotalPages > 1"
+                        class="flex items-center justify-between border-t border-border/40 px-4 py-3 bg-muted/10 dark:bg-slate-900/10"
+                    >
+                        <div class="text-[11px] text-muted-foreground">
+                            Hiển thị {{ Math.min(planPerformance.length, (planPerformancePage - 1) * planPerformancePerPage + 1) }}-{{ Math.min(planPerformance.length, planPerformancePage * planPerformancePerPage) }} trên {{ planPerformance.length }} gói
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <Button
+                                :disabled="planPerformancePage <= 1"
+                                variant="outline"
+                                size="sm"
+                                class="h-7 text-[10px] px-2"
+                                @click="planPerformancePage--"
+                            >
+                                ← Trước
+                            </Button>
+                            <span class="text-[11px] font-semibold text-muted-foreground px-2">
+                                Trang {{ planPerformancePage }} / {{ planPerformanceTotalPages }}
+                            </span>
+                            <Button
+                                :disabled="planPerformancePage >= planPerformanceTotalPages"
+                                variant="outline"
+                                size="sm"
+                                class="h-7 text-[10px] px-2"
+                                @click="planPerformancePage++"
+                            >
+                                Sau →
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
