@@ -55,6 +55,12 @@ return [
         'url' => env('ANALYTICS_SERVICE_URL', 'http://localhost:8003'),
     ],
 
+    // Khóa nội bộ dùng để Laravel xác thực với Python microservices.
+    // Cùng giá trị với INTERNAL_API_KEY trong .env của từng Python service.
+    'microservices' => [
+        'internal_api_key' => env('INTERNAL_API_KEY', ''),
+    ],
+
     'openweather' => [
         'api_key' => env('OPENWEATHER_API_KEY', ''),
         'url' => env('OPENWEATHER_URL', 'https://api.openweathermap.org/data/2.5/forecast'),

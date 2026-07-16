@@ -48,7 +48,7 @@ class GoogleController extends Controller
                     return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.']);
                 }
 
-                if (!$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager'])) {
+                if (!$user->isExemptFromShiftLock()) {
                     $employee = $user->employee;
                     if (!$employee || !$employee->isWithinScheduledShift()) {
                         return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);

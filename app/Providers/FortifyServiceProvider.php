@@ -85,7 +85,7 @@ class FortifyServiceProvider extends ServiceProvider
             // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
             if ($activeUsers->count() === 1) {
                 $user = $activeUsers->first();
-                if ($user->restaurant_id && !$user->isSuperAdmin() && !$user->hasAnyRole(['owner', 'manager', 'supplier'])) {
+                if ($user->restaurant_id && !$user->isExemptFromShiftLock()) {
                     if (!app()->runningUnitTests() || \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests) {
                         $employee = $user->employee;
                         if (!$employee || !$employee->isWithinScheduledShift()) {
