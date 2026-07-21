@@ -79,7 +79,7 @@ Tài liệu này tổng hợp toàn bộ các ca kiểm thử tích hợp (Integ
 - **AI Microservices:** Python 3.10+ (FastAPI + Scikit-learn + Pandas).
 
 ### 2. Tiêu Chí Đạt/Không Đạt (Pass/Fail Criteria)
-- **Đạt (Pass):** 
+- **Đạt (Pass):**
   * 100% các ca kiểm thử tích hợp (Feature tests) của Laravel chạy thành công mà không gặp lỗi Exception hoặc trả về mã lỗi `500`.
   * Các cơ chế phòng thủ (Bypass Code, GPS validation, Fraud check, Self-approval, Over-limits, Tenant isolation, Lock account, Webcam check-in, 2FA, Subscription check, Escrow, Email fallback) hoạt động chính xác.
   * Hệ thống fallback tự động kích hoạt khi các dịch vụ AI bên ngoài gặp sự cố.
