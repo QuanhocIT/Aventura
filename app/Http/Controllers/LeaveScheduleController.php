@@ -233,6 +233,7 @@ class LeaveScheduleController extends Controller
             ->with('shift')
             ->get();
 
+        $hasRestViolation = false;
         foreach ($adjacentAssignments as $aa) {
             $aaShift = $aa->shift;
             if (!$aaShift) continue;

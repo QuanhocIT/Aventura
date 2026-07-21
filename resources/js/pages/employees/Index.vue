@@ -2610,134 +2610,136 @@ const submitSwapReject = () => {
         </div>
 
         <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
-        <div
-            v-if="showAssignModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showAssignModal"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 md:pt-28 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-base text-indigo-600"
-                        >
-                            <Calendar class="size-5" />
-                            Xếp ca - {{ currentAssignDayLabel }}
-                        </CardTitle>
-                        <CardDescription
-                            >Chọn nhân sự và gán ca tương ứng vào ngày
-                            này.</CardDescription
-                        >
-                    </div>
-                    <button
-                        @click="showAssignModal = false"
-                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                     >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="space-y-4 pt-4">
-                    <form @submit.prevent="submitAssignment" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="assign-emp"
-                                >Chọn nhân sự
-                                <span class="text-rose-500">*</span></Label
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-indigo-600"
                             >
-                            <select
-                                id="assign-emp"
-                                v-model="assignForm.employee_name"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                <Calendar class="size-5" />
+                                Xếp ca - {{ currentAssignDayLabel }}
+                            </CardTitle>
+                            <CardDescription
+                                >Chọn nhân sự và gán ca tương ứng vào ngày
+                                này.</CardDescription
                             >
-                                <option
-                                    v-for="name in availableEmployeesList"
-                                    :key="name"
-                                    :value="name"
-                                >
-                                    {{ name }}
-                                </option>
-                            </select>
                         </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="assign-shift"
-                                >Chọn ca làm việc
-                                <span class="text-rose-500">*</span></Label
-                            >
-                            <select
-                                id="assign-shift"
-                                v-model="assignForm.shift_name"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                            >
-                                <option
-                                    v-for="s in shiftsState"
-                                    :key="s.id"
-                                    :value="s.name.split(' (')[0]"
-                                >
-                                    {{ s.name }} ({{ s.start }} - {{ s.end }})
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Suggestions helper -->
-                        <div
-                            v-if="
-                                getRegistrationsForDay(currentAssignDay).length
-                            "
-                            class="dark:text-emerald-350 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20"
+                        <button
+                            @click="showAssignModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                            <span class="flex items-center gap-1 font-bold"
-                                ><Sparkles class="size-3.5" /> Gợi ý: Nhân viên
-                                đăng ký rảnh hôm nay</span
-                            >
-                            <div class="mt-1.5 flex flex-wrap gap-1">
-                                <button
-                                    v-for="r in getRegistrationsForDay(
-                                        currentAssignDay,
-                                    )"
-                                    :key="r.employee_name + '-' + r.shift_name"
-                                    type="button"
-                                    @click="
-                                        assignForm.employee_name =
-                                            r.employee_name;
-                                        assignForm.shift_name =
-                                            r.shift_name.split(' (')[0];
-                                    "
-                                    class="cursor-pointer rounded border bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 active:scale-95 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                                    title="Chọn nhanh nhân viên này"
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-4">
+                        <form @submit.prevent="submitAssignment" class="space-y-4">
+                            <div class="grid gap-1.5">
+                                <Label for="assign-emp"
+                                    >Chọn nhân sự
+                                    <span class="text-rose-500">*</span></Label
                                 >
-                                    {{ r.employee_name }} ({{
-                                        r.shift_name.split(' (')[0]
-                                    }})
-                                </button>
+                                <select
+                                    id="assign-emp"
+                                    v-model="assignForm.employee_name"
+                                    required
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                >
+                                    <option
+                                        v-for="name in availableEmployeesList"
+                                        :key="name"
+                                        :value="name"
+                                    >
+                                        {{ name }}
+                                    </option>
+                                </select>
                             </div>
-                        </div>
 
-                        <div
-                            class="flex justify-end gap-2 border-t border-border/60 pt-2"
-                        >
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="showAssignModal = false"
-                                >Hủy</Button
+                            <div class="grid gap-1.5">
+                                <Label for="assign-shift"
+                                    >Chọn ca làm việc
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <select
+                                    id="assign-shift"
+                                    v-model="assignForm.shift_name"
+                                    required
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                >
+                                    <option
+                                        v-for="s in shiftsState"
+                                        :key="s.id"
+                                        :value="s.name.split(' (')[0]"
+                                    >
+                                        {{ s.name }} ({{ s.start }} - {{ s.end }})
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Suggestions helper -->
+                            <div
+                                v-if="
+                                    getRegistrationsForDay(currentAssignDay).length
+                                "
+                                class="dark:text-emerald-350 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20"
                             >
-                            <Button
-                                type="submit"
-                                size="sm"
-                                class="bg-indigo-600 font-semibold text-white"
-                                >Xác nhận xếp ca</Button
+                                <span class="flex items-center gap-1 font-bold"
+                                    ><Sparkles class="size-3.5" /> Gợi ý: Nhân viên
+                                    đăng ký rảnh hôm nay</span
+                                >
+                                <div class="mt-1.5 flex flex-wrap gap-1">
+                                    <button
+                                        v-for="r in getRegistrationsForDay(
+                                            currentAssignDay,
+                                        )"
+                                        :key="r.employee_name + '-' + r.shift_name"
+                                        type="button"
+                                        @click="
+                                            assignForm.employee_name =
+                                                r.employee_name;
+                                            assignForm.shift_name =
+                                                r.shift_name.split(' (')[0];
+                                        "
+                                        class="cursor-pointer rounded border bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 active:scale-95 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        title="Chọn nhanh nhân viên này"
+                                    >
+                                        {{ r.employee_name }} ({{
+                                            r.shift_name.split(' (')[0]
+                                        }})
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div
+                                class="flex justify-end gap-2 border-t border-border/60 pt-2"
                             >
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="showAssignModal = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    class="bg-indigo-600 font-semibold text-white"
+                                    >Xác nhận xếp ca</Button
+                                >
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
         <div
