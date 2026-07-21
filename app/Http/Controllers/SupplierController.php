@@ -92,6 +92,11 @@ class SupplierController extends Controller
                 'discrepancy_details' => $po->discrepancy_details,
                 'created_by_name' => $po->creator?->name ?? 'Hệ thống',
                 'payment_status' => $po->payment_status,
+                'payment_method' => $po->payment_method,
+                'discount_percent' => (float) $po->discount_percent,
+                'shipping_method' => $po->shipping_method,
+                'mismatch_reason' => $po->mismatch_reason,
+                'resolution_action' => $po->resolution_action,
                 'escrow_transaction_id' => $po->escrow_transaction_id,
                 'created_at' => $po->created_at->format('d/m/Y H:i'),
                 'items' => $po->items->map(fn ($item) => [
@@ -134,6 +139,12 @@ class SupplierController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'tax_code' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
+            'payment_terms' => ['nullable', 'string', 'in:cod,net7,net15,net30,prepaid'],
+            'category' => ['nullable', 'string', 'max:100'],
         ]);
 
         Supplier::create(array_merge($data, [
@@ -159,6 +170,12 @@ class SupplierController extends Controller
             'address' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', 'in:active,inactive'],
+            'tax_code' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
+            'payment_terms' => ['nullable', 'string', 'in:cod,net7,net15,net30,prepaid'],
+            'category' => ['nullable', 'string', 'max:100'],
         ]);
 
         $supplier->update($data);
@@ -192,6 +209,9 @@ class SupplierController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'delivery_due_date' => ['nullable', 'date'],
             'payment_terms' => ['nullable', 'string', 'in:COD,NET_15,NET_30,NET_60'],
+            'payment_method' => ['nullable', 'string', 'in:banking,cod,credit'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'shipping_method' => ['nullable', 'string', 'in:supplier_delivery,self_pickup,express'],
         ]);
 
         $user = $request->user();
@@ -216,6 +236,9 @@ class SupplierController extends Controller
                 ];
             }
 
+            $discountPercent = (float) $request->input('discount_percent', 0);
+            $finalTotalAmount = $totalAmount * (1 - ($discountPercent / 100));
+
             // Create PO
             $isOwner = $user->hasRole('owner');
             $status = $isOwner ? 'approved' : 'pending_approval';
@@ -233,7 +256,10 @@ class SupplierController extends Controller
                 'supplier_id' => $supplier->id,
                 'po_number' => 'PO-' . now()->format('Ymd') . '-' . Str::upper(Str::random(5)),
                 'status' => $status,
-                'total_amount' => $totalAmount,
+                'total_amount' => $finalTotalAmount,
+                'payment_method' => $request->input('payment_method', 'banking'),
+                'discount_percent' => $discountPercent,
+                'shipping_method' => $request->input('shipping_method', 'supplier_delivery'),
                 'created_by' => $user->id,
                 'approved_by' => $isOwner ? $user->id : null,
                 'notes' => $request->input('notes'),
@@ -303,6 +329,8 @@ class SupplierController extends Controller
             'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
             'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'rating_notes' => ['nullable', 'string', 'max:500'],
+            'mismatch_reason' => ['nullable', 'string', 'max:255'],
+            'resolution_action' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -361,6 +389,8 @@ class SupplierController extends Controller
                 'invoice_file_url' => $invoiceUrl,
                 'rating' => $request->input('rating'),
                 'rating_notes' => $request->input('rating_notes'),
+                'mismatch_reason' => $request->input('mismatch_reason'),
+                'resolution_action' => $request->input('resolution_action'),
                 'delivered_at' => now(),
             ]);
 

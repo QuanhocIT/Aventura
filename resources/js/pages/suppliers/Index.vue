@@ -33,8 +33,10 @@ import {
     Info,
     ClipboardList,
     Building,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,30 +70,42 @@ const isOwner = computed(() => roles.value.includes('owner'));
 // Search & Filters
 const searchQuery = ref('');
 const statusFilter = ref('all'); // 'all' | 'active' | 'inactive'
+const quickFilterChip = ref<'all' | 'frozen' | 'pending' | 'unpaid' | 'top_rated'>('all');
 
 const filteredSuppliers = computed(() => {
     return props.suppliers.filter((sup) => {
         const matchesSearch =
             !searchQuery.value ||
             sup.name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.contact_name
-                ?.toLowerCase()
-                .includes(searchQuery.value.toLowerCase()) ||
-            sup.phone
-                ?.toLowerCase()
-                .includes(searchQuery.value.toLowerCase()) ||
-            sup.email
-                ?.toLowerCase()
-                .includes(searchQuery.value.toLowerCase()) ||
-            sup.address
-                ?.toLowerCase()
-                .includes(searchQuery.value.toLowerCase());
+            sup.contact_name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.phone?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.email?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.tax_code?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            sup.address?.toLowerCase().includes(searchQuery.value.toLowerCase());
 
         const matchesStatus =
             statusFilter.value === 'all' || sup.status === statusFilter.value;
 
-        return matchesSearch && matchesStatus;
+        const matchesChip =
+            quickFilterChip.value === 'all' ||
+            (quickFilterChip.value === 'top_rated' && sup.status === 'active');
+
+        return matchesSearch && matchesStatus && matchesChip;
     });
+});
+
+const filteredPurchaseOrders = computed(() => {
+    let list = props.purchaseOrders || [];
+
+    if (quickFilterChip.value === 'frozen') {
+        list = list.filter((po: any) => po.is_frozen || po.status === 'frozen');
+    } else if (quickFilterChip.value === 'pending') {
+        list = list.filter((po: any) => po.status === 'pending_approval');
+    } else if (quickFilterChip.value === 'unpaid') {
+        list = list.filter((po: any) => po.payment_status !== 'paid');
+    }
+
+    return list;
 });
 
 const kpis = computed(() => {
@@ -132,12 +146,21 @@ const supplierForm = useForm({
     address: '',
     notes: '',
     status: 'active',
+    tax_code: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder: '',
+    payment_terms: 'cod',
+    category: 'fresh_food',
 });
 
 const poForm = useForm({
     items: [] as Array<{ ingredient_id: number; quantity: number }>,
     notes: '',
     delivery_due_date: '',
+    payment_method: 'banking',
+    discount_percent: 0,
+    shipping_method: 'supplier_delivery',
 });
 
 const verifyForm = useForm({
@@ -149,6 +172,8 @@ const verifyForm = useForm({
     invoice_file: null as File | null,
     rating: 5,
     rating_notes: '',
+    mismatch_reason: 'Khối lượng giao không đủ',
+    resolution_action: 'Trừ trực tiếp vào công nợ đơn sau',
 });
 
 // Analytics state
@@ -323,6 +348,12 @@ const openEditModal = (supplier: any) => {
     supplierForm.address = supplier.address;
     supplierForm.notes = supplier.notes;
     supplierForm.status = supplier.status;
+    supplierForm.tax_code = supplier.tax_code || '';
+    supplierForm.bank_name = supplier.bank_name || '';
+    supplierForm.bank_account_number = supplier.bank_account_number || '';
+    supplierForm.bank_account_holder = supplier.bank_account_holder || '';
+    supplierForm.payment_terms = supplier.payment_terms || 'cod';
+    supplierForm.category = supplier.category || 'fresh_food';
     showEditModal.value = true;
 };
 
@@ -376,21 +407,123 @@ const triggerAutoReplenish = async () => {
     }
 };
 
-// Purchase Order creation
+// Purchase Order creation (2-step workflow with Full Catalog Menu)
+const poStep = ref<1 | 2>(1);
+const menuSearchQuery = ref('');
+const selectedQuantities = ref<Record<number, number>>({});
+
+const currentUser = computed(() => (page.props as any).auth?.user);
+const currentRestaurant = computed(
+    () => (page.props as any).restaurant || (page.props as any).auth?.user?.restaurant,
+);
+
+const supplierIngredients = computed(() => {
+    if (!selectedSupplier.value) return [];
+    return props.ingredients.filter((i) => i.supplier_id === selectedSupplier.value.id);
+});
+
+const filteredSupplierIngredients = computed(() => {
+    if (!menuSearchQuery.value.trim()) return supplierIngredients.value;
+    const q = menuSearchQuery.value.toLowerCase().trim();
+    return supplierIngredients.value.filter((i) =>
+        i.name.toLowerCase().includes(q),
+    );
+});
+
 const openPoModal = (supplier: any) => {
     selectedSupplier.value = supplier;
+    poStep.value = 1;
+    menuSearchQuery.value = '';
     poForm.reset();
-    poForm.items = [
-        {
-            ingredient_id:
-                props.ingredients.filter(
-                    (i) => i.supplier_id === supplier.id,
-                )[0]?.id || 0,
-            quantity: 1,
-        },
-    ];
+
+    const initialQtys: Record<number, number> = {};
+    const supsIngs = props.ingredients.filter((i) => i.supplier_id === supplier.id);
+    supsIngs.forEach((ing) => {
+        initialQtys[ing.id] = 0;
+    });
+    selectedQuantities.value = initialQtys;
     showPoModal.value = true;
 };
+
+const updateItemQuantity = (ingredientId: number, qty: number) => {
+    selectedQuantities.value[ingredientId] = Math.max(0, isNaN(qty) ? 0 : qty);
+};
+
+const incrementQuantity = (ingredientId: number, step = 1) => {
+    const current = selectedQuantities.value[ingredientId] || 0;
+    selectedQuantities.value[ingredientId] = Number((current + step).toFixed(3));
+};
+
+const decrementQuantity = (ingredientId: number, step = 1) => {
+    const current = selectedQuantities.value[ingredientId] || 0;
+    selectedQuantities.value[ingredientId] = Math.max(
+        0,
+        Number((current - step).toFixed(3)),
+    );
+};
+
+const goToPoStep2 = () => {
+    const itemsToOrder: Array<{ ingredient_id: number; quantity: number }> = [];
+    for (const [ingIdStr, qty] of Object.entries(selectedQuantities.value)) {
+        const ingId = Number(ingIdStr);
+        const numericQty = Number(qty);
+        if (numericQty > 0) {
+            itemsToOrder.push({ ingredient_id: ingId, quantity: numericQty });
+        }
+    }
+    if (itemsToOrder.length === 0) {
+        toast.error('Vui lòng chọn ít nhất 1 sản phẩm với số lượng > 0.');
+        return;
+    }
+    poForm.items = itemsToOrder;
+    poStep.value = 2;
+};
+
+const selectedPoItemsDetailed = computed(() => {
+    const list: Array<{
+        id: number;
+        name: string;
+        unit_symbol: string;
+        price: number;
+        quantity: number;
+        subtotal: number;
+    }> = [];
+
+    for (const [ingIdStr, qty] of Object.entries(selectedQuantities.value)) {
+        const numericQty = Number(qty);
+        if (numericQty > 0) {
+            const ingId = Number(ingIdStr);
+            const ing = props.ingredients.find((i) => i.id === ingId);
+            const price = Number(ing?.price || 0);
+            list.push({
+                id: ingId,
+                name: ing?.name || 'Nguyên liệu',
+                unit_symbol: ing?.unit_symbol || '',
+                price: price,
+                quantity: numericQty,
+                subtotal: price * numericQty,
+            });
+        }
+    }
+
+    return list;
+});
+
+const poSubtotalAmount = computed(() => {
+    return selectedPoItemsDetailed.value.reduce(
+        (sum: number, i: any) => sum + i.subtotal,
+        0,
+    );
+});
+
+const totalPoEstimatedAmount = computed(() => {
+    const subtotal = poSubtotalAmount.value;
+    const discount = Number(poForm.discount_percent || 0);
+    if (discount > 0) {
+        return Math.max(0, subtotal * (1 - discount / 100));
+    }
+    return subtotal;
+});
 
 const addPoItem = () => {
     const available = props.ingredients.filter(
@@ -785,6 +918,191 @@ const transferQuantityWarning = computed(() => {
 
     return null;
 });
+
+// Horizontal Tab Scroll & Drag Navigation
+const tabScrollContainerRef = ref<HTMLElement | null>(null);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
+
+const updateScrollButtons = () => {
+    const el = tabScrollContainerRef.value;
+    if (!el) return;
+    canScrollLeft.value = el.scrollLeft > 5;
+    canScrollRight.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 5;
+};
+
+const scrollTabs = (direction: 'left' | 'right') => {
+    const el = tabScrollContainerRef.value;
+    if (!el) return;
+    const distance = 260;
+    el.scrollBy({
+        left: direction === 'left' ? -distance : distance,
+        behavior: 'smooth',
+    });
+};
+
+const handleWheelScroll = (e: WheelEvent) => {
+    const el = tabScrollContainerRef.value;
+    if (!el) return;
+    if (e.deltaY !== 0) {
+        el.scrollLeft += e.deltaY;
+        updateScrollButtons();
+    }
+};
+
+let isDragging = false;
+let startX = 0;
+let scrollLeftStart = 0;
+
+const startDrag = (e: MouseEvent) => {
+    const el = tabScrollContainerRef.value;
+    if (!el) return;
+    isDragging = true;
+    startX = e.pageX - el.offsetLeft;
+    scrollLeftStart = el.scrollLeft;
+};
+
+const stopDrag = () => {
+    isDragging = false;
+};
+
+const doDrag = (e: MouseEvent) => {
+    if (!isDragging) return;
+    const el = tabScrollContainerRef.value;
+    if (!el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    el.scrollLeft = scrollLeftStart - walk;
+    updateScrollButtons();
+};
+
+// CSV Export Logic
+const exportToCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
+    let csvContent = '\uFEFF';
+    csvContent += headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+    rows.forEach((row) => {
+        csvContent += row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Đã xuất báo cáo ${filename}.csv thành công!`);
+};
+
+const exportSuppliersReport = () => {
+    const headers = [
+        'Mã NCC',
+        'Tên Nhà Cung Cấp',
+        'Người Đại Diện',
+        'Điện Thoại',
+        'Email',
+        'Mã Số Thuế',
+        'Tên Ngân Hàng',
+        'Số Tài Khoản',
+        'Chủ Tài Khoản',
+        'Điều Khoản Công Nợ',
+        'Số Nguyên Liệu Niêm Yết',
+        'Trạng Thái',
+    ];
+    const rows = props.suppliers.map((s: any) => [
+        `NCC-${s.id}`,
+        s.name,
+        s.contact_name || '—',
+        s.phone || '—',
+        s.email || '—',
+        s.tax_code || '—',
+        s.bank_name || '—',
+        s.bank_account_number || '—',
+        s.bank_account_holder || '—',
+        s.payment_terms || 'COD',
+        s.ingredients_count || 0,
+        s.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa',
+    ]);
+    exportToCsv('Bao_Cao_Nha_Cung_Cap', headers, rows);
+};
+
+const exportPurchaseOrdersReport = () => {
+    const headers = [
+        'Mã Đơn PO',
+        'Nhà Cung Cấp',
+        'Trạng Thái',
+        'Hình Thức Thanh Toán',
+        'Chiết Khấu (%)',
+        'Tổng Tiền Đặt (VNĐ)',
+        'Tổng Hóa Đơn (VNĐ)',
+        'Đã Đóng Băng',
+        'Phát Hiện Sai Lệch',
+        'Lý Do Sai Lệch',
+        'Phương Án Xử Lý',
+        'Người Đặt',
+        'Ngày Đặt',
+    ];
+    const rows = props.purchaseOrders.map((po: any) => [
+        po.po_number,
+        po.supplier_name,
+        po.status,
+        po.payment_method || 'banking',
+        po.discount_percent || 0,
+        po.total_amount,
+        po.invoice_total_amount || 0,
+        po.is_frozen ? 'Có' : 'Không',
+        po.is_discrepant ? 'Có' : 'Không',
+        po.mismatch_reason || '—',
+        po.resolution_action || '—',
+        po.created_by_name || 'Hệ thống',
+        po.created_at,
+    ]);
+    exportToCsv('Nhat_Ky_Dat_Hang_PO', headers, rows);
+};
+
+const exportSlaReport = () => {
+    if (!slaDashboardData.value || !slaDashboardData.value.rankings) {
+        toast.error('Chưa có dữ liệu Bảng xếp hạng SLA để xuất báo cáo.');
+        return;
+    }
+    const headers = [
+        'Xếp Hạng',
+        'Tên Nhà Cung Cấp',
+        'Điểm Tổng Hợp SLA',
+        'Tỷ Lệ Đúng Hạn (%)',
+        'Độ Chính Xác (%)',
+        'Đánh Giá Chất Lượng (1-5★)',
+        'Tổng Đơn PO',
+        'Đơn Đóng Băng',
+        'Hạng Đánh Giá',
+    ];
+    const rows = slaDashboardData.value.rankings.map((item: any, idx: number) => {
+        const grade = getSupplierGrade(item.on_time_rate, item.accuracy_rate, item.avg_rating);
+        return [
+            idx + 1,
+            item.supplier_name,
+            item.overall_score || 0,
+            item.on_time_rate || 0,
+            item.accuracy_rate || 0,
+            item.avg_rating || 5,
+            item.total_pos || 0,
+            item.frozen_pos || 0,
+            grade.label,
+        ];
+    });
+    exportToCsv('Bao_Cao_Xep_Hang_SLA_NCC', headers, rows);
+};
+
+onMounted(() => {
+    setTimeout(updateScrollButtons, 100);
+    window.addEventListener('resize', updateScrollButtons);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', updateScrollButtons);
+});
 </script>
 
 <template>
@@ -830,102 +1148,163 @@ const transferQuantityWarning = computed(() => {
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs (Interactive Horizontal Drag & Arrow Scroll Track) -->
         <div
-            class="flex flex-wrap items-center gap-1 self-start rounded-xl border border-border bg-muted p-1"
+            class="group relative max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-1.5 backdrop-blur-md shadow-xs"
         >
+            <!-- Left Arrow Scroll Button -->
             <button
-                @click="activeTab = 'list'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'list'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
+                v-if="canScrollLeft"
+                @click="scrollTabs('left')"
+                class="absolute left-2 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                title="Cuộn sang trái"
             >
-                <Users class="h-3.5 w-3.5" />
-                Danh sách đối tác
+                <ChevronLeft class="h-4 w-4" />
             </button>
-            <button
-                @click="
-                    activeTab = 'cockpit';
-                    fetchCockpitData();
-                "
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'cockpit'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
+
+            <!-- Scrollable Track Container -->
+            <div
+                ref="tabScrollContainerRef"
+                @scroll="updateScrollButtons"
+                @wheel="handleWheelScroll"
+                @mousedown="startDrag"
+                @mouseleave="stopDrag"
+                @mouseup="stopDrag"
+                @mousemove="doDrag"
+                class="no-scrollbar flex cursor-grab active:cursor-grabbing items-center gap-1.5 overflow-x-auto scroll-smooth whitespace-nowrap py-0.5 select-none"
             >
-                <Gauge class="h-3.5 w-3.5" />
-                Cockpit Nhập hàng
-            </button>
+                <button
+                    @click="activeTab = 'list'"
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'list'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    ]"
+                >
+                    <Users
+                        class="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>Danh sách đối tác</span>
+                    <span
+                        v-if="kpis.total > 0"
+                        :class="[
+                            'ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-extrabold',
+                            activeTab === 'list'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-muted-foreground/15 text-muted-foreground',
+                        ]"
+                    >
+                        {{ kpis.total }}
+                    </span>
+                </button>
+
+                <button
+                    @click="
+                        activeTab = 'cockpit';
+                        fetchCockpitData();
+                    "
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'cockpit'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    ]"
+                >
+                    <Gauge
+                        class="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>Cockpit Nhập hàng</span>
+                </button>
+
+                <button
+                    @click="activeTab = 'pos'"
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'pos'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    ]"
+                >
+                    <ClipboardList
+                        class="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>Nhật ký đặt hàng (PO)</span>
+                </button>
+
+                <button
+                    @click="activeTab = 'analytics'"
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'analytics'
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 font-extrabold text-white shadow-md shadow-purple-600/25 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-purple-500/10 hover:text-purple-500',
+                    ]"
+                >
+                    <Sparkles class="h-4 w-4 text-purple-400 animate-pulse" />
+                    <span>AI Phân tích biến động giá</span>
+                </button>
+
+                <button
+                    @click="activeTab = 'sla'"
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'sla'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    ]"
+                >
+                    <ShieldCheck
+                        class="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>Báo cáo SLA & Đánh giá</span>
+                </button>
+
+                <button
+                    @click="
+                        activeTab = 'sla-dashboard';
+                        fetchSlaDashboard();
+                    "
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'sla-dashboard'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    ]"
+                >
+                    <Award
+                        class="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>Bảng xếp hạng NCC</span>
+                </button>
+
+                <button
+                    @click="
+                        activeTab = 'transfers';
+                        fetchTransfers();
+                    "
+                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    :class="[
+                        activeTab === 'transfers'
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 font-extrabold text-white shadow-md shadow-indigo-600/25 scale-[1.02]'
+                            : 'font-semibold text-muted-foreground hover:bg-indigo-500/10 hover:text-indigo-500',
+                    ]"
+                >
+                    <ArrowLeftRight
+                        class="h-4 w-4 text-indigo-400 transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <span>AI Điều phối Liên chi nhánh</span>
+                </button>
+            </div>
+
+            <!-- Right Arrow Scroll Button -->
             <button
-                @click="activeTab = 'pos'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'pos'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
+                v-if="canScrollRight"
+                @click="scrollTabs('right')"
+                class="absolute right-2 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                title="Cuộn sang phải"
             >
-                <ClipboardList class="h-3.5 w-3.5" />
-                Nhật ký đặt hàng (PO)
-            </button>
-            <button
-                @click="activeTab = 'analytics'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'analytics'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
-            >
-                <TrendingUp class="h-3.5 w-3.5" />
-                AI Phân tích biến động giá
-            </button>
-            <button
-                @click="activeTab = 'sla'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'sla'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
-            >
-                <ShieldCheck class="h-3.5 w-3.5" />
-                Báo cáo SLA & Đánh giá
-            </button>
-            <button
-                @click="
-                    activeTab = 'sla-dashboard';
-                    fetchSlaDashboard();
-                "
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'sla-dashboard'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
-            >
-                <Award class="h-3.5 w-3.5" />
-                Bảng xếp hạng NCC
-            </button>
-            <button
-                @click="
-                    activeTab = 'transfers';
-                    fetchTransfers();
-                "
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === 'transfers'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                "
-            >
-                <ArrowLeftRight class="h-3.5 w-3.5" />
-                AI Điều phối Liên chi nhánh
+                <ChevronRight class="h-4 w-4" />
             </button>
         </div>
 
@@ -1017,6 +1396,59 @@ const transferQuantityWarning = computed(() => {
                         <ClipboardList class="size-5" />
                     </div>
                 </div>
+            </div>
+
+            <!-- Smart Quick Filter Chips & Export Controls -->
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/20 p-3 backdrop-blur-md">
+                <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                    <span class="text-[11px] font-bold text-muted-foreground mr-1">🔍 Lọc nhanh:</span>
+                    <button
+                        @click="quickFilterChip = 'all'"
+                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer"
+                        :class="quickFilterChip === 'all' ? 'bg-emerald-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-muted text-muted-foreground'"
+                    >
+                        Tất cả đối tác
+                    </button>
+                    <button
+                        @click="quickFilterChip = 'frozen'"
+                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                        :class="quickFilterChip === 'frozen' ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-rose-500/10 text-rose-500'"
+                    >
+                        <span>🔴 Đang đóng băng</span>
+                    </button>
+                    <button
+                        @click="quickFilterChip = 'pending'"
+                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                        :class="quickFilterChip === 'pending' ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-amber-500/10 text-amber-600'"
+                    >
+                        <span>⏳ PO Chờ duyệt</span>
+                    </button>
+                    <button
+                        @click="quickFilterChip = 'unpaid'"
+                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                        :class="quickFilterChip === 'unpaid' ? 'bg-indigo-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-indigo-500/10 text-indigo-500'"
+                    >
+                        <span>💵 Còn công nợ</span>
+                    </button>
+                    <button
+                        @click="quickFilterChip = 'top_rated'"
+                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                        :class="quickFilterChip === 'top_rated' ? 'bg-teal-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-teal-500/10 text-teal-500'"
+                    >
+                        <span>⭐ NCC Xuất sắc (>4.5★)</span>
+                    </button>
+                </div>
+
+                <!-- Export Accounting Report Button -->
+                <Button
+                    @click="exportSuppliersReport"
+                    variant="outline"
+                    size="sm"
+                    class="h-8.5 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 cursor-pointer"
+                >
+                    <FileText class="h-3.5 w-3.5" />
+                    <span>Xuất Excel NCC (.csv)</span>
+                </Button>
             </div>
 
             <!-- Search & Filters -->
@@ -1142,7 +1574,7 @@ const transferQuantityWarning = computed(() => {
                         <div>
                             <!-- Quick Statistics Badge Grid -->
                             <div
-                                class="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-border/40 bg-muted/40 p-2 text-[10px]"
+                                class="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-border/40 bg-muted/40 p-2 text-[10px]"
                             >
                                 <div
                                     class="flex items-center gap-1.5 font-semibold text-muted-foreground"
@@ -1172,9 +1604,22 @@ const transferQuantityWarning = computed(() => {
                                 </div>
                             </div>
 
+                            <!-- Badges: Payment Terms & Tax Code -->
+                            <div class="mb-3 flex flex-wrap gap-1.5 text-[9px] font-bold">
+                                <span v-if="sup.tax_code" class="rounded-md bg-muted px-2 py-0.5 text-muted-foreground border border-border/50">
+                                    MST: {{ sup.tax_code }}
+                                </span>
+                                <span v-if="sup.payment_terms" class="rounded-md bg-emerald-500/10 px-2 py-0.5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                    {{ sup.payment_terms.toUpperCase() }}
+                                </span>
+                                <span v-if="sup.bank_name" class="rounded-md bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                    💳 {{ sup.bank_name }} ({{ sup.bank_account_number || 'STK' }})
+                                </span>
+                            </div>
+
                             <!-- Contact Detail List with modern icons -->
                             <div
-                                class="mt-1 space-y-2 text-xs text-muted-foreground"
+                                class="mt-1 space-y-1.5 text-xs text-muted-foreground"
                             >
                                 <div
                                     v-if="sup.contact_name"
@@ -1668,8 +2113,27 @@ const transferQuantityWarning = computed(() => {
         </div>
 
         <!-- Tab Content: PO logs -->
-        <Card v-if="activeTab === 'pos'" class="overflow-hidden">
-            <div class="overflow-x-auto">
+        <Card v-if="activeTab === 'pos'" class="overflow-hidden space-y-3 p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-foreground flex items-center gap-2">
+                        <ClipboardList class="h-4 w-4 text-emerald-500" />
+                        Nhật Ký Đặt Hàng & Quản Lý Công Nợ PO
+                    </h3>
+                    <p class="text-xs text-muted-foreground">Theo dõi lịch sử đơn hàng, chiết khấu và trạng thái ký quỹ thanh toán B2B.</p>
+                </div>
+                <Button
+                    @click="exportPurchaseOrdersReport"
+                    variant="outline"
+                    size="sm"
+                    class="h-8.5 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 cursor-pointer"
+                >
+                    <FileText class="h-3.5 w-3.5" />
+                    <span>Xuất Excel Nhật Ký PO (.csv)</span>
+                </Button>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-border/60">
                 <table class="w-full text-left text-sm text-foreground">
                     <thead
                         class="border-b border-border bg-muted/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1688,7 +2152,7 @@ const transferQuantityWarning = computed(() => {
                     </thead>
                     <tbody class="divide-y divide-border">
                         <tr
-                            v-for="po in purchaseOrders"
+                            v-for="po in filteredPurchaseOrders"
                             :key="po.id"
                             class="transition-colors hover:bg-muted/10"
                         >
@@ -2335,8 +2799,8 @@ const transferQuantityWarning = computed(() => {
                                     <span
                                         class="text-xs font-bold text-amber-500"
                                         >{{
-                                            '★'.repeat(rate.rating) +
-                                            '☆'.repeat(5 - rate.rating)
+                                            '★'.repeat(Number(rate.rating || 5)) +
+                                            '☆'.repeat(5 - Number(rate.rating || 5))
                                         }}</span
                                     >
                                 </div>
@@ -2391,18 +2855,28 @@ const transferQuantityWarning = computed(() => {
                         chính xác (40%), Chất lượng đánh giá (20%).
                     </p>
                 </div>
-                <Button
-                    @click="fetchSlaDashboard"
-                    variant="outline"
-                    :disabled="loadingSlaDashboard"
-                    class="flex h-9 items-center gap-1.5 text-xs font-semibold"
-                >
-                    <RefreshCw
-                        class="h-4 w-4"
-                        :class="loadingSlaDashboard ? 'animate-spin' : ''"
-                    />
-                    Làm mới dữ liệu
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button
+                        @click="exportSlaReport"
+                        variant="outline"
+                        class="flex h-9 items-center gap-1.5 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 cursor-pointer"
+                    >
+                        <FileText class="h-4 w-4" />
+                        Xuất Báo Cáo SLA (.csv)
+                    </Button>
+                    <Button
+                        @click="fetchSlaDashboard"
+                        variant="outline"
+                        :disabled="loadingSlaDashboard"
+                        class="flex h-9 items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    >
+                        <RefreshCw
+                            class="h-4 w-4"
+                            :class="loadingSlaDashboard ? 'animate-spin' : ''"
+                        />
+                        Làm mới dữ liệu
+                    </Button>
+                </div>
             </div>
 
             <!-- Loading -->
@@ -3384,13 +3858,112 @@ const transferQuantityWarning = computed(() => {
                             </div>
                         </div>
 
+                        <!-- Tax Code (MST) -->
+                        <div class="space-y-1.5">
+                            <Label
+                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <FileText class="h-3.5 w-3.5 text-emerald-500" />
+                                Mã số thuế (MST)
+                            </Label>
+                            <Input
+                                v-model="supplierForm.tax_code"
+                                type="text"
+                                placeholder="VD: 0312345678"
+                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                            />
+                        </div>
+
+                        <!-- Category -->
+                        <div class="space-y-1.5">
+                            <Label
+                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Package class="h-3.5 w-3.5 text-emerald-500" />
+                                Ngành hàng cung ứng
+                            </Label>
+                            <select
+                                v-model="supplierForm.category"
+                                class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                            >
+                                <option value="fresh_food">🥬 Thực phẩm tươi sống</option>
+                                <option value="dry_goods">🧂 Gia vị & Thực phẩm khô</option>
+                                <option value="beverage">🥤 Đồ uống & Giải khát</option>
+                                <option value="packaging">📦 Bao bì & Vật tư F&B</option>
+                                <option value="other">📑 Khác</option>
+                            </select>
+                        </div>
+
+                        <!-- Banking Information Header -->
+                        <div class="col-span-2 border-t border-border/50 pt-2">
+                            <p class="text-[11px] font-extrabold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-1.5">
+                                <CreditCard class="h-3.5 w-3.5" v-if="false" /> 💳 Thông tin Thanh toán VietQR & Công nợ
+                            </p>
+                        </div>
+
+                        <!-- Bank Name -->
+                        <div class="space-y-1.5">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                Tên ngân hàng
+                            </Label>
+                            <Input
+                                v-model="supplierForm.bank_name"
+                                type="text"
+                                placeholder="VD: Vietcombank, MBBank..."
+                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                            />
+                        </div>
+
+                        <!-- Bank Account Number -->
+                        <div class="space-y-1.5">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                Số tài khoản
+                            </Label>
+                            <Input
+                                v-model="supplierForm.bank_account_number"
+                                type="text"
+                                placeholder="STK nhận tiền..."
+                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                            />
+                        </div>
+
+                        <!-- Bank Account Holder -->
+                        <div class="space-y-1.5">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                Tên chủ tài khoản
+                            </Label>
+                            <Input
+                                v-model="supplierForm.bank_account_holder"
+                                type="text"
+                                placeholder="CHỦ TÀI KHOẢN..."
+                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                            />
+                        </div>
+
+                        <!-- Payment Terms -->
+                        <div class="space-y-1.5">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                Điều khoản thanh toán
+                            </Label>
+                            <select
+                                v-model="supplierForm.payment_terms"
+                                class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                            >
+                                <option value="cod">💵 Thanh toán ngay khi nhận hàng (COD)</option>
+                                <option value="net7">📅 Công nợ 7 ngày (Net 7)</option>
+                                <option value="net15">📅 Công nợ 15 ngày (Net 15)</option>
+                                <option value="net30">📅 Công nợ 30 ngày (Net 30)</option>
+                                <option value="prepaid">💳 Trả trước 100% (Prepaid)</option>
+                            </select>
+                        </div>
+
                         <!-- Address -->
-                        <div class="col-span-2 space-y-1.5">
+                        <div class="col-span-2 space-y-1.5 border-t border-border/50 pt-2">
                             <Label
                                 class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                             >
                                 <MapPin class="h-3.5 w-3.5 text-emerald-500" />
-                                Địa chỉ
+                                Địa chỉ kho / Văn phòng
                             </Label>
                             <div class="relative">
                                 <span
@@ -3420,8 +3993,8 @@ const transferQuantityWarning = computed(() => {
                             <div class="relative">
                                 <textarea
                                     v-model="supplierForm.notes"
-                                    rows="3"
-                                    placeholder="Ghi chú về năng lực cung ứng, lịch giao hàng hoặc chiết khấu thương mại..."
+                                    rows="2"
+                                    placeholder="Ghi chú về năng lực cung ứng, lịch giao hàng..."
                                     class="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none"
                                 ></textarea>
                             </div>
@@ -3486,21 +4059,29 @@ const transferQuantityWarning = computed(() => {
             </Card>
         </div>
 
-        <!-- Place PO Modal -->
+        <!-- Place PO Modal (2-Step Workflow) -->
         <div
             v-if="showPoModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         >
             <Card
-                class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in border-border"
             >
                 <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-4"
+                    class="flex flex-row items-center justify-between border-b pb-4 bg-muted/20"
                 >
-                    <CardTitle class="text-lg font-bold"
-                        >Đặt hàng nguyên liệu:
-                        {{ selectedSupplier?.name }}</CardTitle
-                    >
+                    <div>
+                        <CardTitle class="text-lg font-bold">
+                            Đặt hàng nguyên liệu: {{ selectedSupplier?.name }}
+                        </CardTitle>
+                        <CardDescription class="mt-0.5 text-xs text-muted-foreground">
+                            {{
+                                poStep === 1
+                                    ? 'Bước 1/2: Chọn menu nguyên liệu & số lượng cần mua'
+                                    : 'Bước 2/2: Xác nhận danh sách đã chọn, người đặt & giao nhận'
+                            }}
+                        </CardDescription>
+                    </div>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -3511,97 +4092,127 @@ const transferQuantityWarning = computed(() => {
                     </Button>
                 </CardHeader>
 
-                <form @submit.prevent="submitPo" class="space-y-4 p-6">
-                    <div class="max-h-96 space-y-3 overflow-y-auto">
-                        <div
-                            v-for="(item, idx) in poForm.items"
-                            :key="idx"
-                            class="flex items-end gap-4 rounded-xl border border-border bg-muted/40 p-3.5"
-                        >
-                            <div class="flex-1 space-y-1">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Nguyên liệu niêm yết</Label
-                                >
-                                <select
-                                    v-model="item.ingredient_id"
-                                    required
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                >
-                                    <option
-                                        v-for="ing in ingredients.filter(
-                                            (i) =>
-                                                i.supplier_id ===
-                                                selectedSupplier?.id,
-                                        )"
-                                        :key="ing.id"
-                                        :value="ing.id"
-                                    >
-                                        {{ ing.name }} (Giá niêm yết:
-                                        {{
-                                            Number(ing.price).toLocaleString(
-                                                'vi-VN',
-                                            )
-                                        }}đ/{{ ing.unit_symbol }})
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="w-32 space-y-1">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Số lượng mua</Label
-                                >
-                                <Input
-                                    v-model="item.quantity"
-                                    required
-                                    type="number"
-                                    step="0.001"
-                                    min="0.001"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                @click="removePoItem(idx)"
-                                class="h-9 w-9 shrink-0 border border-transparent text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                            >
-                                <Trash2 class="h-4 w-4" />
-                            </Button>
-                        </div>
-
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            @click="addPoItem"
-                            class="h-auto px-0 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
-                        >
-                            <Plus class="mr-1 h-4 w-4" /> Thêm nguyên liệu
-                        </Button>
+                <!-- BƯỚC 1: Danh sách toàn bộ sản phẩm/nguyên liệu từ Nhà sản xuất -->
+                <div v-if="poStep === 1" class="space-y-4 p-6">
+                    <!-- Thanh tìm kiếm sản phẩm trong Menu -->
+                    <div class="relative">
+                        <Search class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            v-model="menuSearchQuery"
+                            placeholder="Tìm kiếm sản phẩm / nguyên liệu của nhà cung cấp..."
+                            class="pl-9 text-xs rounded-xl"
+                        />
                     </div>
 
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Hạn giao hàng dự kiến (SLA)</Label
-                            >
-                            <Input
-                                v-model="poForm.delivery_due_date"
-                                type="datetime-local"
-                            />
+                    <!-- Danh sách Catalog nguyên liệu của Nhà cung cấp -->
+                    <div class="max-h-96 space-y-2.5 overflow-y-auto pr-1">
+                        <div
+                            v-if="filteredSupplierIngredients.length === 0"
+                            class="py-12 text-center text-xs text-muted-foreground italic rounded-xl border border-dashed p-4"
+                        >
+                            {{
+                                menuSearchQuery
+                                    ? 'Không tìm thấy sản phẩm nào phù hợp với từ khóa.'
+                                    : 'Nhà cung cấp này chưa có sản phẩm nào niêm yết.'
+                            }}
                         </div>
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Ghi chú giao nhận</Label
-                            >
-                            <Input
-                                v-model="poForm.notes"
-                                type="text"
-                                placeholder="Yêu cầu đóng gói, giờ hạ hàng..."
-                            />
+
+                        <div
+                            v-for="ing in filteredSupplierIngredients"
+                            :key="ing.id"
+                            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200"
+                            :class="[
+                                (selectedQuantities[ing.id] || 0) > 0
+                                    ? 'border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20'
+                                    : 'border-border/60 bg-muted/20 hover:bg-muted/40'
+                            ]"
+                        >
+                            <!-- Tên sản phẩm & Đơn giá -->
+                            <div class="min-w-[180px] flex-1 space-y-0.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-xs text-foreground">
+                                        {{ ing.name }}
+                                    </span>
+                                    <span
+                                        v-if="(selectedQuantities[ing.id] || 0) > 0"
+                                        class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400"
+                                    >
+                                        Đã chọn
+                                    </span>
+                                </div>
+                                <div class="text-[11px] text-muted-foreground font-mono">
+                                    Giá niêm yết:
+                                    <strong class="text-foreground">
+                                        {{ Number(ing.price).toLocaleString('vi-VN') }}đ
+                                    </strong>
+                                    / {{ ing.unit_symbol }}
+                                </div>
+                            </div>
+
+                            <!-- Bộ tăng/giảm số lượng (Quantity Counter) -->
+                            <div class="flex items-center gap-2">
+                                <div class="flex items-center rounded-lg border border-border bg-background shadow-xs">
+                                    <button
+                                        type="button"
+                                        @click="decrementQuantity(ing.id)"
+                                        class="flex h-8 w-8 items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90 font-bold"
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        type="number"
+                                        step="0.001"
+                                        min="0"
+                                        :value="selectedQuantities[ing.id] || 0"
+                                        @input="updateItemQuantity(ing.id, Number(($event.target as HTMLInputElement).value))"
+                                        class="h-8 w-16 text-center font-mono text-xs font-bold text-foreground focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        @click="incrementQuantity(ing.id)"
+                                        class="flex h-8 w-8 items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90 font-bold"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                                <span class="text-[11px] font-semibold text-muted-foreground w-8">
+                                    {{ ing.unit_symbol }}
+                                </span>
+                            </div>
+
+                            <!-- Thành tiền cho từng món -->
+                            <div class="w-24 text-right font-mono text-xs font-bold">
+                                <span
+                                    :class="[
+                                        (selectedQuantities[ing.id] || 0) > 0
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-muted-foreground/40'
+                                    ]"
+                                >
+                                    {{
+                                        (
+                                            (selectedQuantities[ing.id] || 0) *
+                                            Number(ing.price || 0)
+                                        ).toLocaleString('vi-VN')
+                                    }}đ
+                                </span>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Tạm tính tiền & Số lượng món đã chọn -->
+                    <div class="flex items-center justify-between rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5">
+                        <div class="space-y-0.5">
+                            <span class="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                                Đã chọn {{ selectedPoItemsDetailed.length }} mặt hàng
+                            </span>
+                            <span class="block text-[10px] text-emerald-700/80 dark:text-emerald-400/80">
+                                Nhấp + / - hoặc nhập số lượng để chọn sản phẩm
+                            </span>
+                        </div>
+                        <span class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
+                            {{ totalPoEstimatedAmount.toLocaleString('vi-VN') }}đ
+                        </span>
                     </div>
 
                     <div class="mt-6 flex justify-end gap-2 border-t pt-4">
@@ -3613,14 +4224,176 @@ const transferQuantityWarning = computed(() => {
                             Hủy bỏ
                         </Button>
                         <Button
+                            type="button"
+                            @click="goToPoStep2"
+                            class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
+                        >
+                            Xác nhận & Tiếp tục ({{ selectedPoItemsDetailed.length }} món) ➔
+                        </Button>
+                    </div>
+                </div>
+
+                <!-- BƯỚC 2: Kiểm tra danh sách đã chọn & Thông tin người đặt, vị trí quán, SLA, Ghi chú -->
+                <form v-else-if="poStep === 2" @submit.prevent="submitPo" class="space-y-5 p-6">
+                    <!-- Tóm tắt danh sách món đã chọn -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            <span>📋 Danh sách nguyên liệu đã chọn</span>
+                            <button
+                                type="button"
+                                @click="poStep = 1"
+                                class="text-[11px] text-emerald-600 hover:underline font-semibold cursor-pointer"
+                            >
+                                ✏️ Đổi món / Sửa số lượng
+                            </button>
+                        </div>
+                        <div class="max-h-48 overflow-y-auto rounded-xl border border-border/80 divide-y divide-border/60">
+                            <div
+                                v-for="item in selectedPoItemsDetailed"
+                                :key="item.id"
+                                class="flex items-center justify-between p-2.5 text-xs hover:bg-muted/20"
+                            >
+                                <div class="font-semibold text-foreground">
+                                    {{ item.name }}
+                                </div>
+                                <div class="text-right font-mono">
+                                    <span class="text-muted-foreground mr-2">
+                                        {{ item.quantity }} {{ item.unit_symbol }} × {{ item.price.toLocaleString('vi-VN') }}đ
+                                    </span>
+                                    <strong class="text-emerald-600 dark:text-emerald-400">
+                                        {{ item.subtotal.toLocaleString('vi-VN') }}đ
+                                    </strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-muted-foreground font-medium">Tạm tính đơn hàng:</span>
+                                <span class="font-mono font-bold text-foreground">{{ poSubtotalAmount.toLocaleString('vi-VN') }}đ</span>
+                            </div>
+                            <div v-if="poForm.discount_percent > 0" class="flex items-center justify-between text-xs text-rose-500 font-semibold">
+                                <span>Chiết khấu nhà cung cấp ({{ poForm.discount_percent }}%):</span>
+                                <span class="font-mono">-{{ (poSubtotalAmount * poForm.discount_percent / 100).toLocaleString('vi-VN') }}đ</span>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-emerald-500/20">
+                                <span class="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                                    TỔNG CỘNG THANH TOÁN:
+                                </span>
+                                <span class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                    {{ totalPoEstimatedAmount.toLocaleString('vi-VN') }}đ
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thông tin người đặt & Vị trí quán -->
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 rounded-xl border border-border bg-muted/20 p-3.5 text-xs">
+                        <div class="space-y-1">
+                            <span class="text-muted-foreground block text-[10px] font-bold uppercase tracking-wider">👤 Người đặt hàng</span>
+                            <div class="font-bold text-foreground">
+                                {{ currentUser?.name || 'Test Enterprise' }}
+                            </div>
+                            <div class="text-muted-foreground text-[11px]">
+                                {{ currentUser?.email || 'enterprise@test.com' }}
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-muted-foreground block text-[10px] font-bold uppercase tracking-wider">📍 Vị trí nhận hàng / Cơ sở quán</span>
+                            <div class="font-bold text-foreground">
+                                {{ currentRestaurant?.name || 'Sai Gon Diner' }}
+                            </div>
+                            <div class="text-muted-foreground text-[11px] truncate">
+                                {{ currentRestaurant?.address || 'Cơ sở chính nhà hàng' }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hình thức thanh toán, Chiết khấu %, Phương thức vận chuyển -->
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-3 rounded-xl border border-border/70 p-3.5 bg-background">
+                        <div class="space-y-1">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                💳 Hình thức thanh toán
+                            </Label>
+                            <select
+                                v-model="poForm.payment_method"
+                                class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
+                            >
+                                <option value="banking">🏦 Chuyển khoản Banking (VietQR)</option>
+                                <option value="cod">💵 Tiền mặt khi giao hàng (COD)</option>
+                                <option value="credit">📝 Ghi nhận Công nợ kỳ sau</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                🏷️ Chiết khấu nhà cung cấp (%)
+                            </Label>
+                            <Input
+                                v-model.number="poForm.discount_percent"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.5"
+                                placeholder="0%"
+                                class="h-9 rounded-xl border-border/60 bg-background font-mono text-xs font-bold"
+                            />
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                🚚 Phương thức giao hàng
+                            </Label>
+                            <select
+                                v-model="poForm.shipping_method"
+                                class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
+                            >
+                                <option value="supplier_delivery">🚚 Nhà cung cấp tự giao tận nơi</option>
+                                <option value="self_pickup">🏬 Quán tự đến kho lấy hàng</option>
+                                <option value="express">🚀 Giao siêu tốc (Ahamove/Grab)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Chọn thời gian giao hàng & Ghi chú -->
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                                🕒 Hạn giao hàng dự kiến (SLA) <span class="text-rose-500">*</span>
+                            </Label>
+                            <Input
+                                v-model="poForm.delivery_due_date"
+                                type="datetime-local"
+                                required
+                            />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                                📝 Ghi chú giao nhận
+                            </Label>
+                            <Input
+                                v-model="poForm.notes"
+                                type="text"
+                                placeholder="Yêu cầu đóng gói, giờ hạ hàng..."
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Footer Bước 2 -->
+                    <div class="mt-6 flex justify-between border-t pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="poStep = 1"
+                        >
+                            ⬅ Quay lại chọn món
+                        </Button>
+                        <Button
                             type="submit"
                             :disabled="poForm.processing"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700"
+                            class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
                         >
                             {{
                                 poForm.processing
-                                    ? 'Đang gửi...'
-                                    : 'Gửi đặt đơn PO'
+                                    ? 'Đang gửi đơn PO...'
+                                    : '🚀 Gửi đặt đơn PO'
                             }}
                         </Button>
                     </div>
@@ -3829,6 +4602,41 @@ const transferQuantityWarning = computed(() => {
                         </div>
                     </div>
 
+                    <!-- Mismatch Reason & Resolution Action (when discrepancies detected) -->
+                    <div
+                        v-if="hasMismatch"
+                        class="grid grid-cols-1 gap-4 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 md:grid-cols-2"
+                    >
+                        <div class="space-y-1.5">
+                            <Label class="block text-xs font-bold tracking-wider text-rose-600 dark:text-rose-400 uppercase">
+                                ⚠️ Nguyên nhân phát sinh sai lệch
+                            </Label>
+                            <select
+                                v-model="verifyForm.mismatch_reason"
+                                class="w-full rounded-xl border border-rose-300 dark:border-rose-800 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            >
+                                <option value="Khối lượng giao không đủ">📉 Khối lượng thực giao thiếu so với PO</option>
+                                <option value="Hàng hư hỏng / Dập nát">🥀 Hàng hư hỏng / Không đạt chất lượng</option>
+                                <option value="Sai giá niêm yết">💲 Đơn giá hóa đơn cao hơn niêm yết</option>
+                                <option value="Giao sai mặt hàng">❌ Giao sai chủng loại nguyên liệu</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="block text-xs font-bold tracking-wider text-rose-600 dark:text-rose-400 uppercase">
+                                🛠️ Phương án xử lý khắc phục
+                            </Label>
+                            <select
+                                v-model="verifyForm.resolution_action"
+                                class="w-full rounded-xl border border-rose-300 dark:border-rose-800 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            >
+                                <option value="Trừ trực tiếp vào công nợ đơn sau">📝 Trừ tiền vào công nợ kỳ sau</option>
+                                <option value="Yêu cầu giao bù ngay trong ngày">🚚 Yêu cầu nhà cung cấp giao bù ngay</option>
+                                <option value="Đổi trả hàng lỗi cho nhà cung cấp">📦 Trả lại toàn bộ lô hàng lỗi</option>
+                                <option value="Duyệt ngoại lệ (Chấp nhận chênh lệch)">✅ Duyệt ngoại lệ (Owner chấp nhận)</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- Rating and feedback -->
                     <div
                         class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-3"
@@ -3892,6 +4700,14 @@ const transferQuantityWarning = computed(() => {
 </template>
 
 <style scoped>
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
 .animate-shimmer {
     background-size: 200% auto;
     animation: shine 1.5s linear infinite;
