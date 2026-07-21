@@ -231,6 +231,8 @@ const showCreateDialog = ref(false);
 const goalForm = useForm({
     title: '',
     description: '',
+    owner_name: '',
+    unit_name: '',
     metric: 'revenue' as string,
     period: 'monthly' as string,
     start_date: new Date().toISOString().slice(0, 10),
@@ -462,7 +464,7 @@ function toggleAction(actionId: number) {
                     v-for="goal in activeGoals"
                     :key="goal.id"
                     :class="[
-                        'border bg-card text-card-foreground shadow-xs transition-all duration-300 hover:shadow-md',
+                        'overflow-hidden border bg-card text-card-foreground shadow-xs transition-all duration-300 hover:shadow-md',
                         getPaceStatus(
                             goal.progress_percent,
                             getTimeProgress(goal.start_date, goal.end_date),
@@ -669,8 +671,16 @@ function toggleAction(actionId: number) {
                                 <div
                                     v-for="m in goal.milestones"
                                     :key="m.id"
-                                    class="absolute flex -translate-x-1/2 flex-col items-center gap-1"
-                                    :style="{ left: `${m.threshold_percent}%` }"
+                                    class="absolute flex flex-col items-center gap-1"
+                                    :style="{
+                                        left: `clamp(12px, ${m.threshold_percent}%, calc(100% - 12px))`,
+                                        transform:
+                                            m.threshold_percent >= 80
+                                                ? 'translateX(-85%)'
+                                                : m.threshold_percent <= 20
+                                                  ? 'translateX(-15%)'
+                                                  : 'translateX(-50%)',
+                                    }"
                                 >
                                     <!-- Step Dot -->
                                     <div
@@ -690,11 +700,12 @@ function toggleAction(actionId: number) {
                                     <!-- Title label -->
                                     <span
                                         :class="[
-                                            'rounded-sm border bg-background/90 px-1.5 py-0.5 text-[9px] font-bold whitespace-nowrap',
+                                            'max-w-[130px] sm:max-w-[190px] truncate rounded-md border bg-card/95 px-2 py-0.5 text-[9px] font-bold shadow-xs',
                                             m.reached
-                                                ? 'border-emerald-500/20 text-emerald-500'
-                                                : 'border-border/40 text-muted-foreground',
+                                                ? 'border-emerald-500/30 text-emerald-500 dark:border-emerald-500/40 dark:text-emerald-400'
+                                                : 'border-border/60 text-muted-foreground',
                                         ]"
+                                        :title="`${m.title || 'Mốc'} (${m.threshold_percent}%)`"
                                     >
                                         {{ m.title || 'Mốc' }} ({{
                                             m.threshold_percent
@@ -810,6 +821,7 @@ function toggleAction(actionId: number) {
 
             <!-- Premium Empty State -->
             <div
+                v-else
                 class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/5 px-4 py-16 text-center"
             >
                 <div
@@ -1089,6 +1101,31 @@ function toggleAction(actionId: number) {
                             type="date"
                             v-model="goalForm.end_date"
                             required
+                            class="rounded-xl"
+                        />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="grid gap-1.5">
+                        <Label class="text-xs font-bold text-foreground">
+                            👤 Người chịu trách nhiệm (Owner)
+                        </Label>
+                        <Input
+                            type="text"
+                            v-model="goalForm.owner_name"
+                            placeholder="VD: Nguyễn Văn A (Quản lý)..."
+                            class="rounded-xl"
+                        />
+                    </div>
+                    <div class="grid gap-1.5">
+                        <Label class="text-xs font-bold text-foreground">
+                            📐 Đơn vị đo lường (Unit)
+                        </Label>
+                        <Input
+                            type="text"
+                            v-model="goalForm.unit_name"
+                            placeholder="VD: VNĐ, Đơn hàng, Điểm..."
                             class="rounded-xl"
                         />
                     </div>

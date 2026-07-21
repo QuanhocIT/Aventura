@@ -59,6 +59,8 @@ class BusinessGoalController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'owner_name' => ['nullable', 'string', 'max:255'],
+            'unit_name' => ['nullable', 'string', 'max:50'],
             'metric' => ['required', 'in:revenue,orders,customers,rating,cost_saving,custom'],
             'period' => ['required', 'in:weekly,monthly,quarterly,yearly'],
             'start_date' => ['required', 'date'],
@@ -73,6 +75,8 @@ class BusinessGoalController extends Controller
             'restaurant_id' => $request->user()->restaurant_id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
+            'owner_name' => $data['owner_name'] ?? null,
+            'unit_name' => $data['unit_name'] ?? null,
             'metric' => $data['metric'],
             'period' => $data['period'],
             'start_date' => $data['start_date'],
