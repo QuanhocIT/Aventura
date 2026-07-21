@@ -23,6 +23,7 @@
         "laravel/wayfinder": "^0.1.14",
         "meilisearch/meilisearch-php": "^1.16",
         "predis/predis": "^2.3",
+        "sentry/sentry-laravel": "*",
         "spatie/laravel-permission": "^7.4"
     },
     "require-dev": {
