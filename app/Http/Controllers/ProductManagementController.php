@@ -24,7 +24,13 @@ class ProductManagementController extends Controller
         $categories = Cache::remember("restaurant_{$restaurantId}_categories", 3600, function () use ($restaurantId) {
             return ProductCategory::where('restaurant_id', $restaurantId)
                 ->orderBy('display_order')
-                ->get();
+                ->get()
+                ->map(fn ($c) => [
+                    'id'          => $c->id,
+                    'name'        => $c->name,
+                    'description' => $c->description,
+                ])
+                ->toArray();
         });
 
         $products = Cache::remember("restaurant_{$restaurantId}_products", 3600, function () use ($restaurantId) {
@@ -148,6 +154,7 @@ class ProductManagementController extends Controller
         $product->update($data);
 
         Cache::forget("restaurant_{$user->restaurant_id}_products");
+        Cache::forget("restaurant_{$user->restaurant_id}_categories");
 
         return back()->with('success', 'Đã cập nhật thông tin món ăn.');
     }
@@ -163,6 +170,7 @@ class ProductManagementController extends Controller
         $product->delete();
 
         Cache::forget("restaurant_{$user->restaurant_id}_products");
+        Cache::forget("restaurant_{$user->restaurant_id}_categories");
 
         return back()->with('success', 'Đã xóa món ăn khỏi thực đơn.');
     }

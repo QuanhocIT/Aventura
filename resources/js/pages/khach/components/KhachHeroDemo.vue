@@ -1,394 +1,454 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { register } from '@/routes';
+import {
+    ShoppingBag,
+    UtensilsCrossed,
+    BarChart3,
+    Sparkles,
+    CheckCircle2,
+    Clock,
+    TrendingUp,
+    Zap,
+    QrCode,
+    ChefHat,
+    ArrowRight,
+    Check,
+    Bot,
+    RefreshCw,
+    ShieldCheck,
+    CreditCard,
+} from 'lucide-vue-next';
 
+// Demo Tabs Definition
 const demoTabs = [
-    { key: 'pos', label: 'POS' },
-    { key: 'kds', label: 'Bếp' },
-    { key: 'report', label: 'Báo cáo' },
+    { key: 'pos', label: 'POS Checkout', icon: ShoppingBag },
+    { key: 'kds', label: 'Bếp KDS', icon: UtensilsCrossed },
+    { key: 'report', label: 'AI Analytics', icon: BarChart3 },
 ] as const;
 
-const activeDemo = ref<(typeof demoTabs)[number]['key']>('pos');
+type TabKey = (typeof demoTabs)[number]['key'];
+const activeDemo = ref<TabKey>('pos');
+const isSimulating = ref(false);
+const autoPlay = ref(true);
+let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
 
-const demoState = computed(() => {
-    if (activeDemo.value === 'kds') {
-        return {
-            title: 'Kitchen board',
-            left: ['2 order chờ', '1 order đang làm', '0 trễ SLA'],
-            right: [
-                { label: 'Bún bò', status: 'Đang làm' },
-                { label: 'Cơm gà', status: 'Sẵn sàng' },
-                { label: 'Trà đào', status: 'Chờ in bill' },
-            ],
-        };
-    }
+// Interactive POS State
+const posPaid = ref(true);
 
-    if (activeDemo.value === 'report') {
-        return {
-            title: 'Daily snapshot',
-            left: [
-                'Doanh thu: 12,8M',
-                'Tỷ lệ hoàn thành: 98%',
-                'Món bán chạy: Phở bò',
-            ],
-            right: [
-                { label: 'Giờ cao điểm', status: '11:30 - 13:30' },
-                { label: 'Cảnh báo kho', status: '2 nguyên liệu thấp' },
-                { label: 'Audit', status: '1 thay đổi giá' },
-            ],
-        };
-    }
+function togglePaymentStatus() {
+    isSimulating.value = true;
+    setTimeout(() => {
+        posPaid.value = !posPaid.value;
+        isSimulating.value = false;
+    }, 350);
+}
 
-    return {
-        title: 'POS checkout',
-        left: ['Bàn 12', '3 món', 'Tổng: 168.000đ'],
-        right: [
-            { label: 'Phở bò tái', status: 'x2' },
-            { label: 'Trà chanh', status: 'x1' },
-            { label: 'Thanh toán', status: 'Hoàn tất' },
-        ],
-    };
+// KDS Interactive Tickets
+const kdsTickets = ref([
+    {
+        id: '#104',
+        table: 'Bàn 12',
+        item: '🍜 Phở bò tái nạm (x2)',
+        note: 'Ít hành, thêm giấm',
+        time: '03:45',
+        status: 'cooking',
+        statusLabel: 'Đang nấu',
+        color: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+    },
+    {
+        id: '#105',
+        table: 'Bàn 08',
+        item: '🥤 Trà chanh giã tay (x2)',
+        note: '50% đường, 100% đá',
+        time: '01:12',
+        status: 'ready',
+        statusLabel: 'Sẵn sàng',
+        color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    },
+    {
+        id: '#106',
+        table: 'Bàn 03',
+        item: '🍱 Cơm gà sốt mắm tỏi (x1)',
+        note: 'Không cay',
+        time: '06:20',
+        status: 'pending',
+        statusLabel: 'Chờ làm',
+        color: 'text-sky-400 border-sky-500/30 bg-sky-500/10',
+    },
+]);
+
+function cycleKdsStatus(index: number) {
+    const statuses = [
+        {
+            status: 'pending',
+            label: 'Chờ làm',
+            color: 'text-sky-400 border-sky-500/30 bg-sky-500/10',
+        },
+        {
+            status: 'cooking',
+            label: 'Đang nấu',
+            color: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+        },
+        {
+            status: 'ready',
+            label: 'Sẵn sàng',
+            color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+        },
+    ];
+
+    const currentIdx = statuses.findIndex(
+        (s) => s.status === kdsTickets.value[index].status,
+    );
+    const next = statuses[(currentIdx + 1) % statuses.length];
+    kdsTickets.value[index].status = next.status;
+    kdsTickets.value[index].statusLabel = next.label;
+    kdsTickets.value[index].color = next.color;
+}
+
+// Auto play tabs cycling
+function startAutoPlay() {
+    if (autoPlayInterval) clearInterval(autoPlayInterval);
+    autoPlayInterval = setInterval(() => {
+        if (!autoPlay.value) return;
+        const keys: TabKey[] = ['pos', 'kds', 'report'];
+        const currentIdx = keys.indexOf(activeDemo.value);
+        activeDemo.value = keys[(currentIdx + 1) % keys.length];
+    }, 7000);
+}
+
+function selectTab(key: TabKey) {
+    activeDemo.value = key;
+    autoPlay.value = false;
+}
+
+onMounted(() => {
+    startAutoPlay();
+});
+
+onUnmounted(() => {
+    if (autoPlayInterval) clearInterval(autoPlayInterval);
 });
 </script>
 
 <template>
-    <!-- Right Column: Interactive Live Demo widget styled in travel-glassmorphism -->
+    <!-- Right Column: Premium Interactive Live Demo Shell -->
     <div
-        class="relative mx-auto w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950/75 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:border-amber-500/25 sm:p-8 lg:ml-auto"
+        class="group relative mx-auto w-full max-w-lg rounded-2xl border border-amber-500/25 bg-gradient-to-b from-zinc-900/95 via-zinc-950/95 to-black/95 p-4 shadow-[0_0_50px_rgba(245,158,11,0.12),0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-500 hover:border-amber-500/40 hover:shadow-[0_0_60px_rgba(245,158,11,0.2),0_30px_70px_rgba(0,0,0,0.9)] sm:p-6 lg:ml-auto"
     >
-        <!-- Header with Live Demo tag -->
+        <!-- Ambient Glowing Aura -->
         <div
-            class="mb-5 flex items-center justify-between border-b border-white/10 pb-4"
+            class="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-amber-500/15 blur-3xl"
+        ></div>
+        <div
+            class="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl"
+        ></div>
+
+        <!-- Top macOS Window Controls Bar -->
+        <div
+            class="mb-4 flex items-center justify-between border-b border-white/10 pb-3"
         >
-            <div>
+            <!-- Window Dots & Title -->
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5">
+                    <span
+                        class="h-2.5 w-2.5 rounded-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
+                    ></span>
+                    <span
+                        class="h-2.5 w-2.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                    ></span>
+                    <span
+                        class="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                    ></span>
+                </div>
                 <span
-                    class="mb-1 block text-xs font-extrabold tracking-widest text-amber-400 uppercase"
+                    class="ml-2 hidden text-[11px] font-semibold text-zinc-400 sm:inline"
                 >
-                    Live demo
+                    Aventura POS v2.4 • Direct Engine
                 </span>
-                <h2 class="text-2xl font-bold tracking-tight text-white">
-                    {{ demoState.title }}
-                </h2>
             </div>
 
-            <!-- Glowing Badge -->
+            <!-- Live Realtime Sync Indicator -->
+            <div class="flex items-center gap-2">
+                <span
+                    class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                >
+                    <span
+                        class="relative flex h-1.5 w-1.5 items-center justify-center"
+                    >
+                        <span
+                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                        ></span>
+                        <span
+                            class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"
+                        ></span>
+                    </span>
+                    Realtime Sync
+                </span>
+                <button
+                    @click="autoPlay = !autoPlay"
+                    class="cursor-pointer rounded border border-white/10 bg-white/5 p-1 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                    :title="
+                        autoPlay
+                            ? 'Đang tự chuyển tab (Click để tạm dừng)'
+                            : 'Click để phát tự động'
+                    "
+                >
+                    <RefreshCw
+                        class="h-3 w-3"
+                        :class="{ 'animate-spin': autoPlay }"
+                    />
+                </button>
+            </div>
+        </div>
+
+        <!-- Live Demo Title Header & Interactive Pill -->
+        <div class="mb-4 flex items-center justify-between">
+            <div>
+                <div class="flex items-center gap-1.5">
+                    <Sparkles class="h-3.5 w-3.5 text-amber-400" />
+                    <span
+                        class="text-[11px] font-extrabold tracking-widest text-amber-400 uppercase"
+                    >
+                        Trải nghiệm Live Demo
+                    </span>
+                </div>
+                <h3 class="mt-0.5 text-xl font-black text-white sm:text-2xl">
+                    {{
+                        activeDemo === 'pos'
+                            ? 'POS Checkout & In Bill'
+                            : activeDemo === 'kds'
+                              ? 'Màn hình Bếp KDS Realtime'
+                              : 'Báo cáo AI & Quản lý Kho'
+                    }}
+                </h3>
+            </div>
+
             <span
-                class="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-bold tracking-wider text-amber-400 uppercase"
+                class="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-extrabold tracking-wider text-amber-400 sm:inline-block uppercase shadow-[0_0_12px_rgba(245,158,11,0.15)]"
             >
-                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                 Interactive
             </span>
         </div>
 
-        <!-- Navigation Tab triggers -->
+        <!-- Segmented Tab Navigation Bar -->
         <div
-            class="flex gap-2 rounded-xl border border-white/10 bg-white/5 p-1.5"
+            class="grid grid-cols-3 gap-1.5 rounded-xl border border-white/10 bg-zinc-950/80 p-1.5 backdrop-blur-md"
         >
             <button
                 v-for="tab in demoTabs"
                 :key="tab.key"
-                class="flex-1 cursor-pointer rounded-lg py-2.5 text-xs font-bold transition-all duration-300"
+                @click="selectTab(tab.key)"
+                class="relative flex cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all duration-300"
                 :class="
                     activeDemo === tab.key
-                        ? 'scale-[1.02] bg-amber-500 font-extrabold text-zinc-950 shadow-lg'
-                        : 'text-zinc-300 hover:bg-white/10 hover:text-white'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md shadow-amber-500/20 font-black scale-[1.02]'
+                        : 'text-zinc-400 hover:bg-white/5 hover:text-white'
                 "
-                @click="activeDemo = tab.key"
             >
-                {{ tab.label }}
+                <component :is="tab.icon" class="h-3.5 w-3.5" />
+                <span class="truncate">{{ tab.label }}</span>
             </button>
         </div>
 
-        <!-- Flow Realtime Visual Dashboard Panel -->
+        <!-- Interactive Screen Panel Canvas -->
         <div
-            class="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 shadow-inner"
+            class="relative mt-4 min-h-[265px] overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-inner sm:min-h-[275px]"
         >
-            <!-- Panel header -->
-            <div
-                class="mb-4 flex items-center justify-between border-b border-white/10 pb-3"
-            >
-                <div class="flex items-center gap-2">
-                    <span
-                        class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
-                    ></span>
-                    <span
-                        class="text-xs font-bold tracking-wider text-white uppercase"
-                    >
-                        {{
-                            activeDemo === 'pos'
-                                ? 'POS Checkout'
-                                : activeDemo === 'kds'
-                                  ? 'Màn hình Bếp KDS'
-                                  : 'Báo cáo thông minh'
-                        }}
-                    </span>
-                </div>
-                <span
-                    class="rounded border border-amber-500/10 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold tracking-widest text-amber-400 uppercase"
-                >
-                    Realtime
-                </span>
-            </div>
-
-            <!-- Live Demo Mockup Views wrapped in transition -->
             <Transition name="fade-slide-tab" mode="out-in">
-                <!-- TAB 1: POS Checkout Visual Mockup -->
-                <div
-                    v-if="activeDemo === 'pos'"
-                    key="pos"
-                    class="grid gap-3 sm:grid-cols-2"
-                >
-                    <!-- POS Bill summary -->
+                <!-- 🛒 TAB 1: POS CHECKOUT & ORDER SIMULATION -->
+                <div v-if="activeDemo === 'pos'" key="pos" class="space-y-3">
+                    <!-- POS Table Header bar -->
                     <div
-                        class="relative flex h-[125px] flex-col justify-between space-y-3.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
-                    >
-                        <div class="space-y-2">
-                            <div
-                                class="flex items-center justify-between text-zinc-400"
-                            >
-                                <span>Bàn phục vụ:</span>
-                                <span
-                                    class="rounded bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white"
-                                    >Bàn 12</span
-                                >
-                            </div>
-                            <div
-                                class="flex items-center justify-between text-zinc-400"
-                            >
-                                <span>Số lượng món:</span>
-                                <span class="font-bold text-white">03 món</span>
-                            </div>
-                        </div>
-
-                        <!-- Receipt decorative dots line -->
-                        <div
-                            class="my-1 border-t border-dashed border-white/20"
-                        ></div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="font-medium text-zinc-400"
-                                >Tổng tiền:</span
-                            >
-                            <span
-                                class="text-lg font-extrabold tracking-tight text-amber-400"
-                                >168.000đ</span
-                            >
-                        </div>
-                    </div>
-
-                    <!-- POS Order list details -->
-                    <div
-                        class="flex h-[125px] flex-col justify-between space-y-2.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
-                    >
-                        <div class="space-y-2">
-                            <div
-                                class="flex items-center justify-between border-b border-white/5 py-1 text-zinc-200"
-                            >
-                                <span class="flex items-center gap-1.5"
-                                    ><span class="text-amber-400">🍜</span> Phở
-                                    bò tái</span
-                                >
-                                <span
-                                    class="rounded border border-indigo-500/10 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400"
-                                    >x2</span
-                                >
-                            </div>
-                            <div
-                                class="flex items-center justify-between border-b border-white/5 py-1 text-zinc-200"
-                            >
-                                <span class="flex items-center gap-1.5"
-                                    ><span class="text-amber-400">🍋</span> Trà
-                                    chanh</span
-                                >
-                                <span
-                                    class="rounded border border-indigo-500/10 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400"
-                                    >x1</span
-                                >
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between pt-1">
-                            <span class="font-semibold text-zinc-400"
-                                >Thanh toán</span
-                            >
-                            <span
-                                class="rounded-full border border-emerald-500/25 bg-emerald-500/20 px-2.5 py-0.5 text-[9px] font-extrabold tracking-wide text-emerald-400 uppercase"
-                                >Hoàn tất</span
-                            >
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 2: KDS Kitchen Board Visual Mockup -->
-                <div
-                    v-else-if="activeDemo === 'kds'"
-                    key="kds"
-                    class="grid gap-3 sm:grid-cols-2"
-                >
-                    <!-- KDS stats metrics card -->
-                    <div
-                        class="flex h-[125px] flex-col justify-between space-y-3 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
-                    >
-                        <div
-                            class="flex items-center justify-between border-b border-white/5 py-1"
-                        >
-                            <span class="font-medium text-zinc-400"
-                                >Order chờ chế biến:</span
-                            >
-                            <span
-                                class="animate-pulse rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-500"
-                                >2 đơn</span
-                            >
-                        </div>
-                        <div
-                            class="flex items-center justify-between border-b border-white/5 py-1"
-                        >
-                            <span class="font-medium text-zinc-400"
-                                >Đang chế biến:</span
-                            >
-                            <span
-                                class="rounded bg-sky-400/10 px-2 py-0.5 text-[10px] font-bold text-sky-400"
-                                >1 đơn</span
-                            >
-                        </div>
-                        <div class="flex items-center justify-between pt-1">
-                            <span class="font-medium text-zinc-400"
-                                >Trễ thời gian (SLA):</span
-                            >
-                            <span
-                                class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400"
-                                >0 đơn</span
-                            >
-                        </div>
-                    </div>
-
-                    <!-- KDS cooking ticket list -->
-                    <div
-                        class="flex h-[125px] flex-col justify-between space-y-2 rounded-xl border border-white/10 bg-zinc-950/40 p-3 text-[11px] leading-normal sm:h-[145px]"
-                    >
-                        <div
-                            class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
-                        >
-                            <span class="font-bold text-white"
-                                >1. Bún bò Huế</span
-                            >
-                            <span
-                                class="rounded border border-amber-500/20 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-400"
-                                >Đang làm</span
-                            >
-                        </div>
-                        <div
-                            class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
-                        >
-                            <span class="font-bold text-white"
-                                >2. Cơm gà chiên</span
-                            >
-                            <span
-                                class="rounded border border-emerald-500/25 bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-400"
-                                >Sẵn sàng</span
-                            >
-                        </div>
-                        <div
-                            class="flex items-center justify-between rounded border border-white/5 bg-white/5 p-1.5"
-                        >
-                            <span class="font-bold text-zinc-300"
-                                >3. Trà đào cam sả</span
-                            >
-                            <span
-                                class="rounded border border-white/10 bg-white/10 px-2 py-0.5 text-[9px] font-bold text-zinc-300"
-                                >In bill</span
-                            >
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 3: Executive Analytics Report Visual Mockup -->
-                <div
-                    v-else-if="activeDemo === 'report'"
-                    key="report"
-                    class="grid gap-3 sm:grid-cols-2"
-                >
-                    <!-- Report metrics KPI -->
-                    <div
-                        class="flex h-[125px] flex-col justify-between space-y-3.5 rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-xs sm:h-[145px]"
+                        class="flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs"
                     >
                         <div class="flex items-center gap-2">
-                            <span class="text-sm text-amber-400">💰</span>
-                            <div class="flex flex-col">
-                                <span
-                                    class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
-                                    >Doanh thu trong ngày</span
-                                >
-                                <span
-                                    class="text-base font-extrabold text-white"
-                                    >12,8M VNĐ</span
-                                >
+                            <span
+                                class="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold text-amber-400"
+                            >
+                                Bàn 12 • Tầng 1
+                            </span>
+                            <span class="text-zinc-400 font-medium hidden sm:inline">Khách VIP (4 người)</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+                            <QrCode class="h-3.5 w-3.5" />
+                            <span>QR Order tại bàn</span>
+                        </div>
+                    </div>
+
+                    <!-- Order items list grid -->
+                    <div class="space-y-1.5">
+                        <div
+                            class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
+                        >
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">🍜</span>
+                                <div>
+                                    <div class="font-bold text-white">Phở bò tái nạm</div>
+                                    <div class="text-[10px] text-zinc-400">Note: Ít hành, thêm giấm</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-extrabold text-amber-400">138.000đ</div>
+                                <span class="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">x2 món</span>
                             </div>
                         </div>
+
                         <div
-                            class="flex items-center gap-2 border-t border-white/5 pt-2"
+                            class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
                         >
-                            <span class="text-sm text-emerald-400">📈</span>
-                            <div class="flex flex-col">
-                                <span
-                                    class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
-                                    >Hoàn thành order</span
-                                >
-                                <span class="text-xs font-bold text-white"
-                                    >98% (SLA tốt)</span
-                                >
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">🥤</span>
+                                <div>
+                                    <div class="font-bold text-white">Trà chanh giã tay</div>
+                                    <div class="text-[10px] text-zinc-400">Note: 50% đường, 100% đá</div>
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="flex items-center gap-2 border-t border-white/5 pt-2"
-                        >
-                            <span class="text-sm text-rose-400">🏆</span>
-                            <div class="flex flex-col">
-                                <span
-                                    class="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
-                                    >Món bán chạy nhất</span
-                                >
-                                <span class="text-xs font-bold text-amber-400"
-                                    >Phở bò tái nạm</span
-                                >
+                            <div class="text-right">
+                                <div class="font-extrabold text-amber-400">40.000đ</div>
+                                <span class="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">x2 ly</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- AI and Audit Signals -->
+                    <!-- Receipt summary & Payment toggle -->
                     <div
-                        class="flex h-[125px] flex-col justify-between space-y-2 rounded-xl border border-white/10 bg-zinc-950/40 p-3 text-xs leading-normal sm:h-[145px]"
+                        class="rounded-xl border border-white/10 bg-black/60 p-3"
                     >
-                        <div
-                            class="flex items-center justify-between border-b border-white/5 p-1.5 text-zinc-200"
-                        >
-                            <span class="flex items-center gap-1.5"
-                                >⚡ Cao điểm</span
-                            >
-                            <span class="font-bold text-sky-400"
-                                >11:30 - 13:30</span
-                            >
+                        <div class="flex items-center justify-between text-xs text-zinc-400">
+                            <span>Tạm tính (3 món):</span>
+                            <span>178.000đ</span>
                         </div>
-                        <div
-                            class="flex items-center justify-between border-b border-white/5 p-1.5 text-zinc-200"
-                        >
-                            <span class="flex items-center gap-1.5"
-                                >⚠️ Kho tồn</span
-                            >
-                            <span class="font-bold text-rose-400"
-                                >2 nguyên liệu thấp</span
-                            >
+                        <div class="mt-1 flex items-center justify-between border-b border-dashed border-white/15 pb-2 text-xs text-zinc-400">
+                            <span>Thuế VAT (8%):</span>
+                            <span>14.240đ</span>
                         </div>
+
+                        <div class="mt-2.5 flex items-center justify-between">
+                            <div>
+                                <div class="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">Tổng thanh toán</div>
+                                <div class="text-lg font-black tracking-tight text-amber-400">192.240đ</div>
+                            </div>
+
+                            <button
+                                @click="togglePaymentStatus"
+                                class="cursor-pointer flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-extrabold transition-all duration-300 active:scale-95 shadow-md"
+                                :class="
+                                    posPaid
+                                        ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-400 shadow-emerald-500/10'
+                                        : 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-amber-500/10 animate-pulse'
+                                "
+                            >
+                                <component :is="posPaid ? CheckCircle2 : CreditCard" class="h-3.5 w-3.5" />
+                                <span>{{ posPaid ? 'ĐÃ THANH TOÁN (VietQR)' : 'THỬ THANH TOÁN' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🍳 TAB 2: KDS KITCHEN BOARD REALTIME -->
+                <div v-else-if="activeDemo === 'kds'" key="kds" class="space-y-3">
+                    <!-- KDS Header Metrics bar -->
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div class="rounded-lg border border-white/10 bg-black/40 p-2">
+                            <div class="text-[10px] font-semibold text-zinc-400">Chờ làm</div>
+                            <div class="text-sm font-extrabold text-sky-400">1 order</div>
+                        </div>
+                        <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
+                            <div class="text-[10px] font-semibold text-zinc-400">Đang chế biến</div>
+                            <div class="text-sm font-extrabold text-amber-400">1 order</div>
+                        </div>
+                        <div class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
+                            <div class="text-[10px] font-semibold text-zinc-400">SLA Trung bình</div>
+                            <div class="text-sm font-extrabold text-emerald-400">4.2 phút</div>
+                        </div>
+                    </div>
+
+                    <!-- KDS Interactive Tickets list -->
+                    <div class="space-y-2">
                         <div
-                            class="flex items-center justify-between p-1.5 text-zinc-200"
+                            v-for="(ticket, idx) in kdsTickets"
+                            :key="ticket.id"
+                            @click="cycleKdsStatus(idx)"
+                            class="group/ticket cursor-pointer flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 transition hover:border-white/20 hover:bg-white/10"
                         >
-                            <span class="flex items-center gap-1.5"
-                                >🔒 Tra soát</span
-                            >
-                            <span class="font-bold text-amber-400"
-                                >1 thay đổi giá</span
-                            >
+                            <div class="flex items-center gap-2.5">
+                                <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/40 font-bold text-white text-xs">
+                                    {{ ticket.table.replace('Bàn ', 'B') }}
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-bold text-white">{{ ticket.item }}</span>
+                                    </div>
+                                    <div class="text-[10px] text-zinc-400">{{ ticket.note }}</div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="flex items-center gap-1 text-[10px] font-bold text-zinc-400">
+                                    <Clock class="h-3 w-3 text-amber-400" />
+                                    {{ ticket.time }}
+                                </span>
+                                <span
+                                    class="rounded-full border px-2 py-0.5 text-[10px] font-extrabold transition-all group-hover/ticket:scale-105"
+                                    :class="ticket.color"
+                                >
+                                    {{ ticket.statusLabel }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center text-[10px] text-zinc-400">
+                        💡 <em>Mẹo: Click vào bất kỳ thẻ đơn nào ở trên để đổi trạng thái chế biến thực tế!</em>
+                    </div>
+                </div>
+
+                <!-- 📊 TAB 3: EXECUTIVE REALTIME AI ANALYTICS -->
+                <div v-else-if="activeDemo === 'report'" key="report" class="space-y-3">
+                    <!-- Revenue & KPI Grid -->
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="rounded-xl border border-white/10 bg-black/40 p-3">
+                            <div class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase">
+                                <span>Doanh thu hôm nay</span>
+                                <TrendingUp class="h-3.5 w-3.5 text-emerald-400" />
+                            </div>
+                            <div class="mt-1 text-lg font-black text-white">28.650.000đ</div>
+                            <div class="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                                <span>+24.5%</span>
+                                <span class="text-zinc-500">vs tuần trước</span>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-white/10 bg-black/40 p-3">
+                            <div class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase">
+                                <span>Hóa đơn / SLA</span>
+                                <Zap class="h-3.5 w-3.5 text-amber-400" />
+                            </div>
+                            <div class="mt-1 text-lg font-black text-amber-400">142 đơn</div>
+                            <div class="mt-0.5 text-[10px] font-bold text-emerald-400">
+                                99.2% Đúng hạn (&lt;10p)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Insights Recommendation Card -->
+                    <div class="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-black/50 p-3 shadow-lg">
+                        <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                            <div class="flex items-center gap-1.5">
+                                <Bot class="h-4 w-4 text-indigo-400" />
+                                <span class="text-xs font-bold text-indigo-300">AI Demand Forecast & Cảnh báo Kho</span>
+                            </div>
+                            <span class="rounded bg-indigo-500/20 px-2 py-0.5 text-[9px] font-extrabold text-indigo-400">AI Live</span>
+                        </div>
+
+                        <div class="mt-2 text-xs text-zinc-200 leading-relaxed">
+                            🌦️ <strong>Dự báo thời tiết:</strong> Chiều nay mưa lạnh 22°C. Dự báo món <em>Phở Bò & Lẩu</em> tăng <strong>+35%</strong>.
+                            <div class="mt-1 flex items-center justify-between text-[11px] font-bold text-amber-400">
+                                <span>⚠️ Cảnh báo: Thịt bò tái còn 3.2kg (Thiếu ~1.8kg)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -396,14 +456,43 @@ const demoState = computed(() => {
         </div>
 
         <!-- CTA button at the bottom of the widget -->
-        <div class="mt-6 border-t border-white/10 pt-2">
+        <div class="mt-5 border-t border-white/10 pt-3">
             <Button
                 as-child
                 size="lg"
-                class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 py-4 text-xs font-extrabold tracking-wider text-zinc-950 uppercase shadow-lg shadow-amber-500/20 transition-all duration-300 hover:from-amber-600 hover:to-yellow-700 active:scale-95"
+                class="group/btn relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 py-3.5 text-xs font-black tracking-wider text-zinc-950 uppercase shadow-[0_0_25px_rgba(245,158,11,0.3)] transition-all duration-300 hover:scale-[1.02] hover:from-amber-400 hover:via-yellow-400 hover:to-amber-400 hover:shadow-[0_0_35px_rgba(245,158,11,0.5)] active:scale-95"
             >
-                <Link :href="register()">Đăng ký dùng thử miễn phí</Link>
+                <Link :href="register()" class="flex items-center justify-center gap-2">
+                    <span>Đăng ký dùng thử miễn phí</span>
+                    <ArrowRight class="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                </Link>
             </Button>
+            <div class="mt-2 flex items-center justify-center gap-4 text-[10px] font-medium text-zinc-400">
+                <span class="flex items-center gap-1">
+                    <ShieldCheck class="h-3 w-3 text-emerald-400" /> Dùng thử 14 ngày
+                </span>
+                <span class="flex items-center gap-1">
+                    <Check class="h-3 w-3 text-amber-400" /> Không cần thẻ tín dụng
+                </span>
+            </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Smooth cross-fade tab transition */
+.fade-slide-tab-enter-active,
+.fade-slide-tab-leave-active {
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-slide-tab-enter-from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+}
+
+.fade-slide-tab-leave-to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+}
+</style>

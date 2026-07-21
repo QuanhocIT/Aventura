@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage, router, Deferred } from '@inertiajs/vue3';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import {
     Building2,
@@ -213,10 +213,12 @@ const selectBranchDirectly = (id: number) => {
 };
 
 const formatVND = (value: number) => {
+    const num = Number(value);
+    if (isNaN(num) || num === undefined || num === null) return '0 ₫';
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
-    }).format(value);
+    }).format(num);
 };
 
 const activePlanCode = computed(() => plan.value?.code ?? 'free');

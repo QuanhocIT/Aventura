@@ -460,10 +460,21 @@ const formatCurrency = (val: number) =>
     }).format(val);
 
 const toggleAvailability = (p: Product) => {
+    const originalState = p.is_available;
+    p.is_available = !originalState;
+
     router.patch(
         `/products/${p.id}`,
-        { is_available: !p.is_available },
-        { preserveScroll: true },
+        { is_available: p.is_available },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['products', 'flash'],
+            onError: () => {
+                p.is_available = originalState;
+                toast.error('Không thể cập nhật trạng thái món ăn.');
+            },
+        },
     );
 };
 </script>

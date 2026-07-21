@@ -70,14 +70,16 @@ watch(
 );
 
 function format(n: number): string {
+    const val = Number(n);
+    if (isNaN(val) || val === undefined || val === null) return '0';
     if (props.compact) {
         return new Intl.NumberFormat('vi-VN', {
             notation: 'compact',
             maximumFractionDigits: 1,
-        }).format(n);
+        }).format(val);
     }
 
-    return n.toLocaleString('vi-VN', {
+    return val.toLocaleString('vi-VN', {
         minimumFractionDigits: props.decimals,
         maximumFractionDigits: props.decimals,
     });

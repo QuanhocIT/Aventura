@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import Footer from '@/components/Footer.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
+import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import NotificationCenter from '@/components/NotificationCenter.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -408,6 +409,7 @@ const handleLogout = () => {
     <Footer />
 
     <ChatbotWidget v-if="showChatbot" source="widget" />
+    <MobileBottomNav />
     <FlashToast />
     <ConfirmDialog />
     <GlobalCampaignListener />

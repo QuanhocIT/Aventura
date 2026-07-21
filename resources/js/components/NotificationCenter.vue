@@ -125,7 +125,29 @@ function onClickOutside(e: MouseEvent) {
     }
 }
 
-onMounted(() => document.addEventListener('mousedown', onClickOutside));
+onMounted(() => {
+    document.addEventListener('mousedown', onClickOutside);
+    if (items.value.length === 0) {
+        addNotification(
+            'stock',
+            'Cảnh báo Tồn kho',
+            '⚠️ Hàng tồn kho chi nhánh Quận 1 sắp hết (dưới mức tồn tối thiểu).',
+            '/inventory',
+        );
+        addNotification(
+            'error',
+            'Đối soát PO chênh lệch',
+            '🚨 Đơn PO #102 phát hiện chênh lệch đối soát >10% chờ Owner phê duyệt.',
+            '/suppliers',
+        );
+        addNotification(
+            'warning',
+            'Sắp đến hạn Công nợ',
+            '⏰ Đơn nợ Công nợ Net 7 của NCC Rau Tươi Đà Lạt sẽ đến hạn trong 24 giờ nữa.',
+            '/suppliers',
+        );
+    }
+});
 onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -167,7 +189,7 @@ defineExpose({ addNotification });
         >
             <Bell class="size-4 text-muted-foreground" />
 
-            <!-- Unread badge -->
+            <!-- Unread badge with pulsating ring animation -->
             <Transition
                 enter-active-class="transition-all duration-200 ease-out"
                 enter-from-class="scale-0 opacity-0"
@@ -175,11 +197,11 @@ defineExpose({ addNotification });
                 leave-active-class="transition-all duration-150"
                 leave-to-class="scale-0 opacity-0"
             >
-                <span
-                    v-if="hasUnread"
-                    class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white"
-                >
-                    {{ unread > 9 ? '9+' : unread }}
+                <span v-if="hasUnread" class="absolute top-1 right-1 flex h-4 w-4">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"></span>
+                    <span class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-xs">
+                        {{ unread > 9 ? '9+' : unread }}
+                    </span>
                 </span>
             </Transition>
 

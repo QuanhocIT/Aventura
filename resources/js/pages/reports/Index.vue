@@ -211,17 +211,23 @@ function sendEmailReport() {
 
 // ── Formatting ────────────────────────────────────────────────────────────────
 
-const vnd = (v: number) =>
-    new Intl.NumberFormat('vi-VN', {
+const vnd = (v: number) => {
+    const num = Number(v);
+    if (isNaN(num) || num === undefined || num === null) return '0 ₫';
+    return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
-    }).format(v);
+    }).format(num);
+};
 
-const formatCompact = (v: number) =>
-    new Intl.NumberFormat('vi-VN', {
+const formatCompact = (v: number) => {
+    const num = Number(v);
+    if (isNaN(num) || num === undefined || num === null) return '0đ';
+    return new Intl.NumberFormat('vi-VN', {
         notation: 'compact',
         maximumFractionDigits: 1,
-    }).format(v) + 'đ';
+    }).format(num) + 'đ';
+};
 
 // ── KPI computed ──────────────────────────────────────────────────────────────
 
@@ -327,26 +333,41 @@ const donutPaths = computed(() => {
 // ── Product pie ───────────────────────────────────────────────────────────────
 
 const pieSlices = computed(() => {
-    if (!props.topProducts) return [];
+    if (!props.topProducts || props.topProducts.length === 0) return [];
     const top5 = props.topProducts.slice(0, 5);
-    const top5Rev = top5.reduce((s, p) => s + p.total_revenue, 0);
-    const other = Math.max(props.totals.net_revenue - top5Rev, 0);
-    const colors = ['#4f46e5', '#f97316', '#10b981', '#f59e0b', '#ef4444'];
-    const total = props.totals.net_revenue || 1;
-    const slices = top5.map((p, i) => ({
-        name: p.name,
-        value: p.total_revenue,
-        color: colors[i],
-        pct: (p.total_revenue / total) * 100,
-    }));
+    const top5Rev = top5.reduce((s, p) => s + (Number(p.total_revenue) || 0), 0);
+    const netRev = Number(props.totals?.net_revenue) || 0;
+    const total = netRev > 0 ? netRev : (top5Rev > 0 ? top5Rev : 0);
 
-    if (other > 0) {
-        slices.push({
-            name: 'Khác',
-            value: other,
-            color: '#94a3b8',
-            pct: (other / total) * 100,
-        });
+    if (total === 0) {
+        return [];
+    }
+
+    const colors = ['#4f46e5', '#f97316', '#10b981', '#f59e0b', '#ef4444'];
+    const slices = top5
+        .map((p, i) => {
+            const val = Number(p.total_revenue) || 0;
+            const pctVal = (val / total) * 100;
+            return {
+                name: p.name || 'Sản phẩm',
+                value: val,
+                color: colors[i % colors.length],
+                pct: isNaN(pctVal) ? 0 : pctVal,
+            };
+        })
+        .filter((s) => s.value > 0);
+
+    if (netRev > top5Rev && total > 0) {
+        const other = netRev - top5Rev;
+        const otherPct = (other / total) * 100;
+        if (other > 0) {
+            slices.push({
+                name: 'Khác',
+                value: other,
+                color: '#94a3b8',
+                pct: isNaN(otherPct) ? 0 : otherPct,
+            });
+        }
     }
 
     return slices;
@@ -1586,11 +1607,11 @@ function deltaBadge(pct: number | null) {
                         </div>
 
                         <div
-                            v-if="peakHours.length === 0"
+                            v-if="!peakHours || peakHours.length === 0 || !peakHours.some(h => Number(h.revenue) > 0 || Number(h.order_count) > 0)"
                             class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
                         >
                             <Clock class="size-10 opacity-30" />
-                            <p class="text-sm">Chưa có dữ liệu giờ cao điểm.</p>
+                            <p class="text-sm">Chưa có dữ liệu giờ cao điểm trong kỳ này.</p>
                         </div>
 
                         <div v-else class="space-y-2">
@@ -1613,12 +1634,12 @@ function deltaBadge(pct: number | null) {
                                                 ? 'bg-amber-400'
                                                 : 'bg-violet-400/60'
                                         "
-                                        :style="{ width: h.width_pct + '%' }"
+                                        :style="{ width: (h.width_pct || 0) + '%' }"
                                     />
                                 </div>
                                 <div class="w-16 shrink-0 text-right">
                                     <span class="text-xs font-semibold">{{
-                                        formatCompact(h.revenue)
+                                        formatCompact(h.revenue || 0)
                                     }}</span>
                                 </div>
                                 <Flame
@@ -1634,7 +1655,7 @@ function deltaBadge(pct: number | null) {
             </div>
 
             <!-- ── Product Pie Chart ─────────────────────────────────────────────── -->
-            <Card v-if="topProducts.length > 0">
+            <Card v-if="topProducts && topProducts.length > 0">
                 <CardContent class="pt-5">
                     <p class="mb-1 text-sm font-semibold">
                         Cơ cấu doanh thu theo món
@@ -1644,6 +1665,15 @@ function deltaBadge(pct: number | null) {
                     </p>
 
                     <div
+                        v-if="pieSlices.length === 0"
+                        class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
+                    >
+                        <Package class="size-10 opacity-30" />
+                        <p class="text-sm">Chưa có dữ liệu doanh thu món trong kỳ này.</p>
+                    </div>
+
+                    <div
+                        v-else
                         class="flex flex-col items-center gap-5 sm:flex-row sm:items-start"
                     >
                         <svg

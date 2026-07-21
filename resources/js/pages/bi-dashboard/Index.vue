@@ -110,6 +110,12 @@ const ue = computed(() => props.unitEconomics || {
     avg_orders_per_customer: 0,
 });
 
+const formatNum = (v: number | null | undefined) => {
+    const num = Number(v);
+    if (isNaN(num) || num === undefined || num === null) return '0';
+    return num.toLocaleString('vi-VN');
+};
+
 const statusColor: Record<string, string> = {
     excellent: 'text-green-600 bg-green-100',
     normal: 'text-blue-600 bg-blue-100',
@@ -261,7 +267,7 @@ const needleRotation = computed(() => {
                         <p
                             class="text-xl font-bold text-indigo-600 dark:text-indigo-400"
                         >
-                            {{ ue.revenue.toLocaleString() }}đ
+                            {{ formatNum(ue.revenue) }}đ
                         </p>
                         <p class="mt-1.5 text-[10px] text-muted-foreground">
                             Doanh thu trong kỳ
@@ -282,12 +288,12 @@ const needleRotation = computed(() => {
                         <p
                             class="text-xl font-bold"
                             :class="
-                                ue.gross_margin >= 55
+                                (ue.gross_margin || 0) >= 55
                                     ? 'text-emerald-600 dark:text-emerald-400'
                                     : 'text-rose-500'
                             "
                         >
-                            {{ ue.gross_margin }}%
+                            {{ (ue.gross_margin || 0) }}%
                         </p>
                         <p class="mt-1.5 text-[10px] text-muted-foreground">
                             Tỷ lệ LN gộp
@@ -308,7 +314,7 @@ const needleRotation = computed(() => {
                         <p
                             class="text-xl font-bold text-blue-600 dark:text-blue-400"
                         >
-                            {{ ue.ltv.toLocaleString() }}đ
+                            {{ formatNum(ue.ltv) }}đ
                         </p>
                         <p class="mt-1.5 text-[10px] text-muted-foreground">
                             Giá trị trọn đời KH
@@ -329,7 +335,7 @@ const needleRotation = computed(() => {
                         <p
                             class="text-xl font-bold text-amber-600 dark:text-amber-400"
                         >
-                            {{ ue.cac.toLocaleString() }}đ
+                            {{ formatNum(ue.cac) }}đ
                         </p>
                         <p class="mt-1.5 text-[10px] text-muted-foreground">
                             Chi phí có khách hàng
@@ -685,14 +691,14 @@ const needleRotation = computed(() => {
                         <div class="flex justify-between">
                             <span>Doanh thu {{ days }}d</span
                             ><span class="font-bold"
-                                >{{ breakEven.revenue.toLocaleString() }}đ</span
+                                >{{ formatNum(breakEven.revenue) }}đ</span
                             >
                         </div>
                         <div class="flex justify-between">
                             <span>Chi phí biến đổi</span
                             ><span
                                 >{{
-                                    breakEven.variable_cost.toLocaleString()
+                                    formatNum(breakEven.variable_cost)
                                 }}đ</span
                             >
                         </div>
@@ -700,7 +706,7 @@ const needleRotation = computed(() => {
                             <span>Chi phí cố định</span
                             ><span
                                 >{{
-                                    breakEven.fixed_cost.toLocaleString()
+                                    formatNum(breakEven.fixed_cost)
                                 }}đ</span
                             >
                         </div>
@@ -709,7 +715,7 @@ const needleRotation = computed(() => {
                             ><span
                                 class="font-bold text-indigo-600 dark:text-indigo-400"
                                 >{{
-                                    breakEven.contribution_margin.toLocaleString()
+                                    formatNum(breakEven.contribution_margin)
                                 }}đ</span
                             >
                         </div>
@@ -723,14 +729,14 @@ const needleRotation = computed(() => {
                             <span>Cần tối thiểu</span
                             ><span
                                 class="text-xl font-bold text-indigo-600 dark:text-indigo-400"
-                                >{{ breakEven.break_even_orders }} đơn</span
+                                >{{ formatNum(breakEven.break_even_orders) }} đơn</span
                             >
                         </div>
                         <div class="flex justify-between">
                             <span>Tương đương</span
                             ><span class="font-bold"
                                 >{{
-                                    breakEven.break_even_revenue.toLocaleString()
+                                    formatNum(breakEven.break_even_revenue)
                                 }}đ</span
                             >
                         </div>

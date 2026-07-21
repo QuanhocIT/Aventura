@@ -65,7 +65,9 @@ const props = defineProps<{
 const cur = computed(() => props.report.current);
 
 function vnd(n: number): string {
-    return n.toLocaleString('vi-VN') + 'đ';
+    const val = Number(n);
+    if (isNaN(val) || val === undefined || val === null) return '0đ';
+    return val.toLocaleString('vi-VN') + 'đ';
 }
 
 function changePercent(now: number, before: number): number | null {
