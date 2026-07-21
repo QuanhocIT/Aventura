@@ -145,6 +145,31 @@ class KitchenController extends Controller
         return back()->with('success', 'Đã hoàn thành chuẩn bị món!');
     }
 
+    public function prepareBulk(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array'],
+            'item_ids.*' => ['integer'],
+        ]);
+
+        $updatedCount = OrderItem::whereIn('id', $validated['item_ids'])
+            ->where('restaurant_id', $user->restaurant_id)
+            ->whereNull('prepared_at')
+            ->update([
+                'prepared_at' => now(),
+                'status' => 'preparing',
+            ]);
+
+        if ($updatedCount > 0) {
+            event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
+        }
+
+        return back()->with('success', 'Đã hoàn thành chuẩn bị các món!');
+    }
+
     public function serve(Request $request, OrderItem $item): RedirectResponse
     {
         $user = $request->user();

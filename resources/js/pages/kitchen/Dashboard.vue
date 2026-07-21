@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Echo from '@/lib/echo';
+import KitchenTimer from '@/components/kitchen/KitchenTimer.vue';
 
 interface PendingItem {
     id: number;
@@ -187,10 +188,59 @@ const filteredGroupedProducts = computed(() => {
     return groups;
 });
 
+const optimisticPreparedItemIds = ref<number[]>([]);
+const optimisticServedItemIds = ref<number[]>([]);
+
+const activePendingItems = computed(() => {
+    return props.pendingItems.filter(item => !optimisticPreparedItemIds.value.includes(item.id));
+});
+
+const activeCompletedItems = computed(() => {
+    return props.completedItems.filter(item => !optimisticServedItemIds.value.includes(item.id));
+});
+
+watch(
+    () => props.pendingItems,
+    (newVal) => {
+        const pendingIds = newVal.map(i => i.id);
+        optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => pendingIds.includes(id));
+    },
+    { deep: true }
+);
+
+watch(
+    () => props.completedItems,
+    (newVal) => {
+        const completedIds = newVal.map(i => i.id);
+        optimisticServedItemIds.value = optimisticServedItemIds.value.filter(id => completedIds.includes(id));
+    },
+    { deep: true }
+);
+
+const viewMode = ref<'table' | 'dish'>('table');
+
+const aggregatedPending = computed(() => {
+    const groups: Record<string, { product_name: string; prep_minutes: number; total_quantity: number; items: PendingItem[] }> = {};
+    activePendingItems.value.forEach((item) => {
+        const name = item.product_name;
+        if (!groups[name]) {
+            groups[name] = {
+                product_name: name,
+                prep_minutes: item.prep_minutes,
+                total_quantity: 0,
+                items: []
+            };
+        }
+        groups[name].total_quantity += item.quantity;
+        groups[name].items.push(item);
+    });
+    return Object.values(groups).sort((a, b) => b.total_quantity - a.total_quantity);
+});
+
 // Phân nhóm các món đang chờ theo Bàn
 const groupedPending = computed(() => {
     const groups: Record<string, PendingItem[]> = {};
-    props.pendingItems.forEach((item) => {
+    activePendingItems.value.forEach((item) => {
         const key = item.table_name || 'Mang về';
 
         if (!groups[key]) {
@@ -201,6 +251,14 @@ const groupedPending = computed(() => {
     });
 
     return groups;
+});
+
+const visibleTablesCount = ref(12);
+const visibleGroupedPendingKeys = computed(() => {
+    return Object.keys(groupedPending.value).slice(0, visibleTablesCount.value);
+});
+const hasMoreTables = computed(() => {
+    return Object.keys(groupedPending.value).length > visibleTablesCount.value;
 });
 
 // Trạng thái load khi cập nhật
@@ -304,7 +362,7 @@ const hasOverdueItem = (items: PendingItem[]) => {
 
 // Số món đang vượt SLA trên toàn màn hình
 const lateCount = computed(
-    () => props.pendingItems.filter((i) => slaLevel(i) === 'late').length,
+    () => activePendingItems.value.filter((i) => slaLevel(i) === 'late').length,
 );
 
 // Hoàn thành chế biến món ăn ở bếp
@@ -312,6 +370,8 @@ const handlePrepare = (itemId: number) => {
     if (isUpdating.value[itemId]) {
         return;
     }
+
+    optimisticPreparedItemIds.value.push(itemId);
 
     isUpdating.value[itemId] = true;
     router.post(
@@ -322,7 +382,38 @@ const handlePrepare = (itemId: number) => {
             onFinish: () => {
                 isUpdating.value[itemId] = false;
             },
+            onError: () => {
+                optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => id !== itemId);
+                toast.error('Có lỗi xảy ra, không thể hoàn thành món ăn!');
+            }
         },
+    );
+};
+
+const handlePrepareBulk = (itemIds: number[]) => {
+    const filteredIds = itemIds.filter(id => !isUpdating.value[id] && !optimisticPreparedItemIds.value.includes(id));
+    if (filteredIds.length === 0) return;
+
+    filteredIds.forEach(id => {
+        optimisticPreparedItemIds.value.push(id);
+        isUpdating.value[id] = true;
+    });
+
+    router.post(
+        '/kitchen/items/prepare-bulk',
+        { item_ids: filteredIds },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                filteredIds.forEach(id => {
+                    isUpdating.value[id] = false;
+                });
+            },
+            onError: () => {
+                optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => !filteredIds.includes(id));
+                toast.error('Có lỗi xảy ra, không thể hoàn thành các món!');
+            }
+        }
     );
 };
 
@@ -331,6 +422,8 @@ const handleServe = (itemId: number) => {
     if (isUpdating.value[itemId]) {
         return;
     }
+
+    optimisticServedItemIds.value.push(itemId);
 
     isUpdating.value[itemId] = true;
     router.post(
@@ -341,6 +434,10 @@ const handleServe = (itemId: number) => {
             onFinish: () => {
                 isUpdating.value[itemId] = false;
             },
+            onError: () => {
+                optimisticServedItemIds.value = optimisticServedItemIds.value.filter(id => id !== itemId);
+                toast.error('Có lỗi xảy ra, không thể hoàn thành phục vụ!');
+            }
         },
     );
 };
@@ -393,10 +490,10 @@ const formatCountdown = (untilTimeStr: string | null) => {
 
 // Setup Listeners (Đồng bộ Realtime WebSockets qua Laravel Echo)
 onMounted(() => {
-    // 1. Đồng bộ thời gian hiển thị (10 giây)
+    // 1. Đồng bộ thời gian hiển thị (30 giây để giảm tải re-render ở cha)
     timerInterval = setInterval(() => {
         nowTime.value = new Date();
-    }, 10000);
+    }, 30000);
 
     // 2. Đồng bộ thời gian đếm ngược giây cho món pause/out-of-stock
     secCountdownInterval = setInterval(() => {
@@ -430,16 +527,39 @@ onMounted(() => {
     const pageProps = usePage().props as any;
     const restaurantId = pageProps.auth?.user?.restaurant_id;
 
+    let reloadTimeout: ReturnType<typeof setTimeout> | null = null;
+    let lastReloadTime = 0;
+    const throttledReload = (onlyKeys: string[]) => {
+        const now = Date.now();
+        const timeSinceLastReload = now - lastReloadTime;
+        const delay = 5000;
+
+        if (timeSinceLastReload >= delay) {
+            lastReloadTime = now;
+            router.reload({
+                only: onlyKeys,
+                preserveState: true,
+                preserveScroll: true,
+            });
+        } else {
+            if (reloadTimeout) clearTimeout(reloadTimeout);
+            reloadTimeout = setTimeout(() => {
+                lastReloadTime = Date.now();
+                router.reload({
+                    only: onlyKeys,
+                    preserveState: true,
+                    preserveScroll: true,
+                });
+            }, delay - timeSinceLastReload);
+        }
+    };
+
     if (Echo && restaurantId) {
         Echo.channel(`kitchen.${restaurantId}`).listen(
             '.kitchen.updated',
             (e: any) => {
                 console.log('Realtime update received via WebSocket:', e);
-                router.reload({
-                    only: ['pendingItems', 'completedItems', 'kitchenStats'],
-                    preserveState: true,
-                    preserveScroll: true,
-                });
+                throttledReload(['pendingItems', 'completedItems', 'kitchenStats']);
             },
         );
 
@@ -448,11 +568,7 @@ onMounted(() => {
             '.product.stock_updated',
             (e: any) => {
                 console.log('Product menu update received:', e);
-                router.reload({
-                    only: ['products'],
-                    preserveState: true,
-                    preserveScroll: true,
-                });
+                throttledReload(['products']);
             },
         );
     }
@@ -541,7 +657,7 @@ onUnmounted(() => {
                 <p
                     class="mt-1 text-2xl font-black text-indigo-600 tabular-nums dark:text-indigo-400"
                 >
-                    {{ props.pendingItems.length }}
+                    {{ activePendingItems.length }}
                 </p>
             </div>
             <div
@@ -629,7 +745,7 @@ onUnmounted(() => {
                     variant="secondary"
                     class="rounded-full bg-indigo-100 text-[10px] font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
                 >
-                    {{ props.pendingItems.length }}
+                    {{ activePendingItems.length }}
                 </Badge>
             </button>
             <button
@@ -654,26 +770,57 @@ onUnmounted(() => {
             <!-- ── CỘT TRÁI: NHẬN ĐƠN (PENDING) ── -->
             <div class="space-y-4">
                 <div
-                    class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900"
+                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900"
                 >
-                    <div class="flex items-center gap-2">
-                        <UtensilsCrossed class="size-5 text-indigo-500" />
-                        <h2
-                            class="text-base font-bold text-slate-800 dark:text-slate-100"
+                    <div class="flex items-center justify-between w-full sm:w-auto">
+                        <div class="flex items-center gap-2">
+                            <UtensilsCrossed class="size-5 text-indigo-500" />
+                            <h2
+                                class="text-base font-bold text-slate-800 dark:text-slate-100"
+                            >
+                                1. Đơn Chờ Chế Biến
+                            </h2>
+                        </div>
+                        <Badge
+                            variant="secondary"
+                            class="sm:hidden rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
                         >
-                            1. Đơn Chờ Chế Biến
-                        </h2>
+                            {{ activePendingItems.length }} món
+                        </Badge>
                     </div>
-                    <Badge
-                        variant="secondary"
-                        class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
-                    >
-                        {{ props.pendingItems.length }} món chờ làm
-                    </Badge>
+                    
+                    <div class="flex items-center gap-3 justify-between sm:justify-end">
+                        <Badge
+                            variant="secondary"
+                            class="hidden sm:inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
+                        >
+                            {{ activePendingItems.length }} món chờ làm
+                        </Badge>
+                        
+                        <!-- Toggle chế độ xem: Theo Bàn / Theo Món -->
+                        <div class="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                            <button
+                                type="button"
+                                class="rounded-lg px-2.5 py-1 text-xs font-black transition-all"
+                                :class="viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                @click="viewMode = 'table'"
+                            >
+                                Theo Bàn
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg px-2.5 py-1 text-xs font-black transition-all"
+                                :class="viewMode === 'dish' ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                @click="viewMode = 'dish'"
+                            >
+                                Theo Món
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div
-                    v-if="props.pendingItems.length === 0"
+                    v-if="activePendingItems.length === 0"
                     class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/40 py-24 text-center dark:border-slate-800/80 dark:bg-slate-900/10"
                 >
                     <Inbox class="mb-3 size-10 text-muted-foreground/30" />
@@ -688,183 +835,247 @@ onUnmounted(() => {
                 </div>
 
                 <div v-else class="space-y-4">
-                    <Card
-                        v-for="(items, tableName) in groupedPending"
-                        :key="tableName"
-                        class="overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-sm transition-all hover:shadow-md dark:border-slate-800/60"
-                        :class="{
-                            'animate-pulse border-red-500/60 bg-red-50/5 shadow-lg shadow-red-500/5 dark:border-red-950/50 dark:bg-red-950/5':
-                                hasOverdueItem(items),
-                        }"
-                    >
-                        <CardHeader
-                            class="border-b border-slate-200/80 px-4 py-3.5 dark:border-slate-800/60"
-                            :class="
-                                hasOverdueItem(items)
-                                    ? 'bg-red-50/50 dark:bg-red-950/20'
-                                    : 'bg-slate-100/50 dark:bg-slate-800/20'
-                            "
+                    <!-- CHẾ ĐỘ XEM: THEO BÀN -->
+                    <template v-if="viewMode === 'table'">
+                        <Card
+                            v-for="tableName in visibleGroupedPendingKeys"
+                            :key="tableName"
+                            class="overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-sm transition-all hover:shadow-md dark:border-slate-800/60"
+                            :class="{
+                                'animate-pulse border-red-500/60 bg-red-50/5 shadow-lg shadow-red-500/5 dark:border-red-950/50 dark:bg-red-950/5':
+                                    hasOverdueItem(groupedPending[tableName]),
+                            }"
                         >
-                            <div class="flex items-center justify-between">
-                                <CardTitle
-                                    class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
-                                >
-                                    <span
-                                        class="inline-block h-2.5 w-2.5 rounded-full"
-                                        :class="
-                                            hasOverdueItem(items)
-                                                ? 'animate-ping bg-red-500'
-                                                : 'bg-indigo-500'
-                                        "
-                                    >
-                                    </span>
-                                    Bàn: {{ tableName }}
-                                </CardTitle>
-
-                                <div class="flex items-center gap-2">
-                                    <Badge
-                                        v-if="hasOverdueItem(items)"
-                                        variant="destructive"
-                                        class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
-                                    >
-                                        🚨 Có món trễ!
-                                    </Badge>
-                                    <Badge
-                                        class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                    >
-                                        {{ items.length }} món
-                                    </Badge>
-                                </div>
-                            </div>
-                        </CardHeader>
-
-                        <CardContent
-                            class="divide-y divide-slate-100 p-0 dark:divide-slate-800/60"
-                        >
-                            <div
-                                v-for="item in items"
-                                :key="item.id"
-                                class="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
-                                :class="{
-                                    'border-l-4 border-l-red-500 bg-red-500/5 dark:bg-red-950/10':
-                                        slaLevel(item) === 'late',
-                                    'border-l-4 border-l-amber-400 bg-amber-400/5 dark:bg-amber-950/10':
-                                        slaLevel(item) === 'warn',
-                                }"
+                            <CardHeader
+                                class="border-b border-slate-200/80 px-4 py-3.5 dark:border-slate-800/60"
+                                :class="
+                                    hasOverdueItem(groupedPending[tableName])
+                                        ? 'bg-red-50/50 dark:bg-red-950/20'
+                                        : 'bg-slate-100/50 dark:bg-slate-800/20'
+                                "
                             >
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex items-center gap-2.5">
-                                        <Badge
-                                            class="rounded-lg px-2.5 py-0.5 text-xs font-black text-white"
+                                <div class="flex items-center justify-between">
+                                    <CardTitle
+                                        class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
+                                    >
+                                        <span
+                                            class="inline-block h-2.5 w-2.5 rounded-full"
                                             :class="
-                                                slaLevel(item) === 'late'
-                                                    ? 'bg-red-500'
-                                                    : slaLevel(item) === 'warn'
-                                                      ? 'bg-amber-500'
-                                                      : 'bg-indigo-500'
+                                                hasOverdueItem(groupedPending[tableName])
+                                                    ? 'animate-ping bg-red-500'
+                                                    : 'bg-indigo-500'
                                             "
                                         >
-                                            x{{ Math.round(item.quantity) }}
+                                        </span>
+                                        Bàn: {{ tableName }}
+                                    </CardTitle>
+
+                                    <div class="flex items-center gap-2">
+                                        <Badge
+                                            v-if="hasOverdueItem(groupedPending[tableName])"
+                                            variant="destructive"
+                                            class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
+                                        >
+                                            🚨 Có món trễ!
                                         </Badge>
-                                        <h3
-                                            class="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
+                                        <Badge
+                                            class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                         >
-                                            {{ item.product_name }}
-                                        </h3>
-                                    </div>
-
-                                    <!-- Meta thông tin thêm (thời gian vào, tên tài khoản vào) -->
-                                    <div
-                                        class="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-muted-foreground"
-                                    >
-                                        <span class="flex items-center gap-1">
-                                            <Clock
-                                                class="size-3 text-indigo-500"
-                                            />
-                                            Nhận: {{ item.sent_to_kitchen_at }}
-                                        </span>
-                                        <span>•</span>
-                                        <span class="flex items-center gap-1">
-                                            <User
-                                                class="size-3 text-violet-500"
-                                            />
-                                            Gọi: {{ item.creator_name }}
-                                        </span>
-
-                                        <!-- Cảnh báo SLA theo thời gian chuẩn riêng của món -->
-                                        <span
-                                            v-if="slaLevel(item) === 'late'"
-                                            class="flex items-center gap-0.5 rounded bg-red-500/10 px-1.5 py-0.5 font-extrabold text-red-500"
+                                            {{ groupedPending[tableName].length }} món
+                                        </Badge>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
+                                            @click="handlePrepareBulk(groupedPending[tableName].map(i => i.id))"
                                         >
-                                            <AlertTriangle
-                                                class="size-3 shrink-0 text-red-500"
-                                            />
-                                            Chờ
-                                            {{
-                                                getMinutesElapsed(
-                                                    item.sent_to_kitchen_at_raw,
-                                                )
-                                            }}p / chuẩn
-                                            {{ item.prep_minutes }}p!
-                                        </span>
-                                        <span
-                                            v-else-if="
-                                                slaLevel(item) === 'warn'
-                                            "
-                                            class="flex items-center gap-0.5 rounded bg-amber-400/10 px-1.5 py-0.5 font-extrabold text-amber-600 dark:text-amber-400"
-                                        >
-                                            <Clock class="size-3 shrink-0" />
-                                            Chờ
-                                            {{
-                                                getMinutesElapsed(
-                                                    item.sent_to_kitchen_at_raw,
-                                                )
-                                            }}p / chuẩn {{ item.prep_minutes }}p
-                                        </span>
-                                        <span
-                                            v-else
-                                            class="font-medium text-slate-500"
-                                        >
-                                            Chờ
-                                            {{
-                                                getMinutesElapsed(
-                                                    item.sent_to_kitchen_at_raw,
-                                                )
-                                            }}p / {{ item.prep_minutes }}p
-                                        </span>
-                                    </div>
-
-                                    <!-- Ghi chú món ăn nếu có -->
-                                    <div
-                                        v-if="item.notes"
-                                        class="mt-2.5 inline-flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1 text-[10px] font-medium text-amber-700 dark:border-amber-950/30 dark:bg-amber-950/10 dark:text-amber-400"
-                                    >
-                                        <MessageSquare
-                                            class="mt-0.5 size-3 shrink-0 text-amber-500"
-                                        />
-                                        <span>Ghi chú: {{ item.notes }}</span>
+                                            Hoàn thành tất cả
+                                        </Button>
                                     </div>
                                 </div>
+                            </CardHeader>
 
-                                <!-- Nút hoàn thành chuẩn bị -->
-                                <Button
-                                    class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
-                                    :class="
-                                        slaLevel(item) === 'late'
-                                            ? 'animate-bounce bg-red-600 hover:bg-red-700'
-                                            : slaLevel(item) === 'warn'
-                                              ? 'bg-amber-500 hover:bg-amber-600'
-                                              : 'bg-indigo-600 hover:bg-indigo-700'
-                                    "
-                                    :disabled="isUpdating[item.id]"
-                                    @click="handlePrepare(item.id)"
-                                    title="Hoàn thành món"
+                            <CardContent
+                                class="divide-y divide-slate-100 p-0 dark:divide-slate-800/60"
+                            >
+                                <div
+                                    v-for="item in groupedPending[tableName]"
+                                    :key="item.id"
+                                    class="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                                    :class="{
+                                        'border-l-4 border-l-red-500 bg-red-500/5 dark:bg-red-950/10':
+                                            slaLevel(item) === 'late',
+                                        'border-l-4 border-l-amber-400 bg-amber-400/5 dark:bg-amber-950/10':
+                                            slaLevel(item) === 'warn',
+                                    }"
                                 >
-                                    <Check class="size-5" />
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2.5">
+                                            <Badge
+                                                class="rounded-lg px-2.5 py-0.5 text-xs font-black text-white"
+                                                :class="
+                                                    slaLevel(item) === 'late'
+                                                        ? 'bg-red-500'
+                                                        : slaLevel(item) === 'warn'
+                                                          ? 'bg-amber-500'
+                                                          : 'bg-indigo-500'
+                                                "
+                                            >
+                                                x{{ Math.round(item.quantity) }}
+                                            </Badge>
+                                            <h3
+                                                class="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
+                                            >
+                                                {{ item.product_name }}
+                                            </h3>
+                                        </div>
+
+                                        <!-- Meta thông tin thêm qua KitchenTimer -->
+                                        <div class="mt-2">
+                                            <KitchenTimer
+                                                :sent-at-raw="item.sent_to_kitchen_at_raw"
+                                                :sent-at-formatted="item.sent_to_kitchen_at"
+                                                :prep-minutes="item.prep_minutes"
+                                            />
+                                        </div>
+
+                                        <!-- Ghi chú món ăn nếu có -->
+                                        <div
+                                            v-if="item.notes"
+                                            class="mt-2.5 inline-flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1 text-[10px] font-medium text-amber-700 dark:border-amber-950/30 dark:bg-amber-950/10 dark:text-amber-400"
+                                        >
+                                            <MessageSquare
+                                                class="mt-0.5 size-3 shrink-0 text-amber-500"
+                                            />
+                                            <span>Ghi chú: {{ item.notes }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Nút hoàn thành chuẩn bị -->
+                                    <Button
+                                        class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                        :class="
+                                            slaLevel(item) === 'late'
+                                                ? 'bg-red-600 hover:bg-red-700'
+                                                : slaLevel(item) === 'warn'
+                                                  ? 'bg-amber-500 hover:bg-amber-600'
+                                                  : 'bg-indigo-600 hover:bg-indigo-700'
+                                        "
+                                        :disabled="isUpdating[item.id]"
+                                        @click="handlePrepare(item.id)"
+                                        title="Hoàn thành món"
+                                    >
+                                        <Check class="size-5" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <!-- Hiển thị thêm bàn chờ nếu có -->
+                        <div v-if="hasMoreTables" class="flex justify-center pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="w-full h-11 rounded-2xl text-xs font-bold gap-1.5 bg-white shadow-sm transition-all hover:bg-slate-50"
+                                @click="visibleTablesCount += 12"
+                            >
+                                Hiển thị thêm bàn chờ... (Còn {{ Object.keys(groupedPending).length - visibleTablesCount }} bàn)
+                            </Button>
+                        </div>
+                    </template>
+
+                    <!-- CHẾ ĐỘ XEM: THEO MÓN (BATCH PROCESSING) -->
+                    <template v-else-if="viewMode === 'dish'">
+                        <Card
+                            v-for="group in aggregatedPending"
+                            :key="group.product_name"
+                            class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm hover:shadow-md dark:border-slate-800/60"
+                        >
+                            <CardHeader class="border-b border-slate-100 bg-slate-50/50 px-4 py-3.5 dark:border-slate-800/50 dark:bg-slate-900/40">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <Badge class="bg-indigo-600 px-2.5 py-0.5 text-xs font-black text-white">
+                                            x{{ Math.round(group.total_quantity) }}
+                                        </Badge>
+                                        <CardTitle class="text-sm font-extrabold text-slate-900 dark:text-white">
+                                            {{ group.product_name }}
+                                        </CardTitle>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <Badge variant="secondary" class="rounded text-[10px] font-bold">
+                                            Chuẩn: {{ group.prep_minutes }}p
+                                        </Badge>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
+                                            @click="handlePrepareBulk(group.items.map(i => i.id))"
+                                        >
+                                            Hoàn thành tất cả
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent class="divide-y divide-slate-100 p-0 dark:divide-slate-800/60">
+                                <div
+                                    v-for="item in group.items"
+                                    :key="item.id"
+                                    class="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                                    :class="{
+                                        'border-l-4 border-l-red-500 bg-red-500/5 dark:bg-red-950/10':
+                                            slaLevel(item) === 'late',
+                                        'border-l-4 border-l-amber-400 bg-amber-400/5 dark:bg-amber-950/10':
+                                            slaLevel(item) === 'warn',
+                                    }"
+                                >
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
+                                                Bàn: {{ item.table_name }}
+                                            </span>
+                                            <Badge variant="secondary" class="rounded px-1.5 py-0.2 text-[9px] font-black">
+                                                x{{ Math.round(item.quantity) }}
+                                            </Badge>
+                                        </div>
+                                        
+                                        <div class="mt-1.5">
+                                            <KitchenTimer
+                                                :sent-at-raw="item.sent_to_kitchen_at_raw"
+                                                :sent-at-formatted="item.sent_to_kitchen_at"
+                                                :prep-minutes="item.prep_minutes"
+                                            />
+                                        </div>
+
+                                        <!-- Ghi chú nếu có -->
+                                        <div
+                                            v-if="item.notes"
+                                            class="mt-2 inline-flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1 text-[10px] font-medium text-amber-700 dark:border-amber-950/30 dark:bg-amber-950/10 dark:text-amber-400"
+                                        >
+                                            <MessageSquare class="mt-0.5 size-3 shrink-0 text-amber-500" />
+                                            <span>Ghi chú: {{ item.notes }}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Nút hoàn thành chuẩn bị -->
+                                    <Button
+                                        class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                        :class="
+                                            slaLevel(item) === 'late'
+                                                ? 'bg-red-600 hover:bg-red-700'
+                                                : slaLevel(item) === 'warn'
+                                                  ? 'bg-amber-500 hover:bg-amber-600'
+                                                  : 'bg-indigo-600 hover:bg-indigo-700'
+                                        "
+                                        :disabled="isUpdating[item.id]"
+                                        @click="handlePrepare(item.id)"
+                                        title="Hoàn thành món này"
+                                    >
+                                        <Check class="size-4.5" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </template>
                 </div>
             </div>
 
@@ -881,34 +1092,34 @@ onUnmounted(() => {
                             2. Chờ Phục Vụ / Lấy Đi
                         </h2>
                     </div>
-                    <Badge
-                        variant="secondary"
-                        class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                    >
-                        {{ props.completedItems.length }} món sẵn sàng
-                    </Badge>
-                </div>
-
-                <div
-                    v-if="props.completedItems.length === 0"
-                    class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/40 py-24 text-center dark:border-slate-800/80 dark:bg-slate-900/10"
+                <Badge
+                    variant="secondary"
+                    class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                 >
-                    <Bell class="mb-3 size-10 text-muted-foreground/30" />
-                    <p
-                        class="text-sm font-bold text-slate-700 dark:text-slate-300"
-                    >
-                        Không có món chờ bưng
-                    </p>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                        Các món ăn chế biến xong sẽ chuyển sang bên này để phục
-                        vụ đi giao
-                    </p>
-                </div>
+                    {{ activeCompletedItems.length }} món sẵn sàng
+                </Badge>
+            </div>
 
-                <div v-else class="space-y-3">
-                    <div
-                        v-for="item in props.completedItems"
-                        :key="item.id"
+            <div
+                v-if="activeCompletedItems.length === 0"
+                class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/40 py-24 text-center dark:border-slate-800/80 dark:bg-slate-900/10"
+            >
+                <Bell class="mb-3 size-10 text-muted-foreground/30" />
+                <p
+                    class="text-sm font-bold text-slate-700 dark:text-slate-300"
+                >
+                    Không có món chờ bưng
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Các món ăn chế biến xong sẽ chuyển sang bên này để phục
+                    vụ đi giao
+                </p>
+            </div>
+
+            <div v-else class="space-y-3">
+                <div
+                    v-for="item in activeCompletedItems"
+                    :key="item.id"
                         class="group flex animate-in items-center justify-between gap-4 rounded-2xl border border-emerald-100 bg-white/80 p-4 shadow-sm transition-all duration-200 slide-in-from-right-3 hover:border-emerald-200 hover:shadow-md dark:border-emerald-950/20 dark:bg-slate-950/20 dark:hover:border-emerald-900/30"
                     >
                         <div class="min-w-0 flex-1">

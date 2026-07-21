@@ -267,6 +267,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Kitchen management
     Route::get('kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])->name('kitchen.index');
+    Route::post('kitchen/items/prepare-bulk', [\App\Http\Controllers\KitchenController::class, 'prepareBulk'])->name('kitchen.prepare-bulk');
     Route::post('kitchen/items/{item}/prepare', [\App\Http\Controllers\KitchenController::class, 'prepare'])->name('kitchen.prepare');
     Route::post('kitchen/items/{item}/serve', [\App\Http\Controllers\KitchenController::class, 'serve'])->name('kitchen.serve');
     Route::post('kitchen/products/{product}/pause', [\App\Http\Controllers\KitchenController::class, 'pause'])->name('kitchen.products.pause');
