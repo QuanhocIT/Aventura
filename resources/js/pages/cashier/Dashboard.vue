@@ -1409,9 +1409,14 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                     >{{ order.order_number }}</span
                                 >
                             </div>
-                            <span class="text-[10px] text-muted-foreground">{{
-                                order.created_at
-                            }}</span>
+                            <div class="text-right flex flex-col items-end leading-tight">
+                                <span class="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                                    {{ order.created_date }}
+                                </span>
+                                <span class="text-[10px] text-muted-foreground font-semibold">
+                                    {{ order.created_at }}
+                                </span>
+                            </div>
                         </div>
 
                         <div
@@ -1554,9 +1559,14 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                                     order.order_number
                                 }})</span
                             >
-                            <span class="text-[10px] text-muted-foreground">{{
-                                order.created_at
-                            }}</span>
+                            <div class="text-right flex flex-col items-end leading-tight">
+                                <span class="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                                    {{ order.created_date }}
+                                </span>
+                                <span class="text-[10px] text-muted-foreground font-semibold">
+                                    {{ order.created_at }}
+                                </span>
+                            </div>
                         </div>
                         <div class="text-xs text-slate-600 dark:text-slate-300">
                             <div

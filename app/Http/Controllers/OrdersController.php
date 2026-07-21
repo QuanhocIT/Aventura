@@ -152,7 +152,7 @@ class OrdersController extends Controller
          $restaurantId = $user->restaurant_id;
 
          $statusFilter = $request->get('status', 'all');
-         $dateFilter   = $request->get('date', today()->toDateString());
+         $dateFilter   = $request->get('date') ?: today()->toDateString();
 
          $ordersQuery = $this->orderRepository->getOrdersQuery($restaurantId, [
              'status' => $statusFilter,
@@ -160,17 +160,37 @@ class OrdersController extends Controller
          ]);
 
          $orders = $ordersQuery->get()->map(fn ($o) => [
-             'id'             => $o->id,
-             'order_number'   => $o->order_number,
-             'status'         => $o->status,
-             'payment_status' => $o->payment_status,
-             'channel'        => $o->channel,
-             'table_name'     => $o->table?->name,
-             'area_name'      => $o->table?->area?->name,
-             'total_amount'   => (float) $o->total_amount,
-             'items_count'    => $o->items->count(),
-             'created_at'     => $o->created_at->format('H:i'),
-             'completed_at'   => $o->completed_at?->format('H:i'),
+             'id'              => $o->id,
+             'order_number'    => $o->order_number,
+             'status'          => $o->status,
+             'payment_status'  => $o->payment_status,
+             'channel'         => $o->channel,
+             'table_name'      => $o->table?->name,
+             'area_name'       => $o->table?->area?->name,
+             'total_amount'    => (float) $o->total_amount,
+             'items_count'     => $o->items->count(),
+             'created_at'      => $o->created_at->format('H:i'),
+             'created_at_full' => $o->created_at->format('H:i:s - d/m/Y'),
+             'completed_at'    => $o->completed_at?->format('H:i'),
+             'note'            => $o->note ?? $o->notes ?? null,
+             'items'           => $o->items->map(fn ($item) => [
+                 'id'          => $item->id,
+                 'name'        => $item->product?->name ?? 'Món ăn',
+                 'quantity'    => (float) $item->quantity,
+                 'unit_price'  => (float) ($item->unit_price ?? 0),
+                 'line_total'  => (float) ($item->line_total ?? ($item->quantity * ($item->unit_price ?? 0))),
+                 'notes'       => $item->notes ?? null,
+                 'status'      => $item->status ?? null,
+             ])->values()->all(),
+             'delivery'        => $o->deliveryDetail ? [
+                 'customer_name' => $o->deliveryDetail->customer_name,
+                 'phone'         => $o->deliveryDetail->phone,
+                 'address'       => $o->deliveryDetail->address,
+                 'fee'           => (float) $o->deliveryDetail->delivery_fee,
+                 'cod'           => (float) $o->deliveryDetail->cod_amount,
+                 'status'        => $o->deliveryDetail->delivery_status,
+                 'notes'         => $o->deliveryDetail->notes,
+             ] : null,
          ]);
 
          $summary = $this->orderRepository->getSummaryStats($restaurantId, $dateFilter);
@@ -373,7 +393,7 @@ class OrdersController extends Controller
         $this->orderService->confirmQr($order, $user);
 
         // Lấy gợi ý Upselling từ PromotionController
-        $promotionController = new \App\Http\Controllers\PromotionController();
+        $promotionController = app(\App\Http\Controllers\PromotionController::class);
         $itemNames = $order->items->map(fn($item) => $item->product?->name)->filter()->toArray();
         $upsellRequest = new \Illuminate\Http\Request(['items' => $itemNames]);
         $upsellRequest->setUserResolver(fn() => $user);
@@ -611,7 +631,7 @@ class OrdersController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($order, $data, $user) {
+        DB::transaction(function () use ($order, $data, $user, $request) {
             $oldPaymentStatus = $order->payment_status;
 
             $order->update([

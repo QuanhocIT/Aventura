@@ -14,7 +14,7 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     public function getOrdersQuery(int $restaurantId, array $filters): Builder
     {
         $query = Order::where('restaurant_id', $restaurantId)
-            ->with(['table.area', 'items'])
+            ->with(['table.area', 'items.product', 'deliveryDetail'])
             ->latest();
 
         if (!empty($filters['date'])) {

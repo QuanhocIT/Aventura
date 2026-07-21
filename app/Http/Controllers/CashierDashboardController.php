@@ -196,6 +196,7 @@ class CashierDashboardController extends Controller
                 'table_name' => $o->table?->name ?? 'Không xác định',
                 'total_amount' => (float) $o->total_amount,
                 'created_at' => $o->created_at->format('H:i'),
+                'created_date' => $o->created_at->format('d/m/Y'),
                 'items' => $o->items->map(fn ($item) => [
                     'product_name' => $item->product?->name,
                     'quantity' => (float) $item->quantity,
@@ -217,6 +218,7 @@ class CashierDashboardController extends Controller
                 'table_name'   => $o->table?->name ?? ($o->channel === 'delivery' ? 'Giao hàng' : 'Mang về'),
                 'total_amount' => (float) $o->total_amount,
                 'created_at'   => $o->created_at->format('H:i'),
+                'created_date' => $o->created_at->format('d/m/Y'),
                 'items'        => $o->items->map(fn ($item) => [
                     'product_name' => $item->product?->name,
                     'quantity'     => (float) $item->quantity,

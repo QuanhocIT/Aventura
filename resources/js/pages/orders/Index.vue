@@ -18,7 +18,7 @@ import {
     Utensils,
     Loader2,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +35,26 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
+type OrderItemDetail = {
+    id: number;
+    name: string;
+    quantity: number;
+    unit_price: number;
+    line_total: number;
+    notes: string | null;
+    status: string | null;
+};
+
+type DeliveryInfo = {
+    customer_name: string;
+    phone: string;
+    address: string;
+    fee: number;
+    cod: number;
+    status: string;
+    notes: string | null;
+};
+
 type Order = {
     id: number;
     order_number: string;
@@ -46,7 +66,11 @@ type Order = {
     total_amount: number;
     items_count: number;
     created_at: string;
+    created_at_full?: string;
     completed_at: string | null;
+    note?: string | null;
+    items?: OrderItemDetail[];
+    delivery?: DeliveryInfo | null;
 };
 
 type Summary = {
@@ -101,6 +125,50 @@ const setStatus = (s: string) => {
 };
 
 const statusUpdating = ref<Record<number, boolean>>({});
+
+// ─── Phân trang đơn hàng (10 đơn / trang) ───
+const currentPage = ref(1);
+const itemsPerPage = 10;
+
+const totalPages = computed(() =>
+    Math.ceil(props.orders.length / itemsPerPage),
+);
+
+const paginatedOrders = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+
+    return props.orders.slice(start, start + itemsPerPage);
+});
+
+const visiblePages = computed(() => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+    const end = Math.min(totalPages.value, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+
+    return pages;
+});
+
+watch([activeStatus, dateInput, () => props.orders], () => {
+    currentPage.value = 1;
+});
+
+// ─── Xem chi tiết đơn hàng (Modal) ───
+const selectedOrder = ref<Order | null>(null);
+const showDetailModal = ref(false);
+
+const openOrderDetails = (order: Order) => {
+    selectedOrder.value = order;
+    showDetailModal.value = true;
+};
 
 const updateOrderStatus = (order: Order, newStatus: string) => {
     if (statusUpdating.value[order.id]) {
@@ -929,15 +997,16 @@ onMounted(() => {
                         class="divide-y divide-slate-100 dark:divide-slate-800"
                     >
                         <div
-                            v-for="o in orders"
+                            v-for="o in paginatedOrders"
                             :key="o.id"
-                            class="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                            @click="openOrderDetails(o)"
+                            class="group flex cursor-pointer items-center gap-4 px-5 py-3.5 transition-colors hover:bg-violet-50/50 dark:hover:bg-violet-950/20"
                         >
                             <!-- Order info -->
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span
-                                        class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
+                                        class="font-mono text-sm font-bold text-slate-800 transition-colors group-hover:text-violet-600 dark:text-slate-200 dark:group-hover:text-violet-400"
                                         >{{ o.order_number }}</span
                                     >
                                     <span
@@ -988,7 +1057,7 @@ onMounted(() => {
                             </div>
 
                             <!-- Status + next action -->
-                            <div class="flex shrink-0 items-center gap-2">
+                            <div class="flex shrink-0 items-center gap-2" @click.stop>
                                 <span
                                     class="rounded-full px-2 py-1 text-[10px] font-semibold"
                                     :class="statusConfig[o.status]?.bg"
@@ -1000,7 +1069,7 @@ onMounted(() => {
                                         nextStatus[o.status] && canUpdateStatus
                                     "
                                     :disabled="statusUpdating[o.id]"
-                                    @click="
+                                    @click.stop="
                                         updateOrderStatus(
                                             o,
                                             nextStatus[o.status]!,
@@ -1031,7 +1100,7 @@ onMounted(() => {
                                 >
                                     <button
                                         v-if="o.items_count > 1"
-                                        @click="openSplit(o)"
+                                        @click.stop="openSplit(o)"
                                         class="h-7 cursor-pointer rounded-lg border border-border px-2 text-[10px] font-semibold transition-colors hover:bg-accent"
                                         title="Tách bill để khách trả riêng"
                                     >
@@ -1039,14 +1108,14 @@ onMounted(() => {
                                     </button>
                                     <button
                                         v-if="o.table_name"
-                                        @click="openMove(o)"
+                                        @click.stop="openMove(o)"
                                         class="h-7 cursor-pointer rounded-lg border border-border px-2 text-[10px] font-semibold transition-colors hover:bg-accent"
                                         title="Chuyển sang bàn khác"
                                     >
                                         Chuyển bàn
                                     </button>
                                     <button
-                                        @click="openMerge(o)"
+                                        @click.stop="openMerge(o)"
                                         class="h-7 cursor-pointer rounded-lg border border-border px-2 text-[10px] font-semibold transition-colors hover:bg-accent"
                                         title="Gộp bill này vào một đơn khác"
                                     >
@@ -1058,6 +1127,7 @@ onMounted(() => {
                                 <a
                                     v-if="o.payment_status === 'paid'"
                                     :href="`/orders/${o.id}/e-invoice.xml`"
+                                    @click.stop
                                     class="inline-flex h-7 items-center gap-1 rounded-lg border border-amber-200 px-2 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
                                     title="Tải XML hóa đơn điện tử (TT78) — BẢN NHÁP, CHƯA KÝ SỐ. Cần nộp lên cổng nhà cung cấp (MISA/VNPT) để ký & phát hành hợp lệ."
                                 >
@@ -1086,6 +1156,61 @@ onMounted(() => {
                                     : 'Chưa có đơn nào trong ngày này.'
                             }}
                         </p>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div
+                        v-if="totalPages > 1"
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border/80 bg-muted/20 p-4"
+                    >
+                        <div
+                            class="text-xs font-semibold text-muted-foreground"
+                        >
+                            Hiển thị
+                            {{ (currentPage - 1) * itemsPerPage + 1 }} -
+                            {{
+                                Math.min(
+                                    currentPage * itemsPerPage,
+                                    orders.length,
+                                )
+                            }}
+                            trong tổng số {{ orders.length }} đơn hàng
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                :disabled="currentPage === 1"
+                                @click="currentPage--"
+                                class="h-8 cursor-pointer rounded-xl text-xs"
+                            >
+                                Trước
+                            </Button>
+                            <Button
+                                v-for="page in visiblePages"
+                                :key="page"
+                                variant="outline"
+                                size="sm"
+                                @click="currentPage = page"
+                                :class="[
+                                    'h-8 w-8 cursor-pointer rounded-xl p-0 text-xs font-bold',
+                                    currentPage === page
+                                        ? 'bg-violet-600 border-0 text-white shadow-xs hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-700'
+                                        : '',
+                                ]"
+                            >
+                                {{ page }}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                :disabled="currentPage === totalPages"
+                                @click="currentPage++"
+                                class="h-8 cursor-pointer rounded-xl text-xs"
+                            >
+                                Sau
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -1719,6 +1844,165 @@ onMounted(() => {
                     @click="submitAction"
                     >Gộp bill</Button
                 >
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <!-- Modal Chi Tiết Đơn Hàng -->
+    <Dialog :open="showDetailModal" @update:open="showDetailModal = $event">
+        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border-slate-200 dark:border-slate-800">
+            <!-- Header -->
+            <DialogHeader class="border-b border-border/80 px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <DialogTitle class="font-mono text-lg font-black text-slate-900 dark:text-slate-100">
+                            {{ selectedOrder?.order_number }}
+                        </DialogTitle>
+                        <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {{ selectedOrder ? (channelLabel[selectedOrder.channel] ?? selectedOrder.channel) : '' }}
+                        </span>
+                        <span
+                            v-if="selectedOrder"
+                            class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                            :class="statusConfig[selectedOrder.status]?.bg"
+                        >
+                            {{ statusConfig[selectedOrder.status]?.label }}
+                        </span>
+                    </div>
+                </div>
+                <DialogDescription class="text-xs text-muted-foreground mt-1">
+                    Chi tiết đơn hàng và danh sách món ăn đã gọi
+                </DialogDescription>
+            </DialogHeader>
+
+            <div v-if="selectedOrder" class="flex-1 overflow-y-auto p-6 space-y-6">
+                <!-- Thông tin chung & Thời gian -->
+                <div class="grid grid-cols-2 gap-4 rounded-xl border border-border/60 bg-muted/20 p-4 text-xs">
+                    <div>
+                        <span class="text-muted-foreground block text-[11px]">Vị trí / Bàn:</span>
+                        <span class="font-bold text-foreground text-sm">
+                            {{ selectedOrder.table_name ? `${selectedOrder.table_name}${selectedOrder.area_name ? ' · ' + selectedOrder.area_name : ''}` : 'Không chọn bàn' }}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-muted-foreground block text-[11px]">Trạng thái thanh toán:</span>
+                        <span
+                            class="font-bold text-xs"
+                            :class="paymentConfig[selectedOrder.payment_status]?.color"
+                        >
+                            {{ paymentConfig[selectedOrder.payment_status]?.label }}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-muted-foreground block text-[11px]">Thời gian tạo:</span>
+                        <span class="font-semibold text-foreground">
+                            {{ selectedOrder.created_at_full || selectedOrder.created_at }}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-muted-foreground block text-[11px]">Thời gian hoàn thành:</span>
+                        <span class="font-semibold text-foreground">
+                            {{ selectedOrder.completed_at || '—' }}
+                        </span>
+                    </div>
+                    <div v-if="selectedOrder.note" class="col-span-2 border-t border-border/40 pt-2 mt-1">
+                        <span class="text-muted-foreground block text-[11px]">Ghi chú đơn hàng:</span>
+                        <span class="font-medium text-amber-600 dark:text-amber-400 italic">
+                            "{{ selectedOrder.note }}"
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Thông tin giao hàng (nếu channel === delivery) -->
+                <div v-if="selectedOrder.delivery" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2">
+                    <div class="flex items-center justify-between font-bold text-amber-700 dark:text-amber-400">
+                        <span>📦 Thông tin giao hàng (Delivery)</span>
+                        <span class="uppercase text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full">
+                            {{ selectedOrder.delivery.status }}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-foreground">
+                        <div><span class="text-muted-foreground">Khách hàng:</span> <strong>{{ selectedOrder.delivery.customer_name }}</strong></div>
+                        <div><span class="text-muted-foreground">SĐT:</span> <strong>{{ selectedOrder.delivery.phone }}</strong></div>
+                        <div class="col-span-2"><span class="text-muted-foreground">Địa chỉ:</span> {{ selectedOrder.delivery.address }}</div>
+                        <div><span class="text-muted-foreground">Phí ship:</span> {{ formatCurrency(selectedOrder.delivery.fee) }}</div>
+                        <div><span class="text-muted-foreground">Thu hộ COD:</span> {{ formatCurrency(selectedOrder.delivery.cod) }}</div>
+                    </div>
+                </div>
+
+                <!-- Danh sách món ăn -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                        <Utensils class="size-3.5 text-violet-500" />
+                        Danh sách món ăn ({{ selectedOrder.items?.length || selectedOrder.items_count }} món)
+                    </h4>
+                    <div class="rounded-xl border border-border/80 overflow-hidden divide-y divide-border/60">
+                        <div
+                            v-for="item in (selectedOrder.items || [])"
+                            :key="item.id"
+                            class="flex items-center justify-between p-3 text-xs hover:bg-muted/30 transition-colors"
+                        >
+                            <div class="min-w-0 flex-1 pr-3">
+                                <div class="font-bold text-foreground">{{ item.name }}</div>
+                                <div v-if="item.notes" class="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                                    Ghi chú: {{ item.notes }}
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <div class="font-mono font-bold text-foreground">
+                                    {{ item.quantity }} x {{ formatCurrency(item.unit_price) }}
+                                </div>
+                                <div class="font-mono text-xs font-black text-violet-600 dark:text-violet-400">
+                                    {{ formatCurrency(item.line_total) }}
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="!selectedOrder.items?.length" class="p-4 text-center text-xs text-muted-foreground">
+                            Không tìm thấy danh sách món chi tiết.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tổng tiền -->
+                <div class="flex items-center justify-between rounded-xl bg-violet-600/10 border border-violet-500/20 p-4">
+                    <span class="text-xs font-bold text-violet-900 dark:text-violet-200 uppercase tracking-wide">
+                        Tổng thanh toán
+                    </span>
+                    <span class="font-mono text-xl font-black text-violet-700 dark:text-violet-300">
+                        {{ formatCurrency(selectedOrder.total_amount) }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <DialogFooter class="border-t border-border/80 p-4 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between sm:justify-between">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="rounded-xl"
+                    @click="showDetailModal = false"
+                >
+                    Đóng
+                </Button>
+
+                <div v-if="selectedOrder" class="flex items-center gap-2">
+                    <button
+                        v-if="nextStatus[selectedOrder.status] && canUpdateStatus"
+                        :disabled="statusUpdating[selectedOrder.id]"
+                        @click="updateOrderStatus(selectedOrder, nextStatus[selectedOrder.status]!); showDetailModal = false"
+                        class="flex h-8 cursor-pointer items-center gap-1 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
+                    >
+                        {{
+                            nextStatus[selectedOrder.status] === 'confirmed'
+                                ? 'Xác nhận đơn'
+                                : nextStatus[selectedOrder.status] === 'preparing'
+                                  ? 'Chuyển bếp'
+                                  : nextStatus[selectedOrder.status] === 'completed'
+                                    ? 'Hoàn thành'
+                                    : ''
+                        }}
+                    </button>
+                </div>
             </DialogFooter>
         </DialogContent>
     </Dialog>
