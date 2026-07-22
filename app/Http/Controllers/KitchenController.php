@@ -66,7 +66,7 @@ class KitchenController extends Controller
             ->whereHas('order', function ($q) {
                 $q->whereNotIn('status', ['completed', 'cancelled']);
             })
-            ->with(['order.table', 'product'])
+            ->with(['order.table', 'product', 'preparedBy'])
             ->latest('prepared_at')
             ->get()
             ->map(fn ($item) => [
@@ -75,6 +75,7 @@ class KitchenController extends Controller
                 'quantity' => (float) $item->quantity,
                 'notes' => $item->notes,
                 'prepared_at' => $item->prepared_at->format('H:i'),
+                'prepared_by_name' => $item->preparedBy?->name ?? 'Bếp',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
             ]);
 
@@ -137,6 +138,7 @@ class KitchenController extends Controller
 
         $item->update([
             'prepared_at' => now(),
+            'prepared_by' => $user->id,
             'status' => 'preparing', // transition status
         ]);
 
@@ -160,6 +162,7 @@ class KitchenController extends Controller
             ->whereNull('prepared_at')
             ->update([
                 'prepared_at' => now(),
+                'prepared_by' => $user->id,
                 'status' => 'preparing',
             ]);
 
@@ -182,6 +185,7 @@ class KitchenController extends Controller
 
         $item->update([
             'served_at' => now(),
+            'served_by' => $user->id,
             'status' => 'served', // final status
         ]);
 

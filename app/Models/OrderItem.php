@@ -36,6 +36,16 @@ class OrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function preparedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by');
+    }
+
+    public function servedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'served_by');
+    }
+
     protected static function booted(): void
     {
         $clearCache = fn ($item) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$item->restaurant_id}_tables");

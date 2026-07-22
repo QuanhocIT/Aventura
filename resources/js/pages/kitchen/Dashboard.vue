@@ -42,6 +42,7 @@ interface CompletedItem {
     quantity: number;
     notes: string | null;
     prepared_at: string;
+    prepared_by_name: string;
     table_name: string;
 }
 
@@ -931,12 +932,16 @@ onUnmounted(() => {
                                         </div>
 
                                         <!-- Meta thông tin thêm qua KitchenTimer -->
-                                        <div class="mt-2">
+                                        <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                                             <KitchenTimer
                                                 :sent-at-raw="item.sent_to_kitchen_at_raw"
                                                 :sent-at-formatted="item.sent_to_kitchen_at"
                                                 :prep-minutes="item.prep_minutes"
                                             />
+                                            <span class="text-[10px] text-slate-300 dark:text-slate-700">•</span>
+                                            <span class="text-[10px] font-medium text-slate-500">
+                                                NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
+                                            </span>
                                         </div>
 
                                         <!-- Ghi chú món ăn nếu có -->
@@ -1038,12 +1043,16 @@ onUnmounted(() => {
                                             </Badge>
                                         </div>
                                         
-                                        <div class="mt-1.5">
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                                             <KitchenTimer
                                                 :sent-at-raw="item.sent_to_kitchen_at_raw"
                                                 :sent-at-formatted="item.sent_to_kitchen_at"
                                                 :prep-minutes="item.prep_minutes"
                                             />
+                                            <span class="text-[10px] text-slate-300 dark:text-slate-700">•</span>
+                                            <span class="text-[10px] font-medium text-slate-500">
+                                                NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
+                                            </span>
                                         </div>
 
                                         <!-- Ghi chú nếu có -->
@@ -1150,6 +1159,10 @@ onUnmounted(() => {
                                 >
                                     <Clock class="size-3" />
                                     Xong lúc: {{ item.prepared_at }}
+                                </span>
+                                <span>•</span>
+                                <span class="text-slate-500">
+                                    Bếp: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.prepared_by_name }}</span>
                                 </span>
                             </div>
 
