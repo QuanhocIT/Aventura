@@ -369,13 +369,13 @@ const pct = (v: number) => v.toFixed(1) + '%';
 
         <!-- ── Tab bar ─────────────────────────────────────────────────────── -->
         <div
-            class="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/30 p-1"
+            class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1 rounded-xl border border-border bg-muted/30 p-1"
         >
             <button
                 v-for="tab in tabs"
                 :key="tab.key"
                 @click="switchTab(tab.key)"
-                class="relative flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition"
+                class="relative flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition w-full"
                 :class="
                     activeTab === tab.key
                         ? 'bg-card text-foreground shadow-sm'
