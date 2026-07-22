@@ -1715,7 +1715,8 @@ const submitWaste = () => {
                                                 v-for="ing in ingredients"
                                                 :key="ing.id"
                                                 :value="String(ing.id)"
-                                                :disabled="recipeForm.items.some((x: { ingredient_id: string }, idx: number) => x.ingredient_id === String(ing.id) && idx !== index)"                                            >
+                                                :disabled="recipeForm.items.some((x: any, idx: number) => x.ingredient_id === String(ing.id) && idx !== index)"
+                                            >
                                                 {{ ing.name }} ({{ ing.unit?.symbol ?? 'đơn vị' }})
                                             </option>
                                         </select>

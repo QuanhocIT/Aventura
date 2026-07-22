@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage, router } from '@inertiajs/vue3';
+import { Head, Link, usePage, router, Deferred } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import {
     Building2,

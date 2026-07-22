@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Deferred } from '@inertiajs/vue3';
 import {
     BarChart3,
     CheckCircle2,

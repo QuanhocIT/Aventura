@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, Deferred } from '@inertiajs/vue3';
 import {
     Receipt,
     PlusCircle,
