@@ -34,14 +34,21 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     /**
      * Lấy thống kê số lượng đơn hàng theo trạng thái và doanh thu trong ngày.
      */
-    public function getSummaryStats(int $restaurantId, string $date): array
+    public function getSummaryStats(int $restaurantId, string $date, bool $kitchenOnly = false): array
     {
-        $stats = Order::where('restaurant_id', $restaurantId)
+        $query = Order::where('restaurant_id', $restaurantId)
             ->whereBetween('created_at', [
                 $date . ' 00:00:00',
                 $date . ' 23:59:59'
-            ])
-            ->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
+            ]);
+
+        if ($kitchenOnly) {
+            $query->whereHas('items', function ($q) {
+                $q->whereNotNull('served_at');
+            });
+        }
+
+        $stats = $query->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
             ->groupBy('status')
             ->get();
 

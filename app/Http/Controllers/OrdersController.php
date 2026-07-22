@@ -148,7 +148,7 @@ class OrdersController extends Controller
      public function index(Request $request): Response
      {
          $user = $request->user();
-         abort_unless($user->can('create_orders') || $user->can('manage_orders') || $user->can('process_payments'), 403);
+         abort_unless($user->can('create_orders') || $user->can('manage_orders') || $user->can('process_payments') || $user->can('manage_kitchen'), 403);
          $restaurantId = $user->restaurant_id;
 
          $statusFilter = $request->get('status', 'all');
@@ -158,6 +158,17 @@ class OrdersController extends Controller
              'status' => $statusFilter,
              'date' => $dateFilter,
          ]);
+
+         $isKitchenOnly = $user->can('manage_kitchen') &&
+             !$user->can('create_orders') &&
+             !$user->can('manage_orders') &&
+             !$user->can('process_payments');
+
+         if ($isKitchenOnly) {
+             $ordersQuery->whereHas('items', function ($query) {
+                 $query->whereNotNull('served_at');
+             });
+         }
 
          $orders = $ordersQuery->get()->map(fn ($o) => [
              'id'              => $o->id,
@@ -193,7 +204,7 @@ class OrdersController extends Controller
              ] : null,
          ]);
 
-         $summary = $this->orderRepository->getSummaryStats($restaurantId, $dateFilter);
+         $summary = $this->orderRepository->getSummaryStats($restaurantId, $dateFilter, $isKitchenOnly);
 
          $autoPaySetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
              ->where('restaurant_id', $restaurantId)

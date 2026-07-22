@@ -15,7 +15,7 @@ interface OrderRepositoryInterface
     /**
      * Lấy thống kê số lượng đơn hàng theo trạng thái và doanh thu trong ngày.
      */
-    public function getSummaryStats(int $restaurantId, string $date): array;
+    public function getSummaryStats(int $restaurantId, string $date, bool $kitchenOnly = false): array;
 
     /**
      * Tìm đơn hàng theo ID kèm theo restaurant_id (nếu có).
