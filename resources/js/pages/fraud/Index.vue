@@ -405,7 +405,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-4">
+            <div v-else class="w-full space-y-4">
                 <div
                     class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
                 >
@@ -557,9 +557,9 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-3">
+            <div v-else class="w-full space-y-3">
                 <div
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="hidden grid-cols-[auto_1.5fr_1fr_1.5fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
@@ -723,7 +723,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-3">
+            <div v-else class="w-full space-y-3">
                 <div
                     class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
                 >
@@ -738,7 +738,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </div>
 
                 <div
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="hidden grid-cols-[auto_1fr_auto_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
@@ -923,7 +923,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-3">
+            <div v-else class="w-full space-y-3">
                 <div
                     class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
                 >
@@ -936,7 +936,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </div>
 
                 <div
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="hidden grid-cols-[auto_1fr_auto_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
@@ -1079,11 +1079,11 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-4">
+            <div v-else class="w-full space-y-4">
                 <!-- Flagged cashiers -->
                 <div
                     v-if="data.cashiers?.length"
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1212,7 +1212,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 <!-- Standalone high-value cancellations -->
                 <div
                     v-if="data.standalone_high_value?.length"
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1253,7 +1253,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-4">
+            <div v-else class="w-full space-y-4">
                 <!-- Summary -->
                 <div class="grid gap-3 sm:grid-cols-3">
                     <div class="rounded-xl border border-border bg-card p-4">
@@ -1293,7 +1293,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 <!-- Large entries -->
                 <div
                     v-if="data.large_entries?.length"
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1333,7 +1333,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 <!-- Flagged days -->
                 <div
                     v-if="data.flagged_days?.length"
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1362,7 +1362,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 <!-- Top employees by waste -->
                 <div
                     v-if="data.top_employees?.length"
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
@@ -1439,7 +1439,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </p>
             </div>
 
-            <div v-else class="space-y-3">
+            <div v-else class="w-full space-y-3">
                 <div
                     class="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50/50 px-4 py-2.5 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-900/20 dark:text-orange-300"
                 >
@@ -1454,7 +1454,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </div>
 
                 <div
-                    class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="hidden grid-cols-[1fr_1fr_1fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
