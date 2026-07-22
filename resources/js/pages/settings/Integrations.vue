@@ -502,18 +502,18 @@ const platformOrderColumns: DataTableColumn[] = [
         </div>
 
         <!-- ═══ Cổng thanh toán (đã cấu hình qua .env) ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="pb-3">
-                <CardTitle class="flex items-center gap-2 text-sm font-black"
-                    ><Plug class="h-4 w-4" /> Cổng thanh toán</CardTitle
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
+                <CardTitle class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                    ><Plug class="h-4 w-4 text-indigo-500" /> Cổng thanh toán</CardTitle
                 >
-                <CardDescription class="text-xs"
+                <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400"
                     >VNPay, MoMo, ZaloPay và VietQR được cấu hình ở cấp hệ thống
                     — quản lý trong Cửa hàng Online → Phương thức thanh
                     toán</CardDescription
                 >
             </CardHeader>
-            <CardContent class="flex flex-wrap gap-2 pt-0">
+            <CardContent class="flex flex-wrap gap-2 p-6">
                 <Badge
                     v-for="g in ['VNPay', 'MoMo', 'ZaloPay', 'VietQR']"
                     :key="g"
@@ -526,17 +526,17 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ Các tích hợp cấu hình theo nhà hàng ═══ -->
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card
                 v-for="p in providers"
                 :key="p.provider"
-                class="flex flex-col rounded-2xl border shadow-xs"
+                class="flex flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40"
             >
-                <CardHeader class="pb-2">
+                <CardHeader class="px-5 pt-5 pb-3">
                     <div class="flex items-start justify-between gap-2">
                         <div class="flex items-center gap-2.5">
                             <div
-                                class="rounded-lg bg-neutral-100 p-2 dark:bg-neutral-800"
+                                class="rounded-lg bg-neutral-100 p-2 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
                             >
                                 <component
                                     :is="categoryIcons[p.category] ?? Plug"
@@ -544,7 +544,7 @@ const platformOrderColumns: DataTableColumn[] = [
                                 />
                             </div>
                             <div>
-                                <CardTitle class="text-sm font-bold">{{
+                                <CardTitle class="text-sm font-bold text-neutral-900 dark:text-neutral-50">{{
                                     p.name
                                 }}</CardTitle>
                                 <span
@@ -567,7 +567,7 @@ const platformOrderColumns: DataTableColumn[] = [
                         </Badge>
                     </div>
                 </CardHeader>
-                <CardContent class="flex flex-1 flex-col pt-0">
+                <CardContent class="flex flex-1 flex-col px-5 pb-5 pt-0">
                     <p
                         class="flex-1 text-xs text-neutral-500 dark:text-neutral-400"
                     >
@@ -626,19 +626,19 @@ const platformOrderColumns: DataTableColumn[] = [
         </div>
 
         <!-- ═══ Giao hàng: webhook URL + đơn thử nghiệm ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="pb-3">
-                <CardTitle class="flex items-center gap-2 text-sm font-black"
-                    ><Bike class="h-4 w-4" /> Nhận đơn Grab Food /
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
+                <CardTitle class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                    ><Bike class="h-4 w-4 text-indigo-500" /> Nhận đơn Grab Food /
                     ShopeeFood</CardTitle
                 >
-                <CardDescription class="text-xs"
+                <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400"
                     >Cung cấp URL webhook dưới đây cho đối tác nền tảng. Dùng
                     "Đơn thử nghiệm" để xem luồng nhận đơn hoạt động ngay mà
                     không cần tài khoản đối tác.</CardDescription
                 >
             </CardHeader>
-            <CardContent class="space-y-3 pt-0">
+            <CardContent class="space-y-4 p-6">
                 <div
                     v-for="(url, key) in deliveryWebhookUrls"
                     :key="key"
@@ -711,27 +711,27 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ Thiết bị: máy in nhiệt + máy POS ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="flex flex-row items-center justify-between pb-3">
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="flex flex-row items-center justify-between border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
                 <div>
                     <CardTitle
-                        class="flex items-center gap-2 text-sm font-black"
-                        ><Printer class="h-4 w-4" /> Thiết bị — Máy in nhiệt &
+                        class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                        ><Printer class="h-4 w-4 text-indigo-500" /> Thiết bị — Máy in nhiệt &
                         Máy POS</CardTitle
                     >
-                    <CardDescription class="mt-1 text-xs"
+                    <CardDescription class="mt-1 text-xs text-neutral-500 dark:text-neutral-400"
                         >Máy in nhiệt kết nối qua LAN (cổng 9100). Máy POS ghép
                         nối bằng mã 6 ký tự qua API.</CardDescription
                     >
                 </div>
                 <Button
                     size="sm"
-                    class="h-8 gap-1 text-xs"
+                    class="h-8 gap-1 text-xs cursor-pointer rounded-xl"
                     @click="showDeviceDialog = true"
                     ><Plus class="h-3.5 w-3.5" /> Thêm thiết bị</Button
                 >
             </CardHeader>
-            <CardContent class="pt-0">
+            <CardContent class="p-6">
                 <p
                     v-if="!devices.length"
                     class="py-4 text-center text-xs text-neutral-400 italic"
@@ -816,15 +816,15 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ Webhook API developer ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="flex flex-row items-center justify-between pb-3">
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="flex flex-row items-center justify-between border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
                 <div>
                     <CardTitle
-                        class="flex items-center gap-2 text-sm font-black"
-                        ><Webhook class="h-4 w-4" /> Webhook API
+                        class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                        ><Webhook class="h-4 w-4 text-indigo-500" /> Webhook API
                         (Developer)</CardTitle
                     >
-                    <CardDescription class="mt-1 text-xs"
+                    <CardDescription class="mt-1 text-xs text-neutral-500 dark:text-neutral-400"
                         >Nhận sự kiện realtime (đơn hàng, đặt bàn...) về hệ
                         thống của bạn. Payload ký HMAC-SHA256 qua header
                         <code class="font-mono">X-Aventura-Signature</code
@@ -833,12 +833,12 @@ const platformOrderColumns: DataTableColumn[] = [
                 </div>
                 <Button
                     size="sm"
-                    class="h-8 gap-1 text-xs"
+                    class="h-8 gap-1 text-xs cursor-pointer rounded-xl"
                     @click="showWebhookDialog = true"
                     ><Plus class="h-3.5 w-3.5" /> Thêm endpoint</Button
                 >
             </CardHeader>
-            <CardContent class="space-y-2 pt-0">
+            <CardContent class="space-y-4 p-6">
                 <p
                     v-if="!webhookEndpoints.length"
                     class="py-4 text-center text-xs text-neutral-400 italic"
@@ -952,19 +952,19 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ API công khai (REST v1) ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="pb-3">
-                <CardTitle class="flex items-center gap-2 text-sm font-black"
-                    ><KeyRound class="h-4 w-4" /> API công khai (REST
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
+                <CardTitle class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                    ><KeyRound class="h-4 w-4 text-indigo-500" /> API công khai (REST
                     v1)</CardTitle
                 >
-                <CardDescription class="text-xs">
+                <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400">
                     Truy cập dữ liệu nhà hàng (chỉ đọc) từ hệ thống ngoài. Gửi
                     key qua header <code class="font-mono">X-Api-Key</code>.
                     Giới hạn 120 request/phút.
                 </CardDescription>
             </CardHeader>
-            <CardContent class="space-y-4 pt-0">
+            <CardContent class="space-y-4 p-6">
                 <!-- Docs endpoints -->
                 <div class="divide-y divide-border rounded-xl border">
                     <div
@@ -1062,19 +1062,19 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ MISA export ═══ -->
-        <Card class="rounded-2xl border shadow-xs">
-            <CardHeader class="pb-3">
-                <CardTitle class="flex items-center gap-2 text-sm font-black"
-                    ><Calculator class="h-4 w-4" /> Xuất chứng từ
+        <Card class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40">
+            <CardHeader class="border-b border-neutral-100/80 px-6 pt-5 pb-4 dark:border-neutral-850">
+                <CardTitle class="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-50"
+                    ><Calculator class="h-4 w-4 text-indigo-500" /> Xuất chứng từ
                     MISA</CardTitle
                 >
-                <CardDescription class="text-xs"
+                <CardDescription class="text-xs text-neutral-500 dark:text-neutral-400"
                     >Xuất chứng từ bán hàng (đơn đã thanh toán) theo mẫu nhập
                     liệu MISA SME — file CSV mở được bằng
                     Excel.</CardDescription
                 >
             </CardHeader>
-            <CardContent class="flex flex-wrap items-end gap-3 pt-0">
+            <CardContent class="flex flex-wrap items-end gap-3 p-6">
                 <div class="grid gap-1.5">
                     <Label class="text-[11px] font-bold text-neutral-500"
                         >Từ ngày</Label
