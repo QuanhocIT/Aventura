@@ -240,6 +240,8 @@ class CustomerSuccessService
                                          "Đề xuất hành động:\nCSKH liên hệ thăm hỏi tình hình vận hành và gửi mã coupon giảm giá 30% gia hạn dịch vụ: {$coupon->code}.",
                         'status' => 'open',
                         'priority' => 'high',
+                        'severity' => 'medium',
+                        'code' => 'CHURN-' . now()->format('ymd') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4)),
                         'category' => 'Retention',
                         'created_by' => 1, // System / Admin
                         'sla_due_at' => now()->addDays(2),
