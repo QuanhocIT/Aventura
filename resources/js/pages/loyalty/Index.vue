@@ -10,7 +10,8 @@ import {
     ArrowDownRight,
     History,
 } from 'lucide-vue-next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { computed } from 'vue';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -52,23 +53,23 @@ const typeColor: Record<string, string> = {
         'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
     refund: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
 };
-import { computed } from 'vue';
 
 const totalTierMembers = computed(() => {
-    return props.metrics.tierDistribution.reduce((acc, t) => acc + t.count, 0) || 1;
+    return props.metrics?.tierDistribution?.reduce((acc, t) => acc + (t.count || 0), 0) || 1;
 });
 
 const tierSegments = computed(() => {
     const total = totalTierMembers.value || 1;
     let accumulatedPercent = 0;
-    return props.metrics.tierDistribution.map(t => {
-        const percent = (t.count / total) * 100;
+    const distribution = props.metrics?.tierDistribution || [];
+    return distribution.map(t => {
+        const percent = ((t.count || 0) / total) * 100;
         const segment = {
             name: t.name,
-            count: t.count,
+            count: t.count || 0,
             percent,
             color: t.color || '#94a3b8',
-            dashOffset: 175.9 * (1 - (t.count / total)),
+            dashOffset: 175.9 * (1 - ((t.count || 0) / total)),
             rotation: (accumulatedPercent / 100) * 360,
         };
         accumulatedPercent += percent;
@@ -126,7 +127,7 @@ const tierSegments = computed(() => {
                     <Users class="size-4 text-slate-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-slate-800 dark:text-slate-100">{{ metrics.totalMembers.toLocaleString() }}</span>
+                    <span class="text-3xl font-black text-slate-800 dark:text-slate-100">{{ (metrics?.totalMembers ?? 0).toLocaleString() }}</span>
                     <p class="mt-0.5 text-xs text-muted-foreground">hội viên đang hoạt động trong hệ thống</p>
                 </CardContent>
             </Card>
@@ -138,7 +139,7 @@ const tierSegments = computed(() => {
                     <ArrowUpRight class="size-4 text-emerald-600 dark:text-emerald-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ metrics.totalPointsIssued.toLocaleString() }} pt</span>
+                    <span class="text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ (metrics?.totalPointsIssued ?? 0).toLocaleString() }} pt</span>
                     <p class="mt-0.5 text-xs text-muted-foreground">đã được cộng qua các đơn hàng</p>
                 </CardContent>
             </Card>
@@ -150,7 +151,7 @@ const tierSegments = computed(() => {
                     <ArrowDownRight class="size-4 text-indigo-600 dark:text-indigo-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-indigo-600 dark:text-indigo-400">{{ metrics.totalPointsRedeemed.toLocaleString() }} pt</span>
+                    <span class="text-3xl font-black text-indigo-600 dark:text-indigo-400">{{ (metrics?.totalPointsRedeemed ?? 0).toLocaleString() }} pt</span>
                     <p class="mt-0.5 text-xs text-muted-foreground">đổi lấy ưu đãi & quà tặng thành công</p>
                 </CardContent>
             </Card>
@@ -226,7 +227,7 @@ const tierSegments = computed(() => {
                         />
                     </svg>
                     <div class="absolute flex flex-col items-center justify-center text-center">
-                        <span class="text-[10px] font-black text-slate-800 dark:text-slate-100">{{ metrics.tierDistribution.length }}</span>
+                        <span class="text-[10px] font-black text-slate-800 dark:text-slate-100">{{ metrics?.tierDistribution?.length ?? 0 }}</span>
                         <span class="text-[6px] text-muted-foreground uppercase">Hạng</span>
                     </div>
                 </div>
@@ -239,7 +240,7 @@ const tierSegments = computed(() => {
             <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
                 <Award class="size-6 text-indigo-500" />
                 <span class="text-sm font-black text-slate-850 dark:text-slate-200 text-center truncate w-full px-1">
-                    {{ metrics.tierDistribution.length ? [...metrics.tierDistribution].sort((a,b) => b.count - a.count)[0].name : '—' }}
+                    {{ metrics?.tierDistribution?.length ? [...metrics.tierDistribution].sort((a,b) => (b.count || 0) - (a.count || 0))[0]?.name : '—' }}
                 </span>
                 <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                     Hạng đông nhất
@@ -250,7 +251,7 @@ const tierSegments = computed(() => {
             <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
                 <Gift class="size-6 text-pink-500" />
                 <span class="text-xl font-black text-slate-850 dark:text-slate-200">
-                    {{ rewards.length }}
+                    {{ rewards?.length ?? 0 }}
                 </span>
                 <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                     Phần thưởng
@@ -261,7 +262,7 @@ const tierSegments = computed(() => {
             <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
                 <History class="size-6 text-blue-500" />
                 <span class="text-xl font-black text-slate-850 dark:text-slate-200">
-                    {{ metrics.recentTransactions.length }}
+                    {{ metrics?.recentTransactions?.length ?? 0 }}
                 </span>
                 <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                     Số giao dịch
