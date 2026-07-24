@@ -88,7 +88,9 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     {
         $this->actingAs($this->superAdmin);
 
-        $response = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id));
+        $response = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id), [
+            'reason' => 'Sắm vai hỗ trợ kỹ thuật cho nhà hàng',
+        ]);
 
         $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('impersonate_original_user_id', $this->superAdmin->id);
@@ -105,7 +107,9 @@ class SuperAdminAdvancedSecurityTest extends TestCase
         // Giả lập trạng thái đã sắm vai
         $this->actingAs($this->superAdmin);
         
-        $responseStart = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id));
+        $responseStart = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id), [
+            'reason' => 'Sắm vai hỗ trợ kỹ thuật cho nhà hàng',
+        ]);
         $responseStart->assertRedirect(route('dashboard'));
         $this->assertEquals($this->tenantUser->id, Auth::id());
 

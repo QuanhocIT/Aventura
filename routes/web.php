@@ -105,6 +105,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Impersonation Stop & Request Write Mode
     Route::post('impersonate/stop', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'stop'])->name('impersonate.stop');
     Route::post('impersonate/request-write', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'requestWrite'])->name('impersonate.request_write');
+
+    // Platform / SaaS Service Feedback submission for store owners & subscribers
+    Route::post('platform-feedback', [\App\Http\Controllers\PlatformFeedbackController::class, 'store'])->name('platform-feedback.store');
 });
 
 Route::middleware('guest')->group(function () {

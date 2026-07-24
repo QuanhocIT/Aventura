@@ -21,9 +21,13 @@ class SupportController extends Controller
     /**
      * Hiển thị Cổng hỗ trợ cho Tenant.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): mixed
     {
         $user = $request->user();
+
+        if ($user && $user->isSuperAdmin()) {
+            return redirect('/super-admin/support');
+        }
         
         $tickets = SupportTicket::where('restaurant_id', $user->restaurant_id)
             ->with(['replies.user'])

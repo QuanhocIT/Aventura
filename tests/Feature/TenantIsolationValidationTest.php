@@ -33,6 +33,7 @@ class TenantIsolationValidationTest extends TestCase
             \App\Models\BillingInvoice::class,           // Được quản lý và đối soát bởi Billing Service trung tâm
             \App\Models\BillingAdjustment::class,        // Hóa đơn/điều chỉnh billing trung tâm
             \App\Models\RestaurantSubscription::class,   // Gói đăng ký dịch vụ của nhà hàng
+            \App\Models\PlatformFeedback::class,         // Đánh giá dịch vụ & nền tảng toàn hệ thống cho SuperAdmin
             \App\Models\MediaAsset::class,               // Polymorphic Asset đính kèm được xử lý bằng các mối quan hệ động
         ];
 

@@ -25,12 +25,16 @@ class CheckoutController extends Controller
         $user = $request->user();
         $restaurant = $user?->restaurant;
 
+        if ($user && $user->isSuperAdmin()) {
+            return redirect('/super-admin/billing')->with('info', 'Tài khoản SuperAdmin là Quản trị viên hệ thống. Vui lòng truy cập Phân hệ Billing Center tại /super-admin/billing để quản lý cước phí.');
+        }
+
         if (! $restaurant) {
             return redirect('/dashboard')->with('error', 'Tài khoản này chưa liên kết với nhà hàng nào. Vui lòng đăng nhập bằng tài khoản chủ nhà hàng.');
         }
 
         // Only owner can initiate billing
-        if (! $user->hasAnyRole(['owner', 'admin', 'super_admin'])) {
+        if (! $user->hasAnyRole(['owner', 'admin'])) {
             return redirect('/dashboard')->with('error', 'Bạn không có quyền thực hiện thanh toán. Vui lòng liên hệ chủ nhà hàng.');
         }
 

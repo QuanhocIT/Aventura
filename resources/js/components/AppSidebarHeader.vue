@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { Bell } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { Bell, Star } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     DropdownMenu,
@@ -39,9 +40,19 @@ const navItems = [
 
 const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
 
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+
+const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
+
 const tenant = computed(() => page.props.tenant as any);
 const branches = computed(() => tenant.value?.branches ?? []);
 const activeBranchId = computed(() => tenant.value?.active_branch_id ?? null);
+
+const showFeedbackModal = ref(false);
 
 const handleBranchChange = (e: Event) => {
     const val = (e.target as HTMLSelectElement).value;
@@ -101,6 +112,17 @@ const handleBranchChange = (e: Event) => {
 
             <AppearanceToggleInline />
 
+            <!-- SaaS Service Feedback button (Dành riêng cho Chủ doanh nghiệp / Tenant users) -->
+            <button
+                v-if="user && !isSuperAdmin"
+                @click="showFeedbackModal = true"
+                class="shadow-2xs flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 transition-all hover:bg-amber-500/20 hover:scale-[1.02] dark:text-amber-400"
+                title="Gửi đánh giá gói dịch vụ & hệ thống Aventura"
+            >
+                <Star class="size-3.5 fill-amber-400 text-amber-400" />
+                <span class="hidden sm:inline">Đánh giá dịch vụ</span>
+            </button>
+
             <!-- Flash notification indicator -->
             <button
                 v-if="user"
@@ -140,4 +162,6 @@ const handleBranchChange = (e: Event) => {
             </DropdownMenu>
         </div>
     </header>
+
+    <PlatformFeedbackModal v-model:open="showFeedbackModal" />
 </template>

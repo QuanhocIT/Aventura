@@ -1,6 +1,8 @@
-﻿<script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
-import { LogOut, Settings } from 'lucide-vue-next';
+<script setup lang="ts">
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { LogOut, Settings, Star } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -17,6 +19,15 @@ type Props = {
 };
 
 defineProps<Props>();
+
+const page = usePage();
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
+
+const showFeedbackModal = ref(false);
 
 const handleLogout = () => {
     router.flushAll();
@@ -44,6 +55,14 @@ const handleLogout = () => {
                 Cài đặt hệ thống
             </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem
+            v-if="!isSuperAdmin"
+            class="cursor-pointer font-semibold text-amber-600 dark:text-amber-400"
+            @click="showFeedbackModal = true"
+        >
+            <Star class="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+            Đánh giá gói dịch vụ
+        </DropdownMenuItem>
     </DropdownMenuGroup>
     <DropdownMenuSeparator />
     <DropdownMenuItem
@@ -54,4 +73,6 @@ const handleLogout = () => {
         <LogOut class="mr-2 h-4 w-4" />
         Log out
     </DropdownMenuItem>
+
+    <PlatformFeedbackModal v-if="!isSuperAdmin" v-model:open="showFeedbackModal" />
 </template>

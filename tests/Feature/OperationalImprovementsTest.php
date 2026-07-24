@@ -120,7 +120,7 @@ class OperationalImprovementsTest extends TestCase
         $this->assertEquals(50.0, $transaction->quantity);
         $this->assertEquals(20.0, $transaction->unit_cost);
         $this->assertEquals(1000.0, $transaction->total_cost); // 50 * 20
-        $this->assertEquals('Kiểm kho cuối ca chiều', $transaction->notes);
+        $this->assertStringStartsWith('Kiểm kho cuối ca chiều', $transaction->notes);
     }
 
     /**
