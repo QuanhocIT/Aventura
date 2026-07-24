@@ -173,7 +173,10 @@ const isSendingSwapRequest = ref(false);
 
 // Handle Swap Submit
 const submitSwapRequest = async () => {
-    if (isSendingSwapRequest.value) return;
+    if (isSendingSwapRequest.value) {
+return;
+}
+
     isSendingSwapRequest.value = true;
     swapErrors.value = {};
     swapSuccessMessage.value = '';
@@ -214,8 +217,12 @@ const handleSwapResponse = async (
     swapId: number,
     action: 'accept' | 'cancel' | 'reject',
 ) => {
-    if (isRespondingSwap.value[swapId]) return;
+    if (isRespondingSwap.value[swapId]) {
+return;
+}
+
     isRespondingSwap.value[swapId] = true;
+
     try {
         const response = await axios.post(
             `/employee-portal/swaps/${swapId}/respond`,

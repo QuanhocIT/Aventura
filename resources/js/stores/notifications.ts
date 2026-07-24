@@ -77,7 +77,10 @@ export const useNotificationsStore = defineStore('notifications', {
 
         markRead(id: string) {
             const n = this.notifications.find((n) => n.id === id);
-            if (n) n.read = true;
+
+            if (n) {
+n.read = true;
+}
         },
 
         markAllRead() {

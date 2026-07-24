@@ -18,8 +18,6 @@ import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
@@ -28,6 +26,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { fireConfetti } from '@/composables/useConfetti';
 import { useOfflineQueue } from '@/composables/useOfflineQueue';
 import { useTracking } from '@/composables/useTracking';
@@ -152,14 +152,18 @@ const showOfflinePrintDialog = ref(false);
 const offlineOrderDetails = ref<any>(null);
 
 function printOfflineReceipt() {
-    if (!offlineOrderDetails.value) return;
+    if (!offlineOrderDetails.value) {
+return;
+}
 
     const order = offlineOrderDetails.value;
     const printWindow = window.open('', '_blank');
+
     if (!printWindow) {
         toast.error(
             'Trình chặn Pop-up đã ngăn chặn việc in ấn. Vui lòng cho phép pop-up cho trang web này.',
         );
+
         return;
     }
 

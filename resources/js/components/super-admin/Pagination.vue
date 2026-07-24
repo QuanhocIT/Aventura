@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import type { HTMLAttributes } from 'vue';
 import { cn } from '@/lib/utils';
 
 const props = defineProps<{

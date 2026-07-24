@@ -27,9 +27,11 @@ export const isSyncing = ref<boolean>(false);
 function loadPendingOrders(): PendingOfflineOrder[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PENDING_ORDERS);
+
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.error('Failed to load pending offline orders:', e);
+
     return [];
   }
 }
@@ -70,8 +72,13 @@ export function cacheMenuCatalog(menu: any[]): void {
 export function getCachedMenuCatalog(): any[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MENU_CACHE);
-    if (!raw) return null;
+
+    if (!raw) {
+return null;
+}
+
     const parsed = JSON.parse(raw);
+
     return parsed.data || null;
   } catch (e) {
     return null;
@@ -89,6 +96,7 @@ export function storeOfflineOrder(orderData: Omit<PendingOfflineOrder, 'id' | 'c
 
   pendingOrders.push(newOrder);
   savePendingOrders(pendingOrders);
+
   return newOrder;
 }
 

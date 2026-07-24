@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { Deferred } from '@inertiajs/vue3';
+import { Activity } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity } from 'lucide-vue-next';
-import { Deferred } from '@inertiajs/vue3';
 
 interface HourStat {
     hour: number;
@@ -38,12 +38,18 @@ const chartWidth = VIEW_WIDTH - PADDING_LEFT - PADDING_RIGHT;
 const chartHeight = VIEW_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
 const barWidth = computed(() => {
-    if (dataList.value.length === 0) return 0;
+    if (dataList.value.length === 0) {
+return 0;
+}
+
     return (chartWidth / dataList.value.length) * 0.7; // 70% width, 30% gap
 });
 
 const barGap = computed(() => {
-    if (dataList.value.length === 0) return 0;
+    if (dataList.value.length === 0) {
+return 0;
+}
+
     return (chartWidth / dataList.value.length) * 0.3;
 });
 

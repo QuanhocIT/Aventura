@@ -8,6 +8,7 @@ export function useTranslation() {
 
     function t(key: string, replacements: Record<string, string> = {}): string {
         const value = translations[locale]?.[key] ?? key;
+
         return Object.entries(replacements).reduce(
             (str, [k, v]) => str.replace(`:${k}`, v),
             value,

@@ -18,6 +18,7 @@ const config = computed(() => {
             icon: '✦',
         };
     }
+
     if (props.score >= 70) {
         return {
             cls: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
@@ -25,6 +26,7 @@ const config = computed(() => {
             icon: '●',
         };
     }
+
     if (props.score >= 55) {
         return {
             cls: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
@@ -32,6 +34,7 @@ const config = computed(() => {
             icon: '⚠',
         };
     }
+
     if (props.score >= 40) {
         return {
             cls: 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
@@ -39,6 +42,7 @@ const config = computed(() => {
             icon: '⚠',
         };
     }
+
     return {
         cls: 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
         label: 'Nghiêm trọng',

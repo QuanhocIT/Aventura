@@ -61,18 +61,23 @@ export const useTablesStore = defineStore('tables', {
             currentOrderId?: number | null,
         ) {
             const table = this.tables.find((t) => t.id === tableId);
+
             if (table) {
                 table.status = status;
+
                 if (currentOrderId !== undefined) {
                     table.current_order_id = currentOrderId;
                 }
+
                 if (status === 'occupied' && !table.occupied_since) {
                     table.occupied_since = new Date().toISOString();
                 }
+
                 if (status === 'available') {
                     table.occupied_since = null;
                     table.current_order_id = null;
                 }
+
                 this.lastUpdated = new Date();
             }
         },

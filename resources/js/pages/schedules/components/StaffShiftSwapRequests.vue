@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { RefreshCw } from 'lucide-vue-next';
+import { ref } from 'vue';
 import {
     Card,
     CardContent,
@@ -17,7 +17,10 @@ const props = defineProps<{
 const isProcessing = ref(false);
 
 const acceptSwapRequest = (swapId: number) => {
-    if (isProcessing.value) return;
+    if (isProcessing.value) {
+return;
+}
+
     isProcessing.value = true;
     router.post(
         `/schedules/swap/${swapId}/accept`,
@@ -43,7 +46,10 @@ const acceptSwapRequest = (swapId: number) => {
 };
 
 const cancelSwapRequest = (swapId: number) => {
-    if (isProcessing.value) return;
+    if (isProcessing.value) {
+return;
+}
+
     isProcessing.value = true;
     router.post(
         `/schedules/swap/${swapId}/cancel`,

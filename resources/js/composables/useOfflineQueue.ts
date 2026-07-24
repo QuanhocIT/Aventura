@@ -125,6 +125,7 @@ export function useOfflineQueue(
     ): Promise<{ queued: boolean; data?: any }> {
         try {
             const { data } = await axios.post(url, payload);
+
             return { queued: false, data };
         } catch (error: any) {
             if (error.response) {

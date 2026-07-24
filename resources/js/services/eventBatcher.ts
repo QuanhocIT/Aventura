@@ -36,6 +36,7 @@ class EventBatcher<T = any> {
     if (this.queue.length > 0) {
       const items = [...this.queue];
       this.queue = [];
+
       try {
         this.handler(items);
       } catch (e) {
@@ -49,6 +50,7 @@ class EventBatcher<T = any> {
       clearTimeout(this.timer);
       this.timer = null;
     }
+
     this.queue = [];
   }
 }

@@ -15,6 +15,13 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+    PageHeader,
+    StatCard,
+    LedIndicator,
+    AlertBanner,
+    ProgressBar,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -27,13 +34,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    PageHeader,
-    StatCard,
-    LedIndicator,
-    AlertBanner,
-    ProgressBar,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -80,12 +80,18 @@ async function checkLiveStatuses() {
             'X-Requested-With': 'XMLHttpRequest',
         },
     }).then(async (res) => {
-        if (!res.ok) throw new Error('Yêu cầu thất bại');
+        if (!res.ok) {
+throw new Error('Yêu cầu thất bại');
+}
+
         const data = await res.json();
+
         if (data.success) {
             localServices.value = data.services;
+
             return 'Đã kiểm tra xong trạng thái các dịch vụ';
         }
+
         throw new Error(data.message || 'Lỗi không xác định');
     });
 
@@ -103,6 +109,7 @@ async function checkLiveStatuses() {
 async function toggleMaintenance(service: Service) {
     const originalValue = service.is_maintenance;
     service.is_maintenance = !originalValue;
+
     try {
         const response = await fetch(
             `/super-admin/service-monitor/${service.service_key}/toggle-maintenance`,
@@ -125,7 +132,11 @@ async function toggleMaintenance(service: Service) {
             },
         );
         const data = await response.json();
-        if (!data.success) throw new Error('Lỗi cập nhật');
+
+        if (!data.success) {
+throw new Error('Lỗi cập nhật');
+}
+
         toast.success(
             `Đã ${service.is_maintenance ? 'BẬT' : 'TẮT'} chế độ bảo trì cho ${service.name}`,
         );
@@ -142,9 +153,13 @@ function openEditMessageModal(service: Service) {
 }
 
 async function saveMaintenanceMessage() {
-    if (!editingService.value) return;
+    if (!editingService.value) {
+return;
+}
+
     isSavingMessage.value = true;
     const service = editingService.value;
+
     try {
         const response = await fetch(
             `/super-admin/service-monitor/${service.service_key}/update-message`,
@@ -164,12 +179,16 @@ async function saveMaintenanceMessage() {
             },
         );
         const data = await response.json();
+
         if (data.success) {
             const target = localServices.value.find(
                 (s) => s.service_key === service.service_key,
             );
-            if (target)
-                target.maintenance_message = maintenanceMessageText.value;
+
+            if (target) {
+target.maintenance_message = maintenanceMessageText.value;
+}
+
             toast.success('Đã cập nhật thông báo bảo trì thành công');
             showEditMessageDialog.value = false;
         } else {
@@ -201,6 +220,7 @@ async function resetCircuit(service: Service) {
             },
         );
         const data = await response.json();
+
         if (data.success) {
             service.circuit_breaker_state = 'closed';
             toast.success(`Đã khôi phục (Reset) mạch cho ${service.name}`);
@@ -213,23 +233,42 @@ async function resetCircuit(service: Service) {
 }
 
 function getLatencyColor(ms: number): string {
-    if (ms <= 10) return 'text-cyan-600 dark:text-cyan-400 font-bold';
-    if (ms <= 50) return 'text-emerald-600 dark:text-emerald-400';
-    if (ms <= 150) return 'text-amber-600 dark:text-amber-400';
+    if (ms <= 10) {
+return 'text-cyan-600 dark:text-cyan-400 font-bold';
+}
+
+    if (ms <= 50) {
+return 'text-emerald-600 dark:text-emerald-400';
+}
+
+    if (ms <= 150) {
+return 'text-amber-600 dark:text-amber-400';
+}
+
     return 'text-rose-600 dark:text-rose-500 font-bold animate-pulse';
 }
 
 function getServiceLedStatus(
     service: Service,
 ): 'online' | 'offline' | 'warning' | 'maintenance' {
-    if (service.is_maintenance) return 'maintenance';
-    if (service.last_status === 'online') return 'online';
+    if (service.is_maintenance) {
+return 'maintenance';
+}
+
+    if (service.last_status === 'online') {
+return 'online';
+}
+
     return 'offline';
 }
 
 function formatTime(timeStr: string | null): string {
-    if (!timeStr) return 'Chưa kiểm tra';
+    if (!timeStr) {
+return 'Chưa kiểm tra';
+}
+
     const date = new Date(timeStr);
+
     return (
         date.toLocaleTimeString('vi-VN') +
         ' ' +

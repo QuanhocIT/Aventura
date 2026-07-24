@@ -294,6 +294,7 @@ const testDevicePing = (device: Device) => {
     pingingDeviceId.value = device.id;
     setTimeout(() => {
         pingingDeviceId.value = null;
+
         if (device.is_online) {
             toast.success(`Thiết bị ${device.name} phản hồi tốt (Ping: 12ms).`);
         } else {

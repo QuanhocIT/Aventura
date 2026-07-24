@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { Play, Zap, BarChart3, Users, ChefHat } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 const activeTab = ref<'order' | 'kitchen' | 'report' | 'staff'>('order');
 

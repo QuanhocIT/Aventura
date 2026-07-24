@@ -2,6 +2,7 @@
 import { Form, Head } from '@inertiajs/vue3';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore Vue SFC module declaration is provided by the project shim.
+import { ref, onMounted } from 'vue';
 import InputError from '@/components/InputError.vue';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore Vue SFC module declaration is provided by the project shim.
@@ -12,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
 import { email } from '@/routes/password';
-import { ref, onMounted } from 'vue';
 
 defineOptions({
     layout: {

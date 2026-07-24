@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import {
     Search,
@@ -12,16 +11,19 @@ import {
     Percent,
     Wrench,
 } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 
 function customDebounce<T extends (...args: any[]) => any>(
     fn: T,
     delay: number,
 ) {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     return function (...args: Parameters<T>) {
         if (timeoutId) {
             clearTimeout(timeoutId);
         }
+
         timeoutId = setTimeout(() => {
             fn(...args);
         }, delay);
@@ -81,6 +83,7 @@ const performSearch = customDebounce(async (val: string) => {
         loading.value = false;
         allVisibleItems.value = filterQuickActions(val);
         activeIndex.value = 0;
+
         return;
     }
 
@@ -93,10 +96,12 @@ const performSearch = customDebounce(async (val: string) => {
         };
         loading.value = false;
         allVisibleItems.value = [];
+
         return;
     }
 
     loading.value = true;
+
     try {
         const response = await fetch(
             `/super-admin/global-search?q=${encodeURIComponent(val)}`,
@@ -133,6 +138,7 @@ watch(query, (newVal) => {
 
 function filterQuickActions(val: string) {
     const term = val.trim().toLowerCase();
+
     return quickActions.value
         .filter((act) => act.cmd.startsWith(term) || term.startsWith(act.cmd))
         .map((act) => ({
@@ -145,18 +151,23 @@ function filterQuickActions(val: string) {
 
 function getActionUrl(cmd: string, val: string): string {
     const arg = val.replace(cmd, '').trim();
+
     if (cmd === '> imp') {
         return `/super-admin/accounts?search=${encodeURIComponent(arg)}`;
     }
+
     if (cmd === '> coupon') {
         return `/super-admin/coupons?search=${encodeURIComponent(arg)}`;
     }
+
     if (cmd === '> ticket') {
         return `/super-admin/support?search=${encodeURIComponent(arg)}`;
     }
+
     if (cmd === '> maintenance') {
         return '/super-admin/maintenance-schedules';
     }
+
     return '#';
 }
 
@@ -165,6 +176,7 @@ function executeAction(item: any) {
         // Redirect to accounts page with search query filled
         router.visit(item.url);
         isOpen.value = false;
+
         return;
     }
 
@@ -179,6 +191,7 @@ function handleKeyDown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         isOpen.value = !isOpen.value;
+
         if (isOpen.value) {
             query.value = '';
             results.value = {
@@ -191,7 +204,9 @@ function handleKeyDown(e: KeyboardEvent) {
         }
     }
 
-    if (!isOpen.value) return;
+    if (!isOpen.value) {
+return;
+}
 
     if (e.key === 'Escape') {
         isOpen.value = false;
@@ -213,6 +228,7 @@ function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
         e.preventDefault();
         const selected = allVisibleItems.value[activeIndex.value];
+
         if (selected) {
             executeAction(selected);
         }

@@ -418,13 +418,20 @@ const currentRestaurant = computed(
 );
 
 const supplierIngredients = computed(() => {
-    if (!selectedSupplier.value) return [];
+    if (!selectedSupplier.value) {
+return [];
+}
+
     return props.ingredients.filter((i) => i.supplier_id === selectedSupplier.value.id);
 });
 
 const filteredSupplierIngredients = computed(() => {
-    if (!menuSearchQuery.value.trim()) return supplierIngredients.value;
+    if (!menuSearchQuery.value.trim()) {
+return supplierIngredients.value;
+}
+
     const q = menuSearchQuery.value.toLowerCase().trim();
+
     return supplierIngredients.value.filter((i) =>
         i.name.toLowerCase().includes(q),
     );
@@ -464,17 +471,22 @@ const decrementQuantity = (ingredientId: number, step = 1) => {
 
 const goToPoStep2 = () => {
     const itemsToOrder: Array<{ ingredient_id: number; quantity: number }> = [];
+
     for (const [ingIdStr, qty] of Object.entries(selectedQuantities.value)) {
         const ingId = Number(ingIdStr);
         const numericQty = Number(qty);
+
         if (numericQty > 0) {
             itemsToOrder.push({ ingredient_id: ingId, quantity: numericQty });
         }
     }
+
     if (itemsToOrder.length === 0) {
         toast.error('Vui lòng chọn ít nhất 1 sản phẩm với số lượng > 0.');
+
         return;
     }
+
     poForm.items = itemsToOrder;
     poStep.value = 2;
 };
@@ -491,6 +503,7 @@ const selectedPoItemsDetailed = computed(() => {
 
     for (const [ingIdStr, qty] of Object.entries(selectedQuantities.value)) {
         const numericQty = Number(qty);
+
         if (numericQty > 0) {
             const ingId = Number(ingIdStr);
             const ing = props.ingredients.find((i) => i.id === ingId);
@@ -519,9 +532,11 @@ const poSubtotalAmount = computed(() => {
 const totalPoEstimatedAmount = computed(() => {
     const subtotal = poSubtotalAmount.value;
     const discount = Number(poForm.discount_percent || 0);
+
     if (discount > 0) {
         return Math.max(0, subtotal * (1 - discount / 100));
     }
+
     return subtotal;
 });
 
@@ -848,7 +863,10 @@ const openManualTransferModal = () => {
 };
 
 const submitManualTransfer = () => {
-    if (transferForm.processing) return;
+    if (transferForm.processing) {
+return;
+}
+
     transferForm.post(route('inventory.internal-transfers'), {
         onSuccess: () => {
             showManualTransferModal.value = false;
@@ -926,14 +944,22 @@ const canScrollRight = ref(false);
 
 const updateScrollButtons = () => {
     const el = tabScrollContainerRef.value;
-    if (!el) return;
+
+    if (!el) {
+return;
+}
+
     canScrollLeft.value = el.scrollLeft > 5;
     canScrollRight.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 5;
 };
 
 const scrollTabs = (direction: 'left' | 'right') => {
     const el = tabScrollContainerRef.value;
-    if (!el) return;
+
+    if (!el) {
+return;
+}
+
     const distance = 260;
     el.scrollBy({
         left: direction === 'left' ? -distance : distance,
@@ -943,7 +969,11 @@ const scrollTabs = (direction: 'left' | 'right') => {
 
 const handleWheelScroll = (e: WheelEvent) => {
     const el = tabScrollContainerRef.value;
-    if (!el) return;
+
+    if (!el) {
+return;
+}
+
     if (e.deltaY !== 0) {
         el.scrollLeft += e.deltaY;
         updateScrollButtons();
@@ -956,7 +986,11 @@ let scrollLeftStart = 0;
 
 const startDrag = (e: MouseEvent) => {
     const el = tabScrollContainerRef.value;
-    if (!el) return;
+
+    if (!el) {
+return;
+}
+
     isDragging = true;
     startX = e.pageX - el.offsetLeft;
     scrollLeftStart = el.scrollLeft;
@@ -967,9 +1001,16 @@ const stopDrag = () => {
 };
 
 const doDrag = (e: MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDragging) {
+return;
+}
+
     const el = tabScrollContainerRef.value;
-    if (!el) return;
+
+    if (!el) {
+return;
+}
+
     e.preventDefault();
     const x = e.pageX - el.offsetLeft;
     const walk = (x - startX) * 1.5;
@@ -1065,8 +1106,10 @@ const exportPurchaseOrdersReport = () => {
 const exportSlaReport = () => {
     if (!slaDashboardData.value || !slaDashboardData.value.rankings) {
         toast.error('Chưa có dữ liệu Bảng xếp hạng SLA để xuất báo cáo.');
+
         return;
     }
+
     const headers = [
         'Xếp Hạng',
         'Tên Nhà Cung Cấp',
@@ -1080,6 +1123,7 @@ const exportSlaReport = () => {
     ];
     const rows = slaDashboardData.value.rankings.map((item: any, idx: number) => {
         const grade = getSupplierGrade(item.on_time_rate, item.accuracy_rate, item.avg_rating);
+
         return [
             idx + 1,
             item.supplier_name,

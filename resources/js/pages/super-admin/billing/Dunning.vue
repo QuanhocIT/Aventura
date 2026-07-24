@@ -10,17 +10,17 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     PageHeader,
     StatusBadge,
     AlertBanner,
     SectionCard,
 } from '@/components/super-admin';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -126,7 +126,10 @@ function closePause() {
 }
 
 function submitPause() {
-    if (!pauseSubId.value) return;
+    if (!pauseSubId.value) {
+return;
+}
+
     router.post(
         `/super-admin/billing/dunning/${pauseSubId.value}/pause`,
         { days: pauseDays.value },

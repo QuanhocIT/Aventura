@@ -20,21 +20,13 @@ import {
     ArrowUpRight,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import {
     PageHeader,
     FilterBar,
     StatusBadge,
     Pagination,
 } from '@/components/super-admin';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog,
@@ -43,6 +35,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -160,13 +160,21 @@ function formatVND(val: number) {
 // Compute Completion Rate & AOV
 const completionRate = computed(() => {
     const total = props.stats.total_today;
-    if (total === 0) return 0;
+
+    if (total === 0) {
+return 0;
+}
+
     return Math.round((props.stats.completed_today / total) * 100);
 });
 
 const averageOrderValue = computed(() => {
     const completed = props.stats.completed_today;
-    if (completed === 0) return 0;
+
+    if (completed === 0) {
+return 0;
+}
+
     return Math.round(props.stats.revenue_today / completed);
 });
 
@@ -211,7 +219,10 @@ const channelSlices = computed(() => {
         props.stats.qr_today +
         props.stats.online_today +
         props.stats.delivery_today;
-    if (total === 0) return [];
+
+    if (total === 0) {
+return [];
+}
 
     const posPct = (props.stats.pos_today / total) * 100;
     const qrPct = (props.stats.qr_today / total) * 100;
@@ -274,13 +285,18 @@ const channelSlices = computed(() => {
 // SVG Area Chart points for 7-day revenue trend
 const chartPoints = computed(() => {
     const trend = props.stats.revenue_trend;
-    if (!trend || trend.length === 0) return '';
+
+    if (!trend || trend.length === 0) {
+return '';
+}
+
     const maxRev = Math.max(...trend.map((p) => p.revenue), 100000);
 
     return trend
         .map((p, i) => {
             const x = i * (500 / (trend.length - 1 || 1));
             const y = 90 - (p.revenue / maxRev) * 75;
+
             return `${x},${y}`;
         })
         .join(' ');
@@ -288,9 +304,14 @@ const chartPoints = computed(() => {
 
 const chartAreaPath = computed(() => {
     const points = chartPoints.value;
-    if (!points) return '';
+
+    if (!points) {
+return '';
+}
+
     const trend = props.stats.revenue_trend;
     const lastX = 500;
+
     return `M 0,100 L ${points} L ${lastX},100 Z`;
 });
 </script>

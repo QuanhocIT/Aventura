@@ -164,15 +164,19 @@ const pinFormProcessing = ref(false);
 
 const updatePin = () => {
     pinErrors.value = {};
+
     if (!/^\d{4,6}$/.test(pinForm.value.pin_code)) {
         pinForm.value.pin_code = '';
         pinForm.value.pin_code_confirmation = '';
         pinErrors.value.pin_code = 'Mã PIN phải gồm từ 4 đến 6 chữ số.';
+
         return;
     }
+
     if (pinForm.value.pin_code !== pinForm.value.pin_code_confirmation) {
         pinForm.value.pin_code_confirmation = '';
         pinErrors.value.pin_code_confirmation = 'Mã PIN xác nhận không khớp.';
+
         return;
     }
 

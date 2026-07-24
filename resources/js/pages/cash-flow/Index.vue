@@ -114,7 +114,11 @@ const activeTab = ref<'active' | 'history' | 'analytics' | 'forecast'>(
 
 const vnd = (v: number) => {
     const val = Number(v);
-    if (isNaN(val) || val === undefined || val === null) return '0 ₫';
+
+    if (isNaN(val) || val === undefined || val === null) {
+return '0 ₫';
+}
+
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
@@ -131,6 +135,7 @@ const totalPages = computed(() => {
 
 const paginatedRegisters = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
+
     return props.registers.slice(start, start + itemsPerPage);
 });
 
@@ -164,6 +169,7 @@ const txForm = useForm({
 function handleOpenRegister() {
     if (!openForm.shift_id) {
         toast.error('Vui lòng chọn ca làm việc');
+
         return;
     }
 
@@ -182,11 +188,13 @@ function handleOpenRegister() {
 function handleAddTransaction() {
     if (txForm.amount <= 0) {
         toast.error('Số tiền phải lớn hơn 0');
+
         return;
     }
 
     if (!txForm.notes.trim()) {
         toast.error('Vui lòng nhập ghi chú chi tiết');
+
         return;
     }
 
@@ -223,6 +231,7 @@ const isBudgetExceeded = computed(() => {
     if (!props.activeRegister || !props.activeRegister.expense_budget) {
         return false;
     }
+
     return activeExpensesTotal.value > props.activeRegister.expense_budget;
 });
 
@@ -230,7 +239,9 @@ const budgetProgressPercent = computed(() => {
     if (!props.activeRegister || !props.activeRegister.expense_budget) {
         return 0;
     }
+
     const percent = (activeExpensesTotal.value / props.activeRegister.expense_budget) * 100;
+
     return Math.min(100, Math.max(0, percent));
 });
 
@@ -241,10 +252,12 @@ const chartMaxVal = computed(() => {
         if (d.in > max) {
             max = d.in;
         }
+
         if (d.out > max) {
             max = d.out;
         }
     });
+
     return max || 1;
 });
 </script>

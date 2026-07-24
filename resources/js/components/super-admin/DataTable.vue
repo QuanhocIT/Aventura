@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Component, HTMLAttributes } from 'vue';
-import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import EmptyState from './EmptyState.vue';
 
 export interface Column {

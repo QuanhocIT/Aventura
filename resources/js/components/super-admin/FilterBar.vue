@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue';
 import { Filter } from 'lucide-vue-next';
-import { cn } from '@/lib/utils';
+import type { HTMLAttributes } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 const props = defineProps<{
     class?: HTMLAttributes['class'];

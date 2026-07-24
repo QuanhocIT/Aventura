@@ -236,11 +236,18 @@ const submitDelete = () => {
     });
 };
 
+const getAreaTablesCount = (area: Area) => {
+    return props.tables.filter((t) => t.area?.id === area.id).length;
+};
+
 const submitDeleteArea = async (area: Area) => {
-    if (area.tables_count > 0) {
+    const activeTablesCount = getAreaTablesCount(area);
+
+    if (activeTablesCount > 0) {
         toast.error(
-            `Không thể xóa khu vực "${area.name}" vì vẫn còn ${area.tables_count} bàn. Vui lòng chuyển hoặc xóa hết bàn trước.`,
+            `Không thể xóa khu vực "${area.name}" vì vẫn còn ${activeTablesCount} bàn. Vui lòng chuyển hoặc xóa hết bàn trước.`,
         );
+
         return;
     }
 
@@ -257,6 +264,7 @@ const submitDeleteArea = async (area: Area) => {
                 if (selectedArea.value === area.id) {
                     selectedArea.value = 'all';
                 }
+
                 toast.success(`Đã xóa khu vực "${area.name}" thành công.`);
             },
             onError: (errors: any) => {
@@ -997,20 +1005,20 @@ const vnd = (value: number) => {
                             <div>
                                 <p class="font-bold">{{ area.name }}</p>
                                 <p class="mt-0.5 text-[10px] text-slate-400">
-                                    {{ area.tables_count }} bàn
+                                    {{ getAreaTablesCount(area) }} bàn
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 @click.stop="submitDeleteArea(area)"
                                 :title="
-                                    area.tables_count > 0
+                                    getAreaTablesCount(area) > 0
                                         ? 'Không thể xóa khu vực đang chứa bàn'
                                         : 'Xóa khu vực'
                                 "
                                 class="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
                                 :class="
-                                    area.tables_count > 0
+                                    getAreaTablesCount(area) > 0
                                         ? 'opacity-30 cursor-not-allowed hover:bg-transparent hover:text-slate-400'
                                         : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
                                 "

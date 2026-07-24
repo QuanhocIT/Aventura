@@ -31,9 +31,9 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AreaChart from '@/components/charts/AreaChart.vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -240,6 +240,7 @@ const planPerformancePerPage = 5;
 
 const paginatedPlanPerformance = computed(() => {
     const start = (planPerformancePage.value - 1) * planPerformancePerPage;
+
     return props.planPerformance.slice(start, start + planPerformancePerPage);
 });
 

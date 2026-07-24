@@ -66,7 +66,11 @@ const cur = computed(() => props.report.current);
 
 function vnd(n: number): string {
     const val = Number(n);
-    if (isNaN(val) || val === undefined || val === null) return '0đ';
+
+    if (isNaN(val) || val === undefined || val === null) {
+return '0đ';
+}
+
     return val.toLocaleString('vi-VN') + 'đ';
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { ShieldCheck, Lock, X } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +22,7 @@ const errorMessage = ref('');
 const handleVerify = async () => {
   if (!pin.value || !/^\d{4,6}$/.test(pin.value)) {
     errorMessage.value = 'Mã PIN phải từ 4 đến 6 chữ số';
+
     return;
   }
 

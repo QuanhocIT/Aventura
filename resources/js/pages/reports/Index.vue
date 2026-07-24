@@ -213,7 +213,11 @@ function sendEmailReport() {
 
 const vnd = (v: number) => {
     const num = Number(v);
-    if (isNaN(num) || num === undefined || num === null) return '0 ₫';
+
+    if (isNaN(num) || num === undefined || num === null) {
+return '0 ₫';
+}
+
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
@@ -222,7 +226,11 @@ const vnd = (v: number) => {
 
 const formatCompact = (v: number) => {
     const num = Number(v);
-    if (isNaN(num) || num === undefined || num === null) return '0đ';
+
+    if (isNaN(num) || num === undefined || num === null) {
+return '0đ';
+}
+
     return new Intl.NumberFormat('vi-VN', {
         notation: 'compact',
         maximumFractionDigits: 1,
@@ -333,7 +341,10 @@ const donutPaths = computed(() => {
 // ── Product pie ───────────────────────────────────────────────────────────────
 
 const pieSlices = computed(() => {
-    if (!props.topProducts || props.topProducts.length === 0) return [];
+    if (!props.topProducts || props.topProducts.length === 0) {
+return [];
+}
+
     const top5 = props.topProducts.slice(0, 5);
     const top5Rev = top5.reduce((s, p) => s + (Number(p.total_revenue) || 0), 0);
     const netRev = Number(props.totals?.net_revenue) || 0;
@@ -348,6 +359,7 @@ const pieSlices = computed(() => {
         .map((p, i) => {
             const val = Number(p.total_revenue) || 0;
             const pctVal = (val / total) * 100;
+
             return {
                 name: p.name || 'Sản phẩm',
                 value: val,
@@ -360,6 +372,7 @@ const pieSlices = computed(() => {
     if (netRev > top5Rev && total > 0) {
         const other = netRev - top5Rev;
         const otherPct = (other / total) * 100;
+
         if (other > 0) {
             slices.push({
                 name: 'Khác',
@@ -402,7 +415,10 @@ const piePaths = computed(() => {
 // ── Peak hours ────────────────────────────────────────────────────────────────
 
 const topPeakHours = computed(() => {
-    if (!props.peakHours) return [];
+    if (!props.peakHours) {
+return [];
+}
+
     return [...props.peakHours]
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 3)

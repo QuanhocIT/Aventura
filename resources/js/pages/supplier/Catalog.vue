@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
+import axios from 'axios';
 import { Plus, Edit2, Package, Tag, ShieldCheck, X, Clock, Loader2 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import axios from 'axios';
 
 const props = defineProps<{
     supplier: any;
@@ -63,6 +63,7 @@ const openAnalyticsModal = async (item: any) => {
     showAnalyticsModal.value = true;
     loadingAnalytics.value = true;
     analyticsData.value = null;
+
     try {
         const response = await axios.get(`/suppliers/${props.supplier.id}/ingredients/${item.id}/price-analytics`);
         analyticsData.value = response.data;

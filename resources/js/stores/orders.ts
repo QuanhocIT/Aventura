@@ -52,6 +52,7 @@ export const useOrdersStore = defineStore('orders', {
 
         addOrder(order: ActiveOrder) {
             const exists = this.activeOrders.find((o) => o.id === order.id);
+
             if (!exists) {
                 this.activeOrders.unshift(order);
             }
@@ -59,6 +60,7 @@ export const useOrdersStore = defineStore('orders', {
 
         updateOrderStatus(orderId: number, status: OrderStatus) {
             const order = this.activeOrders.find((o) => o.id === orderId);
+
             if (order) {
                 order.status = status;
                 order.updated_at = new Date().toISOString();

@@ -19,6 +19,12 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+    PageHeader,
+    SectionCard,
+    LedIndicator,
+    StatusBadge,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -27,6 +33,14 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -36,20 +50,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    PageHeader,
-    SectionCard,
-    LedIndicator,
-    StatusBadge,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -90,8 +90,13 @@ const testingEmail = ref(false);
 watch(
     () => page.props.flash,
     (flash: any) => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     },
 );
 
@@ -120,8 +125,10 @@ const form = useForm({
 const handleSubmit = () => {
     if (activeTab.value === 'mail') {
         showConfirmDialog.value = true;
+
         return;
     }
+
     doSubmit();
 };
 
@@ -137,42 +144,58 @@ const doSubmit = () => {
 
 const thresholdAdvice = computed(() => {
     const val = form.chatbot_similarity_threshold;
-    if (val === undefined || val === null)
-        return { status: 'neutral', text: 'Chưa nhập ngưỡng.' };
-    if (val < 0.2)
-        return {
+
+    if (val === undefined || val === null) {
+return { status: 'neutral', text: 'Chưa nhập ngưỡng.' };
+}
+
+    if (val < 0.2) {
+return {
             status: 'warning',
             text: 'Ngưỡng quá thấp (< 0.20) có thể khiến chatbot phản hồi sai lệch, nhầm chủ đề.',
         };
-    if (val > 0.5)
-        return {
+}
+
+    if (val > 0.5) {
+return {
             status: 'warning',
             text: 'Ngưỡng quá cao (> 0.50) yêu cầu khách nhập cực kỳ chính xác mới khớp câu hỏi.',
         };
+}
+
     return { status: 'ok', text: 'Mức độ tương đồng tối ưu (0.2 -> 0.4).' };
 });
 
 const cacheTtlAdvice = computed(() => {
     const val = form.chatbot_cache_ttl;
-    if (val === undefined || val === null)
-        return { status: 'neutral', text: 'Chưa nhập TTL.' };
-    if (val < 60)
-        return {
+
+    if (val === undefined || val === null) {
+return { status: 'neutral', text: 'Chưa nhập TTL.' };
+}
+
+    if (val < 60) {
+return {
             status: 'warning',
             text: 'Thời gian cache quá thấp tăng số lần truy vấn tới DB của Python NLP service.',
         };
-    if (val > 3600)
-        return {
+}
+
+    if (val > 3600) {
+return {
             status: 'warning',
             text: 'Thời gian cache quá dài làm chậm việc cập nhật Q&A mới lên chatbot.',
         };
+}
+
     return { status: 'ok', text: 'Thời gian sống cache tối ưu.' };
 });
 
 const mailDriverAdvice = computed(() => {
     const driver = form.mail_driver;
+
     if (driver === 'smtp') {
         const user = (form.mail_smtp_username || '').toLowerCase();
+
         if (
             user.includes('gmail.com') ||
             user.includes('yahoo.com') ||
@@ -184,18 +207,22 @@ const mailDriverAdvice = computed(() => {
             };
         }
     }
+
     return { status: 'ok', text: 'Cấu hình email chính quy.' };
 });
 
 const smtpPortAdvice = computed(() => {
     const port = form.mail_smtp_port;
+
     if (form.mail_driver === 'smtp') {
-        if (port === 25)
-            return {
+        if (port === 25) {
+return {
                 status: 'warning',
                 text: 'Cổng 25 thường bị chặn bởi các nhà cung cấp cloud. Hãy dùng 587 hoặc 465.',
             };
+}
     }
+
     return { status: 'ok', text: 'Cổng gửi mail an toàn.' };
 });
 

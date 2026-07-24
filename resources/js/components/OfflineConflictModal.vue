@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { AlertTriangle, CheckCircle, Trash2, X } from 'lucide-vue-next';
-import { type ConflictResponse, useOfflineQueue } from '@/composables/useOfflineQueue';
 import { toast } from 'vue-sonner';
+import {  useOfflineQueue } from '@/composables/useOfflineQueue';
+import type {ConflictResponse} from '@/composables/useOfflineQueue';
 
 interface Props {
     conflict: ConflictResponse | null;

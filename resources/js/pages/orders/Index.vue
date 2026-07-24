@@ -174,6 +174,7 @@ const updateOrderStatus = (order: Order, newStatus: string) => {
     if (statusUpdating.value[order.id]) {
         return;
     }
+
     statusUpdating.value[order.id] = true;
     router.patch(
         `/orders/${order.id}/status`,
@@ -456,7 +457,10 @@ const selectTab = (tab: string) => {
 };
 
 const confirmTempOrder = async (orderId: number) => {
-    if (confirmingOrders.value[orderId]) return;
+    if (confirmingOrders.value[orderId]) {
+return;
+}
+
     confirmingOrders.value[orderId] = true;
 
     try {
@@ -498,6 +502,7 @@ const submitCancel = async () => {
     ) {
         return;
     }
+
     isCancellingQr.value = true;
 
     try {
@@ -553,6 +558,7 @@ const channelStats = computed(() => {
     const amounts = { qr: 0, pos: 0, delivery: 0, other: 0 };
     props.orders.forEach(o => {
         const chan = o.channel?.toLowerCase() || 'other';
+
         if (chan in stats) {
             stats[chan as keyof typeof stats]++;
             amounts[chan as keyof typeof amounts] += o.total_amount;
@@ -561,6 +567,7 @@ const channelStats = computed(() => {
             amounts.other += o.total_amount;
         }
     });
+
     return { stats, amounts };
 });
 
@@ -607,6 +614,7 @@ const aiEvaluation = computed(() => {
     // Kênh bán hàng
     const qrCount = channelStats.value.stats.qr;
     const posCount = channelStats.value.stats.pos;
+
     if (qrCount > posCount) {
         tips.push('Kênh QR Order hoạt động vượt trội, tối ưu hóa năng suất phục vụ bàn.');
     }

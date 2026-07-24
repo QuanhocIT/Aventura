@@ -22,6 +22,13 @@ import {
     Eye,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
+import {
+    PageHeader,
+    FilterBar,
+    StatusBadge,
+    Pagination,
+    EmptyState,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,13 +39,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    PageHeader,
-    FilterBar,
-    StatusBadge,
-    Pagination,
-    EmptyState,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -163,7 +163,10 @@ const donutSlices = computed(() => {
         props.stats.created_count +
         props.stats.updated_count +
         props.stats.deleted_count;
-    if (totalEvents === 0) return [];
+
+    if (totalEvents === 0) {
+return [];
+}
 
     const createdPct = (props.stats.created_count / totalEvents) * 100;
     const updatedPct = (props.stats.updated_count / totalEvents) * 100;

@@ -163,7 +163,11 @@ const showDeliveryAnalytics = ref(true);
 
 const deliverySuccessRate = computed(() => {
     const total = stats.value.delivered_today + stats.value.failed_today;
-    if (total === 0) return 100;
+
+    if (total === 0) {
+return 100;
+}
+
     return (stats.value.delivered_today / total) * 100;
 });
 

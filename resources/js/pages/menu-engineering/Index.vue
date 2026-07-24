@@ -70,6 +70,7 @@ watch(
 
 const bcgStats = computed(() => {
     const list = props.bcgData || [];
+
     return {
         star: list.filter((i: any) => i.quadrant === 'star'),
         plowhorse: list.filter((i: any) => i.quadrant === 'plowhorse'),

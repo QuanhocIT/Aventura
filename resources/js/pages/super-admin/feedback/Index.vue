@@ -13,14 +13,7 @@ import {
     AlertCircle,
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
-import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import AreaChart from '@/components/charts/AreaChart.vue';
 import {
     PageHeader,
     StatCard,
@@ -32,8 +25,15 @@ import {
     SectionCard,
 } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
-import AreaChart from '@/components/charts/AreaChart.vue';
 
 defineOptions({ layout: AppLayout });
 

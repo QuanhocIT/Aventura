@@ -26,9 +26,6 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { toast } from 'vue-sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     PageHeader,
     StatCard,
@@ -37,6 +34,9 @@ import {
     SectionCard,
     LedIndicator,
 } from '@/components/super-admin';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -124,6 +124,7 @@ const displayMonthlyRevenue = computed(() => {
     if (props.monthly_revenue && props.monthly_revenue.length > 0) {
         return props.monthly_revenue;
     }
+
     // Mock data for beautiful demo if database is empty
     return [
         { label: 'T8/25', revenue: 15000000, count: 5 },
@@ -150,6 +151,7 @@ const displayRevenueByPlan = computed(() => {
     if (props.revenue_by_plan && props.revenue_by_plan.length > 0) {
         return props.revenue_by_plan;
     }
+
     return [
         { plan: 'Gói Starter (Khởi nghiệp)', revenue: 12000000, count: 12 },
         { plan: 'Gói Growth (Chuyên nghiệp)', revenue: 32000000, count: 8 },
@@ -201,9 +203,11 @@ function formatRevenue(val: number): string {
     if (val >= 1_000_000) {
         return (val / 1_000_000).toFixed(1) + 'M';
     }
+
     if (val >= 1_000) {
         return (val / 1_000).toFixed(0) + 'K';
     }
+
     return String(Math.round(val));
 }
 
@@ -215,9 +219,15 @@ const planChartMax = computed(() =>
 // Map plans to Lucide icons
 function getPlanIcon(planName: string) {
     const name = planName.toLowerCase();
-    if (name.includes('enterprise') || name.includes('doanh nghiệp'))
-        return Crown;
-    if (name.includes('growth') || name.includes('chuyên nghiệp')) return Award;
+
+    if (name.includes('enterprise') || name.includes('doanh nghiệp')) {
+return Crown;
+}
+
+    if (name.includes('growth') || name.includes('chuyên nghiệp')) {
+return Award;
+}
+
     return Star;
 }
 
@@ -233,19 +243,27 @@ const gradientColors = [
 
 function getAvatarGradient(name: string) {
     let hash = 0;
+
     for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
+
     const index = Math.abs(hash) % gradientColors.length;
+
     return gradientColors[index];
 }
 
 function getInitials(name: string) {
-    if (!name) return 'RA';
+    if (!name) {
+return 'RA';
+}
+
     const words = name.trim().split(' ');
+
     if (words.length >= 2) {
         return (words[0][0] + words[1][0]).toUpperCase();
     }
+
     return name.substring(0, 2).toUpperCase();
 }
 

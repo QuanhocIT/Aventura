@@ -155,6 +155,7 @@ const submitOrder = () => {
     if (isSubmitting.value) {
         return;
     }
+
     if (cartItems.value.length === 0) {
         toast.error(
             'Giỏ hàng trống! Hãy chọn ít nhất một món ăn trước khi chuyển bếp.',

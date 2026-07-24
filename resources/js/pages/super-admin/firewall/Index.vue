@@ -17,7 +17,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
-import { confirmDialog } from '@/composables/useConfirm';
+import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/super-admin';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -63,8 +63,13 @@ const addingWhitelist = ref(false);
 watch(
     () => page.props.flash,
     (flash: any) => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     },
 );
 
@@ -146,12 +151,17 @@ const submitSettings = () => {
 
 // Format remaining time in seconds to human-readable string
 const formatRemainingTime = (seconds: number) => {
-    if (seconds <= 0) return 'Hết hạn';
+    if (seconds <= 0) {
+return 'Hết hạn';
+}
+
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
+
     if (minutes > 0) {
         return `${minutes} phút ${secs} giây`;
     }
+
     return `${secs} giây`;
 };
 </script>

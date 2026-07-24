@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, Link, usePage, router, Deferred } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
 import {
     Building2,
     ArrowRight,
@@ -20,6 +19,22 @@ import {
     ChevronRight,
     ShoppingCart,
 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+
+// Subcomponents
+import AIInsightsCard from '@/components/dashboard/charts/AIInsightsCard.vue';
+import CashFlowWidget from '@/components/dashboard/charts/CashFlowWidget.vue';
+import ChannelShareChart from '@/components/dashboard/charts/ChannelShareChart.vue';
+import PeakHoursChart from '@/components/dashboard/charts/PeakHoursChart.vue';
+import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastChart.vue';
+import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
+import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
+import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
+import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
+import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
+import QuickActions from '@/components/dashboard/QuickActions.vue';
+import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -27,21 +42,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-
-// Subcomponents
-import AIInsightsCard from '@/components/dashboard/charts/AIInsightsCard.vue';
-import ChannelShareChart from '@/components/dashboard/charts/ChannelShareChart.vue';
-import PeakHoursChart from '@/components/dashboard/charts/PeakHoursChart.vue';
-import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastChart.vue';
-import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
-import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
-import CashFlowWidget from '@/components/dashboard/charts/CashFlowWidget.vue';
-import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
-import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
-import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
-import QuickActions from '@/components/dashboard/QuickActions.vue';
-import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
 
 interface OperationFeedItem {
     type: string;
@@ -214,7 +214,11 @@ const selectBranchDirectly = (id: number) => {
 
 const formatVND = (value: number) => {
     const num = Number(value);
-    if (isNaN(num) || num === undefined || num === null) return '0 ₫';
+
+    if (isNaN(num) || num === undefined || num === null) {
+return '0 ₫';
+}
+
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',

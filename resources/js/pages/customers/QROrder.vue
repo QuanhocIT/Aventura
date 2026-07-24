@@ -100,10 +100,12 @@ const allergenFilter = ref<'all' | 'vegetarian' | 'no-seafood' | 'no-nuts'>('all
 
 const crossSellProducts = computed(() => {
     const cartProductIds = cart.value.map((item) => item.product.id);
+
     return props.products
         .filter((p) => p.in_stock && !cartProductIds.includes(p.id))
         .filter((p) => {
             const name = p.name.toLowerCase();
+
             return name.includes('coca') || name.includes('trà') || name.includes('nước') || name.includes('bia') || name.includes('kem') || name.includes('bánh') || name.includes('ép');
         })
         .slice(0, 3);
@@ -111,11 +113,13 @@ const crossSellProducts = computed(() => {
 
 const addCrossSellItem = (product: Product) => {
     const idx = cart.value.findIndex((item) => item.product.id === product.id);
+
     if (idx > -1) {
         cart.value[idx].quantity++;
     } else {
         cart.value.push({ product, quantity: 1, notes: '' });
     }
+
     toast.success(`Đã thêm ${product.name} vào giỏ hàng!`);
 };
 
@@ -133,6 +137,7 @@ const staffCallPresets = [
 
 const callStaffWithMessage = async (message: string) => {
     isCallingStaffCustom.value = true;
+
     try {
         const response = await axios.post(
             `/customer/order/call-staff/${props.restaurant.id}`,
@@ -417,28 +422,34 @@ const feedbackSubmittedSuccessfully = ref(false);
 // Filtered products
 const filteredProducts = computed(() => {
     let list = props.products;
+
     if (selectedCategoryId.value) {
         list = list.filter((p) => p.category_id === selectedCategoryId.value);
     }
+
     if (allergenFilter.value === 'vegetarian') {
         list = list.filter((p) => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
+
             return name.includes('chay') || desc.includes('chay') || name.includes('rau') || name.includes('salad');
         });
     } else if (allergenFilter.value === 'no-seafood') {
         list = list.filter((p) => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
+
             return !name.includes('tôm') && !name.includes('cua') && !name.includes('cá') && !name.includes('mực') && !name.includes('nghêu') && !name.includes('hải sản') && !desc.includes('tôm') && !desc.includes('hải sản');
         });
     } else if (allergenFilter.value === 'no-nuts') {
         list = list.filter((p) => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
+
             return !name.includes('đậu phộng') && !name.includes('lạc') && !desc.includes('đậu phộng') && !desc.includes('hạt');
         });
     }
+
     return list;
 });
 
@@ -698,11 +709,13 @@ async function submitFeedback() {
         const tipsSent = Object.entries(staffTip.value)
             .filter(([_, amt]) => amt > 0)
             .reduce((sum, [_, amt]) => sum + amt, 0);
+
         if (tipsSent > 0) {
             toast.success(`Cảm ơn bạn! Đã ghi nhận phản hồi và chuyển tiếp khoản tip ${tipsSent.toLocaleString()}đ tới nhân viên phục vụ.`);
         } else {
             toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
         }
+
         setTimeout(() => {
             showFeedbackSection.value = false;
         }, 2500);

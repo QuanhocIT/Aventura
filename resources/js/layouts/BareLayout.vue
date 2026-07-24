@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { Toaster } from '@/components/ui/sonner';
-import { usePage } from '@inertiajs/vue3';
 
 const page = usePage();
 </script>

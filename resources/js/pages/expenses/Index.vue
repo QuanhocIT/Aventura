@@ -26,6 +26,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import ProfitLossTab from '@/components/expenses/ProfitLossTab.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -38,7 +39,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
-import ProfitLossTab from '@/components/expenses/ProfitLossTab.vue';
 
 defineOptions({ layout: AppLayout });
 

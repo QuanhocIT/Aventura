@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     CheckCircle2,
     Circle,
@@ -9,7 +10,6 @@ import {
     Truck,
 } from 'lucide-vue-next';
 import { onMounted, onUnmounted, ref } from 'vue';
-import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import echo from '@/lib/echo';
 
@@ -68,7 +68,10 @@ async function fetchTracking() {
 }
 
 onMounted(() => {
-    if (!tracking.value) fetchTracking();
+    if (!tracking.value) {
+fetchTracking();
+}
+
     pollInterval = setInterval(fetchTracking, 15000);
 
     try {

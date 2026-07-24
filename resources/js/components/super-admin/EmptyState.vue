@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Component, HTMLAttributes } from 'vue';
 import { Inbox } from 'lucide-vue-next';
+import type { Component, HTMLAttributes } from 'vue';
 import { cn } from '@/lib/utils';
 
 const props = withDefaults(

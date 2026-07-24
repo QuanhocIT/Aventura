@@ -254,6 +254,7 @@ function submitForm(isSubmit: boolean) {
     if (isProcessing.value) {
         return;
     }
+
     isProcessing.value = true;
     isSubmitting.value = isSubmit;
     form.transform((data: any) => ({ ...data, submit: isSubmit ? 1 : 0 })).post(

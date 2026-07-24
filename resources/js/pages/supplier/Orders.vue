@@ -98,10 +98,15 @@ const submitWorkflow = () => {
 };
 
 const printOrderSlip = () => {
-    if (!selectedOrder.value) return;
+    if (!selectedOrder.value) {
+return;
+}
+
     const printWindow = window.open('', '_blank');
+
     if (!printWindow) {
         toast.error('Vui lòng cho phép trình duyệt hiển thị pop-up để in vận đơn.');
+
         return;
     }
     

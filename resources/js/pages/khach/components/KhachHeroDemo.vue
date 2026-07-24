@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Button } from '@/components/ui/button';
-import { register } from '@/routes';
 import {
     ShoppingBag,
     UtensilsCrossed,
@@ -21,6 +18,9 @@ import {
     ShieldCheck,
     CreditCard,
 } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { Button } from '@/components/ui/button';
+import { register } from '@/routes';
 
 // Demo Tabs Definition
 const demoTabs = [
@@ -110,9 +110,15 @@ function cycleKdsStatus(index: number) {
 
 // Auto play tabs cycling
 function startAutoPlay() {
-    if (autoPlayInterval) clearInterval(autoPlayInterval);
+    if (autoPlayInterval) {
+clearInterval(autoPlayInterval);
+}
+
     autoPlayInterval = setInterval(() => {
-        if (!autoPlay.value) return;
+        if (!autoPlay.value) {
+return;
+}
+
         const keys: TabKey[] = ['pos', 'kds', 'report'];
         const currentIdx = keys.indexOf(activeDemo.value);
         activeDemo.value = keys[(currentIdx + 1) % keys.length];
@@ -129,7 +135,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (autoPlayInterval) clearInterval(autoPlayInterval);
+    if (autoPlayInterval) {
+clearInterval(autoPlayInterval);
+}
 });
 </script>
 

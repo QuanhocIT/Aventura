@@ -26,6 +26,12 @@ import {
     Search,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import {
+    PageHeader,
+    StatusBadge,
+    ProgressBar,
+    DataTable,
+} from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,12 +64,6 @@ import {
     SheetHeader,
     SheetTitle,
 } from '@/components/ui/sheet';
-import {
-    PageHeader,
-    StatusBadge,
-    ProgressBar,
-    DataTable,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -89,6 +89,7 @@ const itemsPerPage = 4;
 
 const paginatedPlans = computed(() => {
     const startIndex = (currentPage.value - 1) * itemsPerPage;
+
     return props.plans.slice(startIndex, startIndex + itemsPerPage);
 });
 
@@ -235,7 +236,11 @@ async function showRestaurants(plan: Plan) {
 
 const filteredRestaurants = computed(() => {
     const q = restaurantSearch.value.trim().toLowerCase();
-    if (!q) return restaurants.value;
+
+    if (!q) {
+return restaurants.value;
+}
+
     return restaurants.value.filter(
         (r) =>
             r.name?.toLowerCase().includes(q) ||
@@ -265,10 +270,13 @@ const avatarGradients = [
 ];
 function getGradientForName(name: string): string {
     let hash = 0;
+
     for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
+
     const index = Math.abs(hash) % avatarGradients.length;
+
     return avatarGradients[index];
 }
 

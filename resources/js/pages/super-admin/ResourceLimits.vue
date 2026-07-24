@@ -17,8 +17,6 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -27,6 +25,8 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -97,8 +97,14 @@ const getResourceLabel = (key: string) => {
 };
 
 const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 100) return 'bg-red-500';
-    if (percentage >= 80) return 'bg-amber-500';
+    if (percentage >= 100) {
+return 'bg-red-500';
+}
+
+    if (percentage >= 80) {
+return 'bg-amber-500';
+}
+
     return 'bg-emerald-500';
 };
 </script>

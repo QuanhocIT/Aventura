@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     Wallet,
@@ -8,6 +7,8 @@ import {
     ChevronRight,
     Activity,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -15,7 +16,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 
 interface CashFlowSummary {
     active_register_status: 'open' | 'closed';
@@ -42,12 +42,21 @@ const registerStatusLabel = computed(() => {
 });
 
 const maxVal = computed(() => {
-    if (!props.cashFlowSummary?.chart) return 1;
+    if (!props.cashFlowSummary?.chart) {
+return 1;
+}
+
     let max = 0;
     props.cashFlowSummary.chart.forEach((d) => {
-        if (d.in > max) max = d.in;
-        if (d.out > max) max = d.out;
+        if (d.in > max) {
+max = d.in;
+}
+
+        if (d.out > max) {
+max = d.out;
+}
     });
+
     return max || 1;
 });
 </script>

@@ -14,6 +14,13 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+    EmptyState,
+    PageHeader,
+    Pagination,
+    ProgressBar,
+    StatusBadge,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,13 +32,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    EmptyState,
-    PageHeader,
-    Pagination,
-    ProgressBar,
-    StatusBadge,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -85,6 +85,7 @@ function goToPage(url: string | null) {
     if (!url) {
         return;
     }
+
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
 

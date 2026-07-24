@@ -152,9 +152,13 @@ const totalSpent = computed(() => {
 const daysLeft = computed(() => {
     const dateStr =
         props.restaurant.subscription_ends_at || props.restaurant.trial_ends_at;
-    if (!dateStr) return null;
+
+    if (!dateStr) {
+return null;
+}
 
     let targetDate: Date;
+
     if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
         targetDate = new Date(
@@ -168,13 +172,18 @@ const daysLeft = computed(() => {
 
     const diffTime = targetDate.getTime() - new Date().getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
     return diffDays > 0 ? diffDays : 0;
 });
 
 const progressPercent = computed(() => {
-    if (daysLeft.value === null) return 100;
+    if (daysLeft.value === null) {
+return 100;
+}
+
     const cycle = props.restaurant.status === 'trial' ? 14 : 30; // default standard cycle mapping
     const ratio = (daysLeft.value / cycle) * 100;
+
     return Math.min(100, Math.max(0, ratio));
 });
 

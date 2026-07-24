@@ -99,7 +99,11 @@ const activeTab = ref<'overview' | 'cohort' | 'breakeven' | 'benchmark'>(
 
 const formatNum = (v: number | null | undefined) => {
     const num = Number(v);
-    if (isNaN(num) || num === undefined || num === null) return '0';
+
+    if (isNaN(num) || num === undefined || num === null) {
+return '0';
+}
+
     return num.toLocaleString('vi-VN');
 };
 
@@ -138,22 +142,31 @@ function startSimulationValChange() {
 
 const simLtv = computed(() => {
     const margin = (props.unitEconomics?.gross_margin ?? 0) / 100;
+
     return Math.round(simAov.value * simFrequency.value * margin);
 });
 
 const simLtvCacRatio = computed(() => {
-    if (simCac.value <= 0) return 0;
+    if (simCac.value <= 0) {
+return 0;
+}
+
     return Number((simLtv.value / simCac.value).toFixed(2));
 });
 
 const ltvDiffPct = computed(() => {
     const originalLtv = props.unitEconomics?.ltv ?? 0;
-    if (originalLtv <= 0) return 0;
+
+    if (originalLtv <= 0) {
+return 0;
+}
+
     return ((simLtv.value - originalLtv) / originalLtv) * 100;
 });
 
 const ratioDiff = computed(() => {
     const originalRatio = props.unitEconomics?.ltv_cac_ratio ?? 0;
+
     return simLtvCacRatio.value - originalRatio;
 });
 
@@ -167,12 +180,14 @@ const maxRevenue = computed(() => {
 const beMaxOrders = computed(() => {
     const required = props.breakEven?.break_even_orders ?? 0;
     const actual = props.breakEven?.total_orders ?? 0;
+
     return Math.max(required * 1.4, actual * 1.2, 10);
 });
 
 const beMaxRevenue = computed(() => {
     const targetRev = (props.breakEven?.avg_order_value ?? 0) * beMaxOrders.value;
     const totalCost = (props.breakEven?.fixed_cost ?? 0) + (props.breakEven?.variable_cost ?? 0);
+
     return Math.max(targetRev * 1.1, totalCost * 1.2, 1000000);
 });
 
@@ -181,6 +196,7 @@ const beMaxRevenue = computed(() => {
 const getSvgCoords = (orders: number, money: number) => {
     const x = 55 + (orders / beMaxOrders.value) * 325;
     const y = 205 - (money / beMaxRevenue.value) * 185;
+
     return { x: Math.round(x), y: Math.round(y) };
 };
 
@@ -191,31 +207,39 @@ const totalCostStartCoords = computed(() => getSvgCoords(0, props.breakEven?.fix
 const totalCostEndCoords = computed(() => {
     const variableTotal = (props.breakEven?.variable_cost_per_order ?? 0) * beMaxOrders.value;
     const totalCost = (props.breakEven?.fixed_cost ?? 0) + variableTotal;
+
     return getSvgCoords(beMaxOrders.value, totalCost);
 });
 
 const revenueStartCoords = computed(() => getSvgCoords(0, 0));
 const revenueEndCoords = computed(() => {
     const money = (props.breakEven?.avg_order_value ?? 0) * beMaxOrders.value;
+
     return getSvgCoords(beMaxOrders.value, money);
 });
 
 const bePointCoords = computed(() => {
     const orders = props.breakEven?.break_even_orders ?? 0;
     const money = props.breakEven?.break_even_revenue ?? 0;
+
     return getSvgCoords(orders, money);
 });
 
 const actualPointCoords = computed(() => {
     const orders = props.breakEven?.total_orders ?? 0;
     const money = props.breakEven?.revenue ?? 0;
+
     return getSvgCoords(orders, money);
 });
 
 // ── 3. COHORT RETENTION HEATMAP (Enhancement) ───────────────────────────────────
 const cohortAverages = computed(() => {
-    if (!props.cohorts || props.cohorts.length === 0) return [];
+    if (!props.cohorts || props.cohorts.length === 0) {
+return [];
+}
+
     const averages: number[] = [];
+
     for (let m = 0; m <= 5; m++) {
         let totalRate = 0;
         let count = 0;
@@ -227,6 +251,7 @@ const cohortAverages = computed(() => {
         });
         averages.push(count > 0 ? Number((totalRate / count).toFixed(1)) : 0);
     }
+
     return averages;
 });
 
@@ -236,7 +261,10 @@ function getBenchmarkPosition(b: { value: number; industry_low: number; industry
     const minVal = Math.min(b.industry_low * 0.6, b.value * 0.7);
     const maxVal = Math.max(b.industry_high * 1.4, b.value * 1.3);
     const range = maxVal - minVal;
-    if (range <= 0) return { valPos: 50, lowPos: 30, highPos: 70 };
+
+    if (range <= 0) {
+return { valPos: 50, lowPos: 30, highPos: 70 };
+}
 
     const valPos = ((b.value - minVal) / range) * 100;
     const lowPos = ((b.industry_low - minVal) / range) * 100;
@@ -264,6 +292,7 @@ const statusLabel: Record<string, string> = {
 const needleRotation = computed(() => {
     const ratio = props.unitEconomics?.ltv_cac_ratio ?? 0;
     const pct = Math.min(1, Math.max(0, ratio / 4));
+
     return -90 + pct * 180;
 });
 

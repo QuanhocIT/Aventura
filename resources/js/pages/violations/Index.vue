@@ -150,7 +150,10 @@ const reportStats = computed(() => ({
 
 // --- ACTIONS ---
 const submitReport = () => {
-    if (reportForm.processing) return;
+    if (reportForm.processing) {
+return;
+}
+
     reportForm.post('/violations', {
         onSuccess: () => {
             activeTab.value = 'reports';
@@ -169,7 +172,10 @@ const openResolveModal = (report: Report) => {
 };
 
 const submitResolve = () => {
-    if (resolveForm.processing) return;
+    if (resolveForm.processing) {
+return;
+}
+
     if (!selectedReport.value) {
         return;
     }

@@ -23,7 +23,10 @@ const rejectNotes = ref('');
 const isProcessing = ref(false);
 
 const approveSwap = (swapId: number) => {
-    if (isProcessing.value) return;
+    if (isProcessing.value) {
+return;
+}
+
     isProcessing.value = true;
     router.patch(
         `/schedules/swap/${swapId}/approve`,
@@ -55,6 +58,7 @@ const submitRejectSwap = () => {
     if (!activeRejectSwapId.value || isProcessing.value) {
         return;
     }
+
     isProcessing.value = true;
 
     router.patch(

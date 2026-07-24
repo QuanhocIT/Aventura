@@ -11,9 +11,9 @@ import {
     History,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -62,6 +62,7 @@ const tierSegments = computed(() => {
     const total = totalTierMembers.value || 1;
     let accumulatedPercent = 0;
     const distribution = props.metrics?.tierDistribution || [];
+
     return distribution.map(t => {
         const percent = ((t.count || 0) / total) * 100;
         const segment = {
@@ -73,6 +74,7 @@ const tierSegments = computed(() => {
             rotation: (accumulatedPercent / 100) * 360,
         };
         accumulatedPercent += percent;
+
         return segment;
     });
 });

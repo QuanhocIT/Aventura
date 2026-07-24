@@ -14,14 +14,6 @@ import {
     Calendar,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
-import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import {
     PageHeader,
     StatCard,
@@ -31,6 +23,14 @@ import {
     Pagination,
 } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -91,17 +91,24 @@ function formatVND(val: number) {
 }
 
 const vipRatio = computed(() => {
-    if (props.stats.total === 0) return 0;
+    if (props.stats.total === 0) {
+return 0;
+}
+
     return Math.round((props.stats.vip / props.stats.total) * 100);
 });
 
 const spentRatio = computed(() => {
-    if (props.stats.total === 0) return 0;
+    if (props.stats.total === 0) {
+return 0;
+}
+
     return Math.round((props.stats.has_spent / props.stats.total) * 100);
 });
 
 const customerGrowthData = computed(() => {
     const total = props.stats.total || 132;
+
     return [
         { month: 'T01', count: Math.round(total * 0.6) },
         { month: 'T02', count: Math.round(total * 0.7) },
@@ -123,23 +130,31 @@ const chartPoints = computed(() => {
         const x = (index / (data.length - 1)) * (width - padding * 2) + padding;
         const y =
             height - (d.count / maxVal) * (height - padding * 2) - padding;
+
         return { x, y, label: d.month, val: d.count };
     });
 });
 
 const growthLinePath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
         .join(' ');
 });
 
 const growthAreaPath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;
     const line = points.map((p) => `L ${p.x} ${p.y}`).join(' ');
     const end = `L ${points[points.length - 1].x} 100 Z`;
+
     return `${start} ${line} ${end}`;
 });
 

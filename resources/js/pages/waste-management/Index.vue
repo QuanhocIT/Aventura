@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
 import {
     AlertTriangle,
     Banknote,
@@ -16,6 +15,7 @@ import {
     Activity,
     Inbox,
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -104,7 +104,10 @@ const totalCategoryCost = computed(() => {
 const doughnutPaths = computed(() => {
     const list = props.dashboard.by_category;
     const total = totalCategoryCost.value;
-    if (total === 0) return [];
+
+    if (total === 0) {
+return [];
+}
 
     let currentAngle = -Math.PI / 2; // start at top (12 o'clock)
 
@@ -141,6 +144,7 @@ const centerLabel = computed(() => {
     ) {
         return doughnutPaths.value[hoveredCategoryIdx.value].label;
     }
+
     return 'Tổng hao hụt';
 });
 
@@ -155,6 +159,7 @@ const centerValue = computed(() => {
             ].total_cost.toLocaleString() + 'đ'
         );
     }
+
     return props.dashboard.total_waste_cost.toLocaleString() + 'đ';
 });
 
@@ -168,6 +173,7 @@ const centerSub = computed(() => {
             '% tổng chi phí'
         );
     }
+
     return props.dashboard.waste_count + ' lần ghi nhận';
 });
 
@@ -176,7 +182,11 @@ const hoveredTrendIdx = ref<number | null>(null);
 
 const maxTrend = computed(() => {
     const list = props.trend;
-    if (list.length === 0) return 1;
+
+    if (list.length === 0) {
+return 1;
+}
+
     return Math.max(...list.map((t) => t.total_cost), 1);
 });
 
@@ -185,13 +195,17 @@ const chartHeight = 110;
 
 const trendPoints = computed(() => {
     const list = props.trend;
-    if (list.length === 0) return [];
+
+    if (list.length === 0) {
+return [];
+}
 
     return list.map((item, idx) => {
         const x =
             60 + (list.length > 1 ? (idx / (list.length - 1)) * chartWidth : 0);
         const y =
             20 + chartHeight - (item.total_cost / maxTrend.value) * chartHeight;
+
         return {
             x,
             y,
@@ -212,11 +226,16 @@ const trendLinePath = computed(() => {
 
 const trendAreaPath = computed(() => {
     const pts = trendPoints.value;
-    if (pts.length === 0) return '';
+
+    if (pts.length === 0) {
+return '';
+}
+
     const line = trendLinePath.value;
     const firstX = pts[0].x.toFixed(1);
     const lastX = pts[pts.length - 1].x.toFixed(1);
     const bottomY = (20 + chartHeight).toFixed(1);
+
     return `${line} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
 });
 
@@ -227,14 +246,20 @@ const hoveredTrendPoint = computed(() => {
     ) {
         return trendPoints.value[hoveredTrendIdx.value];
     }
+
     return null;
 });
 
 const hoverRects = computed(() => {
     const pts = trendPoints.value;
-    if (pts.length === 0) return [];
+
+    if (pts.length === 0) {
+return [];
+}
+
     const len = pts.length;
     const rectWidth = len > 1 ? chartWidth / (len - 1) : chartWidth;
+
     return pts.map((p) => {
         return {
             x: p.x - rectWidth / 2,
@@ -247,7 +272,11 @@ const hoverRects = computed(() => {
 // Top ingredients max
 const maxIngredientCost = computed(() => {
     const list = props.dashboard.top_ingredients;
-    if (list.length === 0) return 1;
+
+    if (list.length === 0) {
+return 1;
+}
+
     return Math.max(...list.map((item) => item.total_cost), 1);
 });
 </script>

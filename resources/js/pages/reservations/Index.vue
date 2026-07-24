@@ -105,7 +105,10 @@ function submitConfirm() {
 }
 
 async function seat(r: any) {
-    if (isProcessing.value) return;
+    if (isProcessing.value) {
+return;
+}
+
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',
@@ -143,7 +146,10 @@ function submitCancel() {
 }
 
 async function noShow(r: any) {
-    if (isProcessing.value) return;
+    if (isProcessing.value) {
+return;
+}
+
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',

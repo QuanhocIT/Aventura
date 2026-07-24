@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Clock, AlertTriangle } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 
 const props = defineProps<{
     sentAtRaw: string;
@@ -15,7 +15,9 @@ const getMinutesElapsed = () => {
     if (!props.sentAtRaw) {
         return 0;
     }
+
     const diffMs = nowTime.value.getTime() - new Date(props.sentAtRaw).getTime();
+
     return Math.max(0, Math.floor(diffMs / 60000));
 };
 
@@ -23,12 +25,15 @@ const elapsed = computed(() => getMinutesElapsed());
 
 const slaLevel = computed((): 'ok' | 'warn' | 'late' => {
     const el = elapsed.value;
+
     if (el >= props.prepMinutes * 1.5) {
         return 'late';
     }
+
     if (el >= props.prepMinutes) {
         return 'warn';
     }
+
     return 'ok';
 });
 

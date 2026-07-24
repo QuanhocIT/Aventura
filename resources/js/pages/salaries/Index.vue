@@ -30,6 +30,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import TrustScoreBadge from '@/components/employees/TrustScoreBadge.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -41,7 +42,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
-import TrustScoreBadge from '@/components/employees/TrustScoreBadge.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -302,7 +302,10 @@ function generateDrafts() {
 const actionProcessing = ref(false);
 
 function approveSalary(salary: SalaryRow) {
-    if (actionProcessing.value) return;
+    if (actionProcessing.value) {
+return;
+}
+
     actionProcessing.value = true;
     router.patch(
         `/salaries/${salary.id}/approve`,
@@ -319,7 +322,10 @@ function approveSalary(salary: SalaryRow) {
 }
 
 function markPaid(salary: SalaryRow) {
-    if (actionProcessing.value) return;
+    if (actionProcessing.value) {
+return;
+}
+
     actionProcessing.value = true;
     router.patch(
         `/salaries/${salary.id}/paid`,
@@ -384,12 +390,18 @@ const bulkApproving = ref(false);
 const showBulkApproveModal = ref(false);
 
 function openBulkApproveModal() {
-    if (selectedIds.value.length === 0) return;
+    if (selectedIds.value.length === 0) {
+return;
+}
+
     showBulkApproveModal.value = true;
 }
 
 function submitBulkApprove() {
-    if (selectedIds.value.length === 0 || bulkApproving.value) return;
+    if (selectedIds.value.length === 0 || bulkApproving.value) {
+return;
+}
+
     bulkApproving.value = true;
     router.post(
         '/salaries/approve-bulk',
@@ -442,7 +454,10 @@ function openBulkDialog() {
 }
 
 function submitBulkAdj() {
-    if (bulkForm.processing) return;
+    if (bulkForm.processing) {
+return;
+}
+
     bulkForm.salary_ids = selectedIds.value;
     bulkForm.post('/salaries/adjustments/bulk', {
         onSuccess: () => {
@@ -477,7 +492,10 @@ function openAdjDialog(salary: SalaryRow) {
 }
 
 function submitAdj() {
-    if (adjForm.processing) return;
+    if (adjForm.processing) {
+return;
+}
+
     if (!adjTarget.value) {
         return;
     }

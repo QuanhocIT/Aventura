@@ -164,7 +164,10 @@ const startHeartbeat = () => {
 };
 
 const triggerPollingFallback = () => {
-    if (pollingActive.value) return;
+    if (pollingActive.value) {
+return;
+}
+
     pollingActive.value = true;
     fallbackPollInterval = setInterval(() => {
         router.reload({ only: ['qrOrders', 'tablesData', 'externalOrders'] });
@@ -172,8 +175,12 @@ const triggerPollingFallback = () => {
 };
 
 const stopPollingFallback = () => {
-    if (!pollingActive.value) return;
+    if (!pollingActive.value) {
+return;
+}
+
     pollingActive.value = false;
+
     if (fallbackPollInterval) {
         clearInterval(fallbackPollInterval);
         fallbackPollInterval = null;
@@ -268,6 +275,7 @@ const cashDenominations = computed(() => {
     if (!activeTable.value?.active_order) {
         return [];
     }
+
     const total = activeTable.value.active_order.total_amount;
     const suggestions = [total];
     
@@ -425,31 +433,39 @@ onMounted(() => {
 
     // Restore draft cart if present
     const savedCart = localStorage.getItem('aventura_expired_cart');
+
     if (savedCart) {
         try {
             const parsed = JSON.parse(savedCart);
+
             if (parsed.activeTableId) {
                 const matchTable = props.tablesData.find(
                     (t) => t.id === parsed.activeTableId,
                 );
+
                 if (matchTable) {
                     activeTable.value = matchTable;
                     isCartOpen.value = true;
                 }
             }
+
             if (parsed.cartItems) {
                 cartItems.value = parsed.cartItems;
             }
+
             if (parsed.cartNote) {
                 cartNote.value = parsed.cartNote;
             }
+
             if (parsed.voucherCode) {
                 voucherCode.value = parsed.voucherCode;
             }
+
             setTimeout(() => {
                 toast('Đã khôi phục giỏ hàng nháp từ phiên làm việc trước!');
             }, 500);
         } catch (e) {}
+
         localStorage.removeItem('aventura_expired_cart');
     }
 });
@@ -478,6 +494,7 @@ onUnmounted(() => {
     if (wsCheckInterval) {
         clearInterval(wsCheckInterval);
     }
+
     stopPollingFallback();
 
     if (restaurantId.value) {

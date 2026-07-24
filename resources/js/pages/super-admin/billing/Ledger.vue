@@ -15,6 +15,12 @@ import {
     Calendar,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
+import {
+    PageHeader,
+    StatusBadge,
+    Pagination,
+    FilterBar,
+} from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,12 +33,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    PageHeader,
-    StatusBadge,
-    Pagination,
-    FilterBar,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -103,16 +103,28 @@ function applyFilters() {
 watch([restaurantId, entryType], applyFilters);
 
 function goToPage(url: string | null) {
-    if (!url) return;
+    if (!url) {
+return;
+}
+
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
 
 function exportLedger() {
     const params = new URLSearchParams();
-    if (dateFrom.value) params.set('date_from', dateFrom.value);
-    if (dateTo.value) params.set('date_to', dateTo.value);
-    if (restaurantId.value !== 'all')
-        params.set('restaurant_id', restaurantId.value);
+
+    if (dateFrom.value) {
+params.set('date_from', dateFrom.value);
+}
+
+    if (dateTo.value) {
+params.set('date_to', dateTo.value);
+}
+
+    if (restaurantId.value !== 'all') {
+params.set('restaurant_id', restaurantId.value);
+}
+
     window.open(
         `/super-admin/billing/ledger/export?${params.toString()}`,
         '_blank',
@@ -150,6 +162,7 @@ const marginPercent = computed(() => {
     const cred = props.totals.credit_raw || 1;
     const deb = props.totals.debit_raw || 0;
     const net = cred - deb;
+
     return Math.round((net / cred) * 100);
 });
 
@@ -166,6 +179,7 @@ const chartPoints = computed(() => {
             height - (d.credit / maxCredit) * (height - padding * 2) - padding;
         const debitY =
             height - (d.debit / maxCredit) * (height - padding * 2) - padding;
+
         return {
             x,
             creditY,
@@ -178,23 +192,33 @@ const chartPoints = computed(() => {
 });
 
 const creditLinePath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.creditY}`)
         .join(' ');
 });
 
 const creditAreaPath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;
     const line = points.map((p) => `L ${p.x} ${p.creditY}`).join(' ');
     const end = `L ${points[points.length - 1].x} 100 Z`;
+
     return `${start} ${line} ${end}`;
 });
 
 const debitLinePath = computed(() => {
-    if (chartPoints.value.length === 0) return '';
+    if (chartPoints.value.length === 0) {
+return '';
+}
+
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.debitY}`)
         .join(' ');

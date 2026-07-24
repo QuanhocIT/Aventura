@@ -110,6 +110,7 @@ const recipePerPage = 5;
 const paginatedProducts = computed(() => {
     const start = (recipeCurrentPage.value - 1) * recipePerPage;
     const end = start + recipePerPage;
+
     return props.products ? props.products.slice(start, end) : [];
 });
 
@@ -123,18 +124,30 @@ const visibleRecipePages = computed(() => {
     const current = recipeCurrentPage.value;
     
     if (total <= 5) {
-        for (let i = 1; i <= total; i++) pages.push(i);
+        for (let i = 1; i <= total; i++) {
+pages.push(i);
+}
     } else {
         pages.push(1);
-        if (current > 3) pages.push('...');
+
+        if (current > 3) {
+pages.push('...');
+}
         
         const start = Math.max(2, current - 1);
         const end = Math.min(total - 1, current + 1);
-        for (let i = start; i <= end; i++) pages.push(i);
+
+        for (let i = start; i <= end; i++) {
+pages.push(i);
+}
         
-        if (current < total - 2) pages.push('...');
+        if (current < total - 2) {
+pages.push('...');
+}
+
         pages.push(total);
     }
+
     return pages;
 });
 
@@ -283,8 +296,12 @@ const submitIngredient = () => {
 };
 
 const activeProductRecipes = computed(() => {
-    if (!activeProduct.value) return [];
+    if (!activeProduct.value) {
+return [];
+}
+
     const updatedProduct = props.products.find(p => p.id === activeProduct.value!.id);
+
     return updatedProduct ? updatedProduct.recipes : [];
 });
 
@@ -331,6 +348,7 @@ const openAddRecipeModal = (prod: Product) => {
             waste_rate: '0',
         }];
     }
+
     showAddRecipe.value = true;
 };
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { Deferred } from '@inertiajs/vue3';
 import { Package } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Deferred } from '@inertiajs/vue3';
 
 interface TopProductStat {
     name: string;

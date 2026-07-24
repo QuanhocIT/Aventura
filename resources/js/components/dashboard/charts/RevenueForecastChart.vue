@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { Link, Deferred } from '@inertiajs/vue3';
 import { TrendingUp, Sparkles, BarChart3 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFeatureGate } from '@/composables/useFeatureGate';
-import { Link, Deferred } from '@inertiajs/vue3';
 
 const { can } = useFeatureGate();
 
@@ -40,13 +40,13 @@ const hasForecast = computed(() => {
 const revenueChartList = computed(() => props.revenueChartData ?? []);
 
 const maxRevenue = computed(() => {
-    const vals = revenueChartList.value.map((d) => d.revenue);
+    const vals = revenueChartList.value.map((d) => Number(d?.revenue) || 0);
 
     return Math.max(...vals, 100000); // at least 100k
 });
 
 const maxOrders = computed(() => {
-    const list = revenueChartList.value.map((d) => d.orders);
+    const list = revenueChartList.value.map((d) => Number(d?.orders) || 0);
 
     return Math.max(...list, 5);
 });
@@ -58,10 +58,13 @@ const ordersLinePath = computed(() => {
         return '';
     }
 
+    const maxOrd = maxOrders.value || 1;
+
     return list
         .map((day, i) => {
+            const orders = Number(day?.orders) || 0;
             const x = i * 85 + 80;
-            const y = 160 - (day.orders / maxOrders.value) * 125;
+            const y = 160 - (orders / maxOrd) * 125;
 
             return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
         })
@@ -218,12 +221,12 @@ function formatMoneyFull(v: number): string {
                         <!-- Revenue Bar (forecast = mờ hơn, có stroke-dasharray) -->
                         <rect
                             :x="i * 85 + 65"
-                            :y="160 - (day.revenue / maxRevenue) * 130"
+                            :y="160 - ((Number(day.revenue) || 0) / maxRevenue) * 130"
                             width="30"
                             :height="
                                 Math.max(
-                                    (day.revenue / maxRevenue) * 130,
-                                    day.revenue > 0 ? 4 : 0,
+                                    ((Number(day.revenue) || 0) / maxRevenue) * 130,
+                                    (Number(day.revenue) || 0) > 0 ? 4 : 0,
                                 )
                             "
                             rx="4"
@@ -253,7 +256,7 @@ function formatMoneyFull(v: number): string {
                     >
                         <circle
                             :cx="i * 85 + 80"
-                            :cy="160 - (day.orders / maxOrders) * 125"
+                            :cy="160 - ((Number(day.orders) || 0) / maxOrders) * 125"
                             r="5"
                             class="pointer-events-none fill-background stroke-emerald-500 stroke-2"
                         />
@@ -261,7 +264,7 @@ function formatMoneyFull(v: number): string {
                         <circle
                             v-if="activeHoverIndex === i"
                             :cx="i * 85 + 80"
-                            :cy="160 - (day.orders / maxOrders) * 125"
+                            :cy="160 - ((Number(day.orders) || 0) / maxOrders) * 125"
                             r="9"
                             class="pointer-events-none animate-ping fill-emerald-500/30 stroke-none"
                         />

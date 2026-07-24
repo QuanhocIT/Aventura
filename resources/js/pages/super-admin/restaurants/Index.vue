@@ -157,6 +157,7 @@ const planPageSize = 4;
 const paginatedPlanDistribution = computed(() => {
     const start = (planPage.value - 1) * planPageSize;
     const end = start + planPageSize;
+
     return props.planDistribution?.slice(start, end) ?? [];
 });
 const totalPlanPages = computed(() => {

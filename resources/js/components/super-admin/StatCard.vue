@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { TrendingUp, TrendingDown, Minus } from 'lucide-vue-next';
 import type { Component, HTMLAttributes } from 'vue';
 import { computed, toRef } from 'vue';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-vue-next';
-import { cn } from '@/lib/utils';
-import { useCountUp } from '@/composables/useCountUp';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCountUp } from '@/composables/useCountUp';
+import { cn } from '@/lib/utils';
 
 const props = withDefaults(
     defineProps<{
@@ -102,26 +102,43 @@ const colorClasses: Record<
 const colors = computed(() => colorClasses[props.color] ?? colorClasses.sky);
 
 const trendIcon = computed(() => {
-    if (props.trend === 'up') return TrendingUp;
-    if (props.trend === 'down') return TrendingDown;
+    if (props.trend === 'up') {
+return TrendingUp;
+}
+
+    if (props.trend === 'down') {
+return TrendingDown;
+}
+
     return Minus;
 });
 
 const trendColor = computed(() => {
-    if (props.trend === 'up') return 'text-emerald-600 dark:text-emerald-400';
-    if (props.trend === 'down') return 'text-rose-600 dark:text-rose-400';
+    if (props.trend === 'up') {
+return 'text-emerald-600 dark:text-emerald-400';
+}
+
+    if (props.trend === 'down') {
+return 'text-rose-600 dark:text-rose-400';
+}
+
     return 'text-muted-foreground';
 });
 
 const sparklinePoints = computed(() => {
-    if (!props.sparkline?.length) return '';
+    if (!props.sparkline?.length) {
+return '';
+}
+
     const max = Math.max(...props.sparkline);
     const min = Math.min(...props.sparkline);
     const range = max - min || 1;
+
     return props.sparkline
         .map((v, i) => {
             const x = (i / (props.sparkline!.length - 1)) * 100;
             const y = 18 - ((v - min) / range) * 16;
+
             return `${x},${y}`;
         })
         .join(' ');

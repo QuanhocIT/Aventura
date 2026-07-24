@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import {
     TrendingUp,
     Clock,
@@ -9,6 +8,7 @@ import {
     Star,
     Quote,
 } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 const activeCase = ref(0);
 

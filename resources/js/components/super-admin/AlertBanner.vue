@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { Siren, AlertTriangle, Info, CheckCircle2, X } from 'lucide-vue-next';
 import type { Component, HTMLAttributes } from 'vue';
 import { computed } from 'vue';
-import { Siren, AlertTriangle, Info, CheckCircle2, X } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 
 const props = withDefaults(

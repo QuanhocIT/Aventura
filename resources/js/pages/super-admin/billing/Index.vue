@@ -32,38 +32,6 @@ import {
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetDescription,
-} from '@/components/ui/sheet';
 import {
     PageHeader,
     StatCard,
@@ -74,6 +42,38 @@ import {
     EmptyState,
     LedIndicator,
 } from '@/components/super-admin';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from '@/components/ui/sheet';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -220,7 +220,10 @@ function openWriteOff(id: number, num: string) {
 }
 
 function submitWriteOff() {
-    if (!writeOffInvoiceId.value || !writeOffReason.value.trim()) return;
+    if (!writeOffInvoiceId.value || !writeOffReason.value.trim()) {
+return;
+}
+
     writeOffLoading.value = true;
     router.patch(
         `/super-admin/billing/invoices/${writeOffInvoiceId.value}/write-off`,
@@ -232,6 +235,7 @@ function submitWriteOff() {
             onSuccess: () => {
                 toast.success('Đã đánh dấu nợ xấu thành công!');
                 showWriteOff.value = false;
+
                 // Refresh local selected invoice if open
                 if (
                     selectedInvoice.value &&
@@ -252,7 +256,10 @@ function submitWriteOff() {
 // Webhook simulation copy
 const isCopied = ref(false);
 function copyToClipboard(text: string) {
-    if (!text) return;
+    if (!text) {
+return;
+}
+
     navigator.clipboard
         .writeText(text)
         .then(() => {
@@ -271,7 +278,10 @@ function copyToClipboard(text: string) {
 // event_type, processed_at) — không tự sinh IP/signature/tenant_id giả để tránh gây hiểu nhầm
 // đây là dữ liệu audit thật. Các trường chưa được hệ thống lưu trữ ghi rõ "Không lưu trữ".
 const webhookPayloadPreview = computed(() => {
-    if (!selectedWebhook.value) return {};
+    if (!selectedWebhook.value) {
+return {};
+}
+
     return {
         webhook_id: selectedWebhook.value.id,
         event_type: selectedWebhook.value.event_type || 'Không lưu trữ',
@@ -343,6 +353,7 @@ const metrics = computed(() => {
     let pendingCount = 0;
     invData.forEach((inv) => {
         const cleanTotal = parseFloat(inv.total.replace(/,/g, '')) || 0;
+
         if (inv.status === 'paid' || inv.status === 'processed') {
             paidSum += cleanTotal;
         } else if (inv.status === 'pending' || inv.status === 'sent') {
@@ -376,6 +387,7 @@ const metrics = computed(() => {
         .map((inv, idx) => {
             const amt = parseFloat(inv.total.replace(/,/g, '')) || 0;
             const isPaid = inv.status === 'paid' || inv.status === 'processed';
+
             return {
                 label:
                     inv.invoice_number.split('-').pop()?.substr(-4) ||
@@ -403,11 +415,15 @@ const metrics = computed(() => {
 
 // Tính toán chiều cao cột SVG linh hoạt
 function getBarHeight(val: number) {
-    if (val === 0) return 0;
+    if (val === 0) {
+return 0;
+}
+
     const maxVal = Math.max(
         ...metrics.value.chartData.map((d) => Math.max(d.paid, d.pending)),
         100000,
     );
+
     // Chiều cao tối đa trong SVG là 60px để giữ khoảng trống phía trên
     return Math.max(3, Math.round((val / maxVal) * 55));
 }

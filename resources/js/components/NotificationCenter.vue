@@ -51,9 +51,19 @@ const hasUnread = computed(() => unread.value > 0);
 // ──────────────────────────────────────────────────────────────────────────────
 function formatRelative(date: Date): string {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (diff < 60) return 'Vừa xong';
-    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+
+    if (diff < 60) {
+return 'Vừa xong';
+}
+
+    if (diff < 3600) {
+return `${Math.floor(diff / 60)} phút trước`;
+}
+
+    if (diff < 86400) {
+return `${Math.floor(diff / 3600)} giờ trước`;
+}
+
     return `${Math.floor(diff / 86400)} ngày trước`;
 }
 
@@ -73,6 +83,7 @@ function addNotification(
         read: false,
         href,
     });
+
     // Giữ tối đa 30 thông báo
     if (items.value.length > 30) {
         items.value = items.value.slice(0, 30);
@@ -81,7 +92,10 @@ function addNotification(
 
 function markRead(id: number) {
     const notif = items.value.find((n) => n.id === id);
-    if (notif) notif.read = true;
+
+    if (notif) {
+notif.read = true;
+}
 }
 
 function markAllRead() {
@@ -104,12 +118,21 @@ import { watch } from 'vue';
 watch(
     () => (page.props as any).flash,
     (flash) => {
-        if (flash?.success)
-            addNotification('success', 'Thành công', flash.success);
-        if (flash?.error) addNotification('error', 'Lỗi', flash.error);
-        if (flash?.info) addNotification('info', 'Thông tin', flash.info);
-        if (flash?.warning)
-            addNotification('warning', 'Cảnh báo', flash.warning);
+        if (flash?.success) {
+addNotification('success', 'Thành công', flash.success);
+}
+
+        if (flash?.error) {
+addNotification('error', 'Lỗi', flash.error);
+}
+
+        if (flash?.info) {
+addNotification('info', 'Thông tin', flash.info);
+}
+
+        if (flash?.warning) {
+addNotification('warning', 'Cảnh báo', flash.warning);
+}
     },
     { deep: true },
 );
@@ -127,6 +150,7 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => {
     document.addEventListener('mousedown', onClickOutside);
+
     if (items.value.length === 0) {
         addNotification(
             'stock',

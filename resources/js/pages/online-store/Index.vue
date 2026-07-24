@@ -65,7 +65,10 @@ const form = useForm({
 
 const isCopied = ref(false);
 function copyStoreUrl() {
-    if (!props.storeUrl) return;
+    if (!props.storeUrl) {
+return;
+}
+
     navigator.clipboard.writeText(props.storeUrl);
     isCopied.value = true;
     toast.success('Đã sao chép đường dẫn cửa hàng trực tuyến!');

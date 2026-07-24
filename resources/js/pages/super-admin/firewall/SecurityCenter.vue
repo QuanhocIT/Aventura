@@ -14,7 +14,6 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -23,6 +22,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -68,6 +68,7 @@ async function revokeSession(sessionId: string, userName: string) {
             },
         );
         const data = await response.json();
+
         if (data.success) {
             localSessions.value = localSessions.value.filter((s) => s.id !== sessionId);
             toast.success(`Đã hủy phiên làm việc của tài khoản "${userName}" thành công.`);
@@ -106,10 +107,22 @@ async function unblockIp(ip: string) {
 
 // Clean user agent format
 const formatUserAgent = (ua: string) => {
-    if (ua.includes('Chrome')) return 'Google Chrome';
-    if (ua.includes('Firefox')) return 'Mozilla Firefox';
-    if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Apple Safari';
-    if (ua.includes('Edge')) return 'Microsoft Edge';
+    if (ua.includes('Chrome')) {
+return 'Google Chrome';
+}
+
+    if (ua.includes('Firefox')) {
+return 'Mozilla Firefox';
+}
+
+    if (ua.includes('Safari') && !ua.includes('Chrome')) {
+return 'Apple Safari';
+}
+
+    if (ua.includes('Edge')) {
+return 'Microsoft Edge';
+}
+
     return ua.length > 30 ? ua.substring(0, 30) + '...' : ua;
 };
 </script>

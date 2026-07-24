@@ -2,9 +2,9 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Clock, TrendingUp, Wallet } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { PageHeader, StatCard, StatusBadge } from '@/components/super-admin';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -40,6 +40,7 @@ const props = defineProps<{
 // Stacked bar chart data
 const barWidth = computed(() => {
     const total = props.summary.total_cash_raw || 1;
+
     return {
         earned: (props.summary.total_earned_raw / total) * 100,
         deferred: (props.summary.total_deferred_raw / total) * 100,

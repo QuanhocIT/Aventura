@@ -11,8 +11,8 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -74,6 +74,7 @@ const showMap = ref(false);
 
 const toggleMap = () => {
     showMap.value = !showMap.value;
+
     if (showMap.value) {
         setTimeout(() => {
             initMap();
@@ -85,6 +86,7 @@ const toggleMap = () => {
             } catch (e) {
                 console.error('Lỗi khi hủy bản đồ:', e);
             }
+
             map = null;
         }
     }
@@ -140,8 +142,13 @@ const initMap = async () => {
 };
 
 const drawRestaurantMarker = () => {
-    if (!map || !L) return;
-    if (restaurantMarker) map.removeLayer(restaurantMarker);
+    if (!map || !L) {
+return;
+}
+
+    if (restaurantMarker) {
+map.removeLayer(restaurantMarker);
+}
 
     restaurantMarker = L.marker([props.restaurant.lat, props.restaurant.lng])
         .addTo(map)
@@ -149,10 +156,17 @@ const drawRestaurantMarker = () => {
 };
 
 const drawMapLayers = () => {
-    if (!map || !L || isLoading.value) return;
+    if (!map || !L || isLoading.value) {
+return;
+}
 
-    if (heatmapGroup) heatmapGroup.clearLayers();
-    if (suggestionsGroup) suggestionsGroup.clearLayers();
+    if (heatmapGroup) {
+heatmapGroup.clearLayers();
+}
+
+    if (suggestionsGroup) {
+suggestionsGroup.clearLayers();
+}
 
     // 1. Heatmap points
     if (props.heatmap && props.heatmap.length > 0) {
@@ -224,6 +238,7 @@ onUnmounted(() => {
         } catch (e) {
             console.error('Error removing map on unmount:', e);
         }
+
         map = null;
     }
 });

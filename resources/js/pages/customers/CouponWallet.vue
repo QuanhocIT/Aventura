@@ -2,8 +2,8 @@
 import { Head, router } from '@inertiajs/vue3';
 import { Gift, Clock, CheckCircle, Tag, Copy } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { Button } from '@/components/ui/button';
 import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 
 const props = defineProps<{
     restaurant: { id: number; name: string };

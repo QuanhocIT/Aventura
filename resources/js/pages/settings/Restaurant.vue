@@ -63,6 +63,7 @@ let L: any = null;
 async function searchAddressLocation() {
     if (!addressText.value) {
         searchLocationError.value = 'Vui lòng nhập địa chỉ trước khi tìm kiếm.';
+
         return;
     }
 
@@ -89,6 +90,7 @@ async function searchAddressLocation() {
             if (map && L) {
                 const latLng = L.latLng(lat, lng);
                 map.setView(latLng, 16);
+
                 if (marker) {
                     marker.setLatLng(latLng);
                 } else {
@@ -108,7 +110,10 @@ async function searchAddressLocation() {
 }
 
 function setupMarkerEvents() {
-    if (!marker) return;
+    if (!marker) {
+return;
+}
+
     marker.on('dragend', () => {
         const position = marker.getLatLng();
         latitude.value = Number(position.lat.toFixed(6));

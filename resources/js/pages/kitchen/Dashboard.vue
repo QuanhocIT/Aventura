@@ -19,11 +19,11 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import KitchenTimer from '@/components/kitchen/KitchenTimer.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Echo from '@/lib/echo';
-import KitchenTimer from '@/components/kitchen/KitchenTimer.vue';
 import { createEventBatcher } from '@/services/eventBatcher';
 
 interface PendingItem {
@@ -227,6 +227,7 @@ const aggregatedPending = computed(() => {
     const groups: Record<string, { product_name: string; prep_minutes: number; total_quantity: number; items: PendingItem[] }> = {};
     activePendingItems.value.forEach((item) => {
         const name = item.product_name;
+
         if (!groups[name]) {
             groups[name] = {
                 product_name: name,
@@ -235,9 +236,11 @@ const aggregatedPending = computed(() => {
                 items: []
             };
         }
+
         groups[name].total_quantity += item.quantity;
         groups[name].items.push(item);
     });
+
     return Object.values(groups).sort((a, b) => b.total_quantity - a.total_quantity);
 });
 
@@ -274,6 +277,7 @@ const playNotificationSound = () => {
     if (isMuted.value) {
         return;
     }
+
     try {
         const AudioContext =
             window.AudioContext || (window as any).webkitAudioContext;
@@ -349,11 +353,13 @@ const getSlaProgress = (item: PendingItem) => {
     if (!item.sent_to_kitchen_at_raw) {
         return { percent: 0, color: 'bg-emerald-500' };
     }
+
     const elapsed = getMinutesElapsed(item.sent_to_kitchen_at_raw);
     const prep = item.prep_minutes || 10;
     const percent = Math.min(100, Math.round((elapsed / prep) * 100));
 
     let color = 'bg-emerald-500';
+
     if (elapsed >= prep * 1.5) {
         color = 'bg-red-500';
     } else if (elapsed >= prep) {
@@ -404,13 +410,19 @@ const lateCount = computed(
 // Tính ETA cho từng nhóm bàn: lấy món có thời gian chuẩn bị còn lại lâu nhất
 const tableEta = computed(() => {
     const result: Record<string, { etaMinutes: number; label: string }> = {};
+
     for (const [tableName, items] of Object.entries(groupedPending.value)) {
         let maxRemainingMinutes = 0;
+
         for (const item of items) {
             const elapsed = getMinutesElapsed(item.sent_to_kitchen_at_raw);
             const remaining = Math.max(0, item.prep_minutes - elapsed);
-            if (remaining > maxRemainingMinutes) maxRemainingMinutes = remaining;
+
+            if (remaining > maxRemainingMinutes) {
+maxRemainingMinutes = remaining;
+}
         }
+
         const etaTime = new Date(nowTime.value.getTime() + maxRemainingMinutes * 60000);
         result[tableName] = {
             etaMinutes: maxRemainingMinutes,
@@ -419,6 +431,7 @@ const tableEta = computed(() => {
                 : 'Sắp xong',
         };
     }
+
     return result;
 });
 
@@ -426,12 +439,19 @@ const tableEta = computed(() => {
 type TableUrgency = 'ok' | 'warn' | 'critical';
 const tableUrgency = computed(() => {
     const result: Record<string, TableUrgency> = {};
+
     for (const [tableName, items] of Object.entries(groupedPending.value)) {
         const levels = items.map((i) => slaLevel(i));
-        if (levels.includes('late')) result[tableName] = 'critical';
-        else if (levels.includes('warn')) result[tableName] = 'warn';
-        else result[tableName] = 'ok';
+
+        if (levels.includes('late')) {
+result[tableName] = 'critical';
+} else if (levels.includes('warn')) {
+result[tableName] = 'warn';
+} else {
+result[tableName] = 'ok';
+}
     }
+
     return result;
 });
 
@@ -462,7 +482,10 @@ const handlePrepare = (itemId: number) => {
 
 const handlePrepareBulk = (itemIds: number[]) => {
     const filteredIds = itemIds.filter(id => !isUpdating.value[id] && !optimisticPreparedItemIds.value.includes(id));
-    if (filteredIds.length === 0) return;
+
+    if (filteredIds.length === 0) {
+return;
+}
 
     filteredIds.forEach(id => {
         optimisticPreparedItemIds.value.push(id);
@@ -612,7 +635,10 @@ onMounted(() => {
                 preserveScroll: true,
             });
         } else {
-            if (reloadTimeout) clearTimeout(reloadTimeout);
+            if (reloadTimeout) {
+clearTimeout(reloadTimeout);
+}
+
             reloadTimeout = setTimeout(() => {
                 lastReloadTime = Date.now();
                 router.reload({
@@ -662,22 +688,28 @@ onMounted(() => {
     // 4. WebSocket connection heartbeat and polling fallback
     const checkWebSocketConnection = () => {
         const pusher = (Echo as any)?.connector?.pusher;
+
         if (pusher && pusher.connection) {
             const state = pusher.connection.state;
+
             if (state === 'connected') {
                 connectionStatus.value = 'connected';
+
                 if (pollingInterval) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                 }
+
                 return;
             } else if (state === 'connecting') {
                 connectionStatus.value = 'connecting';
+
                 return;
             }
         }
         
         connectionStatus.value = 'polling';
+
         if (!pollingInterval) {
             pollingInterval = setInterval(() => {
                 router.reload({
@@ -705,6 +737,7 @@ onUnmounted(() => {
     if (statusCheckInterval) {
         clearInterval(statusCheckInterval);
     }
+
     if (pollingInterval) {
         clearInterval(pollingInterval);
     }
