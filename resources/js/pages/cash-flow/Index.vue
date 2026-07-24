@@ -121,6 +121,25 @@ const vnd = (v: number) => {
     }).format(val);
 };
 
+// Pagination for Registers Table (10 rows per page)
+const itemsPerPage = 10;
+const currentPage = ref(1);
+
+const totalPages = computed(() => {
+    return Math.ceil(props.registers.length / itemsPerPage) || 1;
+});
+
+const paginatedRegisters = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+    return props.registers.slice(start, start + itemsPerPage);
+});
+
+const goToPage = (p: number) => {
+    if (p >= 1 && p <= totalPages.value) {
+        currentPage.value = p;
+    }
+};
+
 // Modals
 const showOpenModal = ref(false);
 const showTransactionModal = ref(false);
@@ -325,7 +344,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- tab: ACTIVE DRAWER -->
-        <div v-if="activeTab === 'active'" class="space-y-6">
+        <div v-if="activeTab === 'active'" class="animate-fade-in space-y-6">
             <div v-if="activeRegister" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 
                 <!-- Left panel: drawer stats card -->
@@ -590,7 +609,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- tab: REGISTERS HISTORY -->
-        <div v-if="activeTab === 'history'">
+        <div v-if="activeTab === 'history'" class="animate-fade-in space-y-6">
             <Card class="overflow-hidden border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none">
                 <CardHeader class="border-b border-slate-100 bg-slate-50/40 pb-3 dark:border-slate-850 dark:bg-slate-900/30">
                     <CardTitle class="text-sm font-black tracking-wider uppercase text-slate-500 dark:text-slate-400">
@@ -622,7 +641,7 @@ const chartMaxVal = computed(() => {
                                 </td>
                             </tr>
                             <tr
-                                v-for="r in registers"
+                                v-for="r in paginatedRegisters"
                                 :key="r.id"
                                 class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
                             >
@@ -682,12 +701,65 @@ const chartMaxVal = computed(() => {
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination Bar (10 items per page) -->
+                    <div
+                        v-if="registers.length > itemsPerPage"
+                        class="flex flex-col items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 p-4 text-xs sm:flex-row dark:border-slate-800 dark:bg-slate-900/20"
+                    >
+                        <p class="text-slate-500 dark:text-slate-400">
+                            Hiển thị 
+                            <span class="font-bold text-slate-700 dark:text-slate-200">
+                                {{ (currentPage - 1) * itemsPerPage + 1 }}
+                            </span>
+                            - 
+                            <span class="font-bold text-slate-700 dark:text-slate-200">
+                                {{ Math.min(currentPage * itemsPerPage, registers.length) }}
+                            </span>
+                            trên tổng số 
+                            <span class="font-bold text-slate-700 dark:text-slate-200">
+                                {{ registers.length }}
+                            </span> dòng (10 dòng / trang)
+                        </p>
+
+                        <div class="flex items-center gap-1.5">
+                            <button
+                                @click="goToPage(currentPage - 1)"
+                                :disabled="currentPage === 1"
+                                class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                Trước
+                            </button>
+
+                            <button
+                                v-for="p in totalPages"
+                                :key="p"
+                                @click="goToPage(p)"
+                                :class="[
+                                    'inline-flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer',
+                                    currentPage === p
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                                ]"
+                            >
+                                {{ p }}
+                            </button>
+
+                            <button
+                                @click="goToPage(currentPage + 1)"
+                                :disabled="currentPage === totalPages"
+                                class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                Sau
+                            </button>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
         </div>
 
         <!-- tab: CASH FLOW CHARTS -->
-        <div v-if="activeTab === 'analytics'" class="space-y-6">
+        <div v-if="activeTab === 'analytics'" class="animate-fade-in space-y-6">
             <Card class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none">
                 <CardHeader class="border-b border-slate-100 bg-slate-50/40 pb-3 dark:border-slate-850 dark:bg-slate-900/30">
                     <div class="flex items-center justify-between">
@@ -775,8 +847,8 @@ const chartMaxVal = computed(() => {
             </Card>
         </div>
 
-        <!-- tab: FORECASTING -->
-        <div v-if="activeTab === 'forecast'" class="space-y-6">
+        <!-- tab: FORECAST & AI -->
+        <div v-if="activeTab === 'forecast'" class="animate-fade-in space-y-6">
             <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Forecast Metrics -->
                 <Card class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none">

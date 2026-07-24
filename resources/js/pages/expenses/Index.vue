@@ -570,7 +570,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 1: ANALYTICS ── -->
-        <div v-if="activeTab === 'analytics'" class="space-y-6">
+        <div v-if="activeTab === 'analytics'" class="animate-fade-in space-y-6">
             <!-- Metric Cards -->
             <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Card 1: Total OPEX this month -->
@@ -789,7 +789,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 2: EXPENSES LIST ── -->
-        <div v-if="activeTab === 'expenses'" class="space-y-6">
+        <div v-if="activeTab === 'expenses'" class="animate-fade-in space-y-6">
             <!-- Filters Bar -->
             <Card class="border-border shadow-xs">
                 <CardContent
@@ -1017,7 +1017,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 3: RECURRING EXPENSES ── -->
-        <div v-if="activeTab === 'recurring'" class="space-y-6">
+        <div v-if="activeTab === 'recurring'" class="animate-fade-in space-y-6">
             <Card class="overflow-hidden border-border shadow-xs">
                 <CardHeader
                     class="border-b bg-slate-50/40 pb-3 dark:bg-slate-900/10"
@@ -1159,8 +1159,8 @@ const chartMaxVal = computed(() => {
             </Card>
         </div>
 
-        <!-- ── TAB 4: EXPENSE CATEGORIES ── -->
-        <div v-if="activeTab === 'categories'" class="space-y-6">
+        <!-- ── TAB 4: CATEGORIES MANAGEMENT ── -->
+        <div v-if="activeTab === 'categories'" class="animate-fade-in space-y-6">
             <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <!-- Loop over all categories -->
                 <Card
@@ -1215,7 +1215,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 5: PROFIT & LOSS REPORT ── -->
-        <div v-if="activeTab === 'profit-loss'">
+        <div v-if="activeTab === 'profit-loss'" class="animate-fade-in space-y-6">
             <Deferred data="profitLossReport">
                 <template #fallback>
                     <div class="space-y-6">

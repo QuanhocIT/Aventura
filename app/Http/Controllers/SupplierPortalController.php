@@ -58,6 +58,35 @@ class SupplierPortalController extends Controller
                 'created_at' => $po->created_at->format('d/m/Y H:i'),
             ]);
 
+        $pos = PurchaseOrder::withoutGlobalScopes()
+            ->where('supplier_id', $supplier->id)
+            ->whereIn('status', ['delivered', 'frozen'])
+            ->get();
+
+        $totalPos = $pos->count();
+        $onTimeCount = 0;
+        $accurateCount = 0;
+
+        foreach ($pos as $po) {
+            if (!$po->is_discrepant) {
+                $accurateCount++;
+            }
+
+            if ($po->delivery_due_date && $po->delivered_at) {
+                $dueDate = \Carbon\Carbon::parse($po->delivery_due_date);
+                $deliveredDate = \Carbon\Carbon::parse($po->delivered_at);
+                if ($deliveredDate->lte($dueDate->addMinutes(30))) {
+                    $onTimeCount++;
+                }
+            } else {
+                $onTimeCount++;
+            }
+        }
+
+        $onTimeRate = $totalPos > 0 ? ($onTimeCount / $totalPos) * 100 : 100;
+        $accuracyRate = $totalPos > 0 ? ($accurateCount / $totalPos) * 100 : 100;
+        $averageRating = $pos->whereNotNull('rating')->avg('rating') ?? 5.0;
+
         return Inertia::render('supplier/Dashboard', [
             'supplier' => $supplier,
             'stats' => [
@@ -67,6 +96,11 @@ class SupplierPortalController extends Controller
                 'total_revenue' => (float) $totalRevenue,
             ],
             'recentOrders' => $recentOrders,
+            'sla' => [
+                'on_time_rate' => round($onTimeRate, 1),
+                'accuracy_rate' => round($accuracyRate, 1),
+                'average_rating' => round($averageRating, 1),
+            ]
         ]);
     }
 
@@ -98,6 +132,7 @@ class SupplierPortalController extends Controller
         $units = Unit::withoutGlobalScopes()->get(['id', 'name', 'symbol']);
 
         return Inertia::render('supplier/Catalog', [
+            'supplier' => $supplier,
             'ingredients' => $ingredients,
             'units' => $units,
         ]);
@@ -261,7 +296,11 @@ class SupplierPortalController extends Controller
      */
     public function getSlaMetrics(Request $request, Supplier $supplier)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        $user = $request->user();
+        $isAllowed = $user->hasAnyRole(['owner', 'manager', 'inventory_staff']) || 
+            ($user->hasRole('supplier') && (int) $user->supplier_id === (int) $supplier->id);
+        
+        abort_unless($isAllowed, 403);
 
         $pos = PurchaseOrder::where('supplier_id', $supplier->id)
             ->whereIn('status', ['delivered', 'frozen'])

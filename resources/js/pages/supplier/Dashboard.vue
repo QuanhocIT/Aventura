@@ -20,6 +20,11 @@ const props = defineProps<{
         total_revenue: number;
     };
     recentOrders: any[];
+    sla: {
+        on_time_rate: number;
+        accuracy_rate: number;
+        average_rating: number;
+    };
 }>();
 </script>
 
@@ -139,6 +144,63 @@ const props = defineProps<{
                     class="rounded-lg border border-slate-800 bg-slate-950 p-3 text-emerald-400"
                 >
                     <Landmark class="h-6 w-6" />
+                </div>
+            </div>
+        </div>
+
+        <!-- SLA Metrics Dashboard Section -->
+        <div class="rounded-xl border border-slate-800/80 bg-slate-900/40 p-6 backdrop-blur-sm space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-200">Hiệu suất và Chỉ số SLA vận hành</h3>
+                    <p class="text-xs text-slate-400">Các chỉ số đo lường hiệu quả giao nhận và phục vụ chuỗi cung ứng.</p>
+                </div>
+                <span class="rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-400 uppercase">Realtime SLA</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3 text-left">
+                <!-- SLA 1: On time -->
+                <div class="rounded-xl bg-slate-950/40 p-4 border border-slate-800/50 flex flex-col justify-between">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Tỷ lệ đúng hạn</span>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-2xl font-black text-emerald-400 font-mono">{{ sla.on_time_rate }}%</span>
+                            <span class="text-[9px] text-emerald-500 font-bold">Mục tiêu: >95%</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                        <div class="h-full bg-emerald-500 rounded-full" :style="{ width: sla.on_time_rate + '%' }"></div>
+                    </div>
+                </div>
+
+                <!-- SLA 2: Accuracy -->
+                <div class="rounded-xl bg-slate-950/40 p-4 border border-slate-800/50 flex flex-col justify-between">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Tỷ lệ đủ & chính xác hàng</span>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-2xl font-black text-indigo-400 font-mono">{{ sla.accuracy_rate }}%</span>
+                            <span class="text-[9px] text-indigo-500 font-bold">Mục tiêu: >98%</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                        <div class="h-full bg-indigo-500 rounded-full" :style="{ width: sla.accuracy_rate + '%' }"></div>
+                    </div>
+                </div>
+
+                <!-- SLA 3: Rating -->
+                <div class="rounded-xl bg-slate-950/40 p-4 border border-slate-800/50 flex flex-col justify-between">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Đánh giá sao trung bình</span>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-2xl font-black text-amber-500 font-mono">{{ sla.average_rating }} / 5.0</span>
+                            <span class="text-[9px] text-amber-500 font-bold">Chất lượng: Xuất sắc</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex gap-0.5">
+                        <span v-for="star in 5" :key="star" class="text-sm">
+                            {{ star <= Math.round(sla.average_rating) ? '⭐' : '☆' }}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

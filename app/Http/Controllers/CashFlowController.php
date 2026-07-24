@@ -54,7 +54,7 @@ class CashFlowController extends Controller
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->with(['openedBy', 'closedBy', 'shift'])
             ->latest('id')
-            ->take(20)
+            ->take(100)
             ->get()
             ->map(fn($r) => [
                 'id' => $r->id,

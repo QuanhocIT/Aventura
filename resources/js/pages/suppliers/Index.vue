@@ -1309,7 +1309,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: Suppliers List -->
-        <div v-if="activeTab === 'list'" class="space-y-6">
+        <div v-if="activeTab === 'list'" class="animate-fade-in space-y-6">
             <!-- KPI Summary Cards -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div
@@ -1703,7 +1703,7 @@ onUnmounted(() => {
             <!-- Empty / No matches State -->
             <div
                 v-else
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/25 py-16 text-center backdrop-blur-xs"
+                class="animate-fade-in flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/25 py-16 text-center backdrop-blur-xs"
             >
                 <div
                     class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground"
@@ -1730,7 +1730,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: Supply Chain Cockpit -->
-        <div v-if="activeTab === 'cockpit'" class="space-y-6">
+        <div v-if="activeTab === 'cockpit'" class="animate-fade-in space-y-6">
             <!-- Cockpit Header -->
             <div class="flex items-center justify-between border-b pb-4">
                 <div>
@@ -2842,7 +2842,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: Aggregate SLA Dashboard -->
-        <div v-if="activeTab === 'sla-dashboard'" class="space-y-6">
+        <div v-if="activeTab === 'sla-dashboard'" class="animate-fade-in space-y-6">
             <!-- Dashboard Header -->
             <div class="flex items-center justify-between border-b pb-4">
                 <div>

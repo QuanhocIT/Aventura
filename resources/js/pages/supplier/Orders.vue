@@ -96,6 +96,80 @@ const submitWorkflow = () => {
         },
     );
 };
+
+const printOrderSlip = () => {
+    if (!selectedOrder.value) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        toast.error('Vui lòng cho phép trình duyệt hiển thị pop-up để in vận đơn.');
+        return;
+    }
+    
+    const itemsHtml = selectedOrder.value.items.map((item: any) => `
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.ingredient_name}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity_ordered} ${item.unit_symbol}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.price_per_unit.toLocaleString('vi-VN')}đ</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${(item.quantity_ordered * item.price_per_unit).toLocaleString('vi-VN')}đ</td>
+        </tr>
+    `).join('');
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Vận đơn giao nhận PO #${selectedOrder.value.po_number}</title>
+            <style>
+                body { font-family: sans-serif; color: #333; margin: 40px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th { background-color: #f5f5f5; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; }
+                .header { text-align: center; margin-bottom: 30px; }
+                .details { margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #777; }
+                .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
+                .signature-box { width: 200px; text-align: center; border-top: 1px dashed #333; padding-top: 5px; }
+            </style>
+        </head>
+        <body onload="window.print(); window.close();">
+            <div class="header">
+                <h2>PHIẾU BÀN GIAO & ĐÓNG GÓI VẬT TƯ</h2>
+                <p>Số đơn hàng: <strong>${selectedOrder.value.po_number}</strong></p>
+            </div>
+            
+            <div class="details">
+                <p><strong>Ngày đặt hàng:</strong> ${selectedOrder.value.created_at}</p>
+                <p><strong>Trạng thái vận đơn:</strong> ${selectedOrder.value.status.toUpperCase()}</p>
+                <p><strong>Trạng thái thanh toán:</strong> ${selectedOrder.value.payment_status.toUpperCase()}</p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tên nguyên vật liệu</th>
+                        <th style="text-align: center;">Số lượng</th>
+                        <th style="text-align: right;">Đơn giá</th>
+                        <th style="text-align: right;">Thành tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+            
+            <h3 style="text-align: right; margin-top: 20px;">Tổng tiền thanh toán: ${selectedOrder.value.total_amount.toLocaleString('vi-VN')}đ</h3>
+            
+            <div class="signature-section">
+                <div class="signature-box">Nhân viên kho giao hàng<br><small>(Ký và ghi rõ họ tên)</small></div>
+                <div class="signature-box">Thủ kho tiếp nhận<br><small>(Ký và ghi rõ họ tên)</small></div>
+            </div>
+            
+            <div class="footer">
+                <p>Cổng chuỗi cung ứng tự động Aventura SaaS — Giải pháp quản trị nhà hàng chuyên sâu</p>
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
 </script>
 
 <template>
@@ -388,8 +462,15 @@ const submitWorkflow = () => {
                     </div>
 
                     <div
-                        class="flex justify-end border-t border-slate-800 pt-4"
+                        class="flex justify-end border-t border-slate-800 pt-4 gap-2"
                     >
+                        <button
+                            type="button"
+                            @click="printOrderSlip"
+                            class="rounded-lg border border-indigo-900 bg-indigo-950 px-4 py-2 text-sm font-semibold text-indigo-400 transition-colors hover:text-indigo-300"
+                        >
+                            In phiếu giao hàng
+                        </button>
                         <button
                             type="button"
                             @click="showDetailModal = false"
