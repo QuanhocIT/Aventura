@@ -46,6 +46,7 @@ const targetRect = ref<DOMRect | null>(null);
 const tooltipStyle = ref<any>({});
 const scrollPosition = ref({ x: window.scrollX, y: window.scrollY });
 const isSuccessOpen = ref(false);
+const lastScrolledStep = ref<string | null>(null);
 
 // Định nghĩa tất cả các bước Tour cho 3 Ngày
 const tourSteps: Record<number, TourStep[]> = {
@@ -138,7 +139,16 @@ const updateTargetPosition = () => {
     const el = document.querySelector(activeStep.value.selector) as HTMLElement;
 
     if (el) {
+        // Cập nhật vị trí cuộn trang hiện tại
+        scrollPosition.value = { x: window.scrollX, y: window.scrollY };
+
         // Tự động scroll phần tử vào tầm nhìn nếu cần
+        const stepKey = `${currentDay.value}_${activeStepIndex.value}_${activeStep.value.selector}`;
+        if (lastScrolledStep.value !== stepKey) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            lastScrolledStep.value = stepKey;
+        }
+
         const rect = el.getBoundingClientRect();
         targetRect.value = rect;
 
@@ -204,6 +214,7 @@ const startTour = (day: number) => {
     activeStepIndex.value = 0;
     isTourActive.value = true;
     isSuccessOpen.value = false;
+    lastScrolledStep.value = null;
     nextTick(() => {
         updateTargetPosition();
         startTargetPolling();
@@ -214,6 +225,7 @@ const skipTour = () => {
     isTourActive.value = false;
     stopTargetPolling();
     targetRect.value = null;
+    lastScrolledStep.value = null;
     // Ghi nhớ người dùng đã dismiss tour ngày này trong session — không tự bật lại khi reload
     sessionStorage.setItem(
         `aventura_tour_day${currentDay.value}_dismissed`,
@@ -252,6 +264,7 @@ const completeDay = () => {
     stopTargetPolling();
     targetRect.value = null;
     isSuccessOpen.value = true;
+    lastScrolledStep.value = null;
     // Xóa flag dismissed để ngày tiếp theo có thể auto-start bình thường
     sessionStorage.removeItem(`aventura_tour_day${currentDay.value}_dismissed`);
 
@@ -302,7 +315,7 @@ watch(
 // Lắng nghe trạng thái onboarding của User từ Backend để tự động kích hoạt
 onMounted(() => {
     window.addEventListener('resize', updateTargetPosition);
-    window.addEventListener('scroll', updateTargetPosition);
+    window.addEventListener('scroll', updateTargetPosition, true);
 
     // Kích hoạt tour tự động nếu user đăng nhập lần đầu và chưa hoàn thành Day 1
     // Dùng sessionStorage để tránh auto-start lại mỗi lần reload trang
@@ -349,7 +362,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('resize', updateTargetPosition);
-    window.removeEventListener('scroll', updateTargetPosition);
+    window.removeEventListener('scroll', updateTargetPosition, true);
     stopTargetPolling();
 });
 

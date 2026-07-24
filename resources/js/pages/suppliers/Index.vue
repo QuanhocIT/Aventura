@@ -3572,11 +3572,12 @@ onUnmounted(() => {
         <!-- Manual Transfer Modal -->
         <div
             v-if="showManualTransferModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
         >
-            <Card
-                class="w-full max-w-lg animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-lg animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader
                     class="flex flex-row items-center justify-between border-b pb-4"
                 >
@@ -3759,16 +3760,18 @@ onUnmounted(() => {
                     </div>
                 </form>
             </Card>
+            </div>
         </div>
 
         <!-- Add/Edit Supplier Modals -->
         <div
             v-if="showAddModal || showEditModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
         >
-            <Card
-                class="relative w-full max-w-lg animate-in overflow-hidden rounded-2xl border-border bg-card/95 shadow-2xl backdrop-blur-md duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="relative w-full max-w-lg animate-in overflow-hidden rounded-2xl border-border bg-card/95 shadow-2xl backdrop-blur-md duration-150 zoom-in-95 fade-in"
+                >
                 <!-- Top Accent Line -->
                 <div
                     class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400"
@@ -4101,16 +4104,18 @@ onUnmounted(() => {
                     </div>
                 </form>
             </Card>
+            </div>
         </div>
 
         <!-- Place PO Modal (2-Step Workflow) -->
         <div
             v-if="showPoModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
         >
-            <Card
-                class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in border-border"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in border-border"
+                >
                 <CardHeader
                     class="flex flex-row items-center justify-between border-b pb-4 bg-muted/20"
                 >
@@ -4443,16 +4448,18 @@ onUnmounted(() => {
                     </div>
                 </form>
             </Card>
+            </div>
         </div>
 
         <!-- Verify & Deliver Dual-Verification Modal -->
         <div
             v-if="showVerifyModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
         >
-            <Card
-                class="w-full max-w-3xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-3xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader
                     class="flex flex-row items-center justify-between border-b pb-4"
                 >
@@ -4739,6 +4746,7 @@ onUnmounted(() => {
                     </div>
                 </form>
             </Card>
+            </div>
         </div>
     </div>
 </template>

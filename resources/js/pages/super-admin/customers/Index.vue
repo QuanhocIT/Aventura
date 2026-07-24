@@ -64,23 +64,23 @@ const props = defineProps<{
     filters: { restaurant_id?: string; search?: string; vip?: string };
 }>();
 
-const restaurantId = ref(props.filters.restaurant_id ?? '');
+const restaurantId = ref(props.filters.restaurant_id || 'all');
 const search = ref(props.filters.search ?? '');
-const vip = ref(props.filters.vip ?? '');
+const vip = ref(props.filters.vip || 'all');
 
-let timer: ReturnType<typeof setTimeout>;
+let searchTimer: ReturnType<typeof setTimeout>;
 watch(search, () => {
-    clearTimeout(timer);
-    timer = setTimeout(applyFilter, 400);
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilter, 400);
 });
 
 function applyFilter() {
     router.get(
         '/super-admin/customers',
         {
-            restaurant_id: restaurantId.value || undefined,
+            restaurant_id: restaurantId.value && restaurantId.value !== 'all' ? restaurantId.value : undefined,
             search: search.value || undefined,
-            vip: vip.value || undefined,
+            vip: vip.value && vip.value !== 'all' ? vip.value : undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -462,7 +462,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả nhà hàng" />
                 </SelectTrigger>
                 <SelectContent class="rounded-xl">
-                    <SelectItem value="">Tất cả nhà hàng</SelectItem>
+                    <SelectItem value="all">Tất cả nhà hàng</SelectItem>
                     <SelectItem
                         v-for="r in restaurants"
                         :key="r.id"
@@ -478,7 +478,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả hạng" />
                 </SelectTrigger>
                 <SelectContent class="rounded-xl">
-                    <SelectItem value="">Tất cả hạng</SelectItem>
+                    <SelectItem value="all">Tất cả hạng</SelectItem>
                     <SelectItem value="1">Chỉ hạng VIP</SelectItem>
                 </SelectContent>
             </Select>

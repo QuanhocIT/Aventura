@@ -612,11 +612,12 @@ const vnd = (value: number) => {
         <!-- Add Area Modal -->
         <div
             v-if="showAddArea"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
         >
-            <Card
-                class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle class="text-base">Tạo khu vực mới</CardTitle>
@@ -668,16 +669,18 @@ const vnd = (value: number) => {
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
 
         <!-- Add Table Modal -->
         <div
             v-if="showAddTable"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
         >
-            <Card
-                class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle class="text-base">Thêm bàn mới</CardTitle>
@@ -757,16 +760,18 @@ const vnd = (value: number) => {
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
 
         <!-- Edit Table Modal -->
         <div
             v-if="editingTable"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
         >
-            <Card
-                class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base"
@@ -846,6 +851,7 @@ const vnd = (value: number) => {
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
 
         <!-- Delete Confirm -->
@@ -887,11 +893,12 @@ const vnd = (value: number) => {
         <!-- QR Code Modal -->
         <div
             v-if="selectedQrTable"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
         >
-            <Card
-                class="w-full max-w-md animate-in rounded-2xl border border-teal-500/20 shadow-2xl duration-150 zoom-in-95 fade-in"
-            >
+            <div class="flex min-h-full items-center justify-center">
+                <Card
+                    class="w-full max-w-md animate-in rounded-2xl border border-teal-500/20 shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
                 <CardHeader class="border-b pb-3">
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base">
@@ -962,6 +969,7 @@ const vnd = (value: number) => {
                     </div>
                 </CardContent>
             </Card>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">

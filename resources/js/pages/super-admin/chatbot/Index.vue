@@ -80,7 +80,7 @@ const props = defineProps<{
 
 // ── Filter state ──────────────────────────────────────────────────────────────
 const searchQuery = ref(props.filters.search ?? '');
-const categoryFilter = ref(props.filters.category ?? '');
+const categoryFilter = ref(props.filters.category || 'all');
 
 // ── Pagination state ─────────────────────────────────────────────────────────
 const currentPage = ref(1);
@@ -127,7 +127,7 @@ function applyFilters() {
         '/super-admin/chatbot',
         {
             search: searchQuery.value || undefined,
-            category: categoryFilter.value || undefined,
+            category: categoryFilter.value && categoryFilter.value !== 'all' ? categoryFilter.value : undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -524,7 +524,7 @@ const hasActiveFilters = computed(
                             <SelectValue placeholder="Tất cả danh mục" />
                         </SelectTrigger>
                         <SelectContent class="rounded-xl">
-                            <SelectItem value="">Tất cả danh mục</SelectItem>
+                            <SelectItem value="all">Tất cả danh mục</SelectItem>
                             <SelectItem
                                 v-for="cat in categories"
                                 :key="cat"

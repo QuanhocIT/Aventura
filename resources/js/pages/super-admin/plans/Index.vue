@@ -124,16 +124,27 @@ const createForm = useForm({
     kitchen_display: false,
     qr_ordering: false,
     inventory_basic: false,
+    supplier_portal: false,
+    kiosk_mode: false,
+    table_reservation: false,
     hr_timekeeping: false,
     hr_full: false,
+    shift_management: false,
+    crm_loyalty: false,
+    marketing_campaign: false,
+    custom_domain: false,
     advanced_analytics: false,
     realtime: false,
     fraud_detection: false,
     email_reports: false,
     ai_advisor: false,
-    supplier_portal: false,
     ai_forecasting: false,
+    delivery_integration: false,
+    e_invoice: false,
+    multi_branch_sync: false,
+    multi_currency: false,
     api_access: false,
+    automated_backup: false,
 });
 
 function submitCreate() {
@@ -163,16 +174,27 @@ const form = useForm({
     kitchen_display: false,
     qr_ordering: false,
     inventory_basic: false,
+    supplier_portal: false,
+    kiosk_mode: false,
+    table_reservation: false,
     hr_timekeeping: false,
     hr_full: false,
+    shift_management: false,
+    crm_loyalty: false,
+    marketing_campaign: false,
+    custom_domain: false,
     advanced_analytics: false,
     realtime: false,
     fraud_detection: false,
     email_reports: false,
     ai_advisor: false,
-    supplier_portal: false,
     ai_forecasting: false,
+    delivery_integration: false,
+    e_invoice: false,
+    multi_branch_sync: false,
+    multi_currency: false,
     api_access: false,
+    automated_backup: false,
 });
 
 const toForm = (v: number | null) => (v === null ? -1 : v);
@@ -195,16 +217,27 @@ function startEdit(plan: Plan) {
     form.kitchen_display = plan.features?.kitchen_display ?? false;
     form.qr_ordering = plan.features?.qr_ordering ?? false;
     form.inventory_basic = plan.features?.inventory_basic ?? false;
+    form.supplier_portal = plan.features?.supplier_portal ?? false;
+    form.kiosk_mode = plan.features?.kiosk_mode ?? false;
+    form.table_reservation = plan.features?.table_reservation ?? false;
     form.hr_timekeeping = plan.features?.hr_timekeeping ?? false;
     form.hr_full = plan.features?.hr_full ?? false;
+    form.shift_management = plan.features?.shift_management ?? false;
+    form.crm_loyalty = plan.features?.crm_loyalty ?? false;
+    form.marketing_campaign = plan.features?.marketing_campaign ?? false;
+    form.custom_domain = plan.features?.custom_domain ?? false;
     form.advanced_analytics = plan.features?.advanced_analytics ?? false;
     form.realtime = plan.features?.realtime ?? false;
     form.fraud_detection = plan.features?.fraud_detection ?? false;
     form.email_reports = plan.features?.email_reports ?? false;
     form.ai_advisor = plan.features?.ai_advisor ?? false;
-    form.supplier_portal = plan.features?.supplier_portal ?? false;
     form.ai_forecasting = plan.features?.ai_forecasting ?? false;
+    form.delivery_integration = plan.features?.delivery_integration ?? false;
+    form.e_invoice = plan.features?.e_invoice ?? false;
+    form.multi_branch_sync = plan.features?.multi_branch_sync ?? false;
+    form.multi_currency = plan.features?.multi_currency ?? false;
     form.api_access = plan.features?.api_access ?? false;
+    form.automated_backup = plan.features?.automated_backup ?? false;
 }
 
 function save(planId: number) {
@@ -281,19 +314,41 @@ function getGradientForName(name: string): string {
 }
 
 const ALL_FEATURES: { key: string; label: string }[] = [
+    // 1. Vận hành & POS
     { key: 'kitchen_display', label: 'Màn hình Bếp (Kitchen Display)' },
     { key: 'qr_ordering', label: 'Đặt món qua QR' },
     { key: 'inventory_basic', label: 'Quản lý Tồn kho' },
+    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'kiosk_mode', label: 'Kiosk Tự phục vụ' },
+    { key: 'table_reservation', label: 'Đặt bàn Trực tuyến' },
+
+    // 2. Nhân sự & Ca làm
     { key: 'hr_timekeeping', label: 'Chấm công & Lịch làm việc' },
     { key: 'hr_full', label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'shift_management', label: 'Quản lý Ca & Giao tiền' },
+
+    // 3. CRM & Marketing
+    { key: 'crm_loyalty', label: 'CRM & Tích điểm VIP' },
+    { key: 'marketing_campaign', label: 'Voucher & Khuyến mãi' },
+    { key: 'custom_domain', label: 'Tên miền riêng (Custom Domain)' },
+
+    // 4. Phân tích & Tự động hóa
     { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
     { key: 'realtime', label: 'Cập nhật thời gian thực' },
     { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
     { key: 'email_reports', label: 'Email Báo cáo tự động' },
+
+    // 5. Trí tuệ Nhân tạo AI
     { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
-    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
     { key: 'ai_forecasting', label: 'AI Dự báo Tồn kho' },
+
+    // 6. Tích hợp & Enterprise
+    { key: 'delivery_integration', label: 'Kết nối Sàn Giao hàng' },
+    { key: 'e_invoice', label: 'Hóa đơn Điện tử VAT' },
+    { key: 'multi_branch_sync', label: 'Đồng bộ Liên chi nhánh' },
+    { key: 'multi_currency', label: 'Đa Tiền tệ & Đa Ngôn ngữ' },
     { key: 'api_access', label: 'Truy cập API' },
+    { key: 'automated_backup', label: 'Sao lưu Dữ liệu Tự động' },
 ];
 
 const FEATURE_CATEGORIES = [
@@ -305,44 +360,74 @@ const FEATURE_CATEGORIES = [
             'qr_ordering',
             'inventory_basic',
             'supplier_portal',
+            'kiosk_mode',
+            'table_reservation',
         ],
     },
     {
-        name: 'Nhân sự & Chấm công',
+        name: 'Nhân sự & Ca làm',
         icon: 'Users',
-        keys: ['hr_timekeeping', 'hr_full'],
+        keys: ['hr_timekeeping', 'hr_full', 'shift_management'],
     },
     {
-        name: 'Phân tích & AI',
-        icon: 'Sparkles',
+        name: 'CRM & Marketing',
+        icon: 'Tag',
+        keys: ['crm_loyalty', 'marketing_campaign', 'custom_domain'],
+    },
+    {
+        name: 'Phân tích & Tự động hóa',
+        icon: 'FileText',
         keys: [
             'advanced_analytics',
+            'realtime',
             'fraud_detection',
-            'ai_advisor',
-            'ai_forecasting',
+            'email_reports',
         ],
     },
     {
-        name: 'Hệ thống & Tích hợp',
+        name: 'Trí tuệ Nhân tạo AI',
+        icon: 'Sparkles',
+        keys: ['ai_advisor', 'ai_forecasting'],
+    },
+    {
+        name: 'Tích hợp & Enterprise',
         icon: 'Globe',
-        keys: ['realtime', 'email_reports', 'api_access'],
+        keys: [
+            'delivery_integration',
+            'e_invoice',
+            'multi_branch_sync',
+            'multi_currency',
+            'api_access',
+            'automated_backup',
+        ],
     },
 ];
 
 const FEATURE_DESCRIPTIONS: Record<string, string> = {
-    kitchen_display: "Màn hình hiển thị chế biến món ăn trực quan tại bếp.",
-    qr_ordering: "Khách quét mã QR tại bàn để tự đặt món, thanh toán.",
-    inventory_basic: "Theo dõi lượng tồn kho và định lượng món ăn cơ bản.",
-    hr_timekeeping: "Sắp xếp lịch trực và chấm công GPS/Camera thông minh.",
-    hr_full: "Quản lý nhân sự, tính lương tự động, thuế và bảo hiểm.",
-    advanced_analytics: "Báo cáo doanh thu, chi phí, lợi nhuận chuyên sâu.",
-    realtime: "Đồng bộ hóa tức thì mọi dữ liệu trên toàn hệ thống.",
-    fraud_detection: "Cảnh báo gian lận, hủy món hoặc sai lệch hóa đơn từ AI.",
-    email_reports: "Báo cáo tự động gửi trực tiếp đến email của quản lý.",
-    ai_advisor: "AI phân tích và gợi ý tối ưu giá, thực đơn kinh doanh.",
-    supplier_portal: "Cổng giao tiếp đặt hàng, quản lý giá với nhà cung cấp.",
-    ai_forecasting: "AI phân tích dữ liệu cũ để dự đoán lượng hàng cần nhập.",
-    api_access: "Cung cấp cổng API kết nối các phần mềm bên ngoài.",
+    kitchen_display: 'Màn hình hiển thị chế biến món ăn trực quan tại bếp.',
+    qr_ordering: 'Khách quét mã QR tại bàn để tự đặt món, thanh toán.',
+    inventory_basic: 'Theo dõi lượng tồn kho và định lượng món ăn cơ bản.',
+    supplier_portal: 'Cổng giao tiếp đặt hàng, quản lý giá với nhà cung cấp.',
+    kiosk_mode: 'Màn hình cảm ứng cho khách hàng tự gọi món và thanh toán.',
+    table_reservation: 'Cho phép khách hàng đặt giữ bàn trước qua website.',
+    hr_timekeeping: 'Sắp xếp lịch trực và chấm công GPS/Camera thông minh.',
+    hr_full: 'Quản lý nhân sự, tính lương tự động, thuế và bảo hiểm.',
+    shift_management: 'Chốt ca làm việc, đối soát tiền mặt và bàn giao ca.',
+    crm_loyalty: 'Tích điểm đổi quà, quản lý hạng khách hàng VIP & Birthday.',
+    marketing_campaign: 'Tạo mã giảm giá, khuyến mãi combo theo khung giờ.',
+    custom_domain: 'Gán tên miền thương hiệu riêng cho trang Menu Online.',
+    advanced_analytics: 'Báo cáo doanh thu, chi phí, lợi nhuận chuyên sâu.',
+    realtime: 'Đồng bộ hóa tức thì mọi dữ liệu trên toàn hệ thống.',
+    fraud_detection: 'Cảnh báo gian lận, hủy món hoặc sai lệch hóa đơn từ AI.',
+    email_reports: 'Báo cáo tự động gửi trực tiếp đến email của quản lý.',
+    ai_advisor: 'AI phân tích và gợi ý tối ưu giá, thực đơn kinh doanh.',
+    ai_forecasting: 'AI phân tích dữ liệu cũ để dự đoán lượng hàng cần nhập.',
+    delivery_integration: 'Tự động đồng bộ đơn hàng từ GrabFood, ShopeeFood, Be.',
+    e_invoice: 'Xuất hóa đơn điện tử VAT trực tiếp từ máy POS bán hàng.',
+    multi_branch_sync: 'Tự động đồng bộ thực đơn và giá giữa các chi nhánh.',
+    multi_currency: 'Hỗ trợ thanh toán nhiều loại tiền tệ và ngôn ngữ.',
+    api_access: 'Cung cấp cổng API kết nối các phần mềm bên ngoài.',
+    automated_backup: 'Tự động sao lưu dữ liệu hệ thống mỗi 24 giờ.',
 };
 
 const categoryIcon: Record<string, any> = {
@@ -350,6 +435,8 @@ const categoryIcon: Record<string, any> = {
     Users: Users,
     Sparkles: Sparkles,
     Globe: Globe,
+    Tag: Tag,
+    FileText: FileText,
 };
 
 function getFeatureLabel(key: string): string {

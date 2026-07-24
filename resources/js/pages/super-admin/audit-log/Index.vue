@@ -93,8 +93,8 @@ const props = defineProps<{
     stats: Stats;
 }>();
 
-const restaurantFilter = ref(props.filters.restaurant_id ?? '');
-const eventFilter = ref(props.filters.event ?? '');
+const restaurantFilter = ref(props.filters.restaurant_id || 'all');
+const eventFilter = ref(props.filters.event || 'all');
 const actionFilter = ref(props.filters.action ?? '');
 const fromFilter = ref(props.filters.from ?? '');
 const toFilter = ref(props.filters.to ?? '');
@@ -109,8 +109,8 @@ function applyFilter() {
     router.get(
         '/super-admin/audit-logs',
         {
-            restaurant_id: restaurantFilter.value || undefined,
-            event: eventFilter.value || undefined,
+            restaurant_id: restaurantFilter.value && restaurantFilter.value !== 'all' ? restaurantFilter.value : undefined,
+            event: eventFilter.value && eventFilter.value !== 'all' ? eventFilter.value : undefined,
             action: actionFilter.value || undefined,
             from: fromFilter.value || undefined,
             to: toFilter.value || undefined,
@@ -606,7 +606,7 @@ const securityInsights = computed(() => {
                     <SelectValue placeholder="Tất cả nhà hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả nhà hàng</SelectItem>
+                    <SelectItem value="all">Tất cả nhà hàng</SelectItem>
                     <SelectItem value="system">— Hệ thống —</SelectItem>
                     <SelectItem
                         v-for="r in restaurants"
@@ -621,7 +621,7 @@ const securityInsights = computed(() => {
                     <SelectValue placeholder="Tất cả sự kiện" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả sự kiện</SelectItem>
+                    <SelectItem value="all">Tất cả sự kiện</SelectItem>
                     <SelectItem value="created">Tạo mới</SelectItem>
                     <SelectItem value="updated">Cập nhật</SelectItem>
                     <SelectItem value="deleted">Xóa</SelectItem>

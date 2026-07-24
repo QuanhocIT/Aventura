@@ -1614,10 +1614,11 @@ const submitWaste = () => {
     >
         <div
             v-if="showAddIngredient"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
             @click.self="showAddIngredient = false"
         >
-            <Card class="w-full max-w-md">
+            <div class="flex min-h-full items-center justify-center" @click.self="showAddIngredient = false">
+                <Card class="w-full max-w-md">
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base">
@@ -1704,6 +1705,7 @@ const submitWaste = () => {
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
     </Transition>
 
@@ -1718,10 +1720,11 @@ const submitWaste = () => {
     >
         <div
             v-if="showAddRecipe && activeProduct"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
             @click.self="showAddRecipe = false"
         >
-            <Card class="w-full max-w-2xl">
+            <div class="flex min-h-full items-center justify-center" @click.self="showAddRecipe = false">
+                <Card class="w-full max-w-2xl">
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base">
@@ -1859,6 +1862,7 @@ const submitWaste = () => {
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
     </Transition>
 </template>

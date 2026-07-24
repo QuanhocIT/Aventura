@@ -7,10 +7,27 @@ use App\Models\Restaurant;
 class QuotaService
 {
     // null = không giới hạn
+    // null = không giới hạn
     public function getLimit(Restaurant $restaurant, string $resource): ?int
     {
         if ($resource === 'storage_mb' && $restaurant->custom_storage_limit_mb !== null) {
             return $restaurant->custom_storage_limit_mb;
+        }
+
+        // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ khỏi xung đột khi sửa Gói Master)
+        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $snapshot = $subscription?->meta['snapshot'] ?? null;
+
+        if ($snapshot) {
+            return match ($resource) {
+                'branches'   => $snapshot['max_branches'] ?? null,
+                'tables'     => $snapshot['max_tables'] ?? null,
+                'employees'  => $snapshot['max_users'] ?? null,
+                'dishes'     => $snapshot['max_dishes'] ?? null,
+                'areas'      => isset($snapshot['features']['max_areas']) ? ($snapshot['features']['max_areas'] === null ? null : (int) $snapshot['features']['max_areas']) : 2,
+                'storage_mb' => (int) ($snapshot['features']['max_storage_mb'] ?? 500),
+                default      => null,
+            };
         }
 
         $plan = $restaurant->plan;
@@ -79,6 +96,14 @@ class QuotaService
 
     public function hasFeature(Restaurant $restaurant, string $feature): bool
     {
+        // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ)
+        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $snapshot = $subscription?->meta['snapshot'] ?? null;
+
+        if ($snapshot && isset($snapshot['features'])) {
+            return (bool) ($snapshot['features'][$feature] ?? false);
+        }
+
         $plan = $restaurant->plan;
 
         if (! $plan) {

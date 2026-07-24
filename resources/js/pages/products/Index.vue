@@ -1816,11 +1816,12 @@ const toggleAvailability = (p: Product) => {
     <!-- Add Category Inline/Modal Card -->
     <div
         v-if="showAddCategory"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
     >
-        <Card
-            class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-        >
+        <div class="flex min-h-full items-center justify-center">
+            <Card
+                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
+            >
             <CardHeader class="border-b border-border/60 pb-3">
                 <CardTitle
                     class="flex items-center gap-2 text-base font-extrabold"
@@ -1887,16 +1888,18 @@ const toggleAvailability = (p: Product) => {
                 </form>
             </CardContent>
         </Card>
+        </div>
     </div>
 
     <!-- Add Product Modal -->
     <div
         v-if="showAddProduct"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
     >
-        <Card
-            class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-        >
+        <div class="flex min-h-full items-center justify-center">
+            <Card
+                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
+            >
             <CardHeader class="border-b border-border/60 pb-3">
                 <CardTitle
                     class="flex items-center gap-2 text-base font-extrabold"
@@ -2067,16 +2070,18 @@ const toggleAvailability = (p: Product) => {
                 </form>
             </CardContent>
         </Card>
+        </div>
     </div>
 
     <!-- Edit Product Modal -->
     <div
         v-if="editingProduct"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
     >
-        <Card
-            class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-        >
+        <div class="flex min-h-full items-center justify-center">
+            <Card
+                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
+            >
             <CardHeader class="border-b border-border/60 pb-3">
                 <div class="flex items-center justify-between">
                     <CardTitle
@@ -2241,6 +2246,7 @@ const toggleAvailability = (p: Product) => {
                 </form>
             </CardContent>
         </Card>
+        </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
@@ -2288,11 +2294,12 @@ const toggleAvailability = (p: Product) => {
     <!-- Quick Combo Creator Modal -->
     <div
         v-if="showComboModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
     >
-        <Card
-            class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-        >
+        <div class="flex min-h-full items-center justify-center">
+            <Card
+                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
+            >
             <CardHeader class="border-b border-border/60 pb-3">
                 <div class="flex items-center justify-between">
                     <CardTitle
@@ -2437,5 +2444,6 @@ const toggleAvailability = (p: Product) => {
                 </form>
             </CardContent>
         </Card>
+        </div>
     </div>
 </template>

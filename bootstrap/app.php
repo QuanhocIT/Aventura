@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SecurityHeaders::class,
             \App\Http\Middleware\CheckServiceMaintenance::class,
             \App\Http\Middleware\CompressResponse::class,
+            \App\Http\Middleware\EnforceImpersonateReadOnly::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
             SetTenantContext::class,
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
             'superadmin.access'      => \App\Http\Middleware\EnsureSuperAdminAccess::class,
             'superadmin.permission'  => \App\Http\Middleware\CheckSuperAdminPermission::class,
+            'superadmin.ip_whitelist'=> \App\Http\Middleware\SuperAdminIpWhitelistMiddleware::class,
             'shift.schedule'         => \App\Http\Middleware\CheckShiftSchedule::class,
         ]);
     })

@@ -119,8 +119,8 @@ watch(
 );
 
 const search = ref(props.filters.search ?? '');
-const roleFilter = ref(props.filters.role ?? '');
-const statusFilter = ref(props.filters.status ?? '');
+const roleFilter = ref(props.filters.role || 'all');
+const statusFilter = ref(props.filters.status || 'all');
 
 let timer: ReturnType<typeof setTimeout>;
 watch(search, () => {
@@ -133,8 +133,8 @@ function applyFilter() {
         '/super-admin/accounts',
         {
             search: search.value || undefined,
-            role: roleFilter.value || undefined,
-            status: statusFilter.value || undefined,
+            role: roleFilter.value && roleFilter.value !== 'all' ? roleFilter.value : undefined,
+            status: statusFilter.value && statusFilter.value !== 'all' ? statusFilter.value : undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -584,7 +584,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả vai trò" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả vai trò</SelectItem>
+                    <SelectItem value="all">Tất cả vai trò</SelectItem>
                     <SelectItem value="owner">Chủ sở hữu</SelectItem>
                     <SelectItem value="manager">Quản lý</SelectItem>
                     <SelectItem value="cashier">Thu ngân</SelectItem>
@@ -607,7 +607,7 @@ const columns: Column[] = [
                     <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
                     <SelectItem value="active">Hoạt động</SelectItem>
                     <SelectItem value="suspended">Bị khoá</SelectItem>
                 </SelectContent>

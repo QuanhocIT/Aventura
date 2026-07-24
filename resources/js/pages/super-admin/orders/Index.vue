@@ -2,14 +2,12 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
     ShoppingCart,
-    DollarSign,
     CheckCircle,
     XCircle,
     Search,
     TrendingUp,
     Percent,
     BarChart2,
-    Utensils,
     Calendar,
     Eye,
     Clock,
@@ -17,14 +15,11 @@ import {
     User,
     Phone,
     MapPin,
-    ArrowUpRight,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import {
     PageHeader,
     FilterBar,
-    StatusBadge,
-    Pagination,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -61,6 +56,11 @@ interface OrderItemData {
     created_at: string;
     due_on: string;
     recipient_email: string;
+    buyer_name?: string;
+    buyer_phone?: string;
+    buyer_email?: string;
+    buyer_address?: string;
+    tax_code?: string;
 }
 
 interface RevenueTrendPoint {
@@ -100,9 +100,9 @@ const props = defineProps<{
     };
 }>();
 
-const restaurantId = ref(props.filters.restaurant_id ?? '');
-const status = ref(props.filters.status ?? '');
-const type = ref(props.filters.type ?? '');
+const restaurantId = ref(props.filters.restaurant_id || 'all');
+const status = ref(props.filters.status || 'all');
+const type = ref(props.filters.type || 'all');
 const search = ref(props.filters.search ?? '');
 const dateFrom = ref(props.filters.date_from ?? '');
 const dateTo = ref(props.filters.date_to ?? '');
@@ -117,9 +117,9 @@ function applyFilter() {
     router.get(
         '/super-admin/orders',
         {
-            restaurant_id: restaurantId.value || undefined,
-            status: status.value || undefined,
-            type: type.value || undefined,
+            restaurant_id: restaurantId.value && restaurantId.value !== 'all' ? restaurantId.value : undefined,
+            status: status.value && status.value !== 'all' ? status.value : undefined,
+            type: type.value && type.value !== 'all' ? type.value : undefined,
             search: search.value || undefined,
             date_from: dateFrom.value || undefined,
             date_to: dateTo.value || undefined,
@@ -130,9 +130,9 @@ function applyFilter() {
 
 function hasActiveFilter() {
     return !!(
-        restaurantId.value ||
-        status.value ||
-        type.value ||
+        (restaurantId.value && restaurantId.value !== 'all') ||
+        (status.value && status.value !== 'all') ||
+        (type.value && type.value !== 'all') ||
         search.value ||
         dateFrom.value ||
         dateTo.value
@@ -140,9 +140,9 @@ function hasActiveFilter() {
 }
 
 function resetFilters() {
-    restaurantId.value = '';
-    status.value = '';
-    type.value = '';
+    restaurantId.value = 'all';
+    status.value = 'all';
+    type.value = 'all';
     search.value = '';
     dateFrom.value = '';
     dateTo.value = '';
@@ -208,7 +208,6 @@ const openOrderDetails = (order: OrderItemData) => {
 };
 
 const closeOrderDetails = () => {
-    selectedOrder.value = null;
     showDetails.value = false;
 };
 
@@ -309,7 +308,6 @@ const chartAreaPath = computed(() => {
 return '';
 }
 
-    const trend = props.stats.revenue_trend;
     const lastX = 500;
 
     return `M 0,100 L ${points} L ${lastX},100 Z`;
@@ -719,7 +717,7 @@ return '';
                     <SelectValue placeholder="Tất cả nhà hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả nhà hàng</SelectItem>
+                    <SelectItem value="all">Tất cả nhà hàng</SelectItem>
                     <SelectItem
                         v-for="r in restaurants"
                         :key="r.id"
@@ -733,7 +731,7 @@ return '';
                     <SelectValue placeholder="Trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
                     <SelectItem value="paid">Đã thanh toán</SelectItem>
                     <SelectItem value="unpaid">Chưa thanh toán</SelectItem>
                     <SelectItem value="draft">Bản nháp</SelectItem>
@@ -745,7 +743,7 @@ return '';
                     <SelectValue placeholder="Loại giao dịch" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả loại</SelectItem>
+                    <SelectItem value="all">Tất cả loại</SelectItem>
                     <SelectItem value="registration">Đăng ký mới</SelectItem>
                     <SelectItem value="renewal">Gia hạn</SelectItem>
                     <SelectItem value="upgrade">Nâng cấp</SelectItem>
@@ -923,7 +921,6 @@ return '';
                         v-for="(link, idx) in orders.links"
                         :key="idx"
                         :href="link.url ?? '#'"
-                        v-html="link.label"
                         :class="[
                             'rounded-lg border px-3 py-1 text-[11px] font-bold transition-all',
                             link.active
@@ -933,7 +930,9 @@ return '';
                                 ? 'pointer-events-none cursor-not-allowed opacity-50'
                                 : '',
                         ]"
-                    />
+                    >
+                        <span v-html="link.label" />
+                    </Link>
                 </div>
             </div>
         </Card>
@@ -941,7 +940,7 @@ return '';
         <!-- Invoice Detail Dialog -->
         <Dialog v-model:open="showDetails">
             <DialogContent
-                class="flex max-h-[90vh] flex-col overflow-hidden p-6 sm:max-w-[500px]"
+                class="flex max-h-[90vh] flex-col overflow-hidden p-6 sm:max-w-[550px]"
             >
                 <DialogHeader class="shrink-0">
                     <DialogTitle
@@ -951,7 +950,7 @@ return '';
                         Hóa đơn: {{ selectedOrder?.order_number }}
                     </DialogTitle>
                     <DialogDescription class="text-xs">
-                        Chi tiết thanh toán, gói dịch vụ và thời hạn đăng ký của nhà hàng.
+                        Chi tiết thanh toán, thông tin người mua và gói dịch vụ đăng ký.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -959,6 +958,75 @@ return '';
                     v-if="selectedOrder"
                     class="flex-1 space-y-4 overflow-y-auto pt-4 pr-1"
                 >
+                    <!-- Buyer Info Section (Thông tin người mua) -->
+                    <div
+                        class="space-y-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-3.5 text-xs dark:bg-emerald-500/[0.05]"
+                    >
+                        <div
+                            class="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400 border-b border-emerald-500/20 pb-2 text-[11px] uppercase tracking-wider"
+                        >
+                            <User class="size-4 text-emerald-500" />
+                            <span>Thông tin người mua / Khách hàng</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 pt-0.5">
+                            <div>
+                                <span
+                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    >Người mua / Đại diện</span
+                                >
+                                <span
+                                    class="font-bold text-slate-800 dark:text-slate-200 text-xs"
+                                    >{{ selectedOrder.buyer_name || 'Chưa cập nhật' }}</span
+                                >
+                            </div>
+                            <div>
+                                <span
+                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    >Số điện thoại</span
+                                >
+                                <span
+                                    class="flex items-center gap-1 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs"
+                                >
+                                    <Phone class="size-3 text-slate-400" />
+                                    {{ selectedOrder.buyer_phone || 'Chưa cập nhật' }}
+                                </span>
+                            </div>
+                            <div class="col-span-2">
+                                <span
+                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    >Email liên hệ / Hóa đơn</span
+                                >
+                                <span
+                                    class="block font-mono font-bold text-slate-800 dark:text-slate-200 text-xs truncate"
+                                    :title="selectedOrder.buyer_email"
+                                >
+                                    {{ selectedOrder.buyer_email || 'Chưa cập nhật' }}
+                                </span>
+                            </div>
+                            <div>
+                                <span
+                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    >Mã số thuế</span
+                                >
+                                <span
+                                    class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs"
+                                    >{{ selectedOrder.tax_code || 'Chưa cập nhật' }}</span
+                                >
+                            </div>
+                            <div class="col-span-2">
+                                <span
+                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    >Địa chỉ</span
+                                >
+                                <span
+                                    class="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300 text-xs"
+                                >
+                                    <MapPin class="size-3 text-slate-400 shrink-0" />
+                                    {{ selectedOrder.buyer_address || 'Chưa cập nhật' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                     <!-- General details summary grid -->
                     <div
                         class="grid grid-cols-2 gap-3.5 rounded-xl border border-border/40 bg-muted/40 p-3.5 text-xs"
@@ -1005,7 +1073,7 @@ return '';
                                 class="mt-0.5 flex items-center gap-1 font-mono font-bold text-slate-700 dark:text-slate-300"
                             >
                                 <Calendar class="size-3.5 text-slate-400" />
-                                {{ selectedOrder.due_on }}
+                                {{ selectedOrder?.due_on }}
                             </span>
                         </div>
                         <div>
@@ -1015,7 +1083,7 @@ return '';
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                {{ billingCycleLabel[selectedOrder.billing_cycle] ?? selectedOrder.billing_cycle }}
+                                {{ (selectedOrder?.billing_cycle && billingCycleLabel[selectedOrder.billing_cycle]) ?? selectedOrder?.billing_cycle }}
                             </span>
                         </div>
                         <div>
@@ -1025,7 +1093,7 @@ return '';
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                {{ typeLabel[selectedOrder.type] ?? selectedOrder.type }}
+                                {{ (selectedOrder?.type && typeLabel[selectedOrder.type]) ?? selectedOrder?.type }}
                             </span>
                         </div>
                         <div class="col-span-2">
@@ -1034,9 +1102,9 @@ return '';
                             >
                             <span
                                 class="mt-0.5 block font-medium text-slate-700 dark:text-slate-300 truncate font-mono"
-                                :title="selectedOrder.recipient_email"
+                                :title="selectedOrder?.recipient_email"
                             >
-                                {{ selectedOrder.recipient_email }}
+                                {{ selectedOrder?.recipient_email }}
                             </span>
                         </div>
                         <div class="col-span-2">
@@ -1046,14 +1114,14 @@ return '';
                             <span
                                 class="mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold"
                                 :class="
-                                    selectedOrder.status === 'paid'
+                                    selectedOrder?.status === 'paid'
                                         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
                                         : 'border-rose-500/20 bg-rose-500/10 text-rose-600'
                                 "
                             >
                                 {{
-                                    statusLabel[selectedOrder.status] ??
-                                    selectedOrder.status
+                                    (selectedOrder?.status && statusLabel[selectedOrder.status]) ??
+                                    selectedOrder?.status
                                 }}
                             </span>
                         </div>

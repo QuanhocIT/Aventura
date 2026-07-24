@@ -147,9 +147,9 @@ const props = defineProps<{
 }>();
 
 const search = ref(props.filters.search ?? '');
-const status = ref(props.filters.status ?? '');
-const planFilter = ref(props.filters.plan ?? '');
-const flaggedFilter = ref(props.filters.flagged ?? '');
+const status = ref(props.filters.status || 'all');
+const planFilter = ref(props.filters.plan || 'all');
+const flaggedFilter = ref(props.filters.flagged || 'all');
 
 // Plan distribution pagination
 const planPage = ref(1);
@@ -185,9 +185,9 @@ function applyFilter() {
         '/super-admin/restaurants',
         {
             search: search.value || undefined,
-            status: status.value || undefined,
-            plan: planFilter.value || undefined,
-            flagged: flaggedFilter.value || undefined,
+            status: status.value && status.value !== 'all' ? status.value : undefined,
+            plan: planFilter.value && planFilter.value !== 'all' ? planFilter.value : undefined,
+            flagged: flaggedFilter.value && flaggedFilter.value !== 'all' ? flaggedFilter.value : undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -831,7 +831,7 @@ function submitStatus() {
                     <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
                     <SelectItem value="active">Hoạt động</SelectItem>
                     <SelectItem value="suspended">Tạm ngưng</SelectItem>
                     <SelectItem value="expired">Hết hạn</SelectItem>
@@ -842,7 +842,7 @@ function submitStatus() {
                     <SelectValue placeholder="Tất cả gói" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả gói</SelectItem>
+                    <SelectItem value="all">Tất cả gói</SelectItem>
                     <SelectItem
                         v-for="p in plans"
                         :key="p.code"
@@ -856,7 +856,7 @@ function submitStatus() {
                     <SelectValue placeholder="Tất cả hoạt động" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Tất cả hoạt động</SelectItem>
+                    <SelectItem value="all">Tất cả hoạt động</SelectItem>
                     <SelectItem value="1">🚩 Chỉ bị gắn cờ</SelectItem>
                 </SelectContent>
             </Select>

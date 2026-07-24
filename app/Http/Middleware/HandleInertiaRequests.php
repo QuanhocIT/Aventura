@@ -146,6 +146,9 @@ class HandleInertiaRequests extends Middleware
                 : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
+            'impersonate_read_only' => $request->session()->has('impersonate_original_user_id') && (!$request->session()->get('impersonate_write_until') || now()->timestamp >= $request->session()->get('impersonate_write_until')),
+            'impersonate_write_until' => $request->session()->get('impersonate_write_until'),
+            'impersonate_reason' => $request->session()->get('impersonate_reason'),
             'flash' => [
                 'success'      => $request->session()->get('success'),
                 'error'        => $request->session()->get('error'),

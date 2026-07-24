@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SuperAdmin\AccountController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BackupMaintenanceController;
@@ -34,7 +35,7 @@ use App\Http\Controllers\SuperAdmin\SystemSettingController;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
-    ->middleware(['auth', 'verified', 'permission.cache.clear', 'superadmin.access', 'role.superadmin.2fa'])
+    ->middleware(['auth', 'verified', 'permission.cache.clear', 'superadmin.access', 'role.superadmin.2fa', 'superadmin.ip_whitelist'])
     ->group(function () {
 
         // ── Shared: all SuperAdmin sub-roles ────────────────────────────────

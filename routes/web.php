@@ -102,8 +102,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('choose-restaurant', [\App\Http\Controllers\RestaurantChooserController::class, 'chooseRestaurantPage'])->name('choose-restaurant');
     Route::post('choose-restaurant', [\App\Http\Controllers\RestaurantChooserController::class, 'chooseRestaurant'])->name('choose-restaurant.select');
 
-    // Impersonation Stop
+    // Impersonation Stop & Request Write Mode
     Route::post('impersonate/stop', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'stop'])->name('impersonate.stop');
+    Route::post('impersonate/request-write', [\App\Http\Controllers\SuperAdmin\ImpersonateController::class, 'requestWrite'])->name('impersonate.request_write');
 });
 
 Route::middleware('guest')->group(function () {
@@ -212,7 +213,7 @@ Route::get('status', [\App\Http\Controllers\PublicStatusController::class, 'inde
 Route::get('api/status-data', [\App\Http\Controllers\PublicStatusController::class, 'getStatusData'])->name('public.status.data');
 
 Route::get('dev-login', function() {
-    auth()->loginUsingId(6);
+    \Illuminate\Support\Facades\Auth::loginUsingId(6);
     return redirect('/super-admin/restaurants');
 });
 

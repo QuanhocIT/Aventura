@@ -34,9 +34,18 @@ class SubscriptionPlanController extends Controller
     }
 
     private array $featureFlags = [
-        'kitchen_display', 'qr_ordering', 'inventory_basic', 'hr_timekeeping',
-        'hr_full', 'advanced_analytics', 'realtime', 'fraud_detection',
-        'email_reports', 'ai_advisor', 'supplier_portal', 'ai_forecasting', 'api_access',
+        // 1. Vận hành & POS
+        'kitchen_display', 'qr_ordering', 'inventory_basic', 'supplier_portal', 'kiosk_mode', 'table_reservation',
+        // 2. Nhân sự & Ca làm
+        'hr_timekeeping', 'hr_full', 'shift_management',
+        // 3. CRM & Marketing
+        'crm_loyalty', 'marketing_campaign', 'custom_domain',
+        // 4. Báo cáo & Tự động hóa
+        'advanced_analytics', 'realtime', 'fraud_detection', 'email_reports',
+        // 5. AI Features
+        'ai_advisor', 'ai_forecasting',
+        // 6. Tích hợp & Enterprise
+        'delivery_integration', 'e_invoice', 'multi_branch_sync', 'multi_currency', 'api_access', 'automated_backup',
     ];
 
     public function store(Request $request): RedirectResponse

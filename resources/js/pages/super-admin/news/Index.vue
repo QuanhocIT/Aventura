@@ -74,16 +74,16 @@ const props = defineProps<{
 
 // ── Filters ────────────────────────────────────────────────────────────────────
 const search = ref(props.filters.search ?? '');
-const category = ref(props.filters.category ?? '');
-const status = ref(props.filters.status ?? '');
+const category = ref(props.filters.category || 'all');
+const status = ref(props.filters.status || 'all');
 
 function applyFilters() {
     router.get(
         '/super-admin/news',
         {
             search: search.value || undefined,
-            category: category.value || undefined,
-            status: status.value || undefined,
+            category: category.value && category.value !== 'all' ? category.value : undefined,
+            status: status.value && status.value !== 'all' ? status.value : undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -448,7 +448,7 @@ const hasFilters = computed(
                             ><SelectValue placeholder="Tất cả danh mục"
                         /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">Tất cả danh mục</SelectItem>
+                            <SelectItem value="all">Tất cả danh mục</SelectItem>
                             <SelectItem
                                 v-for="opt in categoryOptions"
                                 :key="opt.value"
@@ -463,7 +463,7 @@ const hasFilters = computed(
                             ><SelectValue placeholder="Tất cả trạng thái"
                         /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">Tất cả</SelectItem>
+                            <SelectItem value="all">Tất cả</SelectItem>
                             <SelectItem value="published">Đã đăng</SelectItem>
                             <SelectItem value="draft">Bản nháp</SelectItem>
                         </SelectContent>
