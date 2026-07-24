@@ -260,6 +260,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Tables management
     Route::get('tables', [\App\Http\Controllers\TablesController::class, 'index'])->name('tables.index');
     Route::post('tables/areas', [\App\Http\Controllers\TablesController::class, 'storeArea'])->name('tables.areas.store');
+    Route::delete('tables/areas/{area}', [\App\Http\Controllers\TablesController::class, 'destroyArea'])->name('tables.areas.destroy');
     Route::post('tables', [\App\Http\Controllers\TablesController::class, 'store'])->name('tables.store')->middleware('tenant.quota:tables');
     Route::patch('tables/{table}', [\App\Http\Controllers\TablesController::class, 'update'])->name('tables.update');
     Route::delete('tables/{table}', [\App\Http\Controllers\TablesController::class, 'destroy'])->name('tables.destroy');

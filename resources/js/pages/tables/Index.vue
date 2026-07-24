@@ -236,6 +236,36 @@ const submitDelete = () => {
     });
 };
 
+const submitDeleteArea = async (area: Area) => {
+    if (area.tables_count > 0) {
+        toast.error(
+            `Không thể xóa khu vực "${area.name}" vì vẫn còn ${area.tables_count} bàn. Vui lòng chuyển hoặc xóa hết bàn trước.`,
+        );
+        return;
+    }
+
+    if (
+        await confirmDialog({
+            title: 'Xác nhận xóa khu vực',
+            description: `Bạn có chắc chắn muốn xóa khu vực "${area.name}"? Khu vực này sẽ được ẩn tạm thời (xóa mềm).`,
+            variant: 'destructive',
+            confirmText: 'Xóa khu vực',
+        })
+    ) {
+        router.delete(`/tables/areas/${area.id}`, {
+            onSuccess: () => {
+                if (selectedArea.value === area.id) {
+                    selectedArea.value = 'all';
+                }
+                toast.success(`Đã xóa khu vực "${area.name}" thành công.`);
+            },
+            onError: (errors: any) => {
+                toast.error(errors?.message || 'Không thể xóa khu vực.');
+            },
+        });
+    }
+};
+
 const getQrUrl = (table: Table | null) => {
     if (!table) {
         return '';
@@ -953,22 +983,41 @@ const vnd = (value: number) => {
                                 {{ tables.length }} bàn
                             </p>
                         </button>
-                        <button
+                        <div
                             v-for="area in areas"
                             :key="area.id"
                             @click="selectedArea = area.id"
-                            class="rounded-xl border p-3 text-left text-xs transition-all"
+                            class="group relative flex cursor-pointer items-center justify-between rounded-xl border p-3 text-left text-xs transition-all"
                             :class="
                                 selectedArea === area.id
-                                    ? 'border-teal-355 bg-teal-50/50 font-semibold dark:border-teal-800 dark:bg-teal-950/20'
+                                    ? 'border-teal-300 bg-teal-50/50 font-semibold dark:border-teal-800 dark:bg-teal-950/20'
                                     : 'border-slate-100 bg-slate-50/50 hover:border-teal-200 dark:border-slate-800'
                             "
                         >
-                            <p class="font-bold">{{ area.name }}</p>
-                            <p class="mt-0.5 text-[10px] text-slate-400">
-                                {{ area.tables_count }} bàn
-                            </p>
-                        </button>
+                            <div>
+                                <p class="font-bold">{{ area.name }}</p>
+                                <p class="mt-0.5 text-[10px] text-slate-400">
+                                    {{ area.tables_count }} bàn
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                @click.stop="submitDeleteArea(area)"
+                                :title="
+                                    area.tables_count > 0
+                                        ? 'Không thể xóa khu vực đang chứa bàn'
+                                        : 'Xóa khu vực'
+                                "
+                                class="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
+                                :class="
+                                    area.tables_count > 0
+                                        ? 'opacity-30 cursor-not-allowed hover:bg-transparent hover:text-slate-400'
+                                        : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                                "
+                            >
+                                <Trash2 class="size-3.5" />
+                            </button>
+                        </div>
                         <div
                             v-if="areas.length === 0"
                             class="py-6 text-center text-xs text-slate-400"

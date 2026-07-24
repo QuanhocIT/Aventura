@@ -94,6 +94,21 @@ class TablesController extends Controller
         return back()->with('success', 'Đã thêm khu vực mới.');
     }
 
+    public function destroyArea(Request $request, Area $area): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($area->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $tablesCount = $area->tables()->whereNull('deleted_at')->count();
+        if ($tablesCount > 0) {
+            return back()->with('error', "Không thể xóa khu vực \"{$area->name}\" vì vẫn còn {$tablesCount} bàn. Vui lòng di chuyển hoặc xóa hết bàn trong khu vực này trước.");
+        }
+
+        $area->delete();
+
+        return back()->with('success', "Đã xóa khu vực \"{$area->name}\" thành công.");
+    }
+
     public function store(Request $request): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
