@@ -53,22 +53,31 @@ class SalaryController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->where('pay_period_start', $periodStart)
             ->where('pay_period_end', $periodEnd)
-            ->with(['employee:id,full_name,job_title,employment_type,branch_id', 'adjustments'])
+            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id', 'employee.trustScore', 'adjustments'])
             ->get()
             ->map(function (Salary $s) {
+                $breakdown = $this->salaryService->getSalaryCalculationDetails($s);
+
                 return [
-                    'id'               => $s->id,
-                    'employee_name'    => $s->employee?->full_name ?? '—',
-                    'job_title'        => $s->employee?->job_title ?? '',
-                    'employment_type'  => $s->employee?->employment_type ?? '',
-                    'branch_id'        => $s->employee?->branch_id,
-                    'base_salary'      => (float) $s->base_salary,
-                    'bonus_amount'     => (float) $s->bonus_amount,
-                    'deduction_amount' => (float) $s->deduction_amount,
-                    'net_salary'       => (float) $s->net_salary,
-                    'status'           => $s->status,
-                    'paid_at'          => $s->paid_at?->format('d/m/Y H:i'),
-                    'adjustments'      => $s->adjustments->map(fn (SalaryAdjustment $a) => [
+                    'id'                     => $s->id,
+                    'employee_id'            => $s->employee_id,
+                    'employee_code'          => $s->employee?->employee_code ?? 'NV-' . $s->employee_id,
+                    'employee_name'          => $s->employee?->full_name ?? '—',
+                    'job_title'              => $s->employee?->job_title ?? '',
+                    'employment_type'        => $s->employee?->employment_type ?? 'full-time',
+                    'compensation_type'      => $s->employee?->compensation_type ?? 'fixed',
+                    'pay_rate'               => (float) ($s->employee?->pay_rate ?? 0),
+                    'contract_base_salary'   => (float) ($s->employee?->base_salary ?? 0),
+                    'trust_score'            => $s->employee?->trustScore?->score ?? 100,
+                    'branch_id'              => $s->employee?->branch_id,
+                    'base_salary'            => (float) $s->base_salary,
+                    'bonus_amount'           => (float) $s->bonus_amount,
+                    'deduction_amount'       => (float) $s->deduction_amount,
+                    'net_salary'             => (float) $s->net_salary,
+                    'status'                 => $s->status,
+                    'paid_at'                => $s->paid_at?->format('d/m/Y H:i'),
+                    'breakdown'              => $breakdown,
+                    'adjustments'            => $s->adjustments->map(fn (SalaryAdjustment $a) => [
                         'id'             => $a->id,
                         'type'           => $a->type,
                         'amount'         => (float) $a->amount,
@@ -97,6 +106,24 @@ class SalaryController extends Controller
             'branches'   => $branches,
             'canApprove' => $user->hasAnyRole(['owner', 'manager']),
         ]);
+    }
+
+    public function bulkApprove(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->can('manage_salary'), 403);
+
+        $data = $request->validate([
+            'salary_ids'   => ['required', 'array', 'min:1'],
+            'salary_ids.*' => ['integer', 'exists:salaries,id'],
+        ]);
+
+        $approvedCount = $this->salaryService->bulkApprove(
+            $request->user()->restaurant_id,
+            $data['salary_ids'],
+            $request->user()->id
+        );
+
+        return back()->with('success', "Đã phê duyệt thành công {$approvedCount} bảng lương.");
     }
 
     public function generate(Request $request): RedirectResponse

@@ -16,8 +16,8 @@ class Salary extends Model
     protected function casts(): array
     {
         return [
-            'pay_period_start' => 'date',
-            'pay_period_end'   => 'date',
+            'pay_period_start' => 'date:Y-m-d',
+            'pay_period_end'   => 'date:Y-m-d',
             'paid_at'          => 'datetime',
             'base_salary'      => 'encrypted',
             'bonus_amount'     => 'encrypted',

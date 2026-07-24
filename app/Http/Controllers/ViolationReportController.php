@@ -142,7 +142,7 @@ class ViolationReportController extends Controller
         $data = $request->validate([
             'severity' => ['required', 'in:low,medium,high,critical'],
             'penalty_amount' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'in:resolved,dismissed'],
+            'status' => ['required', 'in:resolved,dismissed,investigating'],
             'resolution_notes' => ['nullable', 'string', 'max:1000'],
         ]);
 

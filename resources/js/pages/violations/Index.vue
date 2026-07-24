@@ -313,7 +313,7 @@ const statusConfig: Record<
         <!-- TAB 1: LIST OF REPORTS -->
         <div
             v-if="activeTab === 'reports'"
-            class="animate-fadeIn flex flex-col gap-4"
+            class="animate-fade-in flex flex-col gap-4"
         >
             <!-- Critical alert banner -->
             <div
@@ -561,7 +561,7 @@ const statusConfig: Record<
                                         report.status === 'resolved' &&
                                         report.penalty_amount > 0
                                     "
-                                    class="animate-fadeIn mt-3.5 flex flex-col gap-1.5 rounded-xl border border-rose-100/60 bg-rose-50/50 p-3.5 dark:border-rose-900/20 dark:bg-rose-950/10"
+                                    class="animate-fade-in mt-3.5 flex flex-col gap-1.5 rounded-xl border border-rose-100/60 bg-rose-50/50 p-3.5 dark:border-rose-900/20 dark:bg-rose-950/10"
                                 >
                                     <div
                                         class="flex items-center gap-1.5 text-[10px] font-extrabold tracking-wider text-rose-700 uppercase dark:text-rose-400"
@@ -704,7 +704,7 @@ const statusConfig: Record<
         <!-- TAB 2: SUBMIT DISCIPLINARY REPORT (ANONYMOUS SAFEBOX) -->
         <div
             v-if="activeTab === 'submit'"
-            class="animate-fadeIn mx-auto w-full max-w-2xl"
+            class="animate-fade-in mx-auto w-full max-w-2xl"
         >
             <Card class="rounded-2xl border-slate-200 dark:border-slate-800">
                 <CardHeader

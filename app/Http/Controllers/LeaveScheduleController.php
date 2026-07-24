@@ -81,6 +81,20 @@ class LeaveScheduleController extends Controller
                         return $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString();
                     });
 
+                $empIds = $activeEmployees->pluck('id')->toArray();
+
+                $trustScoresMap = \App\Models\EmployeeTrustScore::withoutGlobalScopes()
+                    ->whereIn('employee_id', $empIds)
+                    ->get()
+                    ->keyBy('employee_id');
+
+                $currentPeriod = Carbon::now()->format('Y-m');
+                $kpiScoresMap = \App\Models\EmployeeKpi::withoutGlobalScopes()
+                    ->whereIn('employee_id', $empIds)
+                    ->where('period', $currentPeriod)
+                    ->get()
+                    ->keyBy('employee_id');
+
                 // Lặp qua 7 ngày trong tuần
                 for ($i = 0; $i < 7; $i++) {
                     $currentDate = $startOfWeek->copy()->addDays($i);
@@ -130,13 +144,24 @@ class LeaveScheduleController extends Controller
                                     break;
                                 }
 
-                                // Sort candidates:
-                                // 1. Registered available for this shift (registered_available = true)
-                                // 2. Role balance: Prefer adding a different role to this shift if one is already assigned
-                                // 3. Lowest shift count so far in the week.
-                                $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts, $availableEmployees) {
+                                // Sort candidates by multi-tiered AI priority:
+                                // 1. Priority 1: Registered available for this shift (registered_available = true)
+                                // 2. Priority 2: Customer Rating Stars (rating_star 1.00 - 5.00)
+                                // 3. Priority 3: Evaluation & trust score (KPI + Trust score 0-100)
+                                // 4. Workload balancing: Lowest shift count so far in the week.
+                                // 5. Role balance: Prefer adding a different role to this shift if one is already assigned
+                                $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts, $availableEmployees, $trustScoresMap, $kpiScoresMap) {
                                     $hasRegistered = isset($registrationsToday[$shift->id]) && $registrationsToday[$shift->id]->contains('employee_id', $cand->id);
                                     $registrationScore = $hasRegistered ? 0 : 1;
+
+                                    $ratingStar = (float) ($cand->rating_star ?? 5.0);
+                                    $ratingRank = max(0, 500 - (int) round($ratingStar * 100));
+
+                                    $trustScore = (float) ($trustScoresMap->get($cand->id)?->score ?? 80.0);
+                                    $kpiObj = $kpiScoresMap->get($cand->id);
+                                    $kpiScore = (float) ($kpiObj?->overall_score ?? $kpiObj?->kpi_score ?? 80.0);
+                                    $evalScore = ($trustScore + $kpiScore) / 2.0;
+                                    $evalRank = max(0, 100 - (int) round($evalScore));
 
                                     $shiftCount = $employeeShiftCounts[$cand->id] ?? 0;
 
@@ -148,7 +173,7 @@ class LeaveScheduleController extends Controller
                                         }
                                     }
 
-                                    return sprintf('%d-%02d-%d', $registrationScore, $shiftCount, $roleScore);
+                                    return sprintf('%d-%03d-%02d-%02d-%d', $registrationScore, $ratingRank, $evalRank, $shiftCount, $roleScore);
                                 });
 
                                 $bestCandidate = $candidates->first();

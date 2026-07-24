@@ -14,8 +14,8 @@ class SalaryService
      */
     public function getOrCreateDraft(int $restaurantId, Employee $employee, string $date): Salary
     {
-        $periodStart = Carbon::parse($date)->startOfMonth();
-        $periodEnd   = Carbon::parse($date)->endOfMonth();
+        $periodStart = Carbon::parse($date)->startOfMonth()->toDateString();
+        $periodEnd   = Carbon::parse($date)->endOfMonth()->toDateString();
 
         return Salary::withoutGlobalScopes()->firstOrCreate(
             [
@@ -25,7 +25,7 @@ class SalaryService
                 'pay_period_end'   => $periodEnd,
             ],
             [
-                'base_salary'      => $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString()),
+                'base_salary'      => $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd),
                 'bonus_amount'     => 0,
                 'deduction_amount' => 0,
                 'net_salary'       => 0, // recalculate will handle it
@@ -287,8 +287,12 @@ class SalaryService
      */
     public function generateMonthlyDrafts(int $restaurantId, string $yearMonth): array
     {
-        $periodStart = Carbon::parse($yearMonth . '-01')->startOfMonth();
-        $periodEnd   = Carbon::parse($yearMonth . '-01')->endOfMonth();
+        $periodStart = Carbon::parse($yearMonth . '-01')->startOfMonth()->toDateString();
+        $periodEnd   = Carbon::parse($yearMonth . '-01')->endOfMonth()->toDateString();
+
+        $periodStartDateTime = $periodStart . ' 00:00:00';
+        $periodEndDateTime   = $periodEnd . ' 23:59:59';
+        $periodFormatYM      = Carbon::parse($periodStart)->format('Y-m');
 
         $employees = Employee::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -331,7 +335,7 @@ class SalaryService
         $context['shortages'] = empty($userIds) ? collect() : \App\Models\ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('cashier_user_id', $userIds)
-            ->whereBetween('closing_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereBetween('closing_date', [$periodStart, $periodEnd])
             ->where('cash_difference', '<', 0)
             ->get();
 
@@ -339,7 +343,7 @@ class SalaryService
         $context['waste_transactions'] = \App\Models\InventoryTransaction::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
-            ->whereBetween('occurred_at', [$periodStart->toDateTimeString(), $periodEnd->endOfMonth()->toDateTimeString()])
+            ->whereBetween('occurred_at', [$periodStartDateTime, $periodEndDateTime])
             ->where('total_cost', '>', 0)
             ->get();
 
@@ -347,7 +351,7 @@ class SalaryService
         $context['violations'] = \App\Models\ViolationReport::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('employee_id', $employeeIds)
-            ->whereBetween('occurred_at', [$periodStart->toDateTimeString(), $periodEnd->endOfMonth()->toDateTimeString()])
+            ->whereBetween('occurred_at', [$periodStartDateTime, $periodEndDateTime])
             ->where('penalty_amount', '>', 0)
             ->where('status', '!=', 'dismissed')
             ->get();
@@ -355,7 +359,7 @@ class SalaryService
         // 9. KPIs
         $context['kpis'] = \App\Models\EmployeeKpi::withoutGlobalScopes()
             ->whereIn('employee_id', $employeeIds)
-            ->where('period', $periodStart->format('Y-m'))
+            ->where('period', $periodFormatYM)
             ->where('status', 'finalized')
             ->get();
 
@@ -376,7 +380,7 @@ class SalaryService
         $skipped = 0;
 
         foreach ($employees as $employee) {
-            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart->toDateString(), $periodEnd->toDateString(), $context);
+            $baseSalary = $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd, $context);
 
             // Bọc mỗi nhân viên trong transaction riêng để tránh duplicate salary
             // khi 2 request gọi generateMonthlyDrafts đồng thời.
@@ -742,5 +746,140 @@ class SalaryService
 
         // 5. Tính toán lại tổng các khoản và cập nhật net_salary thực lãnh
         $this->recalculate($salary);
+    }
+
+    /**
+     * Lấy giải trình chi tiết công thức tính lương cho phiếu lương (Pay Stub Breakdown).
+     */
+    public function getSalaryCalculationDetails(Salary $salary): array
+    {
+        $employee = $salary->employee;
+        if (! $employee) {
+            return [];
+        }
+
+        $start = $salary->pay_period_start instanceof Carbon
+            ? $salary->pay_period_start->toDateString()
+            : Carbon::parse($salary->pay_period_start)->toDateString();
+
+        $end = $salary->pay_period_end instanceof Carbon
+            ? $salary->pay_period_end->toDateString()
+            : Carbon::parse($salary->pay_period_end)->toDateString();
+
+        $compType       = $employee->compensation_type ?? 'fixed';
+        $payRate        = (float) ($employee->pay_rate ?? 0);
+        $contractSalary = (float) ($employee->base_salary ?? 0);
+
+        $carbonStart  = Carbon::parse($start);
+        $daysInMonth  = $carbonStart->daysInMonth;
+        $standardDays = 26; // Chuẩn công tháng (mặc định 26 ngày)
+
+        // Lấy danh sách phân công / chấm công trong chu kỳ
+        $assignments = \App\Models\ScheduleAssignment::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->whereBetween('scheduled_date', [$start, $end])
+            ->where('status', 'completed')
+            ->get();
+
+        $actualWorkDays = $assignments->pluck('scheduled_date')->map(function ($d) {
+            return $d instanceof Carbon ? $d->toDateString() : Carbon::parse($d)->toDateString();
+        })->unique()->count();
+
+        $completedShiftsCount = $assignments->count();
+
+        // Lấy số ngày nghỉ phép có hưởng lương (các loại phép ngoài 'unpaid')
+        $paidLeaveDays = \App\Models\LeaveRequest::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where('leave_type', '!=', 'unpaid')
+            ->whereBetween('start_date', [$start, $end])
+            ->count();
+
+        $totalPaidDays = $actualWorkDays + $paidLeaveDays;
+
+        // Giờ làm & giờ OT cho hourly
+        $regularHours = 0.0;
+        $otHours      = 0.0;
+        $otMultiplier = 1.5;
+
+        $otRequests = \App\Models\OvertimeRequest::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->whereBetween('scheduled_date', [$start, $end])
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($assignments as $a) {
+            if ($a->check_in_at && $a->check_out_at) {
+                $hours = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at)) / 3600.0;
+                $regularHours += $hours;
+            }
+        }
+        $otHours = (float) $otRequests->sum('hours_approved');
+
+        $dailyRate = $standardDays > 0 ? round($contractSalary / $standardDays, 0) : 0;
+
+        $formulaText = '';
+        if ($compType === 'fixed') {
+            $formulaText = number_format($contractSalary) . " đ (Hợp đồng) ÷ {$standardDays} ngày chuẩn × {$totalPaidDays} ngày tính lương = " . number_format($salary->base_salary) . " đ";
+        } elseif ($compType === 'hourly') {
+            $formulaText = "(" . number_format(round($regularHours, 1)) . "h làm chuẩn × " . number_format($payRate) . " đ/h) + (" . number_format(round($otHours, 1)) . "h OT × " . number_format($payRate) . " đ/h × {$otMultiplier}) = " . number_format($salary->base_salary) . " đ";
+        } elseif ($compType === 'shift') {
+            $formulaText = "{$completedShiftsCount} ca hoàn thành × " . number_format($payRate) . " đ/ca = " . number_format($salary->base_salary) . " đ";
+        }
+
+        return [
+            'compensation_type'       => $compType,
+            'compensation_type_label' => match ($compType) {
+                'fixed'  => 'Lương tháng cố định',
+                'hourly' => 'Lương theo giờ',
+                'shift'  => 'Lương theo ca',
+                default  => 'Lương cố định',
+            },
+            'contract_salary'        => $contractSalary,
+            'pay_rate'               => $payRate,
+            'standard_days'          => $standardDays,
+            'days_in_month'          => $daysInMonth,
+            'actual_work_days'       => $actualWorkDays,
+            'paid_leave_days'        => $paidLeaveDays,
+            'total_paid_days'        => $totalPaidDays,
+            'daily_rate'             => $dailyRate,
+            'completed_shifts_count' => $completedShiftsCount,
+            'regular_hours'          => round($regularHours, 1),
+            'ot_hours'               => round($otHours, 1),
+            'ot_multiplier'          => $otMultiplier,
+            'formula_text'           => $formulaText,
+        ];
+    }
+
+    /**
+     * Phê duyệt hàng loạt danh sách bảng lương.
+     */
+    public function bulkApprove(int $restaurantId, array $salaryIds, int $approvedById): int
+    {
+        $salaries = Salary::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('id', $salaryIds)
+            ->where('status', 'draft')
+            ->get();
+
+        $count = 0;
+        foreach ($salaries as $salary) {
+            $salary->update([
+                'status'      => 'approved',
+                'approved_by' => $approvedById,
+            ]);
+            $count++;
+
+            $employeeUser = $salary->employee?->user;
+            if ($employeeUser) {
+                $periodStr = $salary->pay_period_start ? Carbon::parse($salary->pay_period_start)->format('m/Y') : '';
+                $employeeUser->notify(new \App\Notifications\SalaryReadyNotification(
+                    $salary,
+                    "Phiếu lương kỳ {$periodStr} đã được phê duyệt. Bạn có thể xem chi tiết ngay."
+                ));
+            }
+        }
+
+        return $count;
     }
 }

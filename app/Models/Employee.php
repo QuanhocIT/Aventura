@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
@@ -88,6 +89,16 @@ class Employee extends Model
         return $this->hasMany(LeaveRequest::class);
     }
 
+    public function trustScore(): HasOne
+    {
+        return $this->hasOne(EmployeeTrustScore::class);
+    }
+
+    public function trustScores(): HasMany
+    {
+        return $this->hasMany(EmployeeTrustScore::class);
+    }
+
     public function getShiftAllowedUntil(): ?int
     {
         $now      = now();
@@ -156,7 +167,7 @@ class Employee extends Model
         Cache::forget("employee_shift_access:{$this->id}");
 
         // Update current session if the current user is this employee
-        if (auth()->check() && auth()->id() === $this->user_id) {
+        if (Auth::check() && Auth::id() === $this->user_id) {
             session(['shift_allowed_until' => $this->getShiftAllowedUntil()]);
         }
     }
