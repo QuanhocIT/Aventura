@@ -16,7 +16,7 @@ class SubscriptionPlanController extends Controller
 {
     public function index(): Response
     {
-        $plans = SubscriptionPlan::where('is_custom', false)->withCount('restaurants')->get()->map(fn ($p) => [
+        $plans = SubscriptionPlan::withTrashed()->where('is_custom', false)->withCount('restaurants')->get()->map(fn ($p) => [
             'id'              => $p->id,
             'code'            => $p->code,
             'name'            => $p->name,
@@ -26,7 +26,9 @@ class SubscriptionPlanController extends Controller
             'max_tables'      => $p->max_tables,
             'max_users'       => $p->max_users,
             'features'        => $p->features ?? [],
-            'status'          => $p->status,
+            'status'          => $p->trashed() ? 'inactive' : $p->status,
+            'is_deleted'      => $p->trashed(),
+            'deleted_at'      => $p->deleted_at?->format('d/m/Y H:i'),
             'restaurants_count' => $p->restaurants_count,
         ]);
 
@@ -196,5 +198,66 @@ class SubscriptionPlanController extends Controller
         return response()->json([
             'restaurants' => $restaurants
         ]);
+    }
+
+    public function destroy(Request $request, int|string $id): RedirectResponse
+    {
+        $plan = SubscriptionPlan::findOrFail($id);
+
+        $oldStatus = $plan->status;
+        $plan->update(['status' => 'inactive']);
+        $plan->delete();
+
+        AuditLog::create([
+            'restaurant_id' => null,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => 'deleted',
+            'action'        => 'subscription_plan_delete',
+            'subject_type'  => SubscriptionPlan::class,
+            'subject_id'    => $plan->id,
+            'old_values'    => ['status' => $oldStatus],
+            'new_values'    => ['status' => 'inactive', 'deleted_at' => now()],
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
+        ]);
+
+        Cache::forget('superadmin_ai_insights');
+        Cache::forget('active_plans');
+        Cache::forget('subscription_plans_active');
+        DashboardController::forgetCache();
+
+        return back()->with('success', "Đã ngừng cung cấp gói \"{$plan->name}\" (Xóa mềm). Khách hàng đã đăng ký vẫn được tiếp tục sử dụng.");
+    }
+
+    public function restore(Request $request, int|string $id): RedirectResponse
+    {
+        $plan = SubscriptionPlan::withTrashed()->findOrFail($id);
+        $deletedAt = $plan->deleted_at;
+        $plan->restore();
+        $plan->update(['status' => 'active']);
+
+        AuditLog::create([
+            'restaurant_id' => null,
+            'branch_id'     => null,
+            'user_id'       => $request->user()->id,
+            'user_role'     => 'admin',
+            'event'         => 'updated',
+            'action'        => 'subscription_plan_restore',
+            'subject_type'  => SubscriptionPlan::class,
+            'subject_id'    => $plan->id,
+            'old_values'    => ['status' => 'inactive', 'deleted_at' => $deletedAt],
+            'new_values'    => ['status' => 'active', 'deleted_at' => null],
+            'ip_address'    => $request->ip(),
+            'user_agent'    => $request->userAgent(),
+        ]);
+
+        Cache::forget('superadmin_ai_insights');
+        Cache::forget('active_plans');
+        Cache::forget('subscription_plans_active');
+        DashboardController::forgetCache();
+
+        return back()->with('success', "Đã khôi phục và tiếp tục cung cấp gói \"{$plan->name}\".");
     }
 }

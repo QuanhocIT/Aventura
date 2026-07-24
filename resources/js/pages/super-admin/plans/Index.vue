@@ -24,6 +24,9 @@ import {
     Zap,
     Percent,
     Search,
+    AlertTriangle,
+    RotateCcw,
+    Trash2,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import {
@@ -79,6 +82,8 @@ interface Plan {
     max_users: number;
     features: Record<string, any>;
     status: string;
+    is_deleted?: boolean;
+    deleted_at?: string;
     restaurants_count: number;
 }
 
@@ -100,6 +105,48 @@ const totalPages = computed(() => {
 const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
 const showComparison = ref(false);
 const restaurantSearch = ref('');
+
+const planToDelete = ref<Plan | null>(null);
+const isDeleteModalOpen = ref(false);
+
+const planToRestore = ref<Plan | null>(null);
+const isRestoreModalOpen = ref(false);
+
+function confirmDelete(plan: Plan) {
+    planToDelete.value = plan;
+    isDeleteModalOpen.value = true;
+}
+
+function executeDelete() {
+    if (!planToDelete.value) {
+        return;
+    }
+
+    useForm({}).delete(`/super-admin/plans/${planToDelete.value.id}`, {
+        onSuccess: () => {
+            isDeleteModalOpen.value = false;
+            planToDelete.value = null;
+        },
+    });
+}
+
+function confirmRestore(plan: Plan) {
+    planToRestore.value = plan;
+    isRestoreModalOpen.value = true;
+}
+
+function executeRestore() {
+    if (!planToRestore.value) {
+        return;
+    }
+
+    useForm({}).post(`/super-admin/plans/${planToRestore.value.id}/restore`, {
+        onSuccess: () => {
+            isRestoreModalOpen.value = false;
+            planToRestore.value = null;
+        },
+    });
+}
 
 const editingId = ref<number | null>(null);
 const editingPlanCode = ref<string>('');
@@ -579,9 +626,11 @@ const planIcon: Record<string, any> = {
                     class="group flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl"
                     :class="{
                         'border-primary/50 bg-gradient-to-b from-primary/[0.03] to-transparent shadow-md ring-1 ring-primary/20':
-                            plan.code === 'pro',
+                            plan.code === 'pro' && !plan.is_deleted,
                         'border-violet-500/50 bg-gradient-to-b from-violet-500/[0.04] to-transparent shadow-md ring-1 ring-violet-500/20':
-                            plan.code === 'enterprise',
+                            plan.code === 'enterprise' && !plan.is_deleted,
+                        'border-rose-500/40 bg-rose-500/[0.02] opacity-80 border-dashed':
+                            plan.is_deleted || plan.status === 'inactive',
                     }"
                 >
                     <CardHeader class="pb-4">
@@ -589,9 +638,11 @@ const planIcon: Record<string, any> = {
                             <CardTitle
                                 class="flex items-center gap-1.5 text-xl font-black"
                                 :class="{
-                                    'text-primary': plan.code === 'pro',
+                                    'text-primary': plan.code === 'pro' && !plan.is_deleted,
                                     'text-violet-500':
-                                        plan.code === 'enterprise',
+                                        plan.code === 'enterprise' && !plan.is_deleted,
+                                    'text-rose-500 line-through opacity-80':
+                                        plan.is_deleted || plan.status === 'inactive',
                                 }"
                             >
                                 <component
@@ -602,7 +653,13 @@ const planIcon: Record<string, any> = {
                             </CardTitle>
                             <div class="flex items-center gap-1">
                                 <Badge
-                                    v-if="plan.code === 'free'"
+                                    v-if="plan.is_deleted || plan.status === 'inactive'"
+                                    variant="destructive"
+                                    class="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0 text-[9px] font-extrabold text-rose-500 uppercase"
+                                    >Ngừng cung cấp</Badge
+                                >
+                                <Badge
+                                    v-else-if="plan.code === 'free'"
                                     variant="secondary"
                                     class="rounded-full border border-slate-500/25 bg-slate-500/10 px-2 py-0 text-[9px] font-extrabold text-slate-500 uppercase"
                                     >Mặc định</Badge
@@ -620,12 +677,33 @@ const planIcon: Record<string, any> = {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    class="ml-1 size-7 rounded-full hover:bg-muted/70"
+                                    title="Chỉnh sửa gói"
+                                    class="ml-1 size-7 rounded-full hover:bg-muted/70 cursor-pointer"
                                     @click="startEdit(plan)"
                                 >
                                     <Edit2
                                         class="size-3.5 text-muted-foreground"
                                     />
+                                </Button>
+                                <Button
+                                    v-if="!plan.is_deleted && plan.status === 'active'"
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Ngừng cung cấp (Xóa mềm)"
+                                    class="size-7 rounded-full text-muted-foreground hover:bg-rose-500/15 hover:text-rose-500 transition-colors cursor-pointer"
+                                    @click="confirmDelete(plan)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </Button>
+                                <Button
+                                    v-else
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Khôi phục gói"
+                                    class="size-7 rounded-full text-emerald-600 hover:bg-emerald-500/15 hover:text-emerald-500 transition-colors cursor-pointer"
+                                    @click="confirmRestore(plan)"
+                                >
+                                    <RotateCcw class="size-3.5" />
                                 </Button>
                             </div>
                         </div>
@@ -2168,6 +2246,57 @@ const planIcon: Record<string, any> = {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Soft Delete Confirmation Dialog -->
+        <Dialog v-model:open="isDeleteModalOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle class="flex items-center gap-2 text-rose-500 font-bold">
+                        <AlertTriangle class="size-5" />
+                        Ngừng cung cấp gói {{ planToDelete?.name }}
+                    </DialogTitle>
+                    <DialogDescription class="pt-2 text-xs leading-relaxed space-y-2">
+                        <p class="text-foreground font-medium">
+                            Bạn có chắc chắn muốn xóa (ngừng cung cấp) gói dịch vụ <span class="font-bold text-rose-500">{{ planToDelete?.name }}</span>?
+                        </p>
+                        <div class="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-rose-600 dark:text-rose-400 font-semibold space-y-1">
+                            <p class="text-[11px] font-bold uppercase tracking-wider">🔒 Quy tắc Xóa mềm (Soft Delete):</p>
+                            <ul class="list-disc list-inside text-[11px] font-normal space-y-0.5">
+                                <li>Gói này sẽ <strong>không hiển thị</strong> trên trang đăng ký hoặc nâng cấp cho khách hàng mới.</li>
+                                <li>Những nhà hàng <strong>đã mua/đang dùng gói này vẫn được tiếp tục sử dụng</strong> bình thường cho tới hết hạn.</li>
+                            </ul>
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button variant="outline" size="sm" class="cursor-pointer" @click="isDeleteModalOpen = false">Hủy</Button>
+                    <Button variant="destructive" size="sm" class="font-bold cursor-pointer" @click="executeDelete">
+                        Xác nhận Ngừng cung cấp
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Restore Confirmation Dialog -->
+        <Dialog v-model:open="isRestoreModalOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                        <RotateCcw class="size-5" />
+                        Khôi phục gói {{ planToRestore?.name }}
+                    </DialogTitle>
+                    <DialogDescription class="pt-2 text-xs leading-relaxed text-foreground font-medium">
+                        Bạn có chắc chắn muốn khôi phục và tiếp tục mở bán gói <span class="font-bold text-emerald-500">{{ planToRestore?.name }}</span> cho khách hàng mới?
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button variant="outline" size="sm" class="cursor-pointer" @click="isRestoreModalOpen = false">Hủy</Button>
+                    <Button class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold cursor-pointer" size="sm" @click="executeRestore">
+                        Xác nhận Khôi phục
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

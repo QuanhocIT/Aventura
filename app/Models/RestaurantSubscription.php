@@ -33,7 +33,7 @@ class RestaurantSubscription extends Model
 
     public function plan(): BelongsTo
     {
-        return $this->belongsTo(SubscriptionPlan::class);
+        return $this->belongsTo(SubscriptionPlan::class, 'plan_id')->withTrashed();
     }
 
     public function isActive(): bool

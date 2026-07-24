@@ -127,6 +127,8 @@ Route::prefix('super-admin')
             Route::get('plans', [SubscriptionPlanController::class, 'index'])->name('plans.index');
             Route::post('plans', [SubscriptionPlanController::class, 'store'])->name('plans.store');
             Route::patch('plans/{plan}', [SubscriptionPlanController::class, 'update'])->name('plans.update');
+            Route::delete('plans/{id}', [SubscriptionPlanController::class, 'destroy'])->name('plans.destroy');
+            Route::post('plans/{id}/restore', [SubscriptionPlanController::class, 'restore'])->name('plans.restore');
             Route::get('plans/{plan}/restaurants', [SubscriptionPlanController::class, 'planRestaurants'])->name('plans.restaurants');
 
             Route::post('restaurants/{restaurant}/billing-overrides', [BillingOverrideController::class, 'store'])->name('restaurants.billing-overrides.store');
