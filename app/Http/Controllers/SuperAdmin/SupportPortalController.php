@@ -418,10 +418,10 @@ class SupportPortalController extends Controller
 
     public function exportCsv(Request $request)
     {
-        $csvRow = fn (array $fields) => implode(',', array_map(
+        $csvRow = fn (array $fields) => implode(';', array_map(
             fn ($v) => '"'.str_replace('"', '""', (string) $v).'"',
             $fields
-        )).PHP_EOL;
+        ))."\r\n";
 
         $csv = $csvRow(['ID', 'Code', 'Nhà hàng', 'Tiêu đề', 'Danh mục', 'Mức độ', 'Trạng thái', 'Người xử lý', 'Ngày tạo']);
 

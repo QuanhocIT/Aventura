@@ -272,20 +272,20 @@ class GlobalRevenueController extends Controller
         $orders = $query->orderBy('created_at', 'desc')->get();
 
         $lines = [];
-        $lines[] = 'Mã đơn hàng,Nhà hàng,Mã nhà hàng,Gói cước,Số tiền (VND),Thời gian hoàn thành';
+        $lines[] = 'Mã đơn hàng;Nhà hàng;Mã nhà hàng;Gói cước;Số tiền (VND);Thời gian hoàn thành';
 
         foreach ($orders as $order) {
-            $lines[] = implode(',', [
-                $order->order_number ?? $order->id,
+            $lines[] = implode(';', [
+                '"' . str_replace('"', '""', $order->order_number ?? $order->id) . '"',
                 '"' . str_replace('"', '""', $order->restaurant?->name ?? '—') . '"',
-                $order->restaurant?->code ?? '—',
-                $order->restaurant?->plan?->name ?? 'Miễn Phí',
-                $order->total_amount,
-                $order->created_at->format('Y-m-d H:i:s'),
+                '"' . str_replace('"', '""', $order->restaurant?->code ?? '—') . '"',
+                '"' . str_replace('"', '""', $order->restaurant?->plan?->name ?? 'Miễn Phí') . '"',
+                '"' . (int)$order->total_amount . '"',
+                '"' . $order->created_at->format('Y-m-d H:i:s') . '"',
             ]);
         }
 
-        $csv = "\xEF\xBB\xBF" . implode(PHP_EOL, $lines);
+        $csv = "\xEF\xBB\xBF" . implode("\r\n", $lines);
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',

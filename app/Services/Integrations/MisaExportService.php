@@ -67,7 +67,7 @@ class MisaExportService
 
         $csv = '';
         foreach ($rows as $row) {
-            $csv .= implode(',', array_map(fn ($cell) => $this->escapeCsv((string) $cell), $row))."\r\n";
+            $csv .= implode(';', array_map(fn ($cell) => $this->escapeCsv((string) $cell), $row))."\r\n";
         }
 
         // BOM UTF-8 để MISA/Excel nhận diện tiếng Việt

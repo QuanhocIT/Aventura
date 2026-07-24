@@ -1021,9 +1021,9 @@ return;
 // CSV Export Logic
 const exportToCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
     let csvContent = '\uFEFF';
-    csvContent += headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+    csvContent += headers.map((h) => `"${String(h ?? '').replace(/"/g, '""')}"`).join(';') + '\r\n';
     rows.forEach((row) => {
-        csvContent += row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',') + '\n';
+        csvContent += row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';') + '\r\n';
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2157,7 +2157,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: PO logs -->
-        <Card v-if="activeTab === 'pos'" class="overflow-hidden space-y-3 p-4">
+        <Card v-if="activeTab === 'pos'" class="animate-fade-in overflow-hidden space-y-3 p-4">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
                 <div>
                     <h3 class="text-base font-bold text-foreground flex items-center gap-2">
@@ -2392,7 +2392,7 @@ onUnmounted(() => {
         <!-- Tab Content: AI Price Analytics -->
         <div
             v-if="activeTab === 'analytics'"
-            class="grid grid-cols-1 gap-6 lg:grid-cols-4"
+            class="animate-fade-in grid grid-cols-1 gap-6 lg:grid-cols-4"
         >
             <!-- Left panel: Select supplier/material -->
             <Card class="space-y-4 p-5 lg:col-span-1">
@@ -2611,7 +2611,7 @@ onUnmounted(() => {
         <!-- Tab Content: SLA Scorecard -->
         <div
             v-if="activeTab === 'sla'"
-            class="grid grid-cols-1 gap-6 lg:grid-cols-4"
+            class="animate-fade-in grid grid-cols-1 gap-6 lg:grid-cols-4"
         >
             <!-- Left panel: Select supplier -->
             <Card class="space-y-4 p-5 lg:col-span-1">
