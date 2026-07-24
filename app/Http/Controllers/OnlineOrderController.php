@@ -153,6 +153,26 @@ class OnlineOrderController extends Controller
         ]);
 
         try {
+            if ($request->boolean('conflict_check')) {
+                $conflicts = [];
+                foreach ($data['items'] as $item) {
+                    $product = \App\Models\Product::find($item['product_id']);
+                    if ($product && ($product->is_out_of_stock || ($product->out_of_stock_until && $product->out_of_stock_until->isFuture()))) {
+                        $conflicts[] = [
+                            'product_name' => $product->name,
+                            'requested' => $item['quantity'],
+                            'available_stock' => 0,
+                        ];
+                    }
+                }
+                if (!empty($conflicts)) {
+                    return response()->json([
+                        'message' => 'Tồn kho không đủ khi đồng bộ đơn hàng ngoại tuyến.',
+                        'conflicts' => $conflicts,
+                    ], 409);
+                }
+            }
+
             $order = $this->orderService->createOnlineOrder($data, $config);
 
             $paymentUrl = null;

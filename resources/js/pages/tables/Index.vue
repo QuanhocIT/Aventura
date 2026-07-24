@@ -80,6 +80,7 @@ const selectedQrTable = ref<Table | null>(null);
 // Floor plan / View states
 const isFloorPlanView = ref(true);
 const isEditLayout = ref(false);
+const isSnapToGrid = ref(true);
 const hoverTableId = ref<number | null>(null);
 const tooltipCoords = ref({ x: 0, y: 0 });
 
@@ -404,14 +405,19 @@ const onDragMove = (event: MouseEvent) => {
     const y = event.clientY - rect.top;
 
     // Convert to percentage and clamp between 2 and 92 (to keep inside bounds)
-    const xPercent = Math.min(
+    let xPercent = Math.min(
         92,
         Math.max(2, Math.round((x / rect.width) * 100)),
     );
-    const yPercent = Math.min(
+    let yPercent = Math.min(
         92,
         Math.max(2, Math.round((y / rect.height) * 100)),
     );
+
+    if (isSnapToGrid.value) {
+        xPercent = Math.min(92, Math.max(2, Math.round(xPercent / 5) * 5));
+        yPercent = Math.min(92, Math.max(2, Math.round(yPercent / 5) * 5));
+    }
 
     // Update local reactiveness immediately
     activeDragTable.value.x_pos = xPercent;
@@ -1060,6 +1066,38 @@ const vnd = (value: number) => {
                                 v-if="isFloorPlanView && selectedArea !== 'all'"
                                 class="flex items-center gap-2"
                             >
+                                <!-- Snap to grid toggle shown in edit layout mode -->
+                                <div
+                                    v-if="isEditLayout"
+                                    class="flex items-center gap-2 mr-3 border-r pr-3 border-slate-250 dark:border-slate-800"
+                                >
+                                    <Label
+                                        for="snap-grid-toggle"
+                                        class="cursor-pointer text-xs font-semibold text-slate-500 select-none"
+                                    >
+                                        Hút dính lưới
+                                    </Label>
+                                    <button
+                                        id="snap-grid-toggle"
+                                        @click="isSnapToGrid = !isSnapToGrid"
+                                        :class="[
+                                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none',
+                                            isSnapToGrid
+                                                ? 'bg-teal-650'
+                                                : 'bg-slate-200 dark:bg-slate-700',
+                                        ]"
+                                    >
+                                        <span
+                                            :class="[
+                                                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out',
+                                                isSnapToGrid
+                                                    ? 'translate-x-4'
+                                                    : 'translate-x-0',
+                                            ]"
+                                        />
+                                    </button>
+                                </div>
+
                                 <Label
                                     for="edit-layout-toggle"
                                     class="cursor-pointer text-xs font-semibold text-slate-500 select-none"
@@ -1108,7 +1146,8 @@ const vnd = (value: number) => {
                         <!-- ════ FLOOR PLAN VIEW ════ -->
                         <div
                             v-if="isFloorPlanView"
-                            class="grid-bg relative h-[520px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner transition-colors duration-300 dark:border-slate-800 dark:bg-slate-950"
+                            class="relative h-[520px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner transition-colors duration-300 dark:border-slate-800 dark:bg-slate-950"
+                            :class="{ 'grid-bg': isEditLayout }"
                         >
                             <!-- Empty State inside Canvas -->
                             <div

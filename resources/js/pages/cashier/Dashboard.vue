@@ -23,9 +23,10 @@ import {
     CheckCircle2 as CheckIcon,
     XCircle,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+const ManagerPinModal = defineAsyncComponent(() => import('@/components/ManagerPinModal.vue'));
 import {
     Card,
     CardContent,
@@ -138,6 +139,47 @@ const toast = (message: string, type: ToastType = 'success') => {
     }, 3500);
 };
 
+// Echo WS Connection & Heartbeat states
+const wsConnected = ref(true);
+const pollingActive = ref(false);
+let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
+let fallbackPollInterval: ReturnType<typeof setInterval> | null = null;
+
+const startHeartbeat = () => {
+    wsCheckInterval = setInterval(() => {
+        if (window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
+            const state = window.Echo.connector.pusher.connection.state;
+            wsConnected.value = (state === 'connected');
+            
+            if (state === 'disconnected' || state === 'failed') {
+                triggerPollingFallback();
+            } else if (state === 'connected') {
+                stopPollingFallback();
+            }
+        } else {
+            wsConnected.value = false;
+            triggerPollingFallback();
+        }
+    }, 10000);
+};
+
+const triggerPollingFallback = () => {
+    if (pollingActive.value) return;
+    pollingActive.value = true;
+    fallbackPollInterval = setInterval(() => {
+        router.reload({ only: ['qrOrders', 'tablesData', 'externalOrders'] });
+    }, 20000);
+};
+
+const stopPollingFallback = () => {
+    if (!pollingActive.value) return;
+    pollingActive.value = false;
+    if (fallbackPollInterval) {
+        clearInterval(fallbackPollInterval);
+        fallbackPollInterval = null;
+    }
+};
+
 // State Management
 const activeTab = ref<'tables' | 'qr' | 'history' | 'schedules'>('tables');
 const searchQuery = ref('');
@@ -222,6 +264,22 @@ const paymentMethod = ref<
     'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt'
 >('cash');
 const cashReceived = ref<number | undefined>(undefined);
+const cashDenominations = computed(() => {
+    if (!activeTable.value?.active_order) {
+        return [];
+    }
+    const total = activeTable.value.active_order.total_amount;
+    const suggestions = [total];
+    
+    const standards = [50000, 100000, 200000, 500000];
+    standards.forEach((std) => {
+        if (std > total && std < total * 3) {
+            suggestions.push(std);
+        }
+    });
+
+    return Array.from(new Set(suggestions)).sort((a, b) => a - b);
+});
 const changeAmount = computed(() => {
     if (
         !activeTable.value?.active_order ||
@@ -316,6 +374,7 @@ const updateTime = () => {
 onMounted(() => {
     updateTime();
     timerId = setInterval(updateTime, 1000);
+    startHeartbeat();
 
     if (restaurantId.value) {
         window.Echo.channel(`restaurant.${restaurantId.value}`)
@@ -415,6 +474,11 @@ onUnmounted(() => {
     if (timerId) {
         clearInterval(timerId);
     }
+
+    if (wsCheckInterval) {
+        clearInterval(wsCheckInterval);
+    }
+    stopPollingFallback();
 
     if (restaurantId.value) {
         window.Echo.leaveChannel(`restaurant.${restaurantId.value}`);
@@ -1111,6 +1175,16 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                 >
                     <Coffee class="size-6 text-indigo-600" />
                     BepsoViet Operational POS
+                    <span 
+                        class="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold transition-all duration-300"
+                        :class="wsConnected 
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30' 
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30 animate-pulse'"
+                        :title="wsConnected ? 'Đã kết nối WebSockets Realtime' : 'Mạng yếu - Tự động tải lại dự phòng (Polling)'"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full" :class="wsConnected ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                        {{ wsConnected ? 'Realtime' : 'Polling (Dự phòng)' }}
+                    </span>
                 </h1>
                 <p
                     class="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground"
@@ -2555,6 +2629,21 @@ const getTableStatusInfo = (status: TableItem['status']) => {
                             v-model="cashReceived"
                             class="h-10 rounded-xl font-mono text-xs font-bold"
                         />
+
+                        <!-- Gợi ý các mệnh giá nhanh -->
+                        <div class="flex flex-wrap gap-1">
+                            <Button
+                                v-for="denom in cashDenominations"
+                                :key="denom"
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                class="h-7 rounded-lg text-[10px] font-bold px-2.5 border-slate-200 dark:border-slate-800"
+                                @click="cashReceived = denom"
+                            >
+                                {{ number_format(denom) }}đ
+                            </Button>
+                        </div>
 
                         <div
                             class="mt-1 flex justify-between text-xs font-bold text-emerald-600"

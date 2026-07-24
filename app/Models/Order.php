@@ -76,6 +76,30 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    /**
+     * Tính tổng số điểm tích lũy của toàn bộ các món trong hóa đơn này.
+     */
+    public function calculateTotalEarnPoints(): int
+    {
+        $this->loadMissing('items.product');
+        $totalEarn = 0;
+        foreach ($this->items as $item) {
+            $earnPoints = (int) ($item->product?->earn_points ?? 0);
+            if ($earnPoints > 0) {
+                $totalEarn += $earnPoints * (int) $item->quantity;
+            }
+        }
+
+        if ($totalEarn === 0 && (float) $this->total_amount > 0) {
+            $program = (new \App\Services\LoyaltyService())->getProgram($this->restaurant_id);
+            if ($program && $program->is_active) {
+                $totalEarn = (int) floor((float) $this->total_amount * (float) $program->points_per_vnd);
+            }
+        }
+
+        return $totalEarn;
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);

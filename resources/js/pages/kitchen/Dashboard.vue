@@ -14,6 +14,8 @@ import {
     AlertTriangle,
     RotateCcw,
     Search,
+    Volume2,
+    VolumeX,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -22,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Echo from '@/lib/echo';
 import KitchenTimer from '@/components/kitchen/KitchenTimer.vue';
+import { createEventBatcher } from '@/services/eventBatcher';
 
 interface PendingItem {
     id: number;
@@ -268,6 +271,9 @@ const isManualRefreshing = ref(false);
 
 // Web Audio API: Phát âm thanh chuông báo nhà hàng (Ding-dong chime)
 const playNotificationSound = () => {
+    if (isMuted.value) {
+        return;
+    }
     try {
         const AudioContext =
             window.AudioContext || (window as any).webkitAudioContext;
@@ -328,6 +334,35 @@ const nowTime = ref(new Date());
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let secCountdownInterval: ReturnType<typeof setInterval> | null = null;
 
+const connectionStatus = ref<'connected' | 'polling' | 'connecting'>('connecting');
+let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+const isMuted = ref(localStorage.getItem('kitchen_muted') === 'true');
+const toggleMute = () => {
+    isMuted.value = !isMuted.value;
+    localStorage.setItem('kitchen_muted', String(isMuted.value));
+    toast.info(isMuted.value ? 'Đã tắt âm báo màn hình bếp.' : 'Đã bật âm báo màn hình bếp.');
+};
+
+const getSlaProgress = (item: PendingItem) => {
+    if (!item.sent_to_kitchen_at_raw) {
+        return { percent: 0, color: 'bg-emerald-500' };
+    }
+    const elapsed = getMinutesElapsed(item.sent_to_kitchen_at_raw);
+    const prep = item.prep_minutes || 10;
+    const percent = Math.min(100, Math.round((elapsed / prep) * 100));
+
+    let color = 'bg-emerald-500';
+    if (elapsed >= prep * 1.5) {
+        color = 'bg-red-500';
+    } else if (elapsed >= prep) {
+        color = 'bg-amber-500';
+    }
+
+    return { percent, color };
+};
+
 const getMinutesElapsed = (timeStr: string) => {
     if (!timeStr) {
         return 0;
@@ -365,6 +400,40 @@ const hasOverdueItem = (items: PendingItem[]) => {
 const lateCount = computed(
     () => activePendingItems.value.filter((i) => slaLevel(i) === 'late').length,
 );
+
+// Tính ETA cho từng nhóm bàn: lấy món có thời gian chuẩn bị còn lại lâu nhất
+const tableEta = computed(() => {
+    const result: Record<string, { etaMinutes: number; label: string }> = {};
+    for (const [tableName, items] of Object.entries(groupedPending.value)) {
+        let maxRemainingMinutes = 0;
+        for (const item of items) {
+            const elapsed = getMinutesElapsed(item.sent_to_kitchen_at_raw);
+            const remaining = Math.max(0, item.prep_minutes - elapsed);
+            if (remaining > maxRemainingMinutes) maxRemainingMinutes = remaining;
+        }
+        const etaTime = new Date(nowTime.value.getTime() + maxRemainingMinutes * 60000);
+        result[tableName] = {
+            etaMinutes: maxRemainingMinutes,
+            label: maxRemainingMinutes > 0
+                ? `~${etaTime.getHours().toString().padStart(2, '0')}:${etaTime.getMinutes().toString().padStart(2, '0')}`
+                : 'Sắp xong',
+        };
+    }
+    return result;
+});
+
+// Urgency level của từng bàn: critical (có món trễ), warn (có món sắp trễ), ok (đúng hạn)
+type TableUrgency = 'ok' | 'warn' | 'critical';
+const tableUrgency = computed(() => {
+    const result: Record<string, TableUrgency> = {};
+    for (const [tableName, items] of Object.entries(groupedPending.value)) {
+        const levels = items.map((i) => slaLevel(i));
+        if (levels.includes('late')) result[tableName] = 'critical';
+        else if (levels.includes('warn')) result[tableName] = 'warn';
+        else result[tableName] = 'ok';
+    }
+    return result;
+});
 
 // Hoàn thành chế biến món ăn ở bếp
 const handlePrepare = (itemId: number) => {
@@ -555,12 +624,29 @@ onMounted(() => {
         }
     };
 
+    const kitchenEventBatcher = createEventBatcher((events) => {
+        console.log(`[Reverb] Processing ${events.length} batched kitchen updates from WebSockets`);
+        router.reload({
+            only: ['pendingItems', 'completedItems', 'kitchenStats'],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }, 300);
+
+    const productEventBatcher = createEventBatcher((events) => {
+        console.log(`[Reverb] Processing ${events.length} batched product updates from WebSockets`);
+        router.reload({
+            only: ['products'],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }, 300);
+
     if (Echo && restaurantId) {
         Echo.channel(`kitchen.${restaurantId}`).listen(
             '.kitchen.updated',
             (e: any) => {
-                console.log('Realtime update received via WebSocket:', e);
-                throttledReload(['pendingItems', 'completedItems', 'kitchenStats']);
+                kitchenEventBatcher.push(e);
             },
         );
 
@@ -568,11 +654,43 @@ onMounted(() => {
         Echo.channel(`restaurant.${restaurantId}`).listen(
             '.product.stock_updated',
             (e: any) => {
-                console.log('Product menu update received:', e);
-                throttledReload(['products']);
+                productEventBatcher.push(e);
             },
         );
     }
+
+    // 4. WebSocket connection heartbeat and polling fallback
+    const checkWebSocketConnection = () => {
+        const pusher = (Echo as any)?.connector?.pusher;
+        if (pusher && pusher.connection) {
+            const state = pusher.connection.state;
+            if (state === 'connected') {
+                connectionStatus.value = 'connected';
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                return;
+            } else if (state === 'connecting') {
+                connectionStatus.value = 'connecting';
+                return;
+            }
+        }
+        
+        connectionStatus.value = 'polling';
+        if (!pollingInterval) {
+            pollingInterval = setInterval(() => {
+                router.reload({
+                    only: ['pendingItems', 'completedItems', 'kitchenStats', 'products'],
+                    preserveState: true,
+                    preserveScroll: true,
+                });
+            }, 20000);
+        }
+    };
+    
+    statusCheckInterval = setInterval(checkWebSocketConnection, 10000);
+    setTimeout(checkWebSocketConnection, 2000);
 });
 
 onUnmounted(() => {
@@ -582,6 +700,13 @@ onUnmounted(() => {
 
     if (secCountdownInterval) {
         clearInterval(secCountdownInterval);
+    }
+
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+    }
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
     }
 
     // Ngắt kênh Echo
@@ -620,15 +745,48 @@ onUnmounted(() => {
                     <p
                         class="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
                     >
-                        <span
-                            class="inline-block h-2 w-2 animate-ping rounded-full bg-emerald-500"
-                        ></span>
-                        Đồng bộ WebSockets Realtime & Cảnh báo âm thanh chủ động
+                        <span class="relative flex h-2 w-2">
+                            <span
+                                v-if="connectionStatus === 'connected'"
+                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                            ></span>
+                            <span
+                                class="relative inline-flex rounded-full h-2 w-2"
+                                :class="{
+                                    'bg-emerald-500': connectionStatus === 'connected',
+                                    'bg-amber-500': connectionStatus === 'polling',
+                                    'bg-sky-400 animate-pulse': connectionStatus === 'connecting'
+                                }"
+                            ></span>
+                        </span>
+                        <span class="font-semibold" :class="{
+                            'text-emerald-600 dark:text-emerald-400': connectionStatus === 'connected',
+                            'text-amber-600 dark:text-amber-400': connectionStatus === 'polling',
+                            'text-sky-500': connectionStatus === 'connecting'
+                        }">
+                            {{
+                                connectionStatus === 'connected'
+                                    ? 'Đồng bộ WebSockets Realtime'
+                                    : connectionStatus === 'polling'
+                                      ? 'Mạng yếu - Tự động tải lại dự phòng (Polling)'
+                                      : 'Đang kết nối lại kênh truyền...'
+                            }}
+                        </span>
                     </p>
                 </div>
             </div>
 
             <div class="flex items-center gap-3">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-10 gap-1.5 rounded-xl bg-background px-4 text-xs font-bold shadow-sm transition-all"
+                    @click="toggleMute"
+                    :title="isMuted ? 'Bật âm báo' : 'Tắt âm báo'"
+                >
+                    <component :is="isMuted ? VolumeX : Volume2" class="size-3.5" />
+                    {{ isMuted ? 'Đang Tắt Âm' : 'Đang Bật Âm' }}
+                </Button>
                 <Button
                     variant="outline"
                     size="sm"
@@ -848,52 +1006,69 @@ onUnmounted(() => {
                             }"
                         >
                             <CardHeader
-                                class="border-b border-slate-200/80 px-4 py-3.5 dark:border-slate-800/60"
-                                :class="
-                                    hasOverdueItem(groupedPending[tableName])
-                                        ? 'bg-red-50/50 dark:bg-red-950/20'
-                                        : 'bg-slate-100/50 dark:bg-slate-800/20'
-                                "
+                                 class="border-b px-4 py-3.5 transition-colors"
+                                 :class="{
+                                     'border-red-300/80 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20':
+                                         tableUrgency[tableName] === 'critical',
+                                     'border-amber-300/80 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20':
+                                         tableUrgency[tableName] === 'warn',
+                                     'border-slate-200/80 bg-slate-100/50 dark:border-slate-800/60 dark:bg-slate-800/20':
+                                         tableUrgency[tableName] === 'ok',
+                                 }"
                             >
-                                <div class="flex items-center justify-between">
-                                    <CardTitle
-                                        class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
-                                    >
-                                        <span
-                                            class="inline-block h-2.5 w-2.5 rounded-full"
-                                            :class="
-                                                hasOverdueItem(groupedPending[tableName])
-                                                    ? 'animate-ping bg-red-500'
-                                                    : 'bg-indigo-500'
-                                            "
-                                        >
-                                        </span>
-                                        Bàn: {{ tableName }}
-                                    </CardTitle>
+                                 <div class="flex items-center justify-between">
+                                     <CardTitle
+                                         class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
+                                     >
+                                         <span
+                                             class="inline-block h-2.5 w-2.5 rounded-full"
+                                             :class="{
+                                                 'animate-ping bg-red-500': tableUrgency[tableName] === 'critical',
+                                                 'bg-amber-500': tableUrgency[tableName] === 'warn',
+                                                 'bg-emerald-500': tableUrgency[tableName] === 'ok',
+                                             }"
+                                         >
+                                         </span>
+                                         Bàn: {{ tableName }}
+                                     </CardTitle>
 
-                                    <div class="flex items-center gap-2">
-                                        <Badge
-                                            v-if="hasOverdueItem(groupedPending[tableName])"
-                                            variant="destructive"
-                                            class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
-                                        >
-                                            🚨 Có món trễ!
-                                        </Badge>
-                                        <Badge
-                                            class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                        >
-                                            {{ groupedPending[tableName].length }} món
-                                        </Badge>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
-                                            @click="handlePrepareBulk(groupedPending[tableName].map(i => i.id))"
-                                        >
-                                            Hoàn thành tất cả
-                                        </Button>
-                                    </div>
-                                </div>
+                                     <div class="flex items-center gap-2">
+                                         <!-- ETA Badge -->
+                                         <span
+                                             class="rounded-full px-2.5 py-1 text-[10px] font-black"
+                                             :class="{
+                                                 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300':
+                                                     tableUrgency[tableName] === 'critical',
+                                                 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300':
+                                                     tableUrgency[tableName] === 'warn',
+                                                 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300':
+                                                     tableUrgency[tableName] === 'ok',
+                                             }"
+                                         >
+                                             ⏱ ETA {{ tableEta[tableName]?.label }}
+                                         </span>
+                                         <Badge
+                                             v-if="tableUrgency[tableName] === 'critical'"
+                                             variant="destructive"
+                                             class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
+                                         >
+                                             🚨 Có món trễ!
+                                         </Badge>
+                                         <Badge
+                                             class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                         >
+                                             {{ groupedPending[tableName].length }} món
+                                         </Badge>
+                                         <Button
+                                             size="sm"
+                                             variant="outline"
+                                             class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
+                                             @click="handlePrepareBulk(groupedPending[tableName].map(i => i.id))"
+                                         >
+                                             Hoàn thành tất cả
+                                         </Button>
+                                     </div>
+                                 </div>
                             </CardHeader>
 
                             <CardContent
@@ -942,6 +1117,15 @@ onUnmounted(() => {
                                             <span class="text-[10px] font-medium text-slate-500">
                                                 NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
                                             </span>
+                                        </div>
+                                        
+                                        <!-- SLA Progress Bar -->
+                                        <div class="mt-2 w-full max-w-[200px] bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
+                                            <div 
+                                                class="h-1 rounded-full transition-all duration-500" 
+                                                :class="getSlaProgress(item).color" 
+                                                :style="{ width: getSlaProgress(item).percent + '%' }"
+                                            ></div>
                                         </div>
 
                                         <!-- Ghi chú món ăn nếu có -->
@@ -1053,6 +1237,15 @@ onUnmounted(() => {
                                             <span class="text-[10px] font-medium text-slate-500">
                                                 NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
                                             </span>
+                                        </div>
+                                        
+                                        <!-- SLA Progress Bar -->
+                                        <div class="mt-2 w-full max-w-[200px] bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
+                                            <div 
+                                                class="h-1 rounded-full transition-all duration-500" 
+                                                :class="getSlaProgress(item).color" 
+                                                :style="{ width: getSlaProgress(item).percent + '%' }"
+                                            ></div>
                                         </div>
 
                                         <!-- Ghi chú nếu có -->

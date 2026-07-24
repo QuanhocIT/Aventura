@@ -17,9 +17,10 @@ class TemporaryOrderUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
+        $tableToken = $this->temporaryOrder->table?->qr_token ?? $this->temporaryOrder->table_id;
         return [
             new Channel("restaurant.{$this->temporaryOrder->restaurant_id}"),
-            new Channel("table.{$this->temporaryOrder->table_id}"),
+            new Channel("table.{$tableToken}"),
         ];
     }
 

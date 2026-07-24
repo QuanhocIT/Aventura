@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Restaurant;
 use App\Models\RestaurantTable;
 use App\Models\ProductCategory;
@@ -86,6 +87,8 @@ class QROrderController extends Controller
                 'name' => $p->name,
                 'description' => $p->description,
                 'price' => (float) $p->price,
+                'earn_points' => (int) ($p->earn_points ?? 0),
+                'redeem_points' => (int) ($p->redeem_points ?? 0),
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,
                 'category_id' => $p->category_id,
@@ -197,7 +200,25 @@ class QROrderController extends Controller
         // 5. Lấy danh sách nhân viên phục vụ trong ca trực hiện tại để khách hàng đánh giá
         $staffList = $this->resolveCurrentShiftStaff($restaurantId);
 
+        $currentCustomer = null;
+        $authUser = Auth::user();
+        if ($authUser && $authUser->phone) {
+            $customerObj = \App\Models\Customer::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('phone', $authUser->phone)
+                ->first();
+            if ($customerObj) {
+                $currentCustomer = [
+                    'id'             => $customerObj->id,
+                    'full_name'      => $customerObj->full_name,
+                    'phone'          => $customerObj->phone,
+                    'loyalty_points' => (int) $customerObj->loyalty_points,
+                ];
+            }
+        }
+
         return Inertia::render('customers/QROrder', [
+            'customer'   => $currentCustomer,
             'restaurant' => [
                 'id' => $restaurant->id,
                 'name' => $restaurant->name,

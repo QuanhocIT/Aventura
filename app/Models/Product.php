@@ -52,6 +52,8 @@ class Product extends Model
             'out_of_stock_until' => 'datetime',
             'is_active' => 'boolean',
             'is_available' => 'boolean',
+            'earn_points' => 'integer',
+            'redeem_points' => 'integer',
         ];
     }
 
@@ -122,8 +124,18 @@ class Product extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
-        static::deleted(fn ($product) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products"));
+        static::saved(function ($product) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products");
+            if ($product->restaurant_id) {
+                app(\App\Services\MenuCatalogCacheService::class)->invalidate($product->restaurant_id);
+            }
+        });
+        static::deleted(function ($product) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$product->restaurant_id}_products");
+            if ($product->restaurant_id) {
+                app(\App\Services\MenuCatalogCacheService::class)->invalidate($product->restaurant_id);
+            }
+        });
     }
 
     protected static function newFactory(): Factory

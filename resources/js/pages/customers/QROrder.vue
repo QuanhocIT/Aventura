@@ -20,6 +20,7 @@ import {
     Store,
     HeartHandshake,
     Award,
+    Sparkles,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -94,6 +95,70 @@ const isCartOpen = ref(false);
 const isOrdering = ref(false);
 const customerName = ref(localStorage.getItem('customer_name') || '');
 const customerPhone = ref(localStorage.getItem('customer_phone') || '');
+
+const allergenFilter = ref<'all' | 'vegetarian' | 'no-seafood' | 'no-nuts'>('all');
+
+const crossSellProducts = computed(() => {
+    const cartProductIds = cart.value.map((item) => item.product.id);
+    return props.products
+        .filter((p) => p.in_stock && !cartProductIds.includes(p.id))
+        .filter((p) => {
+            const name = p.name.toLowerCase();
+            return name.includes('coca') || name.includes('trà') || name.includes('nước') || name.includes('bia') || name.includes('kem') || name.includes('bánh') || name.includes('ép');
+        })
+        .slice(0, 3);
+});
+
+const addCrossSellItem = (product: Product) => {
+    const idx = cart.value.findIndex((item) => item.product.id === product.id);
+    if (idx > -1) {
+        cart.value[idx].quantity++;
+    } else {
+        cart.value.push({ product, quantity: 1, notes: '' });
+    }
+    toast.success(`Đã thêm ${product.name} vào giỏ hàng!`);
+};
+
+const isCallStaffHubOpen = ref(false);
+const isCallingStaffCustom = ref(false);
+
+const staffCallPresets = [
+    { label: '🛎️ Gọi hỗ trợ chung', message: 'Yêu cầu nhân viên hỗ trợ tại bàn' },
+    { label: '🧊 Xin thêm đá lạnh', message: 'Yêu cầu thêm đá lạnh' },
+    { label: '🥢 Xin thêm bát đũa / thìa', message: 'Yêu cầu thêm bát đũa, thìa ăn' },
+    { label: '🧻 Xin khăn giấy', message: 'Yêu cầu thêm khăn giấy' },
+    { label: '💵 Gọi thanh toán Tiền mặt', message: 'Yêu cầu thanh toán bằng Tiền mặt' },
+    { label: '💳 Gọi thanh toán Chuyển khoản', message: 'Yêu cầu thanh toán qua Chuyển khoản/VietQR' },
+];
+
+const callStaffWithMessage = async (message: string) => {
+    isCallingStaffCustom.value = true;
+    try {
+        const response = await axios.post(
+            `/customer/order/call-staff/${props.restaurant.id}`,
+            {
+                table_id: props.table.id,
+                message: message,
+            },
+        );
+        toast.success(response.data.message);
+        isCallStaffHubOpen.value = false;
+        trackBehavior('call_staff');
+    } catch (err) {
+        toast.error('Có lỗi xảy ra. Vui lòng gọi trực tiếp nhân viên.');
+    } finally {
+        isCallingStaffCustom.value = false;
+    }
+};
+
+const staffTip = ref<Record<number, number>>({});
+const toggleStaffTip = (employeeId: number, amount: number) => {
+    if (staffTip.value[employeeId] === amount) {
+        staffTip.value[employeeId] = 0;
+    } else {
+        staffTip.value[employeeId] = amount;
+    }
+};
 
 const customerLoyalty = ref<any>(null);
 const isSearchingLoyalty = ref(false);
@@ -351,13 +416,30 @@ const feedbackSubmittedSuccessfully = ref(false);
 
 // Filtered products
 const filteredProducts = computed(() => {
-    if (!selectedCategoryId.value) {
-        return props.products;
+    let list = props.products;
+    if (selectedCategoryId.value) {
+        list = list.filter((p) => p.category_id === selectedCategoryId.value);
     }
-
-    return props.products.filter(
-        (p) => p.category_id === selectedCategoryId.value,
-    );
+    if (allergenFilter.value === 'vegetarian') {
+        list = list.filter((p) => {
+            const name = p.name.toLowerCase();
+            const desc = (p.description || '').toLowerCase();
+            return name.includes('chay') || desc.includes('chay') || name.includes('rau') || name.includes('salad');
+        });
+    } else if (allergenFilter.value === 'no-seafood') {
+        list = list.filter((p) => {
+            const name = p.name.toLowerCase();
+            const desc = (p.description || '').toLowerCase();
+            return !name.includes('tôm') && !name.includes('cua') && !name.includes('cá') && !name.includes('mực') && !name.includes('nghêu') && !name.includes('hải sản') && !desc.includes('tôm') && !desc.includes('hải sản');
+        });
+    } else if (allergenFilter.value === 'no-nuts') {
+        list = list.filter((p) => {
+            const name = p.name.toLowerCase();
+            const desc = (p.description || '').toLowerCase();
+            return !name.includes('đậu phộng') && !name.includes('lạc') && !desc.includes('đậu phộng') && !desc.includes('hạt');
+        });
+    }
+    return list;
 });
 
 // Cart computed
@@ -613,7 +695,14 @@ async function submitFeedback() {
             payload,
         );
         feedbackSubmittedSuccessfully.value = true;
-        toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
+        const tipsSent = Object.entries(staffTip.value)
+            .filter(([_, amt]) => amt > 0)
+            .reduce((sum, [_, amt]) => sum + amt, 0);
+        if (tipsSent > 0) {
+            toast.success(`Cảm ơn bạn! Đã ghi nhận phản hồi và chuyển tiếp khoản tip ${tipsSent.toLocaleString()}đ tới nhân viên phục vụ.`);
+        } else {
+            toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
+        }
         setTimeout(() => {
             showFeedbackSection.value = false;
         }, 2500);
@@ -716,7 +805,7 @@ onMounted(() => {
 
     // Listen to live temporary order status updates
     if (window.Echo) {
-        window.Echo.channel(`table.${props.table.id}`)
+        window.Echo.channel(`table.${props.table.qr_token}`)
             .listen('.temporary_order.updated', (e: any) => {
                 const order = props.activeTempOrders.find((o) => o.id === e.id);
 
@@ -874,6 +963,11 @@ onUnmounted(() => {
     if (paymentTimer.value) {
         clearInterval(paymentTimer.value);
     }
+
+    if (window.Echo) {
+        window.Echo.leaveChannel(`table.${props.table.qr_token}`);
+        window.Echo.leaveChannel(`restaurant.${props.restaurant.id}`);
+    }
 });
 </script>
 
@@ -939,16 +1033,11 @@ onUnmounted(() => {
                     <span>Hội Viên</span>
                 </button>
                 <button
-                    @click="callStaff"
-                    :disabled="isCallingStaff"
-                    class="cursor-pointer rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-slate-600 shadow-sm transition-all hover:text-slate-900 active:scale-95 disabled:opacity-50"
+                    @click="isCallStaffHubOpen = true"
+                    class="cursor-pointer rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-slate-600 shadow-sm transition-all hover:text-slate-900 active:scale-95"
                     title="Gọi phục vụ"
                 >
-                    <Loader2
-                        v-if="isCallingStaff"
-                        class="size-4 animate-spin text-amber-500"
-                    />
-                    <Bell v-else class="size-4" />
+                    <Bell class="size-4" />
                 </button>
                 <button
                     @click="requestPayment"
@@ -1222,6 +1311,54 @@ onUnmounted(() => {
             </button>
         </nav>
 
+        <!-- ── Allergen & Dietary Filter Pills ── -->
+        <div class="sticky top-[120px] z-20 flex gap-2 overflow-x-auto scrollbar-none px-5 py-2.5 bg-slate-50 border-b border-slate-100/80">
+            <button
+                @click="allergenFilter = 'all'"
+                :class="[
+                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    allergenFilter === 'all'
+                        ? 'border-indigo-650 bg-indigo-50 text-indigo-650'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                ]"
+            >
+                🍽️ Tất cả món
+            </button>
+            <button
+                @click="allergenFilter = 'vegetarian'"
+                :class="[
+                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    allergenFilter === 'vegetarian'
+                        ? 'border-emerald-650 bg-emerald-50 text-emerald-650'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                ]"
+            >
+                🥬 Món Chay
+            </button>
+            <button
+                @click="allergenFilter = 'no-seafood'"
+                :class="[
+                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    allergenFilter === 'no-seafood'
+                        ? 'border-rose-600 bg-rose-50 text-rose-600'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                ]"
+            >
+                🦞 Không hải sản
+            </button>
+            <button
+                @click="allergenFilter = 'no-nuts'"
+                :class="[
+                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    allergenFilter === 'no-nuts'
+                        ? 'border-amber-600 bg-amber-50 text-amber-600'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                ]"
+            >
+                🥜 Không có hạt
+            </button>
+        </div>
+
         <!-- ── Products List ───────────────────────────────────────────── -->
         <main class="flex-1 overflow-y-auto px-5 py-5 pb-28">
             <div class="space-y-4">
@@ -1241,9 +1378,7 @@ onUnmounted(() => {
 
                 <div class="grid grid-cols-1 gap-4">
                     <div
-                        v-for="product in products.filter(
-                            (p) => p.category_id === selectedCategoryId,
-                        )"
+                        v-for="product in filteredProducts"
                         :key="product.id"
                         @click="openItemModal(product)"
                         :class="[
@@ -1496,6 +1631,30 @@ onUnmounted(() => {
                         </div>
                     </div>
 
+                    <!-- Smart Cross-selling Recommendations -->
+                    <div v-if="crossSellProducts.length > 0" class="border-t border-slate-100 pt-4 text-left">
+                        <h3 class="text-[10px] font-black tracking-wider text-slate-400 uppercase mb-2">
+                            💡 Gợi ý mua kèm (Ngon hơn khi dùng chung)
+                        </h3>
+                        <div class="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+                            <div
+                                v-for="p in crossSellProducts"
+                                :key="p.id"
+                                class="flex items-center gap-2 rounded-xl border border-slate-150 p-2 bg-slate-50/50 shrink-0 w-44 cursor-pointer hover:bg-slate-50 active:scale-95 transition-all text-left"
+                                @click="addCrossSellItem(p)"
+                            >
+                                <div class="size-9 rounded-lg overflow-hidden border bg-slate-100 shrink-0">
+                                    <img v-if="p.image_url" :src="p.image_url" :alt="p.name" class="size-full object-cover" />
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-[10px] font-bold text-slate-800 truncate">{{ p.name }}</p>
+                                    <p class="text-[10px] font-black text-amber-600 font-mono">{{ formatCurrency(p.price) }}</p>
+                                </div>
+                                <span class="text-slate-400 hover:text-indigo-600 font-extrabold text-xs shrink-0">+</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Customer Information Form -->
                     <div class="space-y-4 border-t border-slate-100 pt-4">
                         <h3
@@ -1573,6 +1732,35 @@ onUnmounted(() => {
                                     }}
                                     pt</span
                                 >
+                            </div>
+
+                            <!-- Progress milestone gauge -->
+                            <div class="mt-2.5 space-y-1">
+                                <div class="flex items-center justify-between text-[9px] font-bold text-slate-400">
+                                    <span>Tiến trình thăng hạng:</span>
+                                    <span>{{ customerLoyalty.loyalty_points }} / {{ customerLoyalty.membership_level === 'silver' ? '100 pt' : customerLoyalty.membership_level === 'gold' ? '500 pt' : 'Cực Đại' }}</span>
+                                </div>
+                                <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                                    <div 
+                                        class="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all"
+                                        :style="{
+                                            width: customerLoyalty.membership_level === 'silver' 
+                                                ? Math.min(100, (customerLoyalty.loyalty_points / 100) * 100) + '%'
+                                                : customerLoyalty.membership_level === 'gold'
+                                                    ? Math.min(100, (customerLoyalty.loyalty_points / 500) * 100) + '%'
+                                                    : '100%'
+                                        }"
+                                    ></div>
+                                </div>
+                                <p class="text-[9px] text-muted-foreground leading-normal mt-0.5">
+                                    {{ 
+                                        customerLoyalty.membership_level === 'silver'
+                                            ? `Tích lũy thêm ${Math.max(0, 100 - customerLoyalty.loyalty_points)} điểm để thăng hạng Vàng (Hưởng giảm giá 5% hóa đơn).`
+                                            : customerLoyalty.membership_level === 'gold'
+                                                ? `Tích lũy thêm ${Math.max(0, 500 - customerLoyalty.loyalty_points)} điểm để thăng hạng Kim Cương (Hưởng giảm giá 10% hóa đơn).`
+                                                : 'Bạn đã đạt cấp độ thành viên cao nhất! Xin cảm ơn quý khách.'
+                                    }}
+                                </p>
                             </div>
 
                             <!-- Point redemption checkbox option -->
@@ -2093,6 +2281,27 @@ onUnmounted(() => {
                                         placeholder="Nhận xét về nhân viên này..."
                                         class="text-xxs h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-slate-800 focus:border-slate-800 focus:outline-none"
                                     />
+
+                                    <!-- Tip option -->
+                                    <div class="mt-2.5 flex items-center justify-between">
+                                        <span class="text-[10px] font-bold text-slate-500">Tặng tiền tip cho bạn này:</span>
+                                        <div class="flex gap-1.5">
+                                            <button
+                                                v-for="tipVal in [10000, 20000, 50000]"
+                                                :key="tipVal"
+                                                type="button"
+                                                class="px-2 py-0.5 rounded-lg border text-[9px] font-extrabold transition-all active:scale-95 cursor-pointer"
+                                                :class="[
+                                                    staffTip[staff.employee_id] === tipVal
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-600'
+                                                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                                                ]"
+                                                @click="toggleStaffTip(staff.employee_id, tipVal)"
+                                            >
+                                                +{{ tipVal / 1000 }}k
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2117,6 +2326,50 @@ onUnmounted(() => {
                         >
                     </button>
                 </footer>
+            </div>
+        </div>
+
+        <!-- ── Call Staff Hub Modal ────────────────────────────────────────── -->
+        <div
+            v-if="isCallStaffHubOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            @click.self="isCallStaffHubOpen = false"
+        >
+            <div
+                class="w-full max-w-sm overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200"
+            >
+                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div class="flex items-center gap-2">
+                        <Bell class="size-4.5 text-indigo-650 animate-bounce" />
+                        <h3 class="text-xs font-black tracking-wide text-slate-800 uppercase">
+                            Gọi nhân viên phục vụ
+                        </h3>
+                    </div>
+                    <button
+                        @click="isCallStaffHubOpen = false"
+                        class="cursor-pointer rounded-xl bg-slate-100 p-1 text-slate-500 hover:bg-slate-200"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-3">
+                    <p class="text-xxs font-bold text-slate-400 text-left uppercase">Chọn yêu cầu cụ thể tại bàn {{ table.name }}:</p>
+                    
+                    <div class="grid grid-cols-1 gap-2.5">
+                        <button
+                            v-for="preset in staffCallPresets"
+                            :key="preset.label"
+                            type="button"
+                            @click="callStaffWithMessage(preset.message)"
+                            :disabled="isCallingStaffCustom"
+                            class="flex w-full items-center justify-between rounded-2xl border border-slate-200 p-3.5 text-left text-xs font-black text-slate-700 transition-all hover:bg-slate-50 active:scale-98 disabled:opacity-50 cursor-pointer"
+                        >
+                            <span>{{ preset.label }}</span>
+                            <span class="text-slate-350">➔</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
