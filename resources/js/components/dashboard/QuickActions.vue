@@ -1,20 +1,44 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import {
     ShoppingCart,
     Package,
     BarChart3,
     Users,
     TrendingUp,
+    Utensils,
+    PlusCircle,
+    Receipt,
 } from 'lucide-vue-next';
 
-const quickActions = [
+const page = usePage();
+const roles = computed<string[]>(() => (page.props as any).roles ?? []);
+
+const allActions = [
+    {
+        label: 'Tạo đơn mới',
+        description: 'Tạo đơn tại bàn / mang đi',
+        icon: PlusCircle,
+        href: '/pos',
+        color: 'emerald',
+        roles: ['owner', 'admin', 'manager', 'cashier', 'staff'],
+    },
     {
         label: 'Đơn hàng',
         description: 'Xử lý, theo dõi đơn',
         icon: ShoppingCart,
         href: '/orders',
         color: 'violet',
+        roles: ['owner', 'admin', 'manager', 'cashier'],
+    },
+    {
+        label: 'Bàn & Khu vực',
+        description: 'Sơ đồ, trạng thái bàn',
+        icon: Utensils,
+        href: '/tables',
+        color: 'teal',
+        roles: ['owner', 'admin', 'manager', 'cashier', 'staff'],
     },
     {
         label: 'Sản phẩm',
@@ -22,20 +46,7 @@ const quickActions = [
         icon: Package,
         href: '/products',
         color: 'amber',
-    },
-    {
-        label: 'Bàn & Khu vực',
-        description: 'Sơ đồ, trạng thái bàn',
-        icon: BarChart3,
-        href: '/tables',
-        color: 'teal',
-    },
-    {
-        label: 'Nhân viên',
-        description: 'Ca làm, phân quyền',
-        icon: Users,
-        href: '/employees',
-        color: 'sky',
+        roles: ['owner', 'admin', 'manager'],
     },
     {
         label: 'Kho nguyên liệu',
@@ -43,6 +54,15 @@ const quickActions = [
         icon: TrendingUp,
         href: '/inventory',
         color: 'emerald',
+        roles: ['owner', 'admin', 'manager'],
+    },
+    {
+        label: 'Nhân viên',
+        description: 'Ca làm, phân quyền',
+        icon: Users,
+        href: '/employees',
+        color: 'sky',
+        roles: ['owner', 'admin'],
     },
     {
         label: 'Báo cáo',
@@ -50,8 +70,19 @@ const quickActions = [
         icon: BarChart3,
         href: '/reports',
         color: 'rose',
+        roles: ['owner', 'admin', 'manager'],
     },
 ];
+
+const quickActions = computed(() => {
+    const userRoles = roles.value;
+    if (!userRoles || userRoles.length === 0) return allActions.slice(0, 6);
+
+    // Ưu tiên hiển thị các mục thuộc vai trò người dùng
+    return allActions.filter(action => 
+        action.roles.some(r => userRoles.includes(r))
+    ).slice(0, 6);
+});
 </script>
 
 <template>
