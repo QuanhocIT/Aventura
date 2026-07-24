@@ -57,15 +57,22 @@ class InventoryManagementController extends Controller
             ->get()
             ->map(function ($ing) use ($inventoryMap) {
                 $inventory = $inventoryMap->get($ing->id);
+                $onHand = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+                $theoretical = $inventory ? (float) ($inventory->theoretical_quantity ?? $onHand) : 0.0;
+                $variance = round($theoretical - $onHand, 2);
+
                 return [
-                    'id'            => $ing->id,
-                    'sku'           => $ing->sku,
-                    'name'          => $ing->name,
-                    'category_name' => $ing->category_name,
-                    'average_cost'  => $ing->average_cost,
-                    'unit'          => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
-                    'stock'         => $inventory ? (float) $inventory->quantity_on_hand : null,
-                    'last_cost'     => $inventory ? (float) $inventory->last_cost : null,
+                    'id'                => $ing->id,
+                    'sku'               => $ing->sku,
+                    'name'              => $ing->name,
+                    'category_name'     => $ing->category_name,
+                    'average_cost'      => $ing->average_cost,
+                    'is_semi_finished'  => (bool) $ing->is_semi_finished,
+                    'unit'              => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
+                    'stock'             => $onHand,
+                    'theoretical_stock' => $theoretical,
+                    'variance'          => $variance,
+                    'last_cost'         => $inventory ? (float) $inventory->last_cost : null,
                 ];
             });
 
@@ -182,7 +189,7 @@ class InventoryManagementController extends Controller
                 'ingredient_name' => $ing?->name ?? '—',
                 'quantity'        => (float) ($opData['quantity'] ?? 0),
                 'unit_symbol'     => $ing?->unit?->symbol ?? '—',
-                'cost'            => (float) (($opData['quantity'] ?? 0) * ($ing?->average_cost ?? 0)),
+                'cost'            => (float) ($opData['quantity'] ?? 0) * (float) ($ing?->average_cost ?? 0),
                 'notes'           => $opData['notes'] ?? null,
                 'performed_by'    => $r->requester?->name ?? '—',
                 'employee_name'   => $emp?->full_name ?? 'Không khấu trừ',
@@ -325,7 +332,7 @@ class InventoryManagementController extends Controller
         foreach ($recipes as $recipe) {
             $product = $recipe->product;
             if ($product) {
-                $ingredientUsageQty = (float) $recipe->quantity * (1 + ($recipe->waste_rate / 100));
+                $ingredientUsageQty = (float) $recipe->quantity * (1 + ((float) ($recipe->waste_rate ?? 0) / 100));
                 $costForThisIngredient = $unitCost * $ingredientUsageQty;
 
                 if ($costForThisIngredient >= (float) $product->price) {
@@ -706,7 +713,9 @@ class InventoryManagementController extends Controller
                     }
 
                     $currentQty = (float) $inventory->quantity_on_hand;
+                    $theoreticalQty = (float) ($inventory->theoretical_quantity ?? $currentQty);
                     $discrepancy = $physicalQty - $currentQty;
+                    $variance = $theoreticalQty - $physicalQty; // Thất thoát = Lý thuyết - Thực tế
 
                     if ($discrepancy != 0) {
                         $direction = $discrepancy > 0 ? 'in' : 'out';
@@ -722,16 +731,35 @@ class InventoryManagementController extends Controller
                             'quantity'      => $absQty,
                             'unit_cost'     => (float) $ingredient->average_cost,
                             'total_cost'    => $absQty * (float) $ingredient->average_cost,
-                            'notes'         => $data['notes'] ?? 'Kiểm kho nhanh định kỳ',
+                            'notes'         => ($data['notes'] ?? 'Kiểm kho định kỳ') . " (Lý thuyết: {$theoreticalQty}, Thực tế: {$physicalQty})",
                             'occurred_at'   => now(),
                         ]);
                     }
 
+                    // Tự động kiểm tra cờ đỏ cảnh báo thất thoát cao (> 5%)
+                    $variancePct = $theoreticalQty > 0 ? round(($variance / $theoreticalQty) * 100, 2) : 0.0;
+                    if ($variancePct > 5.0) {
+                        \App\Models\AuditLog::create([
+                            'restaurant_id'  => $user->restaurant_id,
+                            'user_id'        => $user->id,
+                            'action'         => 'inventory_high_variance_alert',
+                            'auditable_type' => Ingredient::class,
+                            'auditable_id'   => $ingredient->id,
+                            'old_values'     => json_encode(['theoretical_quantity' => $theoreticalQty]),
+                            'new_values'     => json_encode([
+                                'physical_quantity' => $physicalQty,
+                                'variance_loss'     => $variance,
+                                'variance_pct'      => $variancePct,
+                                'loss_cost'         => $variance * (float) $ingredient->average_cost,
+                            ]),
+                        ]);
+                    }
+
                     $inventory->update([
-                        'quantity_on_hand' => $physicalQty,
+                        'quantity_on_hand'     => $physicalQty,
                         'theoretical_quantity' => $physicalQty,
-                        'last_counted_at' => now(),
-                        'updated_by' => $user->id,
+                        'last_counted_at'      => now(),
+                        'updated_by'           => $user->id,
                     ]);
                 }
             });

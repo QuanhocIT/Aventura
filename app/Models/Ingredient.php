@@ -40,9 +40,15 @@ class Ingredient extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    public function subRecipes(): HasMany
+    {
+        return $this->hasMany(SubRecipe::class, 'parent_ingredient_id');
+    }
+
     protected function casts(): array
     {
         return [
+            'is_semi_finished'    => 'boolean',
             'allowed_waste_ratio' => 'decimal:2',
             'average_cost'        => 'decimal:2',
         ];

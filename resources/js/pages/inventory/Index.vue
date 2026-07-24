@@ -215,6 +215,26 @@ onMounted(() => {
     fetchAiForecast();
 });
 
+const isGeneratingAutoPo = ref(false);
+const handleAutoPo = () => {
+    isGeneratingAutoPo.value = true;
+    router.post(
+        '/inventory/auto-po/generate',
+        {},
+        {
+            onSuccess: () => {
+                toast.success('Đã tự động tạo Đơn mua hàng nháp (Auto PO) thành công!');
+            },
+            onError: () => {
+                toast.error('Lỗi khi tạo đơn mua hàng tự động.');
+            },
+            onFinish: () => {
+                isGeneratingAutoPo.value = false;
+            },
+        }
+    );
+};
+
 watch(activeTab, (newTab) => {
     if (newTab === 'purchase') {
         fetchAiForecast();
@@ -427,23 +447,35 @@ const submitWaste = () => {
         <!-- Low-stock alert banner -->
         <div
             v-if="lowStockIngredients.length > 0"
-            class="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
+            class="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 md:flex-row md:items-center md:justify-between dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
         >
-            <AlertTriangle class="mt-0.5 size-4 shrink-0 text-rose-500" />
-            <div>
-                <span class="font-bold"
-                    >{{ lowStockIngredients.length }} nguyên liệu SẮP HẾT HÀNG
-                    (&lt;5 đơn vị):</span
-                >
-                {{
-                    lowStockIngredients
-                        .map(
-                            (i) =>
-                                `${i.name} (còn ${i.stock} ${i.unit?.symbol ?? ''})`,
-                        )
-                        .join(' · ')
-                }}. Hãy nhập hàng ngay để tránh gián đoạn sản xuất.
+            <div class="flex items-start gap-3">
+                <AlertTriangle class="mt-0.5 size-4 shrink-0 text-rose-500" />
+                <div>
+                    <span class="font-bold"
+                        >{{ lowStockIngredients.length }} nguyên liệu SẮP HẾT HÀNG
+                        (&lt;5 đơn vị):</span
+                    >
+                    {{
+                        lowStockIngredients
+                            .map(
+                                (i) =>
+                                    `${i.name} (còn ${i.stock} ${i.unit?.symbol ?? ''})`,
+                            )
+                            .join(' · ')
+                    }}. Hãy nhập hàng ngay để tránh gián đoạn sản xuất.
+                </div>
             </div>
+            <Button
+                size="sm"
+                variant="outline"
+                class="shrink-0 rounded-xl border-rose-300 bg-white text-xs font-bold text-rose-700 hover:bg-rose-100 dark:bg-slate-900 dark:text-rose-400"
+                :disabled="isGeneratingAutoPo"
+                @click="handleAutoPo"
+            >
+                <ShoppingCart class="mr-1.5 size-3.5" />
+                {{ isGeneratingAutoPo ? 'Đang tạo đơn...' : 'Tự động tạo Đơn Mua Hàng 1-Click' }}
+            </Button>
         </div>
 
         <!-- Zero-cost warning -->
