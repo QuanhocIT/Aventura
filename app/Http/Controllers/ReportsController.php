@@ -318,13 +318,13 @@ class ReportsController extends Controller
         return Inertia::render('reports/Index', [
             'summaries'          => $summaries->values(),
             'totals'             => $totals,
-            'topProducts'        => Inertia::defer(fn() => collect($topProducts)->values()->all()),
+            'topProducts'        => collect($topProducts)->values()->all(),
             'period'             => $period,
             'dateRange'          => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
             'paymentBreakdown'   => $paymentBreakdown,
             'periodComparison'   => $periodComparison,
             'cancelledStats'     => $cancelledStats,
-            'peakHours'          => Inertia::defer(fn() => collect($peakHours)->values()->all()),
+            'peakHours'          => collect($peakHours)->values()->all(),
             'todaySummary'       => $todaySummary,
             'comparisonCards'    => $comparisonCards,
             'profitBreakdown'    => $profitBreakdown,
@@ -454,23 +454,28 @@ class ReportsController extends Controller
             ->orderBy('summary_date')
             ->get();
 
-        $csv = "Ngay,Don hang,Hoan thanh,Huy,Doanh thu,Giam gia,Loi nhuan\n";
+        $csv = "\xEF\xBB\xBF\"Ngày\",\"Tổng đơn\",\"Đơn hoàn thành\",\"Đơn hủy\",\"Doanh thu thuần (đ)\",\"Giảm giá (đ)\",\"Lợi nhuận gộp (đ)\"\n";
         foreach ($summaries as $s) {
             $csv .= implode(',', [
-                $s->summary_date->format('Y-m-d'),
+                '"' . $s->summary_date->format('d/m/Y') . '"',
                 $s->order_count,
                 $s->completed_order_count,
                 $s->cancelled_order_count,
-                $s->net_revenue,
-                $s->discount_total,
-                $s->gross_profit,
+                (float) $s->net_revenue,
+                (float) $s->discount_total,
+                (float) $s->gross_profit,
             ]) . "\n";
         }
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=bao-cao-{$period}.csv",
+            'Content-Disposition' => "attachment; filename=bao-cao-doanh-thu-{$period}.csv",
         ]);
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return $this->exportCsv($request);
     }
 
     /**

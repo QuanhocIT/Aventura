@@ -22,7 +22,7 @@ import {
     Wallet,
     XCircle,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -265,6 +265,27 @@ const maxRevenue = computed(() =>
 );
 const hoveredBar = ref<string | null>(null);
 
+// ── Table Pagination ─────────────────────────────────────────────────────────
+
+const tablePage = ref(1);
+const tableItemsPerPage = 10;
+
+const totalTablePages = computed(() =>
+    Math.ceil(props.summaries.length / tableItemsPerPage) || 1,
+);
+
+const paginatedSummaries = computed(() => {
+    const start = (tablePage.value - 1) * tableItemsPerPage;
+    return props.summaries.slice(start, start + tableItemsPerPage);
+});
+
+watch(
+    () => props.summaries,
+    () => {
+        tablePage.value = 1;
+    },
+);
+
 // ── Payment donut ─────────────────────────────────────────────────────────────
 
 const paymentSlices = computed(() => {
@@ -436,7 +457,7 @@ function exportCSV() {
         'Doanh thu gộp',
         'Giảm giá',
         'Doanh thu thuần',
-        'COGS',
+        'COGS (Giá vốn)',
         'Lợi nhuận gộp',
         'Tiền mặt',
         'Chuyển khoản',
@@ -444,42 +465,65 @@ function exportCSV() {
         'Ví điện tử',
         'Giá trị TB/đơn',
     ];
+
+    const formatCell = (val: any) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+    };
+
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+    };
+
     const rows = props.summaries.map((s) => [
-        s.date_full,
+        formatDate(s.date_full || s.date),
         s.order_count,
         s.completed_order_count,
         s.cancelled_count,
-        s.gross_revenue,
-        s.discount_total,
-        s.net_revenue,
-        s.cogs_amount,
-        s.gross_profit,
-        s.cash_revenue,
-        s.bank_transfer_revenue,
-        s.card_revenue,
-        s.ewallet_revenue,
-        s.average_order_value,
+        Math.round(s.gross_revenue || 0),
+        Math.round(s.discount_total || 0),
+        Math.round(s.net_revenue || 0),
+        Math.round(s.cogs_amount || 0),
+        Math.round(s.gross_profit || 0),
+        Math.round(s.cash_revenue || 0),
+        Math.round(s.bank_transfer_revenue || 0),
+        Math.round(s.card_revenue || 0),
+        Math.round(s.ewallet_revenue || 0),
+        Math.round(s.average_order_value || 0),
     ]);
+
     const totalRow = [
         'TỔNG CỘNG',
         props.totals.order_count,
         props.totals.completed_order_count,
         props.totals.cancelled_count,
-        props.totals.gross_revenue,
-        props.totals.discount_total,
-        props.totals.net_revenue,
-        props.profitBreakdown.total_cogs,
-        props.profitBreakdown.gross_profit,
-        props.paymentBreakdown.cash,
-        props.paymentBreakdown.bank_transfer,
-        props.paymentBreakdown.card,
-        props.paymentBreakdown.ewallet,
-        avgOrderValue.value,
+        Math.round(props.totals.gross_revenue || 0),
+        Math.round(props.totals.discount_total || 0),
+        Math.round(props.totals.net_revenue || 0),
+        Math.round(props.profitBreakdown?.total_cogs || 0),
+        Math.round(props.profitBreakdown?.gross_profit || props.totals.gross_profit || 0),
+        Math.round(props.paymentBreakdown?.cash || 0),
+        Math.round(props.paymentBreakdown?.bank_transfer || 0),
+        Math.round(props.paymentBreakdown?.card || 0),
+        Math.round(props.paymentBreakdown?.ewallet || 0),
+        Math.round(avgOrderValue.value || 0),
     ];
-    const csv = [headers, ...rows, [], totalRow]
-        .map((r) => r.join(','))
-        .join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+
+    const lines = [
+        headers.map(formatCell).join(';'),
+        ...rows.map((r) => r.map(formatCell).join(';')),
+        '',
+        totalRow.map(formatCell).join(';'),
+    ];
+
+    const csvContent = lines.join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1410,7 +1454,7 @@ function deltaBadge(pct: number | null) {
                                 <div class="text-right">Đơn hủy</div>
                             </div>
                             <div
-                                v-for="s in summaries"
+                                v-for="s in paginatedSummaries"
                                 :key="s.date_full"
                                 class="grid grid-cols-4 gap-3 border-t border-border px-4 py-2 text-sm transition-colors hover:bg-muted/20"
                             >
@@ -1436,6 +1480,35 @@ function deltaBadge(pct: number | null) {
                                             ? s.cancelled_count
                                             : '—'
                                     }}
+                                </div>
+                            </div>
+
+                            <!-- Pagination controls -->
+                            <div
+                                v-if="totalTablePages > 1"
+                                class="flex items-center justify-between border-t border-border bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground"
+                            >
+                                <span>
+                                    Hiển thị {{ (tablePage - 1) * tableItemsPerPage + 1 }} - {{ Math.min(tablePage * tableItemsPerPage, summaries.length) }} / {{ summaries.length }} ngày
+                                </span>
+                                <div class="flex items-center gap-1.5">
+                                    <button
+                                        @click="tablePage--"
+                                        :disabled="tablePage <= 1"
+                                        class="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-semibold transition hover:bg-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Trước
+                                    </button>
+                                    <span class="px-2 font-medium text-foreground">
+                                        {{ tablePage }} / {{ totalTablePages }}
+                                    </span>
+                                    <button
+                                        @click="tablePage++"
+                                        :disabled="tablePage >= totalTablePages"
+                                        class="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-semibold transition hover:bg-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Sau
+                                    </button>
                                 </div>
                             </div>
                         </div>
