@@ -50,8 +50,16 @@ class RestaurantTable extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
-        static::deleted(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
+        static::saved(function ($table) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables");
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_areas");
+            \Illuminate\Support\Facades\Cache::forget("quota_summary:{$table->restaurant_id}");
+        });
+        static::deleted(function ($table) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables");
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_areas");
+            \Illuminate\Support\Facades\Cache::forget("quota_summary:{$table->restaurant_id}");
+        });
     }
 
     protected static function newFactory(): Factory

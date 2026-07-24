@@ -37,8 +37,14 @@ class Area extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn ($area) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas"));
-        static::deleted(fn ($area) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas"));
+        static::saved(function ($area) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas");
+            \Illuminate\Support\Facades\Cache::forget("quota_summary:{$area->restaurant_id}");
+        });
+        static::deleted(function ($area) {
+            \Illuminate\Support\Facades\Cache::forget("restaurant_{$area->restaurant_id}_areas");
+            \Illuminate\Support\Facades\Cache::forget("quota_summary:{$area->restaurant_id}");
+        });
     }
 
     protected static function newFactory(): Factory
