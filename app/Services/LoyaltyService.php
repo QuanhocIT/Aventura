@@ -48,7 +48,22 @@ class LoyaltyService
 
         $tier = $customer->loyaltyTier;
         $multiplier = $tier ? (float) $tier->points_multiplier : 1.0;
-        $pointsEarned = (int) floor($orderTotal * (float) $program->points_per_vnd * $multiplier);
+
+        // Calculate points earned per product rule if configured
+        $order->loadMissing('items.product');
+        $itemPoints = 0;
+        foreach ($order->items as $item) {
+            $prodEarnPoints = (int) ($item->product?->earn_points ?? 0);
+            if ($prodEarnPoints > 0) {
+                $itemPoints += $prodEarnPoints * (int) $item->quantity;
+            }
+        }
+
+        if ($itemPoints > 0) {
+            $pointsEarned = (int) round($itemPoints * $multiplier);
+        } else {
+            $pointsEarned = (int) floor($orderTotal * (float) $program->points_per_vnd * $multiplier);
+        }
 
         if ($pointsEarned <= 0) {
             return 0;
@@ -122,6 +137,50 @@ class LoyaltyService
             $customer->update(['loyalty_points' => $newBalance]);
 
             return $actual * (float) $program->point_value_vnd;
+        });
+    }
+
+    /**
+     * Đổi điểm lấy món ăn (Product Point Redemption) và khấu trừ số điểm tương ứng của khách hàng.
+     */
+    public function redeemProductWithPoints(Customer $customer, \App\Models\Product $product, int $quantity = 1, ?Order $order = null): float
+    {
+        $redeemPointsRequired = (int) ($product->redeem_points ?? 0);
+        if ($redeemPointsRequired <= 0) {
+            throw ValidationException::withMessages(['product' => "Món {$product->name} chưa được thiết lập số điểm đổi món."]);
+        }
+
+        $totalPointsNeeded = $redeemPointsRequired * $quantity;
+
+        return DB::transaction(function () use ($customer, $product, $quantity, $totalPointsNeeded, $order) {
+            $customer = Customer::lockForUpdate()->find($customer->id);
+
+            if ($customer->loyalty_points < $totalPointsNeeded) {
+                throw ValidationException::withMessages([
+                    'points' => "Khách hàng hiện có {$customer->loyalty_points} điểm, không đủ {$totalPointsNeeded} điểm để đổi {$quantity} suất {$product->name}."
+                ]);
+            }
+
+            // FIFO deduction of points
+            $this->deductFifo($customer->id, $totalPointsNeeded);
+
+            $newBalance = $customer->loyalty_points - $totalPointsNeeded;
+            $discountAmount = (float) $product->price * $quantity;
+
+            LoyaltyTransaction::create([
+                'restaurant_id'  => $customer->restaurant_id,
+                'customer_id'    => $customer->id,
+                'type'           => 'redeem',
+                'points'         => -$totalPointsNeeded,
+                'balance_after'  => $newBalance,
+                'description'    => "Đổi {$quantity}x món [{$product->name}] (-{$totalPointsNeeded} điểm, Giảm " . number_format($discountAmount) . " đ)",
+                'reference_type' => $order ? Order::class : \App\Models\Product::class,
+                'reference_id'   => $order ? $order->id : $product->id,
+            ]);
+
+            $customer->update(['loyalty_points' => $newBalance]);
+
+            return $discountAmount;
         });
     }
 
