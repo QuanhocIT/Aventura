@@ -310,7 +310,7 @@ const sendTestEmail = () => {
                     <!-- Tab Content: Chatbot -->
                     <Card
                         v-if="activeTab === 'chatbot'"
-                        class="overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
+                        class="animate-fade-in overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
                     >
                         <CardHeader
                             class="border-b border-border/40 bg-muted/10"
@@ -446,7 +446,7 @@ const sendTestEmail = () => {
                     <!-- Tab Content: Mail config -->
                     <Card
                         v-if="activeTab === 'mail'"
-                        class="overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
+                        class="animate-fade-in overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
                     >
                         <CardHeader
                             class="border-b border-border/40 bg-muted/10"
@@ -922,10 +922,10 @@ const sendTestEmail = () => {
                         </CardContent>
                     </Card>
 
-                    <!-- Tab Content: Upload Size Limits -->
+                    <!-- Tab Content: Storage / Upload Config -->
                     <Card
                         v-if="activeTab === 'upload'"
-                        class="overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
+                        class="animate-fade-in overflow-hidden rounded-2xl border border-border/40 bg-card/45 shadow-2xs backdrop-blur-md"
                     >
                         <CardHeader
                             class="border-b border-border/40 bg-muted/10"

@@ -67,7 +67,9 @@ class ShiftClosingController extends Controller
             'actual_cash'       => (float) $c->actual_cash,
             'cash_difference'   => (float) $c->cash_difference,
             'transfer_amount'   => (float) $c->transfer_amount,
-            'gross_revenue'     => (float) ($c->expected_cash + $c->transfer_amount),
+            // gross_revenue = tiền thực thu trong ca (actual_cash) + chuyển khoản
+            // Không dùng expected_cash vì expected_cash đã cộng opening_balance và điều chỉnh két
+            'gross_revenue'     => (float) ($c->actual_cash + $c->transfer_amount),
             'other_expense'     => (float) $c->other_expense_amount,
             'notes'             => $c->notes,
             'confirmed_by_name' => $c->confirmedBy?->name ?? null,

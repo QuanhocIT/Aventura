@@ -385,7 +385,7 @@ const needsAttention = computed(
         </div>
 
         <!-- Tab: Scoring -->
-        <div v-if="activeTab === 'scoring'" class="space-y-4">
+        <div v-if="activeTab === 'scoring'" class="animate-fade-in space-y-4">
             <!-- Toggle buttons for Table vs BCG -->
             <div
                 class="flex flex-col justify-between gap-3 border-b border-border/40 pb-4 sm:flex-row sm:items-center"
@@ -943,7 +943,7 @@ const needsAttention = computed(
         </div>
 
         <!-- Tab: A/B Testing -->
-        <div v-if="activeTab === 'ab-test'" class="space-y-4">
+        <div v-if="activeTab === 'ab-test'" class="animate-fade-in space-y-4">
             <div class="flex justify-end">
                 <Button
                     @click="openCreateTest()"
@@ -1030,7 +1030,7 @@ const needsAttention = computed(
         </div>
 
         <!-- Tab: Schedule -->
-        <div v-if="activeTab === 'schedule'">
+        <div v-if="activeTab === 'schedule'" class="animate-fade-in space-y-4">
             <Card>
                 <CardContent class="p-0 pt-5">
                     <div class="px-5 pb-3">

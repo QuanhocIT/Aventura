@@ -46,6 +46,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [InventoryManagementController::class, 'storeWaste'])->name('inventory.waste.store');
     Route::post('inventory/reconcile', [InventoryManagementController::class, 'reconcile'])->name('inventory.reconcile');
+    Route::post('inventory/auto-po/generate', [\App\Http\Controllers\PurchaseOrderController::class, 'generateAutoPo'])->name('inventory.auto-po.generate');
 
     Route::get('employees', [EmployeeManagementController::class, 'employeesPage'])->name('employees.index');
     Route::post('employees', [EmployeeManagementController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
@@ -311,6 +312,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('reports/send-email', [\App\Http\Controllers\ReportsController::class, 'sendReport'])->name('reports.send-email');
     Route::get('reports/export-pdf', [\App\Http\Controllers\ReportsController::class, 'exportPdf'])->name('reports.export-pdf');
     Route::get('reports/export-csv', [\App\Http\Controllers\ReportsController::class, 'exportCsv'])->name('reports.export-csv');
+    Route::get('reports/export-excel', [\App\Http\Controllers\ReportsController::class, 'exportExcel'])->name('reports.export-excel');
     Route::get('reports/reconciliation', [\App\Http\Controllers\ReportsController::class, 'crossReconciliation'])->name('reports.reconciliation');
 
     // Expenses / OPEX Tracker

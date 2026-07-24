@@ -223,7 +223,7 @@ const actionLabel: Record<string, string> = {
         <form
             v-if="activeTab === 'config'"
             @submit.prevent="submit"
-            class="space-y-6"
+            class="animate-fade-in space-y-6"
         >
             <!-- Discount limits -->
             <Card
@@ -427,7 +427,7 @@ const actionLabel: Record<string, string> = {
         <!-- Audit Trail -->
         <Card
             v-if="activeTab === 'audit'"
-            class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md dark:border-slate-800 dark:bg-slate-900/45"
+            class="animate-fade-in overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md dark:border-slate-800 dark:bg-slate-900/45"
         >
             <CardHeader class="border-b border-border/60 pb-4">
                 <CardTitle class="flex items-center gap-2 text-base font-bold"

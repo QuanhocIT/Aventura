@@ -438,6 +438,36 @@
     transform: translateY(-4px);
 }
 
+/* ── Smooth Directional Tab Slide Transitions (Lướt trái / Lướt phải) ── */
+.slide-right-enter-active,
+.slide-right-leave-active,
+.slide-left-enter-active,
+.slide-left-leave-active {
+    transition:
+        opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Slideright: Nội dung mới vào từ bên phải (qua tab sau) */
+.slide-right-enter-from {
+    opacity: 0;
+    transform: translateX(32px);
+}
+.slide-right-leave-to {
+    opacity: 0;
+    transform: translateX(-32px);
+}
+
+/* Slideleft: Nội dung mới vào từ bên trái (về tab trước) */
+.slide-left-enter-from {
+    opacity: 0;
+    transform: translateX(-32px);
+}
+.slide-left-leave-to {
+    opacity: 0;
+    transform: translateX(32px);
+}
+
 /* Nảy nhẹ cho badge (số lượng giỏ hàng...) khi giá trị thay đổi */
 @keyframes badge-pop {
     0% {
@@ -627,8 +657,19 @@ button:not(:disabled):active,
     }
 }
 
+@keyframes fade-in-x {
+    0% {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .animate-fade-in {
-    animation: fade-in-x 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: fade-in-x 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* List Transition (TransitionGroup) */
@@ -744,6 +785,20 @@ button:not(:disabled):active,
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Styling & Picker enhancements for Native Date Input */
+input[type='date'] {
+    cursor: pointer;
+}
+input[type='date']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 /* Tôn trọng reduced motion */

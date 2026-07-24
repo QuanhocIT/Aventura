@@ -31,6 +31,10 @@ import {
     TrendingUp,
     TrendingDown,
     Minus,
+    HelpCircle,
+    BookOpen,
+    ArrowRight,
+    Sparkles,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import type { Component } from 'vue';
@@ -40,6 +44,13 @@ import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { useCountUp } from '@/composables/useCountUp';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -160,42 +171,62 @@ const lastRefreshed = ref<Date | null>(null);
 const selectedOrders = ref<Set<number>>(new Set());
 
 const showDeliveryAnalytics = ref(true);
+const showSopModal = ref(false);
+const showSopBanner = ref(true);
+
+const totalDeliveredToday = computed(
+    () => stats.value.delivered_today + stats.value.failed_today,
+);
 
 const deliverySuccessRate = computed(() => {
-    const total = stats.value.delivered_today + stats.value.failed_today;
+    if (totalDeliveredToday.value === 0) {
+        return 0;
+    }
 
-    if (total === 0) {
-return 100;
-}
-
-    return (stats.value.delivered_today / total) * 100;
+    return (
+        (stats.value.delivered_today / totalDeliveredToday.value) * 100
+    );
 });
 
 const deliveryEvaluation = computed(() => {
-    const totalToday = stats.value.delivered_today + stats.value.failed_today;
+    const totalToday = totalDeliveredToday.value;
     const shippersCount = stats.value.active_shippers;
     const pendingCount = stats.value.pending_orders;
     const successRate = deliverySuccessRate.value;
 
     let status = 'good';
-    let title = 'Hệ thống vận hành Ổn định';
-    let text = 'Đội ngũ giao nhận đang duy trì hiệu suất tốt. Tất cả chuyến đi đang được theo dõi qua GPS.';
+    let title = 'Hệ thống Sẵn sàng Tiếp nhận Đơn Giao Hàng';
+    let text =
+        'Tất cả hạ tầng bản đồ GPS & thuật toán Smart Routing đã sẵn sàng. Khi có đơn giao hàng phát sinh, hệ thống sẽ tự động cập nhật thời gian thực.';
     const tips = [];
 
-    if (pendingCount > 0) {
+    if (totalToday === 0 && pendingCount === 0 && shippersCount === 0) {
+        status = 'good';
+        title = 'Sẵn sàng Vận hành Giao hàng (Quy trình 3 bước)';
+        text =
+            'Chưa có đơn phát sinh hôm nay. Hãy tạo đơn Giao Hàng tại POS hoặc mở kênh Đặt Hàng Online để bắt đầu trải nghiệm điều phối.';
+        tips.push(
+            'Bấm nút "Hướng dẫn vận hành SOP" góc trên bên phải để xem chi tiết luồng 3 bước.',
+        );
+    } else if (pendingCount > 0) {
         status = 'attention';
         title = 'Có đơn hàng đang chờ điều phối';
         text = `Hiện đang có ${pendingCount} đơn hàng giao vận đang chờ tài xế. Cần xếp chuyến sớm để đảm bảo thời gian cam kết (ETA).`;
-        tips.push(`Khuyên dùng: Sử dụng tính năng "Smart Routing" để tự động gộp đơn tối ưu.`);
+        tips.push(
+            `Khuyên dùng: Tích chọn đơn và nhấn "Gợi ý Shipper thông minh".`,
+        );
     }
 
-    if (shippersCount === 0) {
+    if (shippersCount === 0 && pendingCount > 0) {
         status = 'warning';
         title = 'Không có shipper hoạt động';
-        text = 'Cảnh báo: Hiện tại chưa có nhân viên giao hàng nào đang hoạt động trực tuyến trên hệ thống.';
-        tips.push('Nhắc nhở shipper đăng nhập và bật định vị GPS.');
-    } else {
-        tips.push(`Đang có ${shippersCount} shipper trực tuyến hỗ trợ giao hàng.`);
+        text =
+            'Cảnh báo: Hiện tại chưa có nhân viên giao hàng nào đang hoạt động trực tuyến trên hệ thống.';
+        tips.push('Nhắc nhở shipper đăng nhập app và bật định vị GPS.');
+    } else if (shippersCount > 0) {
+        tips.push(
+            `Đang có ${shippersCount} shipper trực tuyến hỗ trợ giao hàng.`,
+        );
     }
 
     if (totalToday > 0 && successRate < 90) {
@@ -1112,6 +1143,16 @@ onUnmounted(() => {
                 <Button
                     variant="outline"
                     size="sm"
+                    class="border-indigo-500/30 bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/20 dark:text-indigo-400 font-semibold"
+                    @click="showSopModal = true"
+                >
+                    <BookOpen class="mr-1.5 h-3.5 w-3.5 text-indigo-500" />
+                    Hướng dẫn vận hành SOP
+                </Button>
+
+                <Button
+                    variant="outline"
+                    size="sm"
                     :disabled="loading"
                     @click="fetchAll"
                 >
@@ -1294,18 +1335,21 @@ onUnmounted(() => {
                             <div class="relative w-24 h-24 flex items-center justify-center">
                                 <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
                                     <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" stroke-width="4" class="dark:stroke-slate-800" />
-                                    <!-- Success Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" stroke-width="4" 
-                                        :stroke-dasharray="`${deliverySuccessRate} ${100 - deliverySuccessRate}`"
-                                        stroke-dashoffset="0" />
-                                    <!-- Failed Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" stroke-width="4" 
-                                        :stroke-dasharray="`${100 - deliverySuccessRate} ${deliverySuccessRate}`"
-                                        :stroke-dashoffset="`-${deliverySuccessRate}`" />
+                                    <template v-if="totalDeliveredToday > 0">
+                                        <!-- Success Segment -->
+                                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" stroke-width="4" 
+                                            :stroke-dasharray="`${deliverySuccessRate} ${100 - deliverySuccessRate}`"
+                                            stroke-dashoffset="0" />
+                                        <!-- Failed Segment -->
+                                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" stroke-width="4" 
+                                            :stroke-dasharray="`${100 - deliverySuccessRate} ${deliverySuccessRate}`"
+                                            :stroke-dashoffset="`-${deliverySuccessRate}`" />
+                                    </template>
                                 </svg>
-                                <div class="absolute flex flex-col items-center justify-center">
-                                    <span class="text-xs font-black text-slate-800 dark:text-slate-100">{{ deliverySuccessRate.toFixed(0) }}%</span>
-                                    <span class="text-[8px] text-muted-foreground uppercase">Thành công</span>
+                                <div class="absolute flex flex-col items-center justify-center text-center">
+                                    <span v-if="totalDeliveredToday > 0" class="text-xs font-black text-slate-800 dark:text-slate-100">{{ deliverySuccessRate.toFixed(0) }}%</span>
+                                    <span v-else class="text-xs font-bold text-slate-400 dark:text-slate-500">0 đơn</span>
+                                    <span class="text-[8px] text-muted-foreground uppercase">{{ totalDeliveredToday > 0 ? 'Thành công' : 'Chưa có lượt' }}</span>
                                 </div>
                             </div>
 
@@ -2711,6 +2755,78 @@ onUnmounted(() => {
             </div>
         </Transition>
     </Teleport>
+
+    <!-- ── Modal Hướng dẫn Vận hành SOP 3 Bước ────────────────────────── -->
+    <Dialog v-model:open="showSopModal">
+            <DialogContent class="max-w-2xl overflow-hidden rounded-2xl border-slate-200 dark:border-slate-800">
+                <DialogHeader class="border-b bg-indigo-50/50 p-6 dark:bg-indigo-950/20">
+                    <div class="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                        <BookOpen class="size-5" />
+                        <DialogTitle class="text-lg font-bold">Hướng Dẫn Quy Trình Điều Phối Giao Hàng (SOP)</DialogTitle>
+                    </div>
+                    <DialogDescription class="text-xs text-muted-foreground mt-1">
+                        Quy trình 3 bước chuẩn giúp Quản lý Nhà hàng & Nhân viên vận hành mượt mà, chính xác
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-6 p-6">
+                    <!-- Bước 1 -->
+                    <div class="flex items-start gap-4">
+                        <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 font-bold text-amber-600 dark:text-amber-400">
+                            1
+                        </div>
+                        <div class="space-y-1">
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <Package class="size-4 text-amber-500" />
+                                Tiếp nhận Đơn Giao Hàng (Delivery Orders)
+                            </h4>
+                            <p class="text-xs text-muted-foreground leading-relaxed">
+                                Tất cả đơn hàng có phương thức <strong>Giao tận nơi (Delivery)</strong> được khách tạo từ trang <strong>Đặt Hàng Online</strong> hoặc nhân viên tạo trên app <strong>POS</strong> sẽ tự động đổ về danh sách <strong>"Đơn chờ giao"</strong> bên trái.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bước 2 -->
+                    <div class="flex items-start gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+                        <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 font-bold text-indigo-600 dark:text-indigo-400">
+                            2
+                        </div>
+                        <div class="space-y-1">
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <Zap class="size-4 text-indigo-500" />
+                                Điều phối &amp; Gộp chuyến Thông minh (Smart Dispatching)
+                            </h4>
+                            <p class="text-xs text-muted-foreground leading-relaxed">
+                                Tích chọn 1 hoặc nhiều đơn cần giao ➔ Bấm <strong>"Gợi ý Shipper thông minh"</strong>. Thuật toán AI sẽ tự động phân tích GPS, bán kính di chuyển và gợi ý Shipper phù hợp nhất để gom 1 chuyến (Batching) tiết kiệm chi phí.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bước 3 -->
+                    <div class="flex items-start gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+                        <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-400">
+                            3
+                        </div>
+                        <div class="space-y-1">
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <MapPin class="size-4 text-emerald-500" />
+                                Theo dõi GPS Real-time &amp; Hoàn tất Đơn hàng
+                            </h4>
+                            <p class="text-xs text-muted-foreground leading-relaxed">
+                                Theo dõi vị trí tài xế di chuyển thời gian thực trên bản đồ Leaflet GPS. Khi Shipper phát đơn thành công trên app Shipper, hệ thống sẽ tự động cập nhật trạng thái đơn sang <strong>"Hoàn thành"</strong>.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between border-t bg-slate-50/50 px-6 py-4 dark:bg-slate-900/40">
+                    <span class="text-[11px] text-muted-foreground">Mọi thắc mắc vận hành, liên hệ bộ phận hỗ trợ kỹ thuật Aventura.</span>
+                    <Button variant="default" size="sm" @click="showSopModal = false">
+                        Đã hiểu quy trình
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
 </template>
 
 <style scoped>

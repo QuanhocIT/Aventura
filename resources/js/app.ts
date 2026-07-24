@@ -158,3 +158,44 @@ router.on('invalid', (event: any) => {
         }
     }
 });
+
+// Global Event Listener: Tự động kích hoạt Bảng chọn Lịch cho tất cả các ô input[type="date"] và icon cuốn lịch toàn hệ thống
+if (typeof window !== 'undefined') {
+    document.addEventListener('click', (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+
+        if (!target) {
+            return;
+        }
+
+        // 1. Nhấp trực tiếp vào input[type="date"]
+        if (target instanceof HTMLInputElement && target.type === 'date') {
+            if (typeof target.showPicker === 'function') {
+                try {
+                    target.showPicker();
+                } catch {
+                    // Đã mở hoặc trình duyệt chặn popup liên tiếp
+                }
+            }
+
+            return;
+        }
+
+        // 2. Nhấp vào icon cuốn lịch hoặc vùng container chứa ô input[type="date"]
+        const parent = target.closest('.relative, div, label');
+
+        if (parent) {
+            const dateInput = parent.querySelector(
+                'input[type="date"]',
+            ) as HTMLInputElement | null;
+
+            if (dateInput && typeof dateInput.showPicker === 'function') {
+                try {
+                    dateInput.showPicker();
+                } catch {
+                    // Đã mở
+                }
+            }
+        }
+    });
+}

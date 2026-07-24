@@ -101,14 +101,22 @@ class TableReservationController extends Controller
                         throw new \Exception('Bàn này hiện tại đang có khách ngồi.');
                     }
 
-                    // Kiểm tra bàn có bị trùng giờ với một đặt bàn khác đã confirm không
+                    // Kiểm tra bàn có bị trùng trong khoảng ±90 phút không
+                    // (không chỉ check chính xác cùng giờ — bàn cần ~90 phút phục vụ)
+                    $reservationDateTime = \Carbon\Carbon::parse(
+                        $lockedReservation->reservation_date->toDateString() . ' ' . $lockedReservation->reservation_time
+                    );
+                    $windowStart = $reservationDateTime->copy()->subMinutes(90)->format('H:i:s');
+                    $windowEnd   = $reservationDateTime->copy()->addMinutes(90)->format('H:i:s');
+
                     $conflict = TableReservation::where('restaurant_id', $user->restaurant_id)
                         ->where('table_id', $data['table_id'])
                         ->where('reservation_date', $lockedReservation->reservation_date)
-                        ->where('reservation_time', $lockedReservation->reservation_time)
-                        ->where('status', 'confirmed')
+                        ->whereBetween('reservation_time', [$windowStart, $windowEnd])
+                        ->whereIn('status', ['confirmed', 'seated'])
                         ->where('id', '!=', $lockedReservation->id)
                         ->exists();
+
 
                     if ($conflict) {
                         throw new \Exception('Bàn này đã được gán cho một đặt bàn khác cùng khung giờ.');
@@ -216,7 +224,7 @@ class TableReservationController extends Controller
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
 
         try {
-            DB::transaction(function () use ($reservation) {
+            DB::transaction(function () use ($reservation, $user) {
                 $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
                 if ($lockedReservation->status !== 'confirmed') {
                     throw new \Exception('Chỉ đánh dấu no-show cho đặt bàn đã xác nhận.');
@@ -225,6 +233,23 @@ class TableReservationController extends Controller
                 $lockedReservation->update([
                     'status'       => 'no_show',
                     'cancelled_at' => now(),
+                ]);
+
+                // Giải phóng bàn đã assign: khách không đến → bàn về available
+                if ($lockedReservation->table_id) {
+                    RestaurantTable::where('id', $lockedReservation->table_id)
+                        ->where('status', 'reserved') // Chỉ reset nếu bàn đang ở trạng thái reserved (không động đến bàn đang có khách)
+                        ->update(['status' => 'available']);
+                }
+
+                \App\Models\AuditLog::create([
+                    'restaurant_id'  => $lockedReservation->restaurant_id,
+                    'user_id'        => $user->id,
+                    'action'         => 'reservation_no_show',
+                    'auditable_type' => TableReservation::class,
+                    'auditable_id'   => $lockedReservation->id,
+                    'old_values'     => json_encode(['status' => 'confirmed']),
+                    'new_values'     => json_encode(['status' => 'no_show', 'table_released' => (bool) $lockedReservation->table_id]),
                 ]);
             });
         } catch (\Exception $e) {

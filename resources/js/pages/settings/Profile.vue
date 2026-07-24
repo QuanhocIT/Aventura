@@ -233,7 +233,7 @@ const updatePin = () => {
 
     <div class="space-y-6">
         <!-- TAB: Profile -->
-        <div v-if="activeTab === 'profile'" class="space-y-6">
+        <div v-if="activeTab === 'profile'" class="animate-fade-in space-y-6">
             <Card
                 class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40"
             >

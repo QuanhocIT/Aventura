@@ -38,6 +38,8 @@ class EmployeeManagementController extends Controller
             ]);
         }
 
+        $canViewSensitivePii = $user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin');
+
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
             ->with(['user.roles'])
             ->get()
@@ -52,9 +54,9 @@ class EmployeeManagementController extends Controller
                 'role'                 => $e->user && $e->user->roles->isNotEmpty() ? $e->user->roles->first()->name : 'Staff',
                 'date_of_birth'        => $e->date_of_birth ? $e->date_of_birth->toDateString() : '',
                 'address'              => $e->address,
-                'citizen_id_number'    => $e->citizen_id_number,
-                'citizen_id_front_url' => $e->citizen_id_front_url,
-                'citizen_id_back_url'  => $e->citizen_id_back_url,
+                'citizen_id_number'    => $canViewSensitivePii ? $e->citizen_id_number : (strlen($e->citizen_id_number ?? '') > 4 ? \Illuminate\Support\Str::mask($e->citizen_id_number, '*', 3, -3) : '***'),
+                'citizen_id_front_url' => $canViewSensitivePii ? $e->citizen_id_front_url : null,
+                'citizen_id_back_url'  => $canViewSensitivePii ? $e->citizen_id_back_url : null,
                 'hire_date'            => $e->hire_date ? $e->hire_date->toDateString() : '',
                 'compensation_type'    => $e->compensation_type ?? 'fixed',
                 'pay_rate'             => (float) ($e->pay_rate ?? 0),
@@ -458,6 +460,7 @@ class EmployeeManagementController extends Controller
     public function exportEmployeeProfile(Request $request, Employee $employee): \Illuminate\Http\Response
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin'), 403, 'Chỉ Owner hoặc Manager mới có quyền xuất hồ sơ pháp lý & CCCD nhân viên.');
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403, 'Không có quyền truy cập hồ sơ này.');
 
         $restaurantName = e($user->restaurant?->name ?? 'Aventura Restaurant');

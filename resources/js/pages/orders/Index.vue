@@ -106,6 +106,18 @@ const toggleAutoPay = () => {
 
 const dateInput = ref(props.filters.date);
 const activeStatus = ref(props.filters.status);
+const datePickerRef = ref<HTMLInputElement | null>(null);
+
+const openDatePicker = () => {
+    if (datePickerRef.value) {
+        if (typeof datePickerRef.value.showPicker === 'function') {
+            datePickerRef.value.showPicker();
+        } else {
+            datePickerRef.value.focus();
+            datePickerRef.value.click();
+        }
+    }
+};
 
 const applyFilters = () => {
     router.get(
@@ -697,15 +709,21 @@ onMounted(() => {
                     >
                 </Button>
 
-                <div class="relative">
+                <div
+                    class="relative flex cursor-pointer items-center"
+                    @click="openDatePicker"
+                >
                     <CalendarDays
-                        class="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground"
+                        class="absolute top-2.5 left-3 size-4 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                        @click.stop="openDatePicker"
                     />
                     <input
+                        ref="datePickerRef"
                         type="date"
                         v-model="dateInput"
                         @change="applyFilters"
-                        class="h-10 rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        @click="openDatePicker"
+                        class="h-10 cursor-pointer rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     />
                 </div>
                 <Button
@@ -963,7 +981,7 @@ onMounted(() => {
         </div>
 
         <!-- TAB 1: Official Orders -->
-        <div v-if="activeTab === 'official'" class="flex flex-col space-y-4">
+        <div v-if="activeTab === 'official'" class="animate-fade-in flex flex-col space-y-4">
             <!-- Status filter chips -->
             <div class="flex flex-wrap gap-2">
                 <button

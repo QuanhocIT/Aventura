@@ -410,7 +410,7 @@ function toastSuccess(msg: string) {
             </template>
 
             <!-- 1. OVERVIEW & UNIT ECONOMICS TAB -->
-            <div v-if="activeTab === 'overview'" class="space-y-6">
+            <div v-if="activeTab === 'overview'" class="animate-fade-in space-y-6">
                 <!-- Unit Economics KPI Cards Row -->
                 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                     <!-- Doanh thu -->
@@ -728,7 +728,7 @@ function toastSuccess(msg: string) {
             </div>
 
             <!-- 2. COHORT RETENTION TAB (Mixpanel style heatmap) -->
-            <div v-if="activeTab === 'cohort'" class="space-y-6">
+            <div v-if="activeTab === 'cohort'" class="animate-fade-in space-y-6">
                 <Card class="border-slate-100 shadow-md dark:border-slate-800/80">
                     <CardContent class="p-6">
                         <div class="mb-4">
@@ -789,7 +789,7 @@ function toastSuccess(msg: string) {
             </div>
 
             <!-- 3. BREAK-EVEN ANALYSIS TAB -->
-            <div v-if="activeTab === 'breakeven'" class="space-y-6">
+            <div v-if="activeTab === 'breakeven'" class="animate-fade-in space-y-6">
                 <!-- Visual break-even graph and numerical cards grid -->
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                     
@@ -920,7 +920,7 @@ function toastSuccess(msg: string) {
             </div>
 
             <!-- 4. INDUSTRY BENCHMARKS TAB (Visual Gauges scale) -->
-            <div v-if="activeTab === 'benchmark'" class="space-y-6">
+            <div v-if="activeTab === 'benchmark'" class="animate-fade-in space-y-6">
                 <Card class="border-slate-100 shadow-md dark:border-slate-800/80">
                     <CardContent class="p-6">
                         <div class="mb-6">

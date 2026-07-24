@@ -618,7 +618,7 @@ const getRoleText = (role: string | null) => {
             <!-- 1. Leaderboard Tab -->
             <div
                 v-if="activeTab === 'leaderboard'"
-                class="animate-fadeIn space-y-6"
+                class="animate-fade-in space-y-6"
             >
                 <Card
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
@@ -734,7 +734,7 @@ const getRoleText = (role: string | null) => {
             <!-- 2. Performance Tracker Tab -->
             <div
                 v-if="activeTab === 'performance'"
-                class="animate-fadeIn space-y-6"
+                class="animate-fade-in space-y-6"
             >
                 <Card
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
@@ -890,7 +890,7 @@ const getRoleText = (role: string | null) => {
             <!-- 3. 360 Reviews Tab -->
             <div
                 v-if="activeTab === 'reviews'"
-                class="animate-fadeIn space-y-6"
+                class="animate-fade-in space-y-6"
             >
                 <Card
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
@@ -1024,7 +1024,7 @@ const getRoleText = (role: string | null) => {
             <!-- 4. KPI Setup Tab -->
             <div
                 v-if="activeTab === 'settings'"
-                class="animate-fadeIn space-y-6"
+                class="animate-fade-in space-y-6"
             >
                 <Card
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
