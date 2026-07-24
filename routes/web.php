@@ -172,8 +172,10 @@ Route::prefix('api/v1')->middleware(['auth.apikey', 'throttle:120,1'])->name('ap
     Route::get('reservations', [\App\Http\Controllers\Api\V1\PublicApiController::class, 'reservations'])->name('reservations');
 });
 
-// Chức năng QR-Ordering dành cho khách hàng tại bàn
+// Chức năng QR-Ordering dành cho khách hàng tại bàn & Tích điểm hóa đơn
 Route::middleware('throttle:60,1')->group(function () {
+    Route::get('customer/loyalty/order-summary/{order}', [\App\Http\Controllers\Customer\CustomerLoyaltyClaimController::class, 'getOrderPointsSummary'])->name('customer.loyalty.order-summary');
+    Route::post('customer/loyalty/claim-points', [\App\Http\Controllers\Customer\CustomerLoyaltyClaimController::class, 'claimPoints'])->name('customer.loyalty.claim-points');
     Route::post('customer/order/call-staff/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'callStaff'])->name('customer.qr-order.call-staff');
     Route::post('customer/order/payment-request/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'paymentRequest'])->name('customer.qr-order.payment-request');
     Route::post('customer/order/feedback/{restaurant}', [\App\Http\Controllers\Customer\QROrderController::class, 'submitFeedback'])->name('customer.qr-order.feedback');

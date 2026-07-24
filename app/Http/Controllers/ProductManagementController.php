@@ -43,6 +43,8 @@ class ProductManagementController extends Controller
                     'code'         => $p->code,
                     'name'         => $p->name,
                     'price'        => $p->price,
+                    'earn_points'  => (int) ($p->earn_points ?? 0),
+                    'redeem_points'=> (int) ($p->redeem_points ?? 0),
                     'description'  => $p->description,
                     'is_available' => (bool) $p->is_available,
                     'category'     => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
@@ -93,11 +95,13 @@ class ProductManagementController extends Controller
 
         $maxSize = \App\Models\SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
-            'category_id' => ['required', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
-            'name' => ['required', 'string', 'max:255'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'description' => ['required', 'string', 'min:5'],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
+            'category_id'  => ['required', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
+            'name'         => ['required', 'string', 'max:255'],
+            'price'        => ['required', 'numeric', 'min:0'],
+            'earn_points'  => ['nullable', 'integer', 'min:0'],
+            'redeem_points'=> ['nullable', 'integer', 'min:0'],
+            'description'  => ['required', 'string', 'min:5'],
+            'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],
         ]);
 
         $imageUrl = null;
@@ -107,16 +111,18 @@ class ProductManagementController extends Controller
         }
 
         Product::create([
-            'restaurant_id' => $user->restaurant_id,
-            'category_id' => $data['category_id'],
-            'code' => 'PROD-' . Str::upper(Str::random(6)),
-            'name' => $data['name'],
-            'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
-            'price' => $data['price'],
-            'description' => $data['description'] ?? null,
-            'image_url' => $imageUrl,
-            'is_active' => true,
-            'is_available' => true,
+            'restaurant_id'   => $user->restaurant_id,
+            'category_id'     => $data['category_id'],
+            'code'            => 'PROD-' . Str::upper(Str::random(6)),
+            'name'            => $data['name'],
+            'slug'            => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'price'           => $data['price'],
+            'earn_points'     => $data['earn_points'] ?? 0,
+            'redeem_points'   => $data['redeem_points'] ?? 0,
+            'description'     => $data['description'] ?? null,
+            'image_url'       => $imageUrl,
+            'is_active'       => true,
+            'is_available'    => true,
             'track_inventory' => true,
         ]);
 
@@ -137,7 +143,9 @@ class ProductManagementController extends Controller
         $data = $request->validate([
             'name'         => ['sometimes', 'string', 'max:255'],
             'price'        => ['sometimes', 'numeric', 'min:0'],
-            'category_id'  => ['nullable', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
+            'earn_points'  => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'redeem_points'=> ['sometimes', 'nullable', 'integer', 'min:0'],
+            'category_id'  => ['sometimes', 'nullable', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'description'  => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
             'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . $maxSize],

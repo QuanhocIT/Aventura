@@ -35,6 +35,7 @@ class MenuEngineeringController extends Controller
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         $scoring = $this->insights->getMenuScoring($restaurantId, $days);
+        $bcgData = $this->insights->getBcgData($restaurantId, $days);
         $priceTests = MenuPriceTest::where('restaurant_id', $restaurantId)
             ->with('product:id,name,price')
             ->latest()
@@ -43,6 +44,7 @@ class MenuEngineeringController extends Controller
 
         return Inertia::render('menu-engineering/Index', [
             'scoring' => $scoring,
+            'bcgData' => $bcgData,
             'priceTests' => $priceTests,
             'days' => $days,
         ]);

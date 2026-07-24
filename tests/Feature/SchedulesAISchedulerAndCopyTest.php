@@ -172,4 +172,63 @@ class SchedulesAISchedulerAndCopyTest extends TestCase
                 ->exists()
         );
     }
+
+    public function test_ai_scheduler_prioritizes_registered_availability_and_high_evaluation_score(): void
+    {
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id'     => $this->branch->id,
+            'name'          => 'Ca Sáng (08:00 - 16:00)',
+            'code'          => 'SHIFT_MORNING',
+            'start_time'    => '08:00:00',
+            'end_time'      => '16:00:00',
+            'status'        => 'active',
+        ]);
+
+        // Emp A: Registered availability for Monday
+        $empAUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $empA = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id'       => $empAUser->id,
+            'status'        => 'active',
+        ]);
+
+        // Emp B: Higher Trust Score (98 vs default 80), NOT registered
+        $empBUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $empB = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id'       => $empBUser->id,
+            'status'        => 'active',
+        ]);
+        \App\Models\EmployeeTrustScore::create([
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id'   => $empB->id,
+            'score'         => 98.0,
+        ]);
+
+        $monday = Carbon::now()->startOfWeek(Carbon::MONDAY);
+
+        // Emp A registers for Monday
+        ScheduleRegistration::create([
+            'restaurant_id'  => $this->restaurant->id,
+            'employee_id'    => $empA->id,
+            'shift_id'       => $shift->id,
+            'scheduled_date' => $monday->toDateString(),
+        ]);
+
+        $this->actingAs($this->owner);
+        $response = $this->post(route('employees.schedules.toggle-auto'), [
+            'enabled' => true,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        // Emp A should be assigned to Monday's shift because registration is Priority 1
+        $this->assertTrue(
+            ScheduleAssignment::where('employee_id', $empA->id)
+                ->where('shift_id', $shift->id)
+                ->whereDate('scheduled_date', $monday->toDateString())
+                ->exists()
+        );
+    }
 }

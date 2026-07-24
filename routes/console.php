@@ -23,6 +23,7 @@ app(Schedule::class)->command('news:publish-scheduled')->everyFiveMinutes();
 app(Schedule::class)->command('expenses:process-recurring')->dailyAt('00:05');
 app(Schedule::class)->command('debts:send-reminders')->dailyAt('08:30');
 app(Schedule::class)->command('kpis:calculate')->dailyAt('01:00');
+app(Schedule::class)->job(new \App\Jobs\RecalculateTrustScoresJob)->dailyAt('02:00');
 
 app(Schedule::class)->call(function () {
     app(\App\Services\SupportPortalService::class)->evaluateAlerts();

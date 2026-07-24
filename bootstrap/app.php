@@ -60,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission.cache.clear' => \App\Http\Middleware\ClearPermissionCache::class,
             'superadmin.access'      => \App\Http\Middleware\EnsureSuperAdminAccess::class,
             'superadmin.permission'  => \App\Http\Middleware\CheckSuperAdminPermission::class,
+            'shift.schedule'         => \App\Http\Middleware\CheckShiftSchedule::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

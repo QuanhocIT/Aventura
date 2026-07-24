@@ -374,11 +374,165 @@ class FeedbackController extends Controller
             'status' => 'new',
         ]);
 
+        // Tự động phân bổ điểm sao đánh giá cho nhân viên trong ca làm việc
+        try {
+            $this->dispatchRatingToStaff($feedback);
+        } catch (\Exception $e) {
+            logger()->error('Failed to dispatch rating to staff: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Cảm ơn quý khách đã gửi đánh giá! Ý kiến của quý khách đã được tiếp nhận và xử lý.',
             'feedback_id' => $feedback->id,
         ]);
+    }
+
+    /**
+     * Tự động phân bổ đánh giá sao từ khách hàng cho nhân viên trong ca làm việc.
+     */
+    public function dispatchRatingToStaff(CustomerFeedback $feedback): void
+    {
+        $restaurantId = $feedback->restaurant_id;
+        if (!$restaurantId) {
+            return;
+        }
+
+        // Lấy thời điểm gọi đơn hàng hoặc thời điểm gửi đánh giá
+        $order = $feedback->order;
+        $time = $order ? $order->created_at : $feedback->created_at;
+        $dateStr = $time ? $time->toDateString() : now()->toDateString();
+        $timeStr = $time ? $time->toTimeString() : now()->toTimeString();
+
+        // 1. Tìm ca trực hoạt động tại thời điểm này
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get();
+
+        $matchedShift = null;
+        foreach ($shifts as $shift) {
+            $inShift = false;
+            if (!$shift->is_overnight) {
+                $inShift = $timeStr >= $shift->start_time && $timeStr <= $shift->end_time;
+            } else {
+                if ($shift->start_time > $shift->end_time) {
+                    $inShift = $timeStr >= $shift->start_time || $timeStr <= $shift->end_time;
+                } else {
+                    $inShift = $timeStr >= $shift->start_time && $timeStr <= $shift->end_time;
+                }
+            }
+            if ($inShift) {
+                $matchedShift = $shift;
+                break;
+            }
+        }
+
+        // Tìm danh sách phân ca trong ngày
+        $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereDate('scheduled_date', $dateStr)
+            ->with(['employee']);
+
+        if ($matchedShift) {
+            $assignmentsQuery->where('shift_id', $matchedShift->id);
+        }
+
+        $assignments = $assignmentsQuery->get();
+        if ($assignments->isEmpty()) {
+            return;
+        }
+
+        $employees = $assignments->pluck('employee')->filter()->keyBy('id');
+        if ($employees->isEmpty()) {
+            return;
+        }
+
+        // 2. Phân loại nhân sự theo chuyên môn
+        $kitchenStaff = [];
+        $serviceStaff = [];
+        $allShiftStaff = $employees->all();
+
+        foreach ($employees as $emp) {
+            $title = mb_strtolower($emp->job_title ?? '');
+            $role = mb_strtolower($emp->role ?? '');
+
+            if (str_contains($title, 'bếp') || str_contains($title, 'chef') || str_contains($title, 'cook') || str_contains($title, 'kitchen') || str_contains($title, 'pha chế') || str_contains($title, 'bar') || str_contains($role, 'kitchen')) {
+                $kitchenStaff[$emp->id] = $emp;
+            }
+
+            if (str_contains($title, 'thu ngân') || str_contains($title, 'cashier') || str_contains($title, 'phục vụ') || str_contains($title, 'order') || str_contains($title, 'waiter') || str_contains($role, 'cashier') || str_contains($role, 'waiter') || str_contains($role, 'manager')) {
+                $serviceStaff[$emp->id] = $emp;
+            }
+        }
+
+        if (empty($kitchenStaff)) {
+            $kitchenStaff = $allShiftStaff;
+        }
+        if (empty($serviceStaff)) {
+            $serviceStaff = $allShiftStaff;
+        }
+
+        $empRatingsMap = [];
+
+        // A. Đánh giá Đồ ăn (items_rating) -> Phân bổ cho nhân viên Bếp
+        if (!empty($feedback->items_rating) && is_array($feedback->items_rating)) {
+            $itemRatings = array_filter(array_map('floatval', $feedback->items_rating));
+            if (!empty($itemRatings)) {
+                $avgItemRating = array_sum($itemRatings) / count($itemRatings);
+                foreach ($kitchenStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $avgItemRating;
+                }
+            }
+        }
+
+        // B. Đánh giá Trực tiếp Đích danh (staff_rating)
+        if (!empty($feedback->staff_rating) && is_array($feedback->staff_rating)) {
+            foreach ($feedback->staff_rating as $empId => $score) {
+                $scoreNum = (float) $score;
+                if ($scoreNum > 0 && isset($employees[$empId])) {
+                    $empRatingsMap[$empId][] = $scoreNum;
+                }
+            }
+        }
+
+        // C. Đánh giá Dịch vụ / Thái độ chung (rating 1-5 sao)
+        $generalRating = (float) $feedback->rating;
+        if ($generalRating > 0) {
+            if (empty($feedback->staff_rating)) {
+                foreach ($serviceStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $generalRating;
+                }
+            }
+            if (empty($feedback->items_rating)) {
+                foreach ($kitchenStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $generalRating;
+                }
+            }
+        }
+
+        // 3. Cập nhật rating_star và rating_count cho từng nhân viên
+        foreach ($empRatingsMap as $empId => $ratings) {
+            $emp = $employees[$empId] ?? null;
+            if (!$emp || empty($ratings)) {
+                continue;
+            }
+
+            $currentCount = (int) ($emp->rating_count ?? 0);
+            $currentStar = (float) ($emp->rating_star ?? 5.0);
+
+            $newRatingsCount = count($ratings);
+            $sumNewRatings = array_sum($ratings);
+
+            $totalCount = $currentCount + $newRatingsCount;
+            if ($totalCount > 0) {
+                $newStarAvg = (($currentStar * $currentCount) + $sumNewRatings) / $totalCount;
+                $newStarAvg = round(max(1.0, min(5.0, $newStarAvg)), 2);
+
+                $emp->update([
+                    'rating_star'  => $newStarAvg,
+                    'rating_count' => $totalCount,
+                ]);
+            }
+        }
     }
 
     /**

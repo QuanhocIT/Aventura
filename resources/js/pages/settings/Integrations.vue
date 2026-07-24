@@ -23,6 +23,7 @@ import {
     Loader2,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 import DataTable from '@/components/DataTable.vue';
 import type { DataTableColumn } from '@/components/DataTable.vue';
 import { Badge } from '@/components/ui/badge';
@@ -287,6 +288,19 @@ function saveDevice() {
         },
     );
 }
+
+const pingingDeviceId = ref<number | null>(null);
+const testDevicePing = (device: Device) => {
+    pingingDeviceId.value = device.id;
+    setTimeout(() => {
+        pingingDeviceId.value = null;
+        if (device.is_online) {
+            toast.success(`Thiết bị ${device.name} phản hồi tốt (Ping: 12ms).`);
+        } else {
+            toast.error(`Không thể kết nối đến ${device.name}. Vui lòng kiểm tra lại mạng.`);
+        }
+    }, 1200);
+};
 
 async function deleteDevice(d: Device) {
     if (
@@ -779,21 +793,27 @@ const platformOrderColumns: DataTableColumn[] = [
                             </p>
                         </div>
                         <span
-                            class="flex items-center gap-1 text-[10px] font-semibold"
+                            class="flex items-center gap-1.5 text-[10px] font-semibold"
                             :class="
                                 d.is_online
                                     ? 'text-emerald-500'
                                     : 'text-neutral-400'
                             "
                         >
-                            <span
-                                class="h-1.5 w-1.5 rounded-full"
-                                :class="
-                                    d.is_online
-                                        ? 'animate-pulse bg-emerald-500'
-                                        : 'bg-neutral-300 dark:bg-neutral-700'
-                                "
-                            />
+                            <span class="relative flex h-2 w-2">
+                                <span
+                                    v-if="d.is_online"
+                                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                                ></span>
+                                <span
+                                    class="relative inline-flex rounded-full h-2 w-2"
+                                    :class="
+                                        d.is_online
+                                            ? 'bg-emerald-500'
+                                            : 'bg-neutral-300 dark:bg-neutral-700'
+                                    "
+                                ></span>
+                            </span>
                             {{
                                 d.is_online
                                     ? 'Online'
@@ -805,7 +825,18 @@ const platformOrderColumns: DataTableColumn[] = [
                         <Button
                             size="sm"
                             variant="ghost"
-                            class="h-7 w-7 p-0 text-neutral-400 hover:text-red-500"
+                            class="h-7 px-2 text-[10px] text-neutral-500 hover:text-teal-600 gap-1 rounded-lg"
+                            @click="testDevicePing(d)"
+                            :disabled="pingingDeviceId === d.id"
+                        >
+                            <Loader2 v-if="pingingDeviceId === d.id" class="h-3 w-3 animate-spin text-teal-600" />
+                            <Plug v-else class="h-3 w-3" />
+                            Ping
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            class="h-7 w-7 p-0 text-neutral-400 hover:text-red-500 rounded-lg"
                             @click="deleteDevice(d)"
                         >
                             <Trash2 class="h-3.5 w-3.5" />

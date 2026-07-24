@@ -347,6 +347,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Bảng lương
     Route::get('salaries', [\App\Http\Controllers\SalaryController::class, 'index'])->name('salaries.index');
     Route::post('salaries/generate', [\App\Http\Controllers\SalaryController::class, 'generate'])->name('salaries.generate');
+    Route::post('salaries/approve-bulk', [\App\Http\Controllers\SalaryController::class, 'bulkApprove'])->name('salaries.approve-bulk');
     Route::post('salaries/adjustments/bulk', [\App\Http\Controllers\SalaryController::class, 'storeBulkAdjustment'])->name('salaries.adjustments.bulk');
     Route::patch('salaries/adjustments/{adjustment}/dispute', [\App\Http\Controllers\SalaryController::class, 'disputeAdjustment'])->name('salaries.adjustments.dispute');
     Route::patch('salaries/{salary}/approve', [\App\Http\Controllers\SalaryController::class, 'approve'])->name('salaries.approve');
@@ -372,6 +373,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Kiểm toán gian lận
     Route::get('fraud', [\App\Http\Controllers\FraudController::class, 'index'])->name('fraud.index');
     Route::post('fraud/violation', [\App\Http\Controllers\FraudController::class, 'createViolation'])->name('fraud.violation.store');
+    Route::post('fraud/verify-pin', [\App\Http\Controllers\FraudController::class, 'verifyManagerPin'])->name('fraud.pin.verify');
 
     // Kiểm duyệt chéo (Cross-review)
     Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');

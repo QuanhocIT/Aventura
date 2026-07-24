@@ -60,9 +60,11 @@ const props = defineProps<{
         theme_color: string | null;
         is_active: boolean;
         batches_count: number;
+        total_codes?: number;
+        total_usages?: number;
     }>;
     seasons: Record<string, string>;
-}>();
+} >();
 
 const seasonColors: Record<string, string> = {
     tet: 'from-red-500/20 to-amber-500/10 border-red-500/30',
@@ -326,8 +328,8 @@ async function deleteTemplate(id: number) {
                     >
                         {{
                             t.discount_type === 'percent'
-                                ? `${parseInt(t.discount_value)}%`
-                                : `${parseInt(t.discount_value).toLocaleString('vi')}₫`
+                                ? `${Math.round(t.discount_value)}%`
+                                : `${Math.round(t.discount_value).toLocaleString('vi')}₫`
                         }}
                     </span>
                     <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold"

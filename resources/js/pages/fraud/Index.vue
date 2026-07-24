@@ -21,10 +21,12 @@ import {
     Eye,
     CheckCircle,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, defineAsyncComponent } from 'vue';
 import { toast } from 'vue-sonner';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
+
+const ManagerPinModal = defineAsyncComponent(() => import('@/components/ManagerPinModal.vue'));
 
 defineOptions({ layout: AppLayout });
 
@@ -50,16 +52,238 @@ type TabKey =
     | 'revenue';
 type Severity = 'low' | 'medium' | 'high' | 'critical' | 'warning' | 'danger';
 
+// ── Per-tab Data Interfaces (matched to FraudDetectionService return shapes) ────
+
+/** Tab 'ai' — detectAiFraudAlerts() */
+interface AiFraudAlert {
+    id: string;
+    employee_id: number | null;
+    employee_name: string;
+    violation_type: string;
+    severity: Severity;
+    description: string;
+    penalty_amount: number;
+    occurred_at: string;
+    risk_score: number;
+    reason: string;
+}
+
+/** Tab 'audit' — getAuditLogs() */
+interface AuditLogEntry {
+    id: number;
+    user_name: string;
+    user_role: string;
+    event: string;
+    action: string;
+    action_label: string;
+    subject_type: string;
+    subject_id: number | null;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    ip_address: string;
+    user_agent: string;
+    created_at: string;
+    scheduled_employee: string;
+}
+interface AuditLogsData {
+    logs: AuditLogEntry[];
+    count: number;
+}
+
+/** Tab 'cash' — detectCashShortfalls() */
+interface CashShortfallClosing {
+    id: number;
+    closing_date: string;
+    shift_name: string;
+    expected_cash: number;
+    actual_cash: number;
+    cash_difference: number;
+    status: string;
+}
+interface CashShortfallCashier {
+    cashier_user_id: number;
+    cashier_name: string;
+    shortfall_count: number;
+    total_difference: number;
+    severity: Severity;
+    closings: CashShortfallClosing[];
+}
+interface CashShortfallData {
+    flagged_count: number;
+    total_shortage: number;
+    cashiers: CashShortfallCashier[];
+}
+
+/** Tab 'discount' — detectDiscountAnomalies() */
+interface DiscountOrder {
+    id: number;
+    order_number: string;
+    cashier_name: string;
+    subtotal: number;
+    discount_amount: number;
+    discount_rate_pct: number;
+    total_amount: number;
+}
+interface DiscountDay {
+    order_date: string;
+    order_count: number;
+    gross_revenue: number;
+    discount_total: number;
+    discount_rate_pct: number;
+    flag_reason: 'rate' | 'amount' | 'both';
+    orders: DiscountOrder[];
+}
+interface DiscountAnomalyData {
+    flagged_days: number;
+    total_excess_discount: number;
+    days: DiscountDay[];
+}
+
+/** Tab 'cancel' — detectSuspiciousCancellations() */
+interface CancelledOrder {
+    id: number;
+    order_number: string;
+    total_amount: number;
+    cancelled_date: string;
+}
+interface CancellationCashier {
+    cancelled_by: number;
+    cashier_name: string;
+    cancelled_count: number;
+    total_value_cancelled: number;
+    flag_reason: 'count' | 'value' | 'both';
+    orders: CancelledOrder[];
+}
+interface CancellationData {
+    flagged_cashiers_count: number;
+    total_cancelled_value: number;
+    cashiers: CancellationCashier[];
+    standalone_high_value: (CancelledOrder & { cancelled_by_name: string })[];
+}
+
+/** Tab 'waste' — detectInventoryWasteSpikes() */
+interface WasteEmployee {
+    performed_by: number;
+    employee_name: string;
+    waste_entry_count: number;
+    total_waste_cost: number;
+}
+interface WasteLargeEntry {
+    id: number;
+    employee_name: string;
+    scheduled_employee: string;
+    ingredient_name: string;
+    quantity: number;
+    unit_cost: number;
+    total_cost: number;
+    occurred_at: string;
+    notes: string | null;
+}
+interface WasteFlaggedDay {
+    waste_date: string;
+    daily_waste_cost: number;
+    entry_count: number;
+}
+interface WasteData {
+    total_waste_cost: number;
+    flagged_entries_count: number;
+    flagged_days_count: number;
+    top_employees: WasteEmployee[];
+    large_entries: WasteLargeEntry[];
+    flagged_days: WasteFlaggedDay[];
+}
+
+/** Tab 'revenue' — detectRevenueDiscrepancies() */
+interface RevenueDiscrepancyDay {
+    summary_date: string;
+    summary_net_revenue: number;
+    summary_gross_revenue: number;
+    shift_total: number;
+    difference: number;
+    difference_pct: number;
+    severity: 'warning' | 'danger';
+}
+interface RevenueDiscrepancyData {
+    flagged_days_count: number;
+    max_discrepancy_pct: number;
+    days: RevenueDiscrepancyDay[];
+}
+
+/** Union of all possible tab data shapes */
+type FraudTabData =
+    | AiFraudAlert[]
+    | AuditLogsData
+    | CashShortfallData
+    | DiscountAnomalyData
+    | CancellationData
+    | WasteData
+    | RevenueDiscrepancyData;
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 const props = defineProps<{
     period: string;
     activeTab: string;
     summary: Summary;
-    data: any;
+    data: FraudTabData;
     canAct: boolean;
     dateRange: { start: string; end: string };
 }>();
+
+// ── Typed data accessors (narrow FraudTabData union per active tab) ────────────
+// Template accesses `data` through these computed helpers so TypeScript can
+// narrow the union type correctly. This avoids the need to cast in the template.
+
+const data = computed(() => props.data);
+
+/** Tab 'ai' */
+const aiAlerts = computed((): AiFraudAlert[] =>
+    props.activeTab === 'ai' && Array.isArray(props.data)
+        ? (props.data as AiFraudAlert[])
+        : [],
+);
+
+/** Tab 'audit' */
+const auditData = computed((): AuditLogsData =>
+    props.activeTab === 'audit' && !Array.isArray(props.data)
+        ? (props.data as AuditLogsData)
+        : { logs: [], count: 0 },
+);
+
+/** Tab 'cash' */
+const cashData = computed((): CashShortfallData =>
+    props.activeTab === 'cash' && !Array.isArray(props.data)
+        ? (props.data as CashShortfallData)
+        : { flagged_count: 0, total_shortage: 0, cashiers: [] },
+);
+
+/** Tab 'discount' */
+const discountData = computed((): DiscountAnomalyData =>
+    props.activeTab === 'discount' && !Array.isArray(props.data)
+        ? (props.data as DiscountAnomalyData)
+        : { flagged_days: 0, total_excess_discount: 0, days: [] },
+);
+
+/** Tab 'cancel' */
+const cancelData = computed((): CancellationData =>
+    props.activeTab === 'cancel' && !Array.isArray(props.data)
+        ? (props.data as CancellationData)
+        : { flagged_cashiers_count: 0, total_cancelled_value: 0, cashiers: [], standalone_high_value: [] },
+);
+
+/** Tab 'waste' */
+const wasteData = computed((): WasteData =>
+    props.activeTab === 'waste' && !Array.isArray(props.data)
+        ? (props.data as WasteData)
+        : { total_waste_cost: 0, flagged_entries_count: 0, flagged_days_count: 0, top_employees: [], large_entries: [], flagged_days: [] },
+);
+
+/** Tab 'revenue' */
+const revenueData = computed((): RevenueDiscrepancyData =>
+    props.activeTab === 'revenue' && !Array.isArray(props.data)
+        ? (props.data as RevenueDiscrepancyData)
+        : { flagged_days_count: 0, max_discrepancy_pct: 0, days: [] },
+);
 
 // ── Period navigation ──────────────────────────────────────────────────────────
 
@@ -393,10 +617,12 @@ const pct = (v: number) => v.toFixed(1) + '%';
             </button>
         </div>
 
-        <!-- ══ TAB: AI CẢNH BÁO (ai) ═══════════════════════════════════════ -->
-        <template v-if="activeTab === 'ai'">
+        <!-- ══ TAB CONTENT ANIMATED WRAPPER ═════════════════════════════ -->
+        <div :key="activeTab" class="animate-fade-in space-y-6">
+            <!-- ══ TAB: AI CẢNH BÁO (ai) ═══════════════════════════════════════ -->
+            <template v-if="activeTab === 'ai'">
             <div
-                v-if="!data?.length"
+                v-if="!aiAlerts.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <ShieldAlert class="size-12 text-emerald-500 opacity-25" />
@@ -414,14 +640,14 @@ const pct = (v: number) => v.toFixed(1) + '%';
                     />
                     <span
                         >Thuật toán AI phát hiện
-                        <strong>{{ data.length }} cảnh báo rủi ro cao</strong>
+                        <strong>{{ aiAlerts.length }} cảnh báo rủi ro cao</strong>
                         dựa trên phân tích nhật ký tĩnh audit_logs.</span
                     >
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-2">
                     <div
-                        v-for="alert in data"
+                        v-for="alert in aiAlerts"
                         :key="alert.id"
                         class="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm transition duration-200 hover:shadow-md"
                     >
@@ -510,7 +736,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                                     "
                                     @click="
                                         overrideSplit(
-                                            alert.id.replace('ai-log-', ''),
+                                            parseInt(alert.id.replace('ai-log-', ''), 10),
                                         )
                                     "
                                     class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:scale-95 dark:hover:bg-emerald-950/20"
@@ -520,7 +746,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                                 <button
                                     @click="
                                         openViolation({
-                                            employee_id: alert.employee_id,
+                                            employee_id: alert.employee_id ?? 0,
                                             employee_name: alert.employee_name,
                                             violation_type:
                                                 alert.violation_type,
@@ -548,7 +774,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <!-- ══ TAB: NHẬT KÝ KIỂM TOÁN (audit) ═══════════════════════════════ -->
         <template v-else-if="activeTab === 'audit'">
             <div
-                v-if="!data?.logs?.length"
+                v-if="!auditData.logs.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <List class="size-12 opacity-25" />
@@ -573,7 +799,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                     </div>
 
                     <div
-                        v-for="log in data.logs"
+                        v-for="log in auditData.logs"
                         :key="log.id"
                         class="border-b border-border last:border-0"
                     >
@@ -714,44 +940,32 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <!-- ══ TAB: THIẾU QUỸ (cash) ═══════════════════════════════════════ -->
         <template v-else-if="activeTab === 'cash'">
             <div
-                v-if="!data.cashiers?.length"
+                v-if="!cashData.cashiers?.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <Banknote class="size-12 opacity-25" />
                 <p class="font-medium">
-                    Không có thu ngân nào thiếu quỹ trong kỳ này
+                    Không phát hiện thu ngân nào bị âm quỹ trong kỳ này
                 </p>
             </div>
 
-            <div v-else class="w-full space-y-3">
+            <div v-else class="space-y-5">
                 <div
-                    class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
+                    class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
                 >
-                    <AlertTriangle class="size-4 shrink-0" />
+                    <TrendingDown class="size-4 shrink-0 text-rose-500" />
                     <span
-                        >Tổng thiếu quỹ:
+                        >Tổng thiếu hụt quỹ:
                         <strong>{{
-                            vnd(Math.abs(data.total_shortage))
+                            vnd(Math.abs(cashData.total_shortage))
                         }}</strong>
-                        từ {{ data.flagged_count }} thu ngân</span
+                        từ {{ cashData.flagged_count }} thu ngân</span
                     >
                 </div>
 
-                <div
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
+                <div class="space-y-4">
                     <div
-                        class="hidden grid-cols-[auto_1fr_auto_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
-                    >
-                        <div></div>
-                        <div>Thu ngân</div>
-                        <div class="text-right">Số lần</div>
-                        <div class="text-right">Tổng thiếu</div>
-                        <div class="text-right">Mức độ</div>
-                    </div>
-
-                    <div
-                        v-for="cashier in data.cashiers"
+                        v-for="cashier in cashData.cashiers"
                         :key="cashier.cashier_user_id"
                         class="border-b border-border last:border-0"
                     >
@@ -914,42 +1128,28 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <!-- ══ TAB: CHIẾT KHẤU (discount) ══════════════════════════════════ -->
         <template v-else-if="activeTab === 'discount'">
             <div
-                v-if="!data.days?.length"
+                v-if="!discountData.days?.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <Percent class="size-12 opacity-25" />
                 <p class="font-medium">
-                    Không có chiết khấu bất thường trong kỳ này
+                    Không phát hiện ngày nào có tỷ lệ chiết khấu bất thường
                 </p>
             </div>
 
-            <div v-else class="w-full space-y-3">
+            <div v-else class="space-y-5">
                 <div
-                    class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
+                    class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
                 >
-                    <AlertTriangle class="size-4 shrink-0" />
-                    <span
-                        >Tổng chiết khấu bất thường:
-                        <strong>{{ vnd(data.total_excess_discount) }}</strong>
-                        trong {{ data.flagged_days }} ngày</span
-                    >
+                    <TrendingDown class="size-4 shrink-0 text-amber-500" />
+                    <span>Tổng chiết khấu bất thường:
+                        <strong>{{ vnd(discountData.total_excess_discount) }}</strong>
+                        trong {{ discountData.flagged_days }} ngày</span>
                 </div>
 
-                <div
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
+                <div class="space-y-4">
                     <div
-                        class="hidden grid-cols-[auto_1fr_auto_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
-                    >
-                        <div></div>
-                        <div>Ngày</div>
-                        <div class="text-right">Số đơn</div>
-                        <div class="text-right">Tổng CK</div>
-                        <div class="text-right">Tỷ lệ CK</div>
-                    </div>
-
-                    <div
-                        v-for="day in data.days"
+                        v-for="day in discountData.days"
                         :key="day.order_date"
                         class="border-b border-border last:border-0"
                     >
@@ -1068,30 +1268,25 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <template v-else-if="activeTab === 'cancel'">
             <div
                 v-if="
-                    !data.cashiers?.length &&
-                    !data.standalone_high_value?.length
+                    !cancelData.cashiers?.length &&
+                    !cancelData.standalone_high_value?.length
                 "
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <XCircle class="size-12 opacity-25" />
                 <p class="font-medium">
-                    Không có mẫu hủy đơn đáng ngờ trong kỳ này
+                    Không phát hiện hủy đơn bất thường trong kỳ này
                 </p>
             </div>
 
-            <div v-else class="w-full space-y-4">
-                <!-- Flagged cashiers -->
+            <div v-else class="space-y-6">
                 <div
-                    v-if="data.cashiers?.length"
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    v-if="cancelData.cashiers?.length"
+                    class="space-y-4"
                 >
+                    <h3 class="text-sm font-bold text-foreground">Thu ngân có tỷ lệ hủy bất thường</h3>
                     <div
-                        class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Thu ngân có tỷ lệ hủy cao
-                    </div>
-                    <div
-                        v-for="cashier in data.cashiers"
+                        v-for="cashier in cancelData.cashiers"
                         :key="cashier.cancelled_by ?? 'unknown'"
                         class="border-b border-border last:border-0"
                     >
@@ -1211,16 +1406,12 @@ const pct = (v: number) => v.toFixed(1) + '%';
 
                 <!-- Standalone high-value cancellations -->
                 <div
-                    v-if="data.standalone_high_value?.length"
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    v-if="cancelData.standalone_high_value?.length"
+                    class="space-y-4"
                 >
+                    <h3 class="text-sm font-bold text-foreground">Đơn hủy giá trị cao đơn lẻ</h3>
                     <div
-                        class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Đơn giá trị lớn bị hủy (>500k)
-                    </div>
-                    <div
-                        v-for="o in data.standalone_high_value"
+                        v-for="o in cancelData.standalone_high_value"
                         :key="o.id"
                         class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                     >
@@ -1244,64 +1435,44 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <!-- ══ TAB: HAO HỤT KHO (waste) ════════════════════════════════════ -->
         <template v-else-if="activeTab === 'waste'">
             <div
-                v-if="!data.large_entries?.length && !data.flagged_days?.length"
+                v-if="!wasteData.large_entries?.length && !wasteData.flagged_days?.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <Package class="size-12 opacity-25" />
                 <p class="font-medium">
-                    Không có hao hụt bất thường trong kỳ này
+                    Không phát hiện hao hụt bất thường trong kỳ này
                 </p>
             </div>
 
-            <div v-else class="w-full space-y-4">
-                <!-- Summary -->
-                <div class="grid gap-3 sm:grid-cols-3">
+            <div v-else class="space-y-6">
+                <div class="grid gap-3 grid-cols-3">
                     <div class="rounded-xl border border-border bg-card p-4">
-                        <p
-                            class="text-xs tracking-wider text-muted-foreground uppercase"
-                        >
-                            Tổng chi phí hao hụt
-                        </p>
-                        <p
-                            class="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400"
-                        >
-                            {{ compact(data.total_waste_cost) }}
-                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tổng giá trị hao hụt</p>
+                        <p class="mt-1 text-2xl font-black text-rose-600">{{
+                            compact(wasteData.total_waste_cost)
+                        }}</p>
                     </div>
                     <div class="rounded-xl border border-border bg-card p-4">
-                        <p
-                            class="text-xs tracking-wider text-muted-foreground uppercase"
-                        >
-                            Entries lớn bị gắn cờ
-                        </p>
-                        <p class="mt-1 text-xl font-bold">
-                            {{ data.flagged_entries_count }}
-                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Giao dịch lớn</p>
+                        <p class="mt-1 text-2xl font-black text-amber-600">{{
+                            wasteData.flagged_entries_count
+                        }}</p>
                     </div>
                     <div class="rounded-xl border border-border bg-card p-4">
-                        <p
-                            class="text-xs tracking-wider text-muted-foreground uppercase"
-                        >
-                            Ngày hao hụt cao
-                        </p>
-                        <p class="mt-1 text-xl font-bold">
-                            {{ data.flagged_days_count }}
-                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ngày đỉnh hao hụt</p>
+                        <p class="mt-1 text-2xl font-black text-orange-600">{{
+                            wasteData.flagged_days_count
+                        }}</p>
                     </div>
                 </div>
 
-                <!-- Large entries -->
                 <div
-                    v-if="data.large_entries?.length"
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    v-if="wasteData.large_entries?.length"
+                    class="space-y-3"
                 >
+                    <h3 class="text-sm font-bold">Giao dịch hao hụt lớn (&gt;500K)</h3>
                     <div
-                        class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Giao dịch hao hụt lớn (>500k)
-                    </div>
-                    <div
-                        v-for="entry in data.large_entries"
+                        v-for="entry in wasteData.large_entries"
                         :key="entry.id"
                         class="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                     >
@@ -1332,16 +1503,16 @@ const pct = (v: number) => v.toFixed(1) + '%';
 
                 <!-- Flagged days -->
                 <div
-                    v-if="data.flagged_days?.length"
+                    v-if="wasteData.flagged_days?.length"
                     class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
                         class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
                     >
-                        Ngày có hao hụt tổng >1,000,000đ
+                        Ngày có hao hụt tổng &gt;1,000,000đ
                     </div>
                     <div
-                        v-for="day in data.flagged_days"
+                        v-for="day in wasteData.flagged_days"
                         :key="day.waste_date"
                         class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                     >
@@ -1361,7 +1532,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
 
                 <!-- Top employees by waste -->
                 <div
-                    v-if="data.top_employees?.length"
+                    v-if="wasteData.top_employees?.length"
                     class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                     <div
@@ -1370,7 +1541,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                         Nhân viên ghi nhận hao hụt nhiều nhất
                     </div>
                     <div
-                        v-for="emp in data.top_employees"
+                        v-for="emp in wasteData.top_employees"
                         :key="emp.performed_by ?? 'unknown'"
                         class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                     >
@@ -1426,7 +1597,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <!-- ══ TAB: BẤT THƯỜNG DOANH THU (revenue) ═════════════════════════ -->
         <template v-else-if="activeTab === 'revenue'">
             <div
-                v-if="!data.days?.length"
+                v-if="!revenueData.days?.length"
                 class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
             >
                 <BarChart3 class="size-12 opacity-25" />
@@ -1445,10 +1616,10 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 >
                     <AlertTriangle class="size-4 shrink-0" />
                     <span
-                        >{{ data.flagged_days_count }} ngày có chênh lệch >5% ·
+                        >{{ revenueData.flagged_days_count }} ngày có chênh lệch &gt;5% ·
                         Lớn nhất:
                         <strong>{{
-                            pct(data.max_discrepancy_pct)
+                            pct(revenueData.max_discrepancy_pct)
                         }}</strong></span
                     >
                 </div>
@@ -1467,7 +1638,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                     </div>
 
                     <div
-                        v-for="day in data.days"
+                        v-for="day in revenueData.days"
                         :key="day.summary_date"
                         class="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-border px-4 py-3.5 transition last:border-0 hover:bg-muted/20 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:gap-4 lg:px-5"
                     >
@@ -1518,6 +1689,7 @@ const pct = (v: number) => v.toFixed(1) + '%';
                 </div>
             </div>
         </template>
+        </div>
     </div>
 
     <!-- ══ Violation Modal ══════════════════════════════════════════════════ -->

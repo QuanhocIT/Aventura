@@ -410,7 +410,7 @@ onMounted(() => {
         </div>
 
         <!-- TAB 1: PROMOTIONS LIST -->
-        <div v-if="activeTab === 'promotions'" class="space-y-6">
+        <div v-if="activeTab === 'promotions'" class="animate-fade-in space-y-6">
             <Card class="shadow-sm">
                 <CardHeader class="border-b pb-3">
                     <CardTitle class="text-sm font-bold"
@@ -610,7 +610,7 @@ onMounted(() => {
         </div>
 
         <!-- TAB 2: AI COMBO SUGGESTION -->
-        <div v-if="activeTab === 'combo'" class="space-y-6">
+        <div v-if="activeTab === 'combo'" class="animate-fade-in space-y-6">
             <!-- INTRO AI CARD -->
             <div
                 class="relative flex flex-col justify-between gap-6 overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl md:flex-row md:items-center"
@@ -857,7 +857,7 @@ onMounted(() => {
         </div>
 
         <!-- TAB 3: AUDITING & FRAUD -->
-        <div v-if="activeTab === 'fraud'" class="space-y-6">
+        <div v-if="activeTab === 'fraud'" class="animate-fade-in space-y-6">
             <!-- WARNING ROW -->
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <!-- RED FLAGS COUNTER -->

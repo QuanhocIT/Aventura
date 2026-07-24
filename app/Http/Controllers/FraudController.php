@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\ViolationReport;
+use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\FraudDetectionService;
 use App\Services\SalaryService;
@@ -65,13 +66,33 @@ class FraudController extends Controller
             default    => $this->fraudService->detectCashShortfalls($restaurantId, $start, $end),
         };
 
+        $violations = ViolationReport::where('restaurant_id', $restaurantId)
+            ->with(['employee', 'reportedBy'])
+            ->latest()
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id' => $r->id,
+                    'employee_id' => $r->employee_id,
+                    'employee_name' => $r->employee?->full_name ?? 'Không xác định',
+                    'reported_by_name' => $r->is_anonymous ? 'Ẩn danh' : ($r->reportedBy?->name ?? 'Hệ thống AI'),
+                    'violation_type' => $r->violation_type,
+                    'severity' => $r->severity,
+                    'description' => $r->description,
+                    'penalty_amount' => (float) $r->penalty_amount,
+                    'occurred_at' => $r->occurred_at->format('Y-m-d H:i:s'),
+                    'status' => $r->status,
+                ];
+            });
+
         return Inertia::render('fraud/Index', [
-            'period'    => $period,
-            'activeTab' => $activeTab,
-            'summary'   => $this->fraudService->getSummary($restaurantId, $start, $end),
-            'data'      => $data,
-            'canAct'    => $user->can('approve_requests'),
-            'dateRange' => ['start' => $start, 'end' => $end],
+            'period'     => $period,
+            'activeTab'  => $activeTab,
+            'summary'    => $this->fraudService->getSummary($restaurantId, $start, $end),
+            'data'       => $data,
+            'violations' => $violations,
+            'canAct'     => $user->can('approve_requests') || $user->can('manage_violations'),
+            'dateRange'  => ['start' => $start, 'end' => $end],
         ]);
     }
 
@@ -146,5 +167,47 @@ class FraudController extends Controller
             : 'Đã ghi nhận vi phạm thành công.';
 
         return back()->with('success', $msg);
+    }
+
+    public function verifyManagerPin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'pin' => ['required', 'string', 'regex:/^\d{4,6}$/'],
+        ]);
+
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        if (($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests')) && $user->pin_code) {
+            if (\Illuminate\Support\Facades\Hash::check($data['pin'], $user->pin_code)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Xác thực PIN thành công.',
+                    'verified_by' => $user->name,
+                ]);
+            }
+        }
+
+        $managers = User::where('restaurant_id', $restaurantId)
+            ->whereNotNull('pin_code')
+            ->limit(10)
+            ->get();
+
+        foreach ($managers as $m) {
+            if (($m->hasAnyRole(['owner', 'manager']) || $m->can('approve_requests')) && $m->pin_code) {
+                if (\Illuminate\Support\Facades\Hash::check($data['pin'], $m->pin_code)) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Xác thực mã PIN Quản lý thành công.',
+                        'verified_by' => $m->name,
+                    ]);
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Mã PIN Quản lý không chính xác hoặc không đủ quyền hạn.',
+        ], 422);
     }
 }

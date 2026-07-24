@@ -56,6 +56,8 @@ type Product = {
     code: string;
     name: string;
     price: number;
+    earn_points?: number;
+    redeem_points?: number;
     description: string | null;
     category: Category | null;
     is_available: boolean;
@@ -267,6 +269,8 @@ const productForm = useForm({
     category_id: props.categories[0]?.id ? String(props.categories[0].id) : '',
     name: '',
     price: '',
+    earn_points: 0,
+    redeem_points: 0,
     description: '',
     image: null as File | null,
 });
@@ -274,6 +278,8 @@ const productForm = useForm({
 const editForm = useForm({
     name: '',
     price: '',
+    earn_points: 0,
+    redeem_points: 0,
     category_id: '',
     description: '',
     image: null as File | null,
@@ -409,6 +415,8 @@ const openEditModal = (p: Product) => {
     editingProduct.value = p;
     editForm.name = p.name;
     editForm.price = String(p.price);
+    editForm.earn_points = p.earn_points ?? 0;
+    editForm.redeem_points = p.redeem_points ?? 0;
     editForm.category_id = p.category ? String(p.category.id) : '';
     editForm.description = p.description ?? '';
 };
@@ -1970,6 +1978,34 @@ const toggleAvailability = (p: Product) => {
                             class="rounded-xl"
                         />
                     </div>
+                    <div class="grid grid-cols-2 gap-3 rounded-xl border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                        <div class="grid gap-1">
+                            <Label class="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                                🎁 Tích điểm khi mua
+                            </Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                v-model="productForm.earn_points"
+                                placeholder="Ví dụ: 30"
+                                class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                            />
+                            <p class="text-[9px] text-amber-700/80 dark:text-amber-400">Điểm thưởng khi mua 1 món</p>
+                        </div>
+                        <div class="grid gap-1">
+                            <Label class="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                                🔄 Điểm để đổi món
+                            </Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                v-model="productForm.redeem_points"
+                                placeholder="Ví dụ: 300"
+                                class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                            />
+                            <p class="text-[9px] text-amber-700/80 dark:text-amber-400">Điểm cần có để đổi 1 món</p>
+                        </div>
+                    </div>
                     <div class="grid gap-1.5">
                         <Label
                             for="prod-image"
@@ -2108,6 +2144,34 @@ const toggleAvailability = (p: Product) => {
                             required
                             class="rounded-xl"
                         />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 rounded-xl border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                        <div class="grid gap-1">
+                            <Label class="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                                🎁 Tích điểm khi mua
+                            </Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                v-model="editForm.earn_points"
+                                placeholder="Ví dụ: 30"
+                                class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                            />
+                            <p class="text-[9px] text-amber-700/80 dark:text-amber-400">Điểm thưởng khi mua 1 món</p>
+                        </div>
+                        <div class="grid gap-1">
+                            <Label class="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                                🔄 Điểm để đổi món
+                            </Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                v-model="editForm.redeem_points"
+                                placeholder="Ví dụ: 300"
+                                class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                            />
+                            <p class="text-[9px] text-amber-700/80 dark:text-amber-400">Điểm cần có để đổi 1 món</p>
+                        </div>
                     </div>
                     <div class="grid gap-1.5">
                         <Label

@@ -10,6 +10,7 @@ import {
     Play,
     Square,
     Loader2,
+    Sparkles,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -48,6 +49,7 @@ interface ScoringItem {
 
 const props = defineProps<{
     scoring: ScoringItem[];
+    bcgData?: any[];
     priceTests: any[];
     days: number;
 }>();
@@ -65,6 +67,16 @@ watch(
         }
     },
 );
+
+const bcgStats = computed(() => {
+    const list = props.bcgData || [];
+    return {
+        star: list.filter((i: any) => i.quadrant === 'star'),
+        plowhorse: list.filter((i: any) => i.quadrant === 'plowhorse'),
+        puzzle: list.filter((i: any) => i.quadrant === 'puzzle'),
+        dog: list.filter((i: any) => i.quadrant === 'dog'),
+    };
+});
 
 const activeTab = ref<'scoring' | 'ab-test' | 'schedule'>('scoring');
 
@@ -751,6 +763,68 @@ const needsAttention = computed(
                         </div>
                     </div>
                 </transition>
+
+                <!-- BCG Actions / Recommendations List -->
+                <div class="mt-8 border-t border-border pt-6 text-left">
+                    <h3 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-4">
+                        <Sparkles class="size-4 text-violet-500 animate-pulse" />
+                        Gợi ý thông minh từ ma trận BCG (BCG Actionable Recommendations)
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Stars -->
+                        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.02] p-4 space-y-2">
+                            <h4 class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                                <span>⭐</span> Stars (Món ăn Ngôi sao - {{ bcgStats.star.length }} món)
+                            </h4>
+                            <ul v-if="bcgStats.star.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
+                                <li v-for="item in bcgStats.star" :key="item.product_id">
+                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                                </li>
+                            </ul>
+                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Ngôi sao.</p>
+                        </div>
+
+                        <!-- Plowhorses -->
+                        <div class="rounded-xl border border-amber-500/20 bg-amber-500/[0.02] p-4 space-y-2">
+                            <h4 class="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
+                                <span>🐎</span> Plowhorses (Món ăn Bò sữa - {{ bcgStats.plowhorse.length }} món)
+                            </h4>
+                            <ul v-if="bcgStats.plowhorse.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
+                                <li v-for="item in bcgStats.plowhorse" :key="item.product_id">
+                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                                </li>
+                            </ul>
+                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Bò sữa.</p>
+                        </div>
+
+                        <!-- Puzzles -->
+                        <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.02] p-4 space-y-2">
+                            <h4 class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide flex items-center gap-1">
+                                <span>🧩</span> Puzzles (Món ăn Câu đố - {{ bcgStats.puzzle.length }} món)
+                            </h4>
+                            <ul v-if="bcgStats.puzzle.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
+                                <li v-for="item in bcgStats.puzzle" :key="item.product_id">
+                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                                </li>
+                            </ul>
+                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Câu đố.</p>
+                        </div>
+
+                        <!-- Dogs -->
+                        <div class="rounded-xl border border-red-500/20 bg-red-500/[0.02] p-4 space-y-2">
+                            <h4 class="text-xs font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wide flex items-center gap-1">
+                                <span>🐶</span> Dogs (Món ăn Thú cưng - {{ bcgStats.dog.length }} món)
+                            </h4>
+                            <ul v-if="bcgStats.dog.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
+                                <li v-for="item in bcgStats.dog" :key="item.product_id">
+                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                                </li>
+                            </ul>
+                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Thú cưng.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Table View -->
