@@ -57,7 +57,7 @@ Tài liệu này tổng hợp toàn bộ các ca kiểm thử tích hợp (Integ
 | **TC-LOG-47** | **Nhật Ký Kiểm Toán Toàn Diện** | Ghi nhận chi tiết mọi hành động thay đổi cấu hình nhạy cảm của hệ thống. | 14/06/2026 | **Cao (High)** | <span style="color:green">**PASSED**</span> | Khóa không cho phép bất kỳ tài khoản nào (kể cả Super Admin) sửa đổi hoặc xóa các bản ghi log kiểm toán. | Log ghi nhận rõ: ID người thực hiện, thời gian, IP, hành động, dữ liệu cũ (`old_values`) và dữ liệu mới (`new_values`). | Đồng thời ghi log ra file hệ thống cứng (`storage/logs/audit.log`) dự phòng trường hợp database lỗi. | Đăng ký Listener toàn cục bắt các sự kiện thay đổi cơ sở dữ liệu của Eloquent Models. | AI quét logs định kỳ để phát hiện các mẫu hành động bất thường có nguy cơ xâm nhập hệ thống. | Log kiểm toán được tạo chính xác khi sửa đổi cấu hình gói cước; dữ liệu trước và sau thay đổi hiển thị rõ ràng. |
 | **TC-BOM-48** | **Cập Nhật Giá Vốn Khi Nhập Hàng** | Tự động tính toán lại giá vốn trung bình (Average Cost) của nguyên liệu mỗi khi hoàn thành đơn nhập kho. | 14/06/2026 | **Cao (High)** | <span style="color:green">**PASSED**</span> | Chặn cập nhật giá vốn nếu đơn nhập kho chưa được đối soát và phê duyệt từ quản lý chi nhánh. | Công thức tính bình quân gia quyền: `Giá vốn mới = (Tồn cũ * Giá cũ + Nhập mới * Giá mới) / (Tồn cũ + Nhập mới)`. Cập nhật chi phí công thức món ăn ngay lập tức. | Giữ nguyên giá vốn cũ và ghi nhận cảnh báo sai lệch nếu tồn kho thực tế bị âm trước khi nhập. | Chạy background job `RecalculateAverageCostJob` ngay khi đơn mua hàng chuyển sang trạng thái hoàn thành. | AI phân tích biến động giá vốn nguyên liệu để dự báo xu hướng điều chỉnh giá bán lẻ món ăn bảo toàn lợi nhuận. | Giá vốn nguyên liệu được tính toán lại chính xác sau khi nhập kho; Giá vốn công thức món ăn (BOM costing) tự động cập nhật đúng đắn. |
 | **TC-INV-49** | **Điều Phối Kho Liên Chi Nhánh** | Điều chuyển nguyên liệu giữa các chi nhánh dựa trên đề xuất của thuật toán tối ưu tồn kho. | 21/06/2026 | **Trung bình (Medium)** | <span style="color:green">**PASSED**</span> | Chặn điều chuyển nếu số lượng yêu cầu vượt quá tồn kho thực tế hiện có ở chi nhánh gửi. | Tự động tính toán lượng thiếu hụt của chi nhánh nhận so với hạn mức tối thiểu để gợi ý lượng chuyển. | Cho phép tạo phiếu chuyển kho thủ công nếu hệ thống gợi ý AI tạm thời ngoại tuyến. | Endpoint API nhận dữ liệu tọa độ/kho giữa các chi nhánh, xử lý giao dịch kho bọc trong DB transaction. | AI gợi ý tuyến đường và lượng điều chuyển tối ưu nhất giúp giảm chi phí vận chuyển. | Gợi ý chính xác chi nhánh gửi/nhận và thực hiện trừ/cộng kho khớp số lượng 50kg thịt heo thành công. |
-| **TC-BOM-50** | **Lan Truyền Chi Phí BOM** | Tự động cập nhật giá vốn món ăn (cost_price) tức thời khi giá vốn nguyên liệu (average_cost) thay đổi. | 21/06/2026 | **Cao (High)** | <span style="color:green">**PASSED**</span> | Chặn tính toán nếu định lượng nguyên liệu của món ăn bị cấu hình sai lệch hoặc bằng không. | Giá vốn món ăn = Tổng (Số lượng nguyên liệu * Giá vốn trung bình nguyên liệu * (1 + Tỷ lệ hao hụt)). | Ghi log cảnh báo giá vốn bất thường nếu giá món vượt quá giá bán lẻ. | Kích hoạt job `RecalculateAverageCostJob` bất đồng bộ để cập nhật giá vốn toàn bộ sản phẩm liên quan. | AI đề xuất mức điều chỉnh giá bán lẻ món ăn để duy trì biên lợi nhuận mong muốn. | Giá vốn sản phẩm tự động cập nhật từ 0đ thành 66.000đ thành công sau khi nhập thịt heo giá mới. |
+| **TC-BOM-50** | **Lan Truyền Chi Phí BOM** | Tự động cập nhật giá vốn món ăn (cost_price) tức thời khi giá vốn nguyên liệu (average_cost) thay đổi. | 21/06/2026 | **Cao (High)** | <span style="color:green">**PASSED**</span> | Chặn tính toán nếu định lượng nguyên liệu của món ăn bị cấu hình sai lệch hoặc bằng không. | Giá vốn món ăn = Tổng (Số lượng nguyên liệu *Giá vốn trung bình nguyên liệu* (1 + Tỷ lệ hao hụt)). | Ghi log cảnh báo giá vốn bất thường nếu giá món vượt quá giá bán lẻ. | Kích hoạt job `RecalculateAverageCostJob` bất đồng bộ để cập nhật giá vốn toàn bộ sản phẩm liên quan. | AI đề xuất mức điều chỉnh giá bán lẻ món ăn để duy trì biên lợi nhuận mong muốn. | Giá vốn sản phẩm tự động cập nhật từ 0đ thành 66.000đ thành công sau khi nhập thịt heo giá mới. |
 | **TC-BOM-51** | **Chấm Điểm Đấu Thầu AI** | Tự động phân tích các hồ sơ thầu (bids) của nhà cung cấp gửi tới yêu cầu mua hàng (RFP). | 21/06/2026 | **Trung bình (Medium)** | <span style="color:green">**PASSED**</span> | Loại bỏ hồ sơ thầu nếu ngày giao hàng vượt quá hạn cuối yêu cầu hoặc nhà cung cấp bị khóa. | Đánh giá và chấm điểm dựa trên 3 tiêu chí: Giá thầu (Price), Thời gian giao hàng (Delivery SLA), và Uy tín nhà cung cấp. | Phục hồi thuật toán chấm điểm PHP tĩnh cấu hình sẵn nếu AI service ngoại tuyến. | Chạy background analysis xếp hạng đề xuất và đánh dấu `is_ai_recommended` trực tiếp ở trang chi tiết RFP. | AI phân tích lịch sử giao hàng và xếp hạng rủi ro trễ hẹn để trừ điểm uy tín trực tiếp. | Đề xuất thầu tối ưu nhất được gắn nhãn AI Recommended thành công với điểm số chi tiết hiển thị trực quan. |
 | **TC-FRD-52** | **Đề Xuất Sai Phạm Từ POS** | Cho phép quản lý báo cáo sai phạm từ xa và đưa vào quy trình phê duyệt chéo của chủ nhà hàng. | 21/06/2026 | **Nghiêm trọng (Critical)** | <span style="color:green">**PASSED**</span> | Chặn hành vi tự phê duyệt nếu người yêu cầu chính là người duyệt (`PreventSelfApproval`). | Mọi chỉnh sửa giảm trừ lương do lỗi nhân viên phải được Owner duyệt qua `ApprovalRequest` mới có hiệu lực. | Cho phép lưu giữ trạng thái tạm hoãn (pending) để đối soát vào kỳ lương cuối tháng. | Gửi request qua `FraudController@createViolation` tạo bản ghi đề xuất duyệt chéo. | AI phân tích lịch sử vi phạm để đưa ra khuyến nghị mức phạt tối ưu tránh vi phạm luật lao động. | Tạo thành công báo cáo sai phạm và tự động đẩy yêu cầu phê duyệt ở trạng thái pending lên Owner. |
 | **TC-FRD-53** | **Phát Hiện Sửa Giá Liên Tục** | Hệ thống tự động giám sát hành vi sửa giá món ăn liên tiếp trên POS để ngăn chặn gian lận. | 21/06/2026 | **Nghiêm trọng (Critical)** | <span style="color:green">**PASSED**</span> | Tự động khóa màn hình và kích hoạt cảnh báo đỏ gửi về máy Owner nếu phát hiện sửa giá >= 3 lần/10 phút. | Ghi nhận sự kiện `price_modified` vào audit logs và so sánh tần suất trong khoảng thời gian cấu hình. | Chuyển quyền duyệt sửa đổi sang nhập mã bypass của quản lý trực tiếp. | Sử dụng Eloquent Observer lắng nghe sự kiện cập nhật để quét tần suất giao dịch qua Redis Cache. | AI phân tích hành vi để khoanh vùng nhân viên có độ tin cậy thấp. | Tự động tạo Violation Report mức độ High và phát sự kiện `FraudAlertTriggered` thành công sau lần sửa giá thứ 3. |
@@ -71,6 +71,7 @@ Tài liệu này tổng hợp toàn bộ các ca kiểm thử tích hợp (Integ
 ## Các Mục Cần Thiết Khác
 
 ### 1. Môi Trường Kiểm Thử (Test Environment)
+
 - **Hệ điều hành:** Windows (Laragon) / Linux.
 - **Backend:** PHP 8.3.16, Laravel Framework 13.x.
 - **Frontend:** Vue 3, Vite, TailwindCSS 4, InertiaJS.
@@ -79,16 +80,18 @@ Tài liệu này tổng hợp toàn bộ các ca kiểm thử tích hợp (Integ
 - **AI Microservices:** Python 3.10+ (FastAPI + Scikit-learn + Pandas).
 
 ### 2. Tiêu Chí Đạt/Không Đạt (Pass/Fail Criteria)
+
 - **Đạt (Pass):**
-  * 100% các ca kiểm thử tích hợp (Feature tests) của Laravel chạy thành công mà không gặp lỗi Exception hoặc trả về mã lỗi `500`.
-  * Các cơ chế phòng thủ (Bypass Code, GPS validation, Fraud check, Self-approval, Over-limits, Tenant isolation, Lock account, Webcam check-in, 2FA, Subscription check, Escrow, Email fallback) hoạt động chính xác.
-  * Hệ thống fallback tự động kích hoạt khi các dịch vụ AI bên ngoài gặp sự cố.
+  - 100% các ca kiểm thử tích hợp (Feature tests) của Laravel chạy thành công mà không gặp lỗi Exception hoặc trả về mã lỗi `500`.
+  - Các cơ chế phòng thủ (Bypass Code, GPS validation, Fraud check, Self-approval, Over-limits, Tenant isolation, Lock account, Webcam check-in, 2FA, Subscription check, Escrow, Email fallback) hoạt động chính xác.
+  - Hệ thống fallback tự động kích hoạt khi các dịch vụ AI bên ngoài gặp sự cố.
 - **Không Đạt (Fail):**
-  * Có bất kỳ test case nào thất bại hoặc trả về HTTP Status Code `500`.
-  * Xảy ra lỗi toàn vẹn dữ liệu (Integrity Constraint Violation) hoặc rò rỉ dữ liệu giữa các Tenant.
+  - Có bất kỳ test case nào thất bại hoặc trả về HTTP Status Code `500`.
+  - Xảy ra lỗi toàn vẹn dữ liệu (Integrity Constraint Violation) hoặc rò rỉ dữ liệu giữa các Tenant.
 
 ### 3. Kết Luận Kiểm Thử Gần Nhất
-* **Tổng số ca kiểm thử:** 223
-* **Số ca vượt qua:** 223
-* **Số ca thất bại:** 0
-* **Trạng thái kiểm thử hệ thống:** **ĐẠT YÊU CẦU (PASSED)**
+
+- **Tổng số ca kiểm thử:** 223
+- **Số ca vượt qua:** 223
+- **Số ca thất bại:** 0
+- **Trạng thái kiểm thử hệ thống:** **ĐẠT YÊU CẦU (PASSED)**

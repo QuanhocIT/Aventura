@@ -6,7 +6,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 
 Để test: mở terminal rồi chạy php artisan serve, sau đó truy cập http:// mà nó trả về
 
-
 ## 1) Tổng quan: Yêu cầu hệ thống
 
 ### Bắt buộc để chạy dự án
@@ -27,7 +26,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - MinIO/S3/R2 (object storage)
 - Sentry (giám sát lỗi)
 - Python microservice (FastAPI + Pandas + Scikit-learn)
-
 
 ## 2) Thư viện đã có sẵn trong dự án
 
@@ -53,7 +51,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - tailwindcss (^4)
 - pinia (^3)
 - @vitejs/plugin-vue
-
 
 ## 3) Thư viện cần cài thêm (nếu phát triển Python service)
 
@@ -87,6 +84,7 @@ uvicorn main:app --port 8002
 ```
 
 Cấu hình `.env` trong thư mục `services/chatbot_service/`:
+
 ```env
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -99,11 +97,10 @@ MAX_SUGGESTIONS=5
 ```
 
 Trong `.env` của Laravel, thêm:
+
 ```env
 CHATBOT_SERVICE_URL=http://localhost:8002
 ```
-```
-
 
 ## 4) Cài đặt nhanh để chạy local (Windows/Laragon)
 
@@ -193,7 +190,6 @@ SENTRY_LARAVEL_DSN=
 SENTRY_TRACES_SAMPLE_RATE=0.2
 ```
 
-
 ## 7) Dịch vụ hệ thống cần chạy kèm
 
 - MySQL service
@@ -233,7 +229,6 @@ npm run lint:check
 3. Phase 3 (tim kiem + realtime): meilisearch/scout + reverb.
 4. Phase 4 (phan tich AI): Python microservice + ket noi API/queue.
 5. Phase 5 (van hanh): sentry + object storage + monitor.
-
 
 ## 10) Ghi chú bổ sung
 

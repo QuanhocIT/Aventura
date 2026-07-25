@@ -20,6 +20,7 @@
 ## 📋 Điền Vào `.env` Production (dùng `.env.production.example` làm template)
 
 Sao chép template:
+
 ```bash
 cp .env.production.example .env
 ```
@@ -27,7 +28,7 @@ cp .env.production.example .env
 Sau đó điền các giá trị sau:
 
 | Biến | Giá Trị Cần Điền | Lấy Ở Đâu |
-|---|---|---|
+| --- | --- | --- |
 | `APP_KEY` | Sinh mới bằng `php artisan key:generate --show` | Terminal |
 | `APP_URL` | `https://your-domain.com` | Domain của bạn |
 | `DB_PASSWORD` | Mật khẩu mạnh (≥16 ký tự) | Tự đặt |
@@ -52,7 +53,7 @@ Sau đó điền các giá trị sau:
 
 Mở [`docker/caddy/Caddyfile`](docker/caddy/Caddyfile) và thay `your-domain.com` bằng domain thật:
 
-```
+```caddyfile
 # Thay dòng này:
 your-domain.com {
 # Thành:
@@ -111,7 +112,7 @@ cd services/email_service && pytest test_main.py -v
 ## 📅 Lịch Tháng Đầu
 
 | Tuần | Việc Cần Làm |
-|---|---|
+| --- | --- |
 | Tuần 1 | Deploy staging → UAT nội bộ với 1-2 nhà hàng thử nghiệm |
 | Tuần 2 | Fix bugs từ UAT → Go live production |
 | Tuần 3 | Monitor chặt: Horizon queue, Sentry errors, Redis memory |
