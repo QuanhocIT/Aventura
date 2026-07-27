@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import DemoBookingModal from '@/components/DemoBookingModal.vue';
 import { Button } from '@/components/ui/button';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
@@ -66,6 +67,7 @@ const promoBanners = computed(() => props.banners?.promo ?? []);
 const firstPromoBanner = computed(() => promoBanners.value[0] ?? null);
 
 const showStickyCta = ref(false);
+const isDemoModalOpen = ref(false);
 let heroObserver: IntersectionObserver | null = null;
 let revealObserver: IntersectionObserver | null = null;
 
@@ -184,13 +186,14 @@ onUnmounted(() => {
                     <Button v-if="canRegister" as-child size="lg">
                         <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
-                    <Button as-child variant="outline" size="lg">
-                        <a
-                            href="tel:0346858035"
-                            class="flex items-center gap-2"
-                        >
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        @click="isDemoModalOpen = true"
+                    >
+                        <span class="flex items-center gap-2 cursor-pointer">
                             <span>📅</span> Đặt lịch demo với chuyên gia
-                        </a>
+                        </span>
                     </Button>
                 </div>
                 <p class="text-xs text-muted-foreground">
@@ -201,7 +204,17 @@ onUnmounted(() => {
     </AppTopbarLayout>
 
     <!-- 11. Sticky bottom CTA bar -->
-    <KhachStickyCta :canRegister="canRegister" :showStickyCta="showStickyCta" />
+    <KhachStickyCta
+        :canRegister="canRegister"
+        :showStickyCta="showStickyCta"
+        @openDemo="isDemoModalOpen = true"
+    />
+
+    <!-- Demo Booking Modal -->
+    <DemoBookingModal
+        :isOpen="isDemoModalOpen"
+        @close="isDemoModalOpen = false"
+    />
 </template>
 
 <style>

@@ -12,6 +12,7 @@ use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
 use App\Http\Controllers\SuperAdmin\ChurnController;
 use App\Http\Controllers\SuperAdmin\CampaignTemplateController;
 use App\Http\Controllers\SuperAdmin\CouponController;
+use App\Http\Controllers\SuperAdmin\DemoBookingManagementController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\GarbageCollectorController;
@@ -234,5 +235,10 @@ Route::prefix('super-admin')
             Route::post('meilisearch-console/clear-stats', [MeilisearchConsoleController::class, 'clearStats'])->name('meilisearch-console.clear-stats');
 
             Route::post('impersonate/{user}', [ImpersonateController::class, 'start'])->name('impersonate.start');
+
+            // Demo Bookings Management
+            Route::get('demo-bookings', [DemoBookingManagementController::class, 'index'])->name('demo-bookings.index');
+            Route::put('demo-bookings/{demoBooking}', [DemoBookingManagementController::class, 'update'])->name('demo-bookings.update');
+            Route::delete('demo-bookings/{demoBooking}', [DemoBookingManagementController::class, 'destroy'])->name('demo-bookings.destroy');
         });
     });

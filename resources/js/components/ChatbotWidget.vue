@@ -206,8 +206,9 @@ function renderMarkdown(text: string): string {
 </script>
 
 <template>
-    <!-- Floating button -->
-    <div class="fixed right-5 bottom-5 z-50 flex flex-col items-end gap-3">
+    <Teleport to="body">
+        <!-- Floating button: Cố định góc dưới bên phải màn hình (Viewport) -->
+        <div class="fixed right-6 bottom-6 z-[9999] flex flex-col items-end gap-3 pointer-events-auto">
         <!-- Chat window -->
         <Transition
             enter-active-class="transition duration-200 ease-out"
@@ -485,4 +486,5 @@ function renderMarkdown(text: string): string {
             />
         </button>
     </div>
+    </Teleport>
 </template>

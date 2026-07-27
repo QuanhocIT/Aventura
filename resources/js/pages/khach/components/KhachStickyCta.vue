@@ -17,9 +17,12 @@ function dismissStickyCta() {
     localStorage.setItem('aventura_sticky_cta_dismissed', '1');
 }
 
+const emit = defineEmits<{
+    (e: 'openDemo'): void;
+}>();
+
 function openDemoModal() {
-    // Scroll to contact section or open a tel link
-    window.open('tel:0346858035', '_self');
+    emit('openDemo');
 }
 
 onMounted(() => {

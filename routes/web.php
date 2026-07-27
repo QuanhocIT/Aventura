@@ -24,6 +24,10 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::post('api/chatbot/feedback', [ChatbotController::class, 'feedback'])->name('chatbot.feedback');
 });
 
+Route::post('api/demo-booking', [\App\Http\Controllers\DemoBookingController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('api.demo-booking.store');
+
 Route::get('sitemap.xml', function () {
     $posts = \App\Models\NewsPost::published()->latest('published_at')->take(100)->get();
     $xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';

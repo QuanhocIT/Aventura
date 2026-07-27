@@ -160,6 +160,12 @@ const superAdminNav = computed<NavItem[]>(() => {
             perm: 'superadmin.dashboard.view',
         },
         {
+            title: 'Lịch demo tư vấn',
+            href: '/super-admin/demo-bookings',
+            icon: CalendarDays,
+            perm: 'superadmin.dashboard.view',
+        },
+        {
             title: 'Banner & Slideshow',
             href: '/super-admin/banners',
             icon: Image,
