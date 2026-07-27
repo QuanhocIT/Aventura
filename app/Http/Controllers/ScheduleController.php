@@ -1340,7 +1340,7 @@ class ScheduleController extends Controller
     /**
      * Đánh dấu thông báo đã đọc.
      */
-    public function markNotificationAsRead(Request $request, $id)
+    public function markNotificationAsRead(Request $request, string $id)
     {
         $notification = $request->user()->notifications()->findOrFail($id);
         $notification->markAsRead();

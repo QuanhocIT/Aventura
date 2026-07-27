@@ -9,6 +9,7 @@
 ## 1. Tóm Tắt Tổng Quan (Executive Summary)
 
 Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật toàn diện trên tất cả các tầng kiến trúc:
+
 - Tầng Xác thực (Authentication & Session Management)
 - Tầng Phân quyền & Cách ly dữ liệu (Authorization & Multi-Tenant Isolation)
 - Tầng Mạng & Tường lửa (WAF, Rate Limiting & Firewall Middleware)
@@ -21,6 +22,7 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
 ## 2. Kết Quả Kiểm Tra Theo Hạng Mục Bảo Mật (Detailed Findings)
 
 ### 2.1. Quản Lý Xác Thực & Chống Brute-Force (Authentication & Rate Limiting)
+
 - **Tình trạng**: **AN TOÀN (Passed)**
 - **Đã nâng cấp**:
   - Tích hợp **Rate Limiting nghiêm ngặt**: Tất cả route xác thực (`/login`, `/register`, `/forgot-password`, `/two-factor-challenge`, `/lock-screen`) bị giới hạn **tối đa 5 lần thử trong 15 phút (900 giây)**.
@@ -29,6 +31,7 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
   - Chính sách mật khẩu Production bắt buộc: Tối thiểu 12 ký tự, chữ hoa/thường, số, ký tự đặc biệt, kiểm tra mật khẩu đã bị rò rỉ (`uncompromised()`).
 
 ### 2.2. Bảo Mật Secret & Cấu Hình Môi Trường (Secrets & Environment Security)
+
 - **Tình trạng**: **AN TOÀN (Passed)**
 - **Đã kiểm tra**:
   - Không có API Key, Token, Password bị hardcode trong source code. Các mã QR dynamic check-in HMAC key đã được chuyển sang sử dụng `config('app.key')`.
@@ -36,6 +39,7 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
   - Middleware `HandleInertiaRequests` tuân thủ nguyên tắc "Least Privilege", chỉ trả về boolean `has_pin` thay vì hash code, loại bỏ hoàn toàn rủi ro rò rỉ secret ra Client JS state.
 
 ### 2.3. Kiểm Soát Dữ Liệu Đầu Vào & Payload Request (Input Validation & Payload Protection)
+
 - **Tình trạng**: **AN TOÀN (Passed)**
 - **Đã nâng cấp**:
   - Triển khai middleware `ValidatePayloadSize`:
@@ -49,6 +53,7 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
     - `Referrer-Policy: strict-origin-when-cross-origin`
 
 ### 2.4. Phân Quyền & Cách Ly Đa Nhà Hàng (Multi-Tenant Data Isolation & RBAC)
+
 - **Tình trạng**: **AN TOÀN (Passed)**
 - **Đã kiểm tra**:
   - Middleware `SetTenantContext` thiết lập ngữ cảnh nhà hàng cho mọi request.
@@ -57,6 +62,7 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
   - Phân vùng SuperAdmin bảo mật riêng trong `routes/super-admin.php` với 3 lớp bảo vệ: IP Whitelist, Role Check, và 2FA Enforcement.
 
 ### 2.5. Bảo Mật Webhook & CSRF Exemption Audit
+
 - **Tình trạng**: **AN TOÀN CÓ GIÁM SÁT (Passed with Verification)**
 - **Đã rà soát các Route ngoại lệ CSRF**:
   - `webhooks/payments`, `api/webhooks/payments/*` (VietQR, MoMo, VNPay, ZaloPay): **Đã xác minh**: Tất cả driver thanh toán (`MomoDriver`, `VietQR`, v.v.) đều thực hiện xác thực chữ ký HMAC SHA256 / Checksum trước khi cập nhật trạng thái đơn hàng.
@@ -71,4 +77,5 @@ Hệ thống **Aventura** đã được rà soát và đánh giá bảo mật to
 3. **Giám Sát Log Trực Tuyến**: Tiếp tục sử dụng Sentry & Telegram Alert Service để nhận thông báo real-time khi có dấu hiệu tấn công bất thường.
 
 ---
+
 **Kết luận**: Hệ thống Aventura đã đạt các tiêu chuẩn an toàn bảo mật cao cấp cho ứng dụng Web & SaaS Enterprise.
