@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(\App\Http\Middleware\SecurityFirewallMiddleware::class);
+        $middleware->prepend(\App\Http\Middleware\ValidatePayloadSize::class);
 
         $middleware->trustProxies(at: '*');
 

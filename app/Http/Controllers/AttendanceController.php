@@ -82,7 +82,8 @@ class AttendanceController extends Controller
                 for ($i = 0; $i <= 1; $i++) {
                     $ts = $nowTs - ($i * 20);
                     $chunk = floor($ts / 20);
-                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . '_checkin_secret_key_123'), 0, 8);
+                    $secretSalt = config('app.key', 'aventura_secret_salt');
+                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . $secretSalt), 0, 8);
                     if (hash_equals(strtoupper($expectedDyn), strtoupper($clientQR))) {
                         $isDynamicValid = true;
                         break;

@@ -526,7 +526,8 @@ class ScheduleController extends Controller
                 for ($i = 0; $i <= 1; $i++) {
                     $ts = $nowTs - ($i * 20);
                     $chunk = floor($ts / 20);
-                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . '_checkin_secret_key_123'), 0, 8);
+                    $secretSalt = config('app.key', 'aventura_secret_salt');
+                    $expectedDyn = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurant->id . $secretSalt), 0, 8);
                     if (hash_equals(strtoupper($expectedDyn), strtoupper($clientQR))) {
                         $isDynamicValid = true;
                         break;
@@ -1026,7 +1027,8 @@ class ScheduleController extends Controller
 
         // Tối ưu hóa: Dùng cache trong chu kỳ 20s để giảm tải tính toán dựng QR SVG trên CPU khi có nhiều thiết bị poll đồng thời
         $qrData = \Illuminate\Support\Facades\Cache::remember($cacheKey, $expiresIn, function () use ($chunk, $restaurantId) {
-            $token = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurantId . '_checkin_secret_key_123'), 0, 8);
+            $secretSalt = config('app.key', 'aventura_secret_salt');
+            $token = 'DYN_' . substr(hash_hmac('sha256', (string)$chunk, (string)$restaurantId . $secretSalt), 0, 8);
             $qrService = app(\App\Services\QrCodeService::class);
             $svg = $qrService->renderSvg($token, 155);
 

@@ -255,15 +255,14 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('two-factor', function (Request $request) {
-            // Dự phòng: nếu session 'login.id' không tồn tại (phiên hết hạn, hoặc
-            // request không qua luồng đăng nhập hợp lệ), dùng IP làm key thay thế
-            // để tránh các request không liên quan dùng chung 1 "ngăn" rate-limit.
-            return Limit::perMinute(5)->by($request->session()->get('login.id') ?: $request->ip());
+            // Giới hạn tối đa 5 lần thử trong 15 phút (900s) cho 2FA
+            return Limit::perMinutes(15, 5)->by($request->session()->get('login.id') ?: $request->ip());
         });
 
         RateLimiter::for('login', function (Request $request) {
+            // Giới hạn tối đa 5 lần thử trong 15 phút (900s) cho login để chống brute-force
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
-            return Limit::perMinute(5)->by($throttleKey);
+            return Limit::perMinutes(15, 5)->by($throttleKey);
         });
     }
 

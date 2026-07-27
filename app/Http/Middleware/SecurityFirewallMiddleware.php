@@ -60,16 +60,14 @@ class SecurityFirewallMiddleware
         $maxAttempts = (int) (\App\Models\SystemSetting::get('rate_limit_global_max') ?? config('firewall.rate_limit.global.max_attempts', 60));
         $decaySeconds = (int) (\App\Models\SystemSetting::get('rate_limit_global_decay') ?? config('firewall.rate_limit.global.decay_seconds', 60));
 
-        // Route-specific Rate Limits overrides
+        // Route-specific Rate Limits overrides: Chặn spam login & brute force (tối đa 5 lần thử trong 15 phút)
         $rateLimitKeyPrefix = 'rate_limit';
-        if ($request->is('register') && $request->isMethod('POST')) {
+        $isAuthRoute = ($request->is('login') || $request->is('register') || $request->is('forgot-password') || $request->is('reset-password') || $request->is('two-factor-challenge') || $request->is('lock-screen') || $request->is('api/v1/auth/*')) && $request->isMethod('POST');
+
+        if ($isAuthRoute) {
             $maxAttempts = 5;
-            $decaySeconds = 60;
-            $rateLimitKeyPrefix = 'rate_limit:register';
-        } elseif ($request->is('forgot-password') && $request->isMethod('POST')) {
-            $maxAttempts = 5;
-            $decaySeconds = 60;
-            $rateLimitKeyPrefix = 'rate_limit:forgot_password';
+            $decaySeconds = 900; // 15 phút
+            $rateLimitKeyPrefix = 'rate_limit:auth:' . str_replace('/', '_', $request->path());
         }
 
         $user = $request->user();

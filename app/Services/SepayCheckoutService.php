@@ -79,9 +79,22 @@ class SepayCheckoutService
         $description = $subscription->transaction_code;
         $accountName = (string) config('services.sepay.account_name');
 
+        // Chuẩn hóa tên ngân hàng cho SePay / VietQR
+        $normalizedBank = match (strtoupper($bank)) {
+            'MBBANK', 'MB BANK' => 'MB',
+            'VIETINBANK', 'CTG' => 'ICB',
+            'VIETCOMBANK', 'VCB' => 'VCB',
+            'TECHCOMBANK', 'TCB' => 'TCB',
+            'BIDV' => 'BIDV',
+            'AGRIBANK' => 'VBA',
+            'TPBANK' => 'TPB',
+            'VPBANK' => 'VPB',
+            default => $bank,
+        };
+
         return $baseUrl.'?'.http_build_query([
             'acc' => $accountNumber,
-            'bank' => $bank,
+            'bank' => $normalizedBank,
             'amount' => (int) $subscription->price,
             'des' => $description,
             'template' => $template,

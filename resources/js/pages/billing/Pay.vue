@@ -46,6 +46,27 @@ const currentAmount = ref(props.bank_details.amount);
 const discountAmount = ref(0);
 const qrCodeUrl = ref(props.payment_url);
 
+function handleQrError() {
+    const bankMap: Record<string, string> = {
+        'MBBank': 'MB',
+        'MB BANK': 'MB',
+        'VietinBank': 'ICB',
+        'Vietcombank': 'VCB',
+        'Techcombank': 'TCB',
+        'Agribank': 'VBA',
+        'TPBank': 'TPB',
+        'VPBank': 'VPB',
+    };
+    const rawBank = props.bank_details.bank || 'MB';
+    const bank = bankMap[rawBank] || rawBank;
+    const acc = props.bank_details.account_number;
+    const amount = currentAmount.value;
+    const memo = encodeURIComponent(props.subscription.transaction_code);
+    const name = encodeURIComponent(props.bank_details.account_name);
+
+    qrCodeUrl.value = `https://img.vietqr.io/image/${bank}-${acc}-compact.png?amount=${amount}&addInfo=${memo}&accountName=${name}`;
+}
+
 async function applyCoupon() {
     if (!couponCode.value.trim()) {
         return;
@@ -503,6 +524,7 @@ defineOptions({
                             :src="qrCodeUrl"
                             alt="Mã QR thanh toán SePay"
                             class="h-full w-full object-contain"
+                            @error="handleQrError"
                         />
                     </div>
                 </div>
