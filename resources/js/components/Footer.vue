@@ -18,12 +18,11 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                         />
                         <span
                             class="font-serif text-2xl font-bold tracking-wide text-white"
-                            >DuLichPro</span
+                            >Aventura</span
                         >
                     </div>
                     <p class="max-w-sm text-sm leading-relaxed text-zinc-400">
-                        Hành trình đẳng cấp – trải nghiệm đích thực. Chúng tôi
-                        đồng hành cùng bạn trên mọi nẻo đường.
+                        Hệ thống quản lý nhà hàng thông minh – Tối ưu hoá vận hành, gia tăng doanh thu.
                     </p>
                 </div>
 
@@ -56,7 +55,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                                     class="mr-2 text-zinc-500 transition-colors group-hover:text-amber-400"
                                     >&gt;</span
                                 >
-                                <span>Tour nổi bật</span>
+                                <span>Tính năng nổi bật</span>
                             </a>
                         </li>
                         <li>
@@ -68,7 +67,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                                     class="mr-2 text-zinc-500 transition-colors group-hover:text-amber-400"
                                     >&gt;</span
                                 >
-                                <span>Đánh giá</span>
+                                <span>Bảng giá</span>
                             </a>
                         </li>
                         <li>
@@ -115,7 +114,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
                         </li>
                         <li class="flex items-center gap-3">
                             <Clock class="size-4 shrink-0 text-amber-400" />
-                            <span>Hỗ trợ 7:00 – 22:00 hàng ngày</span>
+                            <span>Hỗ trợ 24/7 cho khách hàng Pro</span>
                         </li>
                     </ul>
                 </div>
@@ -124,7 +123,7 @@ import { Clock, Facebook, Phone, Star } from 'lucide-vue-next';
             <!-- Bottom divider and Copyright -->
             <div class="mt-4 border-t border-white/5 pt-8 text-center">
                 <p class="text-xs font-medium tracking-wide text-zinc-500">
-                    © 2026 DuLichPro – Bản quyền thuộc về DuLichPro. Thiết kế
+                    © 2024 Aventura – Bản quyền thuộc về Aventura SaaS. Thiết kế
                     với <span class="mx-0.5 text-[#dfb26c]">💛</span> tại Việt
                     Nam.
                 </p>
