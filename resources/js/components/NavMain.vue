@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import {
     SidebarGroup,
@@ -26,6 +26,7 @@ const { isCurrentUrl } = useCurrentUrl();
                     as-child
                     :is-active="isCurrentUrl(item.href)"
                     :tooltip="item.title"
+                    :class="[isCurrentUrl(item.href) ? 'bg-emerald-50 text-emerald-700 font-semibold dark:bg-emerald-950/50 dark:text-emerald-400' : '']"
                 >
                     <Link
                         :id="'sidebar-link-' + item.href.replace('/', '')"
