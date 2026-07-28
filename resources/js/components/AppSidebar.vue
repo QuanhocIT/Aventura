@@ -345,7 +345,9 @@ const footerNavItems: NavItem[] = [
             </div>
 
             <!-- Widget hạn ngạch & dùng thử chuyên nghiệp -->
-            <SubscriptionWidget v-if="tenant && !isSuperAdmin" />
+            <div class="mt-4">
+                <SubscriptionWidget v-if="tenant && !isSuperAdmin" />
+            </div>
         </SidebarContent>
 
         <SidebarFooter>
