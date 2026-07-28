@@ -109,8 +109,7 @@ const getRoleLabel = (role: string) => {
                 <p
                     class="mt-2.5 max-w-md text-sm text-muted-foreground sm:text-base"
                 >
-                    Địa chỉ email của bạn được liên kết với nhiều nhà hàng. Hãy
-                    chọn nơi làm việc cho ca này.
+                    Tài khoản của bạn được liên kết với nhiều nhà hàng hoặc chi nhánh. Vui lòng chọn nơi làm việc để tiếp tục.
                 </p>
             </div>
 
