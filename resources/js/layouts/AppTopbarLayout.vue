@@ -287,7 +287,7 @@ const handleLogout = () => {
             <Button
                 variant="outline"
                 size="icon"
-                class="ml-auto md:hidden"
+                class="ml-auto h-10 w-10 md:hidden"
                 :class="
                     transparent
                         ? 'border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white'
