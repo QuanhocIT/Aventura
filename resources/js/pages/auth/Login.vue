@@ -65,7 +65,7 @@ const selectedPlan = ref('free');
                     />
                 </span>
                 <span
-                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent dark:from-white dark:to-zinc-300"
+                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent transition-colors hover:from-emerald-600 hover:to-teal-500 dark:from-white dark:to-zinc-300"
                     >Aventura</span
                 >
             </Link>
@@ -286,7 +286,7 @@ const selectedPlan = ref('free');
                 class="pointer-events-none absolute top-1/4 left-1/3 z-0 h-[500px] w-[500px] animate-pulse rounded-full bg-emerald-500/[0.12] blur-[130px] duration-[8s]"
             />
             <div
-                class="pointer-events-none absolute right-1/4 bottom-1/4 z-0 h-[450px] w-[450px] animate-pulse rounded-full bg-violet-500/[0.10] blur-[120px] duration-[10s]"
+                class="pointer-events-none absolute right-1/4 bottom-1/4 z-0 h-[450px] w-[450px] animate-pulse rounded-full bg-teal-500/[0.10] blur-[120px] duration-[10s]"
             />
 
             <!-- Header (top) -->
