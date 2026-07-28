@@ -109,7 +109,7 @@ const passwordStrength = computed(
                     />
                 </span>
                 <span
-                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent dark:from-white dark:to-zinc-300"
+                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent transition-colors hover:from-emerald-600 hover:to-teal-500 dark:from-white dark:to-zinc-300"
                     >Aventura</span
                 >
             </Link>
