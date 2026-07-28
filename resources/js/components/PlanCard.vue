@@ -242,7 +242,7 @@ const unsupported = computed((): string[] => {
                     </span>
                 </div>
                 <p
-                    class="mt-0.5 text-xs transition-colors duration-200"
+                    class="mt-0.5 text-xs tabular-nums transition-colors duration-200"
                     :class="
                         selected
                             ? 'text-zinc-400'
@@ -307,7 +307,7 @@ const unsupported = computed((): string[] => {
 
             <div class="mt-4 flex items-baseline gap-1">
                 <span
-                    class="text-2xl leading-none font-black tracking-tight transition-colors duration-200"
+                    class="text-2xl leading-none tabular-nums font-black tracking-tight transition-colors duration-200"
                     :class="
                         selected
                             ? 'text-white'
