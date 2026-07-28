@@ -1,6 +1,6 @@
 # BÁO CÁO DỰ ÁN: HỆ THỐNG QUẢN LÝ NHÀ HÀNG DẠNG SAAS
 
-Tên đề tài: Hệ thông quản lý nhà hàng Aventura
+Tên đề tài: Hệ thống quản lý nhà hàng Aventura
 
 Chủ trương
 
@@ -16,9 +16,9 @@ Hệ thống hỗ trợ quản lý đơn hàng, nhân sự, kho nguyên liệu, 
 
 ________________________________________
 
-1. Công nghệ sử dụng
+2. Công nghệ sử dụng
 
-Để đáp ứng mục tiêu xây dựng một nền tảng SaaS mạnh mẽ, đảm bảo hiệu năng cao (phản hồi < 2s) và khả năng mở rộng linh hoạt, dự án Hệ thông quản lý nhà hàng Aventura được triển khai dựa trên hệ sinh thái công nghệ hiện đại sau:
+Để đáp ứng mục tiêu xây dựng một nền tảng SaaS mạnh mẽ, đảm bảo hiệu năng cao (phản hồi < 2s) và khả năng mở rộng linh hoạt, dự án Hệ thống quản lý nhà hàng Aventura được triển khai dựa trên hệ sinh thái công nghệ hiện đại sau:
 
 2.1 Backend & Hệ sinh thái xử lý trung tâm
 
@@ -30,17 +30,23 @@ o    Laravel Pulse: Hệ thống giám sát sức khỏe server thời gian th�
 
 o    Spatie Laravel Permission: Thư viện tiêu chuẩn công nghiệp được tích hợp để quản lý vai trò (Roles) và quyền hạn (Permissions) một cách chặt chẽ, bảo mật.
 
-•    Python Microservice: Chuyên trách xử lý dữ liệu chuyên sâu và AI.
+•    Python Microservice: Hệ thống gồm 3 service độc lập chuyên trách xử lý dữ liệu chuyên sâu và AI:
 
-o    FastAPI: Framework hiệu năng cao, hỗ trợ bất đồng bộ (Asynchronous) dùng để xây dựng các API cầu nối, giúp Laravel và Python giao tiếp cực nhanh.
+o    Analytics Service: Phân tích giỏ hàng (Basket Analysis/Apriori), phát hiện gian lận (Fraud Detection), dự báo tồn kho và dự báo doanh thu.
 
-o    Pandas & Scikit-learn: Các thư viện chuyên dụng để phân tích bảng biểu doanh thu, xây dựng mô hình dự báo tồn kho và phát hiện gian lận (Fraud Detection).
+o    Email Service: Gửi email transactional (welcome, OTP, xác thực, hóa đơn, chiến dịch) qua Brevo API và cung cấp AI Insights cho Super Admin dashboard.
+
+o    Chatbot Service: FAQ chatbot NLP tự động trả lời câu hỏi thường gặp và Advisor chatbot hỗ trợ chủ nhà hàng phân tích nghiệp vụ.
+
+o    FastAPI: Framework hiệu năng cao, hỗ trợ bất đồng bộ (Asynchronous) dùng để xây dựng API cho cả 3 service, giúp Laravel và Python giao tiếp cực nhanh.
+
+o    Pandas & Scikit-learn: Thư viện chuyên dụng cho Analytics Service để phân tích dữ liệu và xây dựng mô hình dự báo tồn kho, doanh thu.
 
 2.2 Frontend & Trải nghiệm người dùng
 
 •    Vue.js (SPA): Xây dựng ứng dụng đơn trang giúp giao diện hoạt động mượt mà, giảm thiểu thời gian chờ giữa các thao tác của nhân viên nhà hàng.
 
-o    Pinia: Thư viện quản lý trạng thái (State Management) thế hệ mới, đảm bảo dữ liệu đơn hàng và trạng thái bàn được đồng bộ liên tục trên toàcungxn hệ thống mà không cần tải lại trang.
+o    Pinia: Thư viện quản lý trạng thái (State Management) thế hệ mới, đảm bảo dữ liệu đơn hàng và trạng thái bàn được đồng bộ liên tục trên toàn hệ thống mà không cần tải lại trang.
 
 o    Tailwind CSS: Framework CSS tối ưu để thiết kế giao diện tùy chỉnh nhanh chóng, đảm bảo tính hiển thị tốt trên nhiều thiết bị như máy POS, máy tính bảng và điện thoại.
 
@@ -92,7 +98,7 @@ o    Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối 
 
 ________________________________________
 
-1. Vai trò của các công nghệ trong hệ thống
+3. Vai trò của các công nghệ trong hệ thống
 
 Hệ thống Aventura được xây dựng dựa trên sự kết hợp giữa Laravel, Vue.js và Python, trong đó mỗi công nghệ đảm nhiệm một vai trò riêng nhằm tối ưu hiệu suất, khả năng mở rộng và trải nghiệm người dùng. Việc tách rõ trách nhiệm giữa các công nghệ giúp hệ thống dễ bảo trì, nâng cấp và phù hợp với mô hình SaaS nhiều doanh nghiệp cùng sử dụng.
 
@@ -106,7 +112,7 @@ Laravel đảm nhiệm các chức năng như:
 
 • Xử lý logic nghiệp vụ như quản lý đơn hàng, menu, kho, nhân sự, chấm công và thanh toán.
 
-• Quản lý xác thực người dùng (Authentication) bằng JWT hoặc Sanctum.
+• Quản lý xác thực người dùng (Authentication) bằng Laravel Fortify + Inertia Session.
 
 • Phân quyền hệ thống theo mô hình RBAC (Role-Based Access Control).
 
@@ -130,7 +136,7 @@ Vue.js đảm nhiệm các chức năng như:
 
 • Hiển thị giao diện quản lý cho chủ nhà hàng, nhân viên và khách hàng.
 
-• Giao tiếp với Laravel thông qua REST API.
+• Giao tiếp với Laravel thông qua Inertia.js — nhận dữ liệu trang qua Inertia page responses; các tác vụ realtime và AJAX gọi trực tiếp qua Axios.
 
 • Cập nhật dữ liệu Realtime như trạng thái món ăn, thông báo order, cập nhật doanh thu hoặc tồn kho.
 
@@ -220,7 +226,7 @@ Sự kết hợp giữa Laravel, Vue.js và Python giúp hệ thống vừa đ�
 
 ________________________________________
 
-1. Kiến trúc hệ thống
+4. Kiến trúc hệ thống
 
 Hệ thống Aventura được thiết kế theo mô hình kiến trúc hiện đại, linh hoạt và có khả năng mở rộng cao, kết hợp giữa mô hình SaaS Đa người thuê (Multi-tenant), tách biệt Frontend-Backend, xử lý bất đồng bộ qua Queue, truyền tải dữ liệu thời gian thực (Realtime) và tích hợp Microservice Python chuyên biệt cho AI/Analytics.
 
@@ -230,10 +236,10 @@ Hệ thống được cấu thành dựa trên 6 trụ cột kiến trúc chính
 
 • Mô hình SaaS Multi-tenant (Đa người thuê): Cho phép hàng trăm nhà hàng sử dụng chung một hạ tầng ứng dụng và cơ sở dữ liệu (Shared Database - Shared Schema), nhưng dữ liệu được cô lập logic tuyệt đối thông qua Tenant Key (`restaurant_id`) và bộ lọc tự động `BelongsToRestaurant`.
 
-• Kiến trúc Tách biệt Frontend - Backend (Decoupled SPA & REST API):
+• Kiến trúc Server-driven SPA (Inertia.js + Vue.js):
 
-- Frontend: Sử dụng Vue.js SPA đảm nhận trải nghiệm người dùng, tải giao diện nhanh chóng, quản lý trạng thái tập trung qua Pinia.
-- Backend: Sử dụng Laravel 12 đóng vai trò RESTful API Server, cung cấp các endpoint bảo mật, xử lý toàn bộ logic nghiệp vụ cốt lõi và kiểm soát phân quyền.
+- Frontend: Sử dụng Vue.js + Inertia.js theo mô hình Server-driven SPA, nhận dữ liệu trang qua Inertia page responses từ Laravel mà không cần REST API riêng lẻ, quản lý trạng thái tập trung qua Pinia.
+- Backend: Sử dụng Laravel 12 + Inertia.js server-side adapter, trả về Inertia page responses chứa props dữ liệu, xử lý toàn bộ logic nghiệp vụ cốt lõi và kiểm soát phân quyền.
 
 • Kiến trúc Xử lý Thời gian thực (Realtime Architecture):
 
@@ -257,7 +263,7 @@ Mã nguồn Backend Laravel được tổ chức chặt chẽ theo mô hình 5 t
 
 1. Presentation / Routing Layer (Tầng Định tuyến & Middleware):
    - Tiếp nhận HTTP Request từ Client (Vue.js).
-   - Kiểm tra an ninh qua lớp Middleware: Phân thực JWT/Sanctum, gán Tenant Scope (`restaurant_id`), kiểm tra quyền hạn (RBAC), kiểm tra ca làm việc (`CheckShiftSchedule`) và ngăn tự phê duyệt.
+   - Kiểm tra an ninh qua lớp Middleware: Xác thực session (Fortify/Inertia), gán Tenant Scope (`restaurant_id`), kiểm tra quyền hạn (RBAC), kiểm tra ca làm việc (`CheckShiftSchedule`) và ngăn tự phê duyệt.
 
 2. Controller Layer (Tầng Điều phối):
    - Tiếp nhận dữ liệu đầu vào, kiểm tra tính hợp lệ (Validation via FormRequest).
@@ -306,13 +312,13 @@ Hệ thống hỗ trợ 2 cơ chế giao tiếp linh hoạt với Python Microse
 - Áp dụng cho các bài toán nặng (Dự báo tồn kho 30 ngày, Phân tích gian lận Fraud Detection, Báo cáo ma trận BCG).
 - Luồng:
     1. Laravel CronJob / Event đẩy một Job chứa `restaurant_id` và tham số vào Redis Queue.
-    2. Python Worker (Background Process) ngắt đọc Job từ Redis Queue.
-    3. Python xử lý tính toán chuyên sâu (Pandas / Scikit-Learn) rồi ghi trực tiếp kết quả báo cáo/cảnh báo vào MySQL Database.
-    4. Laravel Horizon ghi nhận hoàn thành tác vụ và hiển thị báo cáo phân tích trực quan lên Dashboard của Chủ nhà hàng.
+    2. Laravel Queue Worker (giám sát bởi Horizon) xử lý Job và gọi FastAPI Python Microservice qua HTTP POST.
+    3. Python xử lý tính toán chuyên sâu (Pandas / Scikit-Learn) và trả kết quả JSON về cho Laravel.
+    4. Laravel ghi kết quả vào MySQL, cập nhật cache Redis và hiển thị báo cáo phân tích trực quan lên Dashboard của Chủ nhà hàng.
 
 ________________________________________
 
-1. Thành phần hệ thống chi tiết
+5. Thành phần hệ thống chi tiết
 
 Hệ thống Aventura được thiết kế theo kiến trúc tách biệt giữa giao diện, nghiệp vụ và phân tích dữ liệu.
 
@@ -320,7 +326,7 @@ Hệ thống Aventura được thiết kế theo kiến trúc tách biệt giữ
 
 •    Frontend Vue.js: Xây dựng dưới dạng Single Page Application (SPA) để tối ưu trải nghiệm người dùng, giảm tải việc tải lại trang và giao tiếp hoàn toàn qua REST API.
 
-•    Backend Laravel API: Đóng vai trò là trung tâm xử lý logic nghiệp vụ, quản lý xác thực (JWT/Sanctum), và kết nối các dịch vụ khác.
+•    Backend Laravel API: Đóng vai trò là trung tâm xử lý logic nghiệp vụ, quản lý xác thực (Laravel Fortify + Inertia Session), và kết nối các dịch vụ khác.
 
 •    Python Analytics Service: Hoạt động như một microservice chuyên biệt nhằm xử lý các bài toán nặng về dữ liệu như dự báo tồn kho, phân tích doanh thu và phát hiện gian lận.
 
@@ -336,13 +342,13 @@ o    Queue: Xử lý các tác vụ nền như gửi email, tạo báo cáo ho�
 
 5.3 Hạ tầng bổ trợ
 
-•    WebSocket Server: Sử dụng Laravel Reverb hoặc Socket.IO để cập nhật trạng thái đơn hàng thời gian thực giữa Bếp, Thu ngân và Khách hàng.
+•    WebSocket Server: Sử dụng Laravel Reverb để cập nhật trạng thái đơn hàng thời gian thực giữa Bếp, Thu ngân và Khách hàng.
 
 •    Logging & Monitoring System: Ghi lại nhật ký truy cập, lỗi hệ thống và Audit Log chi tiết để truy vết hành vi người dùng và giám sát hiệu suất server (CPU/RAM).
 
 ________________________________________
 
-1. Kiến trúc phân quyền (Authorization)
+6. Kiến trúc phân quyền (Authorization)
 
 Hệ thống kết hợp giữa vai trò (Role) và quyền hạn chi tiết (Permission) để đảm bảo tính bảo mật và linh hoạt.
 
@@ -404,7 +410,7 @@ Lưu ý: Tất cả các hành động nhạy cảm như sửa giá, hủy đơn
 
 ________________________________________
 
-1. KIẾN TRÚC DỮ LIỆU
+7. KIẾN TRÚC DỮ LIỆU
 
 Hệ thống Aventura được thiết kế với kiến trúc dữ liệu chú trọng vào khả năng cô lập dữ liệu người dùng, tối ưu hóa truy vấn và khả năng truy vết hành vi, đảm bảo tính bảo mật và minh bạch cao nhất cho mô hình SaaS.
 
@@ -432,7 +438,7 @@ Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Da
 
   o    Hiệu năng truy vấn: Kết hợp đánh chỉ mục (Composite Index) giữa restaurant_id và các trường tìm kiếm thường xuyên (như status, created_at) giúp tăng tốc độ xử lý từ 40% đến 70% khi dữ liệu phình to.
 
-  o    Quản lý tài nguyên: Dễ dàng kiểm soát hạn mức (Quota) theo gói dịch vụ, ví dụ: Gói Free chỉ được tạo tối đa 10 bàn, gói Pro không giới hạn số lượng khu vực và bàn.
+  o    Quản lý tài nguyên: Dễ dàng kiểm soát hạn mức (Quota) theo gói dịch vụ — Gói Free: tối đa 10 bàn, 5 người dùng, 1 chi nhánh; Gói Pro: không giới hạn; Gói Max: tối đa 10 chi nhánh, 300 bàn, 80 người dùng; Gói Ultra: không giới hạn, dung lượng cloud 200GB.
 
 7.2 Hệ thống Logging & Audit (Nhật ký kiểm soát)
 
@@ -506,11 +512,11 @@ Hệ thống quản lý bộ cơ sở dữ liệu được chuẩn hóa theo cá
 
 •    Phân tách lưu trữ file (Cloud Storage): Toàn bộ ảnh món ăn và hóa đơn vật lý được lưu trữ độc lập trên Cloud Storage (S3, R2, MinIO), giúp hệ thống dễ dàng mở rộng và giảm dung lượng sao lưu CSDL.
 
-1. Các tác nhân
+8. Các tác nhân
 
 Hệ thống phân chia rõ rệt 5 tầng tác nhân để đảm bảo tính chuyên môn hóa:
 
-•    Super Admin: Quản lý toàn bộ nền tảng SaaS, các gói dịch vụ (Free/Pro) và các doanh nghiệp (tenant).
+•    Super Admin: Quản lý toàn bộ nền tảng SaaS, các gói dịch vụ (Free/Pro/Max/Ultra) và các doanh nghiệp (tenant).
 
 •    Chủ nhà hàng (Owner): Có toàn quyền trong một nhà hàng, tập trung vào báo cáo lợi nhuận và chiến lược.
 
@@ -532,7 +538,7 @@ Các tác nhân chính trong hệ thống:
 
 - Giả danh hỗ trợ kỹ thuật (Impersonation): Cho phép Super Admin truy cập giao diện dưới quyền Owner để hỗ trợ gỡ lỗi trực tiếp mà không cần mật khẩu, lưu log kiểm toán chặt chẽ để tránh lạm quyền.
 
-- Thiết lập hạn mức tài nguyên (Plans & Quota Builder): Cấu hình giới hạn bàn, nhân sự, và dung lượng cloud storage cho từng gói (Free/Pro/Custom).
+- Thiết lập hạn mức tài nguyên (Plans & Quota Builder): Cấu hình giới hạn bàn, nhân sự, và dung lượng cloud storage cho từng gói (Free/Pro/Max/Ultra).
 
 - Dự báo rời bỏ dịch vụ (AI Churn Forecast): Tích hợp Python Microservice phân tích rủi ro Churn và tự động gửi email chiến dịch tiếp thị chăm sóc khách hàng.
 
@@ -622,15 +628,15 @@ Các tác nhân chính trong hệ thống:
 
 - Gửi phản hồi (Feedback) và chấm điểm cảm xúc Lexicon tự động.
 
-1. Bảo mật
+9. Bảo mật
 
-9.1 Authentication (JWT / Sanctum)
+9.1 Authentication (Laravel Fortify + Inertia Session)
 
 Đây là bước xác thực để trả lời câu hỏi: "Bạn là ai?".
 
-•    Sanctum: Là công cụ mặc định và rất nhẹ nhàng của Laravel. Nó cấp cho bạn một "tấm thẻ" (token) sau khi đăng nhập. Mỗi lần bạn muốn lấy dữ liệu (như xem danh sách bàn), bạn chỉ cần trình tấm thẻ này ra.
+•    Laravel Fortify: Thư viện xử lý toàn bộ luồng xác thực (đăng nhập, đăng ký, 2FA, đặt lại mật khẩu) dựa trên Session cookie an toàn (HttpOnly, SameSite=Lax).
 
-•    Tại sao dùng? Vì hệ thống của bạn tách rời Backend (Laravel) và Frontend (Vue.js), Sanctum giúp hai bên nhận diện nhau mà không cần dùng đến Session truyền thống vốn rất phức tạp cho API.
+•    Tại sao dùng? Hệ thống dùng Inertia.js làm cầu nối giữa Laravel và Vue.js theo mô hình Server-driven SPA, nên xác thực dựa trên Session là lựa chọn phù hợp nhất — không cần JWT token vì Inertia sử dụng cùng session cookie của browser với CSRF protection đầy đủ.
 
 9.2 Authorization (RBAC)
 
@@ -662,7 +668,7 @@ o    Laravel: Khi bạn trả về JSON từ API, các ký tự đặc biệt đ
 
 Đây là kiểu tấn công "mượn tay". Kẻ xấu lừa bạn bấm vào một link lạ khi bạn đang đăng nhập vào Aventura, và link đó tự động gửi một lệnh (như "Xóa nhân viên") đến server.
 
-•    Lưu ý cho sinh viên: Vì bạn dùng API (Sanctum/JWT), bạn thường sẽ không cần dùng CSRF Token truyền thống giống như các trang web load lại trang (MPA). Laravel Sanctum có cơ chế bảo vệ riêng cho SPA rất an toàn.
+•    Lưu ý: Hệ thống dùng Inertia.js với session-based auth, nên CSRF protection được Laravel xử lý đầy đủ — mỗi Inertia request tự động đính kèm `X-CSRF-TOKEN` header từ cookie `XSRF-TOKEN`, bảo vệ chống lại tấn công giả mạo request.
 
 9.6 Rate Limiting
 
@@ -712,7 +718,7 @@ Nhân viên bắt buộc chụp hình selfie trực tiếp qua camera của qu�
 
 Nhật ký hành vi khách hàng (CDP Logs) thu thập dữ liệu giỏ hàng, view món ăn qua QR Code được mã hóa ẩn danh hoàn toàn (GDPR Compliant), đồng thời chặn truy cập từ xa trái phép bằng cơ chế CORS.
 
- 1. Chi tiết luồng nghiệp vụ hệ thống (Workflow)
+10. Chi tiết luồng nghiệp vụ hệ thống (Workflow)
 
 Sơ đồ Workflow đặt món và xử lý đơn hàng
 
@@ -826,7 +832,21 @@ Sau khi bước 4 (Database Transaction) hoàn tất thành công, API bán hàn
 
 •    Kết quả: Sau khi phân tích, Python gửi kết quả trả về, các biểu đồ thống kê nâng cao trên giao diện Dashboard của Chủ nhà hàng (Owner) và Quản lý (Manager) sẽ tự động cập nhật số liệu mới nhất để phục vụ ra quyết định kinh doanh kịp thời từ xa.
 
-________________________________________11. Database chính
+________________________________________
+
+11. Database chính
+
+Hệ thống sử dụng MySQL (InnoDB) làm cơ sở dữ liệu quan hệ chính, với các thông số cấu hình chuẩn hóa để đảm bảo tính nhất quán và tương thích tiếng Việt:
+
+•    Charset & Collation: `utf8mb4` / `utf8mb4_unicode_ci` — hỗ trợ đầy đủ ký tự tiếng Việt có dấu và biểu tượng cảm xúc (emoji) trong tên món ăn, ghi chú đơn hàng.
+
+•    Múi giờ: Cấu hình cố định `+07:00` (Asia/Ho_Chi_Minh) tại tầng kết nối để đảm bảo mọi timestamp (giờ vào ca, giờ lên đơn) khớp với giờ vận hành thực tế của nhà hàng.
+
+•    Strict Mode: Bật chế độ nghiêm ngặt (`strict = true`) để MySQL từ chối các giá trị dữ liệu không hợp lệ thay vì tự động cắt/làm tròn âm thầm, giảm thiểu rủi ro sai lệch số liệu tài chính.
+
+•    Tổ chức Schema theo Module nghiệp vụ: Mặc dù áp dụng mô hình Shared Database - Shared Schema cho Multi-tenant, các file migration được tổ chức tách biệt theo 5 nhóm domain logic (`tenant`, `restaurant`, `hr`, `analytics`, `system`) giúp dễ dàng bảo trì, tra cứu và mở rộng schema mà không gây xung đột giữa các nhóm chức năng.
+
+•    Read/Write Splitting (Master-Replica): Hệ thống hỗ trợ tách kết nối đọc (Read Replica) và ghi (Write Master) độc lập ở tầng cấu hình, cho phép định tuyến các truy vấn báo cáo/analytics nặng sang một MySQL Replica riêng để giảm tải cho node ghi chính. Cơ chế `sticky` được bật mặc định — đảm bảo trong cùng một request, sau khi đã ghi dữ liệu thì các truy vấn đọc kế tiếp vẫn ưu tiên đọc từ Master, tránh hiện tượng đọc phải dữ liệu cũ do độ trễ đồng bộ (Replication Lag) giữa Master và Replica. Đối với các nghiệp vụ nhạy cảm như thanh toán, hệ thống có thể ép buộc đọc trực tiếp từ Master (`useWritePdo()`) để đảm bảo tính chính xác tuyệt đối.
 
 Chiến lược tối ưu hóa bổ sung:
 
@@ -1508,7 +1528,7 @@ o    Tiếp theo, bạn gán toàn bộ mảng quyền này cho Role owner thôn
 
 •    Bước 2: Triển khai kiểm duyệt trên Frontend (Vue.js & Pinia)
 
-o    Khi Chủ nhà hàng đăng nhập, API (Sanctum/JWT) sẽ trả về một chuỗi Token kèm theo mảng danh sách các chuỗi Permission của tài khoản đó .
+o    Khi Chủ nhà hàng đăng nhập, Inertia (session-based auth) sẽ thiết lập session và trả về Inertia page response kèm theo mảng danh sách các chuỗi Permission của tài khoản đó .
 
 o    Ứng dụng Vue.js (SPA) sẽ lưu mảng này vào thư viện quản lý trạng thái Pinia .
 
