@@ -675,7 +675,7 @@ const topChannelLabel = computed(() => {
         <!-- ── Trial Countdown Banner ────────────────────────────── -->
         <div
             v-if="isOnTrial"
-            class="border-b border-amber-200 bg-amber-50 px-4 py-3 lg:px-8 dark:border-amber-800 dark:bg-amber-950/40"
+            class="border-b border-amber-200 bg-amber-50 px-4 py-4 sm:px-6 lg:px-8 dark:border-amber-800 dark:bg-amber-950/40"
         >
             <div
                 class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 sm:flex-row"
@@ -716,7 +716,7 @@ const topChannelLabel = computed(() => {
                         <p class="text-sm text-muted-foreground">
                             Xin chào trở lại,
                         </p>
-                        <h1 class="mt-0.5 text-2xl font-bold tracking-tight">
+                        <h1 class="mt-0.5 text-2xl font-black tracking-tight text-foreground dark:text-zinc-100">
                             {{ user?.name }}
                         </h1>
                         <div class="mt-2 flex flex-wrap items-center gap-2">
