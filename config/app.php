@@ -65,7 +65,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'Asia/Ho_Chi_Minh',
 
     /*
     |--------------------------------------------------------------------------
@@ -122,5 +122,17 @@ return [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response Compression
+    |--------------------------------------------------------------------------
+    |
+    | Controls whether the CompressResponse middleware gzips responses.
+    | Defaults to false in local and true in production.
+    |
+    */
+
+    'compress_responses' => env('COMPRESS_RESPONSES', null),
 
 ];

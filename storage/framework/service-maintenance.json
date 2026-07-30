@@ -1,0 +1,9 @@
+{
+    "mysql": {
+        "is_maintenance": false,
+        "message": "Hệ thống đang được bảo trì theo lịch.",
+        "last_status": "unknown",
+        "last_latency": 0,
+        "last_checked_at": null
+    }
+}

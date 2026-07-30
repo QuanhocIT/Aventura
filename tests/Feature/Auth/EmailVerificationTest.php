@@ -19,11 +19,14 @@ class EmailVerificationTest extends TestCase
         parent::setUp();
 
         $this->skipUnlessFortifyHas(Features::emailVerification());
+
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
     }
 
     public function test_email_verification_screen_can_be_rendered()
     {
         $user = User::factory()->unverified()->create();
+        $user->assignRole('super_admin');
 
         $response = $this->actingAs($user)->get(route('verification.notice'));
 
@@ -33,6 +36,7 @@ class EmailVerificationTest extends TestCase
     public function test_email_can_be_verified()
     {
         $user = User::factory()->unverified()->create();
+        $user->assignRole('super_admin');
 
         Event::fake();
 
@@ -52,6 +56,7 @@ class EmailVerificationTest extends TestCase
     public function test_email_is_not_verified_with_invalid_hash()
     {
         $user = User::factory()->unverified()->create();
+        $user->assignRole('super_admin');
 
         Event::fake();
 
@@ -70,6 +75,7 @@ class EmailVerificationTest extends TestCase
     public function test_email_is_not_verified_with_invalid_user_id(): void
     {
         $user = User::factory()->unverified()->create();
+        $user->assignRole('super_admin');
 
         Event::fake();
 

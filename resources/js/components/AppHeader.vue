@@ -1,7 +1,8 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
 import { computed } from 'vue';
+import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
@@ -77,6 +78,25 @@ const rightNavItems: NavItem[] = [
 
 <template>
     <div>
+        <div
+            class="flex items-center justify-between border-b border-sidebar-border/80 px-4 py-2"
+        >
+            <div class="flex items-center gap-2">
+                <Sheet>
+                    <SheetTrigger :as-child="true">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="mr-2 h-9 w-9"
+                        >
+                            <Menu class="h-5 w-5" />
+                        </Button>
+                    </SheetTrigger>
+                    <!-- ...existing SheetContent... -->
+                </Sheet>
+                <AppearanceToggleInline />
+            </div>
+        </div>
         <div class="border-b border-sidebar-border/80">
             <div class="mx-auto flex h-16 items-center px-4 md:max-w-7xl">
                 <!-- Mobile Menu -->

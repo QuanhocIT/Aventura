@@ -1,0 +1,456 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\AuditLog;
+use App\Models\Employee;
+use App\Models\EmployeeKpi;
+use App\Models\EmployeeTrustScore;
+use App\Models\LeaveRequest;
+use App\Models\Restaurant;
+use App\Models\ScheduleAssignment;
+use App\Models\ScheduleRegistration;
+use App\Models\User;
+use App\Models\WorkShift;
+use App\Notifications\ScheduleUpdatedNotification;
+use Carbon\Carbon;
+
+/**
+ * Nghiệp vụ xếp ca trực: bật/tắt xếp lịch tự động bằng AI (chấm điểm ứng viên
+ * theo đăng ký rảnh + rating + KPI/trust score + cân bằng khối lượng ca),
+ * xếp/hủy ca thủ công (kèm luật nghỉ 11h + cơ chế bypass có kiểm toán), sao
+ * chép lịch tuần trước — tách khỏi LeaveScheduleController theo đúng khuôn
+ * "chia để trị" đã áp dụng cho các controller lớn khác.
+ *
+ * Các hàm ghi trả về ['success' => bool, 'message' => string, 'field' =>
+ * ?string] để controller tự dịch sang back()->with()/withErrors(), giữ
+ * service không phụ thuộc tầng HTTP.
+ */
+class ScheduleAssignmentService
+{
+    private const DAY_OFFSETS = [
+        'Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2,
+        'Thursday' => 3, 'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6,
+    ];
+
+    /**
+     * Bật/tắt chế độ xếp lịch tự động — khi bật, xoá lịch tuần hiện tại và
+     * chấm điểm/phân bổ lại toàn bộ nhân sự đang hoạt động cho tuần đó.
+     */
+    public function toggleAutoSchedule(Restaurant $restaurant, User $actingUser, bool $enabled): string
+    {
+        $restaurant->update(['auto_schedule' => $enabled]);
+
+        if (! $enabled) {
+            return 'Chế độ xếp lịch tự động đã TẮT. Bây giờ bạn có thể tự xếp lịch thủ công.';
+        }
+
+        // Auto generate schedules for the current calendar week
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+        // 1. Xóa tất cả lịch xếp ca hiện tại trong tuần này
+        ScheduleAssignment::where('restaurant_id', $restaurant->id)
+            ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
+            ->delete();
+
+        // 2. Lấy danh sách nhân viên đang hoạt động
+        $activeEmployees = Employee::where('restaurant_id', $restaurant->id)
+            ->where('status', 'active')
+            ->get();
+
+        // 3. Lấy danh sách các ca làm việc đang hoạt động
+        $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)
+            ->where('status', 'active')
+            ->get();
+
+        if ($activeEmployees->isEmpty() || $activeShifts->isEmpty()) {
+            return 'Chế độ xếp lịch tự động đã được KÍCH HOẠT. AI đã tự động phân bổ ca trực tối ưu cho tất cả nhân sự.';
+        }
+
+        // Track shift count per employee to limit workload (max 6 shifts/week)
+        $employeeShiftCounts = [];
+        foreach ($activeEmployees as $emp) {
+            $employeeShiftCounts[$emp->id] = 0;
+        }
+
+        // Eager load approved leaves and registrations for the entire week outside the day loop
+        $approvedLeavesThisWeek = LeaveRequest::where('restaurant_id', $restaurant->id)
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $endOfWeek->toDateString())
+            ->where('end_date', '>=', $startOfWeek->toDateString())
+            ->get();
+
+        $registrationsThisWeek = ScheduleRegistration::where('restaurant_id', $restaurant->id)
+            ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
+            ->get()
+            ->groupBy(function ($r) {
+                return $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString();
+            });
+
+        $empIds = $activeEmployees->pluck('id')->toArray();
+
+        $trustScoresMap = EmployeeTrustScore::withoutGlobalScopes()
+            ->whereIn('employee_id', $empIds)
+            ->get()
+            ->keyBy('employee_id');
+
+        $currentPeriod = Carbon::now()->format('Y-m');
+        $kpiScoresMap = EmployeeKpi::withoutGlobalScopes()
+            ->whereIn('employee_id', $empIds)
+            ->where('period', $currentPeriod)
+            ->get()
+            ->keyBy('employee_id');
+
+        // Lặp qua 7 ngày trong tuần
+        for ($i = 0; $i < 7; $i++) {
+            $currentDate = $startOfWeek->copy()->addDays($i);
+            $dateStr = $currentDate->toDateString();
+
+            // Track employee IDs assigned today to prevent double booking in-memory
+            $assignedTodayEmployeeIds = [];
+
+            // Xác định xem nhân viên nào đang nghỉ phép (đã được duyệt) vào ngày này
+            $onLeaveEmployeeIds = $approvedLeavesThisWeek->filter(function ($leave) use ($dateStr) {
+                $start = $leave->start_date instanceof Carbon ? $leave->start_date->toDateString() : Carbon::parse($leave->start_date)->toDateString();
+                $end = $leave->end_date instanceof Carbon ? $leave->end_date->toDateString() : Carbon::parse($leave->end_date)->toDateString();
+
+                return $start <= $dateStr && $end >= $dateStr;
+            })->pluck('employee_id')->toArray();
+
+            $availableEmployees = $activeEmployees->reject(fn ($e) => in_array($e->id, $onLeaveEmployeeIds))->values();
+
+            if ($availableEmployees->isEmpty()) {
+                continue;
+            }
+
+            // Get availability registrations for today
+            $registrationsToday = isset($registrationsThisWeek[$dateStr])
+                ? $registrationsThisWeek[$dateStr]->groupBy('shift_id')
+                : collect();
+
+            foreach ($activeShifts as $shift) {
+                // Phân phối tối đa 2 nhân viên cho mỗi ca trực (nếu có đủ nhân sự)
+                $empPerShift = $availableEmployees->count() >= 3 ? 2 : 1;
+                $assignedForThisShift = [];
+
+                for ($j = 0; $j < $empPerShift; $j++) {
+                    $candidates = $availableEmployees->reject(function ($e) use ($assignedForThisShift, $employeeShiftCounts, $assignedTodayEmployeeIds) {
+                        // Already assigned to this shift today
+                        if (in_array($e->id, $assignedForThisShift)) {
+                            return true;
+                        }
+                        // Max 6 shifts per week constraint
+                        if (($employeeShiftCounts[$e->id] ?? 0) >= 6) {
+                            return true;
+                        }
+                        // Already assigned to some shift today (prevent double booking)
+                        if (in_array($e->id, $assignedTodayEmployeeIds)) {
+                            return true;
+                        }
+
+                        return false;
+                    });
+
+                    if ($candidates->isEmpty()) {
+                        break;
+                    }
+
+                    // Sort candidates by multi-tiered AI priority:
+                    // 1. Priority 1: Registered available for this shift (registered_available = true)
+                    // 2. Priority 2: Customer Rating Stars (rating_star 1.00 - 5.00)
+                    // 3. Priority 3: Evaluation & trust score (KPI + Trust score 0-100)
+                    // 4. Workload balancing: Lowest shift count so far in the week.
+                    // 5. Role balance: Prefer adding a different role to this shift if one is already assigned
+                    $candidates = $candidates->sortBy(function ($cand) use ($registrationsToday, $shift, $assignedForThisShift, $employeeShiftCounts, $availableEmployees, $trustScoresMap, $kpiScoresMap) {
+                        $hasRegistered = isset($registrationsToday[$shift->id]) && $registrationsToday[$shift->id]->contains('employee_id', $cand->id);
+                        $registrationScore = $hasRegistered ? 0 : 1;
+
+                        $ratingStar = (float) ($cand->rating_star ?? 5.0);
+                        $ratingRank = max(0, 500 - (int) round($ratingStar * 100));
+
+                        $trustScore = (float) ($trustScoresMap->get($cand->id)?->score ?? 80.0);
+                        $kpiObj = $kpiScoresMap->get($cand->id);
+                        $kpiScore = (float) ($kpiObj?->overall_score ?? $kpiObj?->kpi_score ?? 80.0);
+                        $evalScore = ($trustScore + $kpiScore) / 2.0;
+                        $evalRank = max(0, 100 - (int) round($evalScore));
+
+                        $shiftCount = $employeeShiftCounts[$cand->id] ?? 0;
+
+                        $roleScore = 0;
+                        if (! empty($assignedForThisShift)) {
+                            $assignedRoles = $availableEmployees->whereIn('id', $assignedForThisShift)->pluck('role_id')->toArray();
+                            if (in_array($cand->role_id, $assignedRoles)) {
+                                $roleScore = 1;
+                            }
+                        }
+
+                        return sprintf('%d-%03d-%02d-%02d-%d', $registrationScore, $ratingRank, $evalRank, $shiftCount, $roleScore);
+                    });
+
+                    $bestCandidate = $candidates->first();
+                    if ($bestCandidate) {
+                        ScheduleAssignment::create([
+                            'restaurant_id' => $restaurant->id,
+                            'branch_id' => $bestCandidate->branch_id ?? $actingUser->branch_id,
+                            'employee_id' => $bestCandidate->id,
+                            'shift_id' => $shift->id,
+                            'scheduled_date' => $dateStr,
+                            'status' => 'scheduled',
+                        ]);
+
+                        $assignedForThisShift[] = $bestCandidate->id;
+                        $assignedTodayEmployeeIds[] = $bestCandidate->id;
+                        $employeeShiftCounts[$bestCandidate->id] = ($employeeShiftCounts[$bestCandidate->id] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        return 'Chế độ xếp lịch tự động đã được KÍCH HOẠT. AI đã tự động phân bổ ca trực tối ưu cho tất cả nhân sự.';
+    }
+
+    /**
+     * Xếp ca thủ công cho nhân sự — kiểm tra trùng ca + luật nghỉ 11h (có thể
+     * ghi đè bằng mã phê duyệt quản lý, có kiểm toán qua AuditLog).
+     *
+     * @return array{success: bool, field?: string, message: string}
+     */
+    public function storeAssignment(User $actingUser, array $data, ?string $bypassCode, ?string $bypassReason, string $ip, string $userAgent): array
+    {
+        $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('full_name', $data['employee_name'])
+            ->first();
+
+        if (! $employee) {
+            return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
+        }
+
+        $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('name', 'like', $data['shift_name'].'%')
+            ->first();
+
+        if (! $shift) {
+            return ['success' => false, 'field' => 'shift_name', 'message' => 'Ca làm việc không tồn tại.'];
+        }
+
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $offset = self::DAY_OFFSETS[$data['day']] ?? 0;
+        $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
+
+        // 11-hour rest rule check
+        $startProposed = Carbon::parse($scheduledDate.' '.$shift->start_time);
+        $endProposed = $shift->is_overnight
+            ? Carbon::parse($scheduledDate.' '.$shift->end_time)->addDay()
+            : Carbon::parse($scheduledDate.' '.$shift->end_time);
+
+        $adjacentAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('scheduled_date', '!=', $scheduledDate) // exclude the slot we are trying to set/update
+            ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
+            ->whereBetween('scheduled_date', [
+                Carbon::parse($scheduledDate)->subDays(1)->toDateString(),
+                Carbon::parse($scheduledDate)->addDays(1)->toDateString(),
+            ])
+            ->with('shift')
+            ->get();
+
+        $hasRestViolation = false;
+        foreach ($adjacentAssignments as $aa) {
+            $aaShift = $aa->shift;
+            if (! $aaShift) {
+                continue;
+            }
+
+            $dateStr = $aa->scheduled_date instanceof Carbon ? $aa->scheduled_date->toDateString() : Carbon::parse($aa->scheduled_date)->toDateString();
+            $startExist = Carbon::parse($dateStr.' '.$aaShift->start_time);
+            $endExist = $aaShift->is_overnight
+                ? Carbon::parse($dateStr.' '.$aaShift->end_time)->addDay()
+                : Carbon::parse($dateStr.' '.$aaShift->end_time);
+
+            // 1. Overlap Check
+            if ($startProposed->lt($endExist) && $endProposed->gt($startExist)) {
+                return ['success' => false, 'field' => 'shift_name', 'message' => "Nhân viên {$employee->full_name} đã có ca làm việc trùng lặp trong thời gian này."];
+            }
+
+            // 2. Rest hour check (11 hours)
+            if ($endProposed->lte($startExist)) {
+                $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
+                if ($restHours < 11.0) {
+                    $hasRestViolation = true;
+                }
+            } elseif ($endExist->lte($startProposed)) {
+                $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
+                if ($restHours < 11.0) {
+                    $hasRestViolation = true;
+                }
+            }
+        }
+
+        if ($hasRestViolation) {
+            $hasBypass = false;
+
+            if ($bypassCode) {
+                try {
+                    $approvingUser = User::validateManagerBypass($bypassCode, $actingUser->restaurant_id);
+                    if ($approvingUser && ! empty($bypassReason)) {
+                        $hasBypass = true;
+
+                        AuditLog::create([
+                            'restaurant_id' => $actingUser->restaurant_id,
+                            'user_id' => $actingUser->id,
+                            'event' => 'updated',
+                            'action' => 'schedule_rest_rule_bypass',
+                            'ip_address' => $ip,
+                            'user_agent' => $userAgent,
+                            'old_values' => [
+                                'employee_id' => $employee->id,
+                                'scheduled_date' => $scheduledDate,
+                                'shift_id' => $shift->id,
+                            ],
+                            'new_values' => [
+                                'bypass_code_used' => true,
+                                'bypass_approver_id' => $approvingUser->id,
+                                'bypass_reason' => $bypassReason,
+                            ],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    return ['success' => false, 'field' => 'bypass_code', 'message' => $e->getMessage()];
+                }
+            }
+
+            if (! $hasBypass) {
+                return ['success' => false, 'field' => 'shift_name', 'message' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc. Vui lòng nhập mã phê duyệt và lý do để ghi đè đặc cách."];
+            }
+        }
+
+        // Save schedule
+        ScheduleAssignment::updateOrCreate([
+            'restaurant_id' => $actingUser->restaurant_id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $scheduledDate,
+        ], [
+            'status' => 'scheduled',
+        ]);
+
+        $employeeUser = $employee->user;
+        if ($employeeUser) {
+            $dateFormatted = Carbon::parse($scheduledDate)->format('d/m/Y');
+            $employeeUser->notify(new ScheduleUpdatedNotification(
+                "Bạn đã được phân công ca trực mới vào ngày {$dateFormatted}.",
+                $scheduledDate
+            ));
+        }
+
+        return ['success' => true, 'message' => 'Xếp ca thành công.'];
+    }
+
+    /**
+     * Hủy xếp ca thủ công — luôn "thành công" kể cả khi không tìm thấy bản ghi
+     * (giữ đúng hành vi cũ: không lộ thông tin tồn tại/không tồn tại của ca).
+     */
+    public function destroyAssignment(User $actingUser, array $data): void
+    {
+        $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('full_name', $data['employee_name'])
+            ->first();
+
+        if (! $employee) {
+            return;
+        }
+
+        $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('name', 'like', $data['shift_name'].'%')
+            ->first();
+
+        if (! $shift) {
+            return;
+        }
+
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $offset = self::DAY_OFFSETS[$data['day']] ?? 0;
+        $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
+
+        ScheduleAssignment::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('employee_id', $employee->id)
+            ->where('shift_id', $shift->id)
+            ->where('scheduled_date', $scheduledDate)
+            ->delete();
+    }
+
+    /**
+     * Sao chép lịch xếp ca từ tuần trước sang tuần hiện tại (bỏ qua nhân viên
+     * đang nghỉ phép đã duyệt trong tuần hiện tại).
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function copyLastWeekSchedules(int $restaurantId): array
+    {
+        // Current week boundaries
+        $startOfCurrentWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $endOfCurrentWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+        // Last week boundaries
+        $startOfLastWeek = Carbon::now()->subWeek()->startOfWeek(Carbon::MONDAY);
+        $endOfLastWeek = Carbon::now()->subWeek()->endOfWeek(Carbon::SUNDAY);
+
+        // Get all assignments from last week
+        $lastWeekAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$startOfLastWeek->toDateString(), $endOfLastWeek->toDateString()])
+            ->get();
+
+        if ($lastWeekAssignments->isEmpty()) {
+            return ['success' => false, 'message' => 'Không tìm thấy lịch trực nào từ tuần trước để sao chép.'];
+        }
+
+        // Delete current week schedules first
+        ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereBetween('scheduled_date', [$startOfCurrentWeek->toDateString(), $endOfCurrentWeek->toDateString()])
+            ->delete();
+
+        $copiedCount = 0;
+
+        // Fetch all approved leaves for the current week to avoid N+1 queries in the loop
+        $currentWeekLeaves = LeaveRequest::where('restaurant_id', $restaurantId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $endOfCurrentWeek->toDateString())
+            ->whereDate('end_date', '>=', $startOfCurrentWeek->toDateString())
+            ->get();
+
+        foreach ($lastWeekAssignments as $assignment) {
+            // Calculate corresponding day in current week
+            $lastWeekDate = Carbon::parse($assignment->scheduled_date);
+            $dayOffset = $lastWeekDate->diffInDays($startOfLastWeek); // days since Monday of last week
+            $currentWeekDateStr = $startOfCurrentWeek->copy()->addDays($dayOffset)->toDateString();
+
+            // Check if employee is on approved leave on that day
+            $isOnLeave = $currentWeekLeaves->contains(function ($leave) use ($assignment, $currentWeekDateStr) {
+                $start = $leave->start_date instanceof Carbon ? $leave->start_date->toDateString() : Carbon::parse($leave->start_date)->toDateString();
+                $end = $leave->end_date instanceof Carbon ? $leave->end_date->toDateString() : Carbon::parse($leave->end_date)->toDateString();
+
+                return $leave->employee_id == $assignment->employee_id
+                    && $start <= $currentWeekDateStr
+                    && $end >= $currentWeekDateStr;
+            });
+
+            if ($isOnLeave) {
+                continue; // Skip copying this assignment as they are on leave
+            }
+
+            // Duplicate assignment
+            ScheduleAssignment::create([
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $assignment->branch_id,
+                'employee_id' => $assignment->employee_id,
+                'shift_id' => $assignment->shift_id,
+                'scheduled_date' => $currentWeekDateStr,
+                'status' => 'scheduled',
+            ]);
+
+            $copiedCount++;
+        }
+
+        return ['success' => true, 'message' => "Đã sao chép thành công {$copiedCount} phân công lịch trực từ tuần trước."];
+    }
+}

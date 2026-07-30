@@ -6,7 +6,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 
 Để test: mở terminal rồi chạy php artisan serve, sau đó truy cập http:// mà nó trả về
 
-
 ## 1) Tổng quan: Yêu cầu hệ thống
 
 ### Bắt buộc để chạy dự án
@@ -28,7 +27,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - Sentry (giám sát lỗi)
 - Python microservice (FastAPI + Pandas + Scikit-learn)
 
-
 ## 2) Thư viện đã có sẵn trong dự án
 
 ### Backend (composer.json)
@@ -39,7 +37,7 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - laravel/tinker (^3.0)
 - laravel/wayfinder (^0.1.14)
 - spatie/laravel-permission (^7.4)
-- laravel/horizon (^1.7)
+- laravel/horizon (^5.46)
 - laravel/pulse (^1.7)
 - laravel/scout (^11.2)
 - meilisearch/meilisearch-php (^1.16)
@@ -54,7 +52,6 @@ Tai lieu nay tong hop tu noi dung bao cao [bao_cao_quan_ly_nha_hang](bao_cao_qua
 - pinia (^3)
 - @vitejs/plugin-vue
 
-
 ## 3) Thư viện cần cài thêm (nếu phát triển Python service)
 
 ### Python service (tùy chọn)
@@ -65,6 +62,45 @@ Nếu muốn chạy AI/microservice, cần cài Python 3.10+ và các package:
 pip install fastapi uvicorn pandas scikit-learn numpy pydantic python-dotenv httpx
 ```
 
+### Email Microservice (`services/email_service/`) — port 8001
+
+```bash
+cd services/email_service
+pip install -r requirements.txt
+uvicorn main:app --port 8001
+```
+
+### Chatbot AI Microservice (`services/chatbot_service/`) — port 8002
+
+Chatbot dùng TF-IDF (scikit-learn, char n-gram tiếng Việt) để khớp câu hỏi với knowledge base trong DB.
+
+```bash
+cd services/chatbot_service
+pip install -r requirements.txt
+# requirements.txt gồm:
+#   fastapi==0.115.0, uvicorn==0.30.6, pymysql==1.1.1
+#   scikit-learn==1.5.2, numpy==1.26.4, pydantic==2.9.2, python-dotenv==1.0.1
+uvicorn main:app --port 8002
+```
+
+Cấu hình `.env` trong thư mục `services/chatbot_service/`:
+
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=aventura
+DB_USERNAME=root
+DB_PASSWORD=
+CACHE_TTL_SECONDS=300
+SIMILARITY_THRESHOLD=0.28
+MAX_SUGGESTIONS=5
+```
+
+Trong `.env` của Laravel, thêm:
+
+```env
+CHATBOT_SERVICE_URL=http://localhost:8002
+```
 
 ## 4) Cài đặt nhanh để chạy local (Windows/Laragon)
 
@@ -154,14 +190,14 @@ SENTRY_LARAVEL_DSN=
 SENTRY_TRACES_SAMPLE_RATE=0.2
 ```
 
-
 ## 7) Dịch vụ hệ thống cần chạy kèm
 
 - MySQL service
 - Redis service (bắt buộc nếu dùng queue/cache)
 - Meilisearch service (nếu bật Scout)
 - Reverb server (nếu dùng realtime)
-- Python FastAPI service (nếu dùng AI/microservice)
+- Email Microservice: `cd services/email_service && uvicorn main:app --port 8001`
+- Chatbot AI Microservice: `cd services/chatbot_service && uvicorn main:app --port 8002`
 
 Lenh thuong dung:
 
@@ -193,7 +229,6 @@ npm run lint:check
 3. Phase 3 (tim kiem + realtime): meilisearch/scout + reverb.
 4. Phase 4 (phan tich AI): Python microservice + ket noi API/queue.
 5. Phase 5 (van hanh): sentry + object storage + monitor.
-
 
 ## 10) Ghi chú bổ sung
 

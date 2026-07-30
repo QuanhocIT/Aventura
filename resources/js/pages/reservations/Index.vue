@@ -1,0 +1,551 @@
+<script setup lang="ts">
+import { Head, router, useForm } from '@inertiajs/vue3';
+import {
+    CalendarDays,
+    Users,
+    Phone,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    Utensils,
+    AlertTriangle,
+    Filter,
+    UserCheck,
+    Ban,
+    Loader2,
+} from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import Heading from '@/components/Heading.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { confirmDialog } from '@/composables/useConfirm';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Props
+// ──────────────────────────────────────────────────────────────────────────────
+const props = defineProps<{
+    reservations: any[];
+    todayStats: Record<string, number>;
+    availableTables: { id: number; name: string; capacity: number }[];
+    filters: { date: string; status: string };
+}>();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────────────────────────────────────
+const dateFilter = ref(props.filters.date);
+const statusFilter = ref(props.filters.status);
+const selected = ref<any | null>(null);
+const showConfirmModal = ref(false);
+const showCancelModal = ref(false);
+const isProcessing = ref(false);
+
+const confirmForm = useForm({
+    table_id: null as number | null,
+    internal_notes: '',
+});
+const cancelForm = useForm({ reason: '' });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Computed
+// ──────────────────────────────────────────────────────────────────────────────
+const totalToday = computed(() =>
+    Object.values(props.todayStats).reduce((a, b) => a + b, 0),
+);
+const pendingCount = computed(() => props.todayStats['pending'] ?? 0);
+const confirmedCount = computed(() => props.todayStats['confirmed'] ?? 0);
+const seatedCount = computed(() => props.todayStats['seated'] ?? 0);
+
+const statusOptions = [
+    { value: 'all', label: 'Tất cả' },
+    { value: 'pending', label: 'Chờ xác nhận' },
+    { value: 'confirmed', label: 'Đã xác nhận' },
+    { value: 'seated', label: 'Đang phục vụ' },
+    { value: 'completed', label: 'Hoàn thành' },
+    { value: 'cancelled', label: 'Đã hủy' },
+    { value: 'no_show', label: 'Không đến' },
+];
+
+const colorMap: Record<string, string> = {
+    amber: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+    emerald:
+        'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+    sky: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+    teal: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300',
+    rose: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
+    gray: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Actions
+// ──────────────────────────────────────────────────────────────────────────────
+function applyFilter() {
+    router.get(
+        '/reservations',
+        {
+            date: dateFilter.value,
+            status: statusFilter.value,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function openConfirmModal(r: any) {
+    selected.value = r;
+    confirmForm.reset();
+    showConfirmModal.value = true;
+}
+
+function submitConfirm() {
+    confirmForm.post(`/reservations/${selected.value.id}/confirm`, {
+        onSuccess: () => {
+            showConfirmModal.value = false;
+        },
+    });
+}
+
+async function seat(r: any) {
+    if (isProcessing.value) {
+return;
+}
+
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: `Xác nhận dẫn khách ${r.guest_name} vào bàn?`,
+            variant: 'default',
+        }))
+    ) {
+        return;
+    }
+
+    isProcessing.value = true;
+    router.post(
+        `/reservations/${r.id}/seat`,
+        {},
+        {
+            onFinish: () => {
+                isProcessing.value = false;
+            },
+        },
+    );
+}
+
+function openCancelModal(r: any) {
+    selected.value = r;
+    cancelForm.reset();
+    showCancelModal.value = true;
+}
+
+function submitCancel() {
+    cancelForm.post(`/reservations/${selected.value.id}/cancel`, {
+        onSuccess: () => {
+            showCancelModal.value = false;
+        },
+    });
+}
+
+async function noShow(r: any) {
+    if (isProcessing.value) {
+return;
+}
+
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: `Đánh dấu khách ${r.guest_name} không đến?`,
+            variant: 'default',
+        }))
+    ) {
+        return;
+    }
+
+    isProcessing.value = true;
+    router.post(
+        `/reservations/${r.id}/no-show`,
+        {},
+        {
+            onFinish: () => {
+                isProcessing.value = false;
+            },
+        },
+    );
+}
+</script>
+
+<template>
+    <Head title="Đặt Bàn Trước · Aventura" />
+
+    <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 lg:px-8">
+        <Heading
+            title="Quản Lý Đặt Bàn"
+            description="Theo dõi và xử lý các yêu cầu đặt bàn trước của khách hàng."
+        />
+
+        <!-- ── KPI Stats ──────────────────────────────────────────────────── -->
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div
+                class="rounded-xl border border-border bg-background px-4 py-3"
+            >
+                <p class="text-2xl font-bold">{{ totalToday }}</p>
+                <p class="mt-0.5 text-xs text-muted-foreground">Tổng hôm nay</p>
+            </div>
+            <div
+                class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:bg-amber-950/20"
+            >
+                <p
+                    class="text-2xl font-bold text-amber-700 dark:text-amber-400"
+                >
+                    {{ pendingCount }}
+                </p>
+                <p class="mt-0.5 text-xs text-amber-600/80">Chờ xác nhận</p>
+            </div>
+            <div
+                class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20"
+            >
+                <p
+                    class="text-2xl font-bold text-emerald-700 dark:text-emerald-400"
+                >
+                    {{ confirmedCount }}
+                </p>
+                <p class="mt-0.5 text-xs text-emerald-600/80">Đã xác nhận</p>
+            </div>
+            <div
+                class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:bg-sky-950/20"
+            >
+                <p class="text-2xl font-bold text-sky-700 dark:text-sky-400">
+                    {{ seatedCount }}
+                </p>
+                <p class="mt-0.5 text-xs text-sky-600/80">Đang phục vụ</p>
+            </div>
+        </div>
+
+        <!-- ── Filters ───────────────────────────────────────────────────── -->
+        <div
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background p-4"
+        >
+            <Filter class="size-4 text-muted-foreground" />
+            <input
+                v-model="dateFilter"
+                type="date"
+                class="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+            />
+            <select
+                v-model="statusFilter"
+                class="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+            >
+                <option
+                    v-for="opt in statusOptions"
+                    :key="opt.value"
+                    :value="opt.value"
+                >
+                    {{ opt.label }}
+                </option>
+            </select>
+            <Button size="sm" @click="applyFilter">Lọc</Button>
+        </div>
+
+        <!-- ── Reservations Table ────────────────────────────────────────── -->
+        <div
+            class="overflow-hidden rounded-xl border border-border bg-background"
+        >
+            <div
+                class="flex items-center gap-2 border-b border-border px-4 py-3"
+            >
+                <CalendarDays class="size-4 text-muted-foreground" />
+                <span class="text-sm font-semibold"
+                    >Danh sách đặt bàn — {{ dateFilter }}</span
+                >
+                <Badge variant="secondary" class="ml-auto"
+                    >{{ reservations.length }} đặt bàn</Badge
+                >
+            </div>
+
+            <div
+                v-if="reservations.length === 0"
+                class="py-16 text-center text-muted-foreground"
+            >
+                <CalendarDays class="mx-auto mb-3 size-12 opacity-20" />
+                <p class="text-sm">Không có đặt bàn nào trong ngày này.</p>
+            </div>
+
+            <div v-else class="divide-y divide-border">
+                <div
+                    v-for="r in reservations"
+                    :key="r.id"
+                    class="px-4 py-4 transition-colors hover:bg-muted/30"
+                >
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center"
+                    >
+                        <!-- Info -->
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-semibold">{{
+                                    r.guest_name
+                                }}</span>
+                                <span
+                                    class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                    :class="colorMap[r.status_color]"
+                                >
+                                    {{ r.status_label }}
+                                </span>
+                                <!-- Trạng thái cọc giữ bàn -->
+                                <span
+                                    v-if="
+                                        r.deposit_status &&
+                                        r.deposit_status !== 'none'
+                                    "
+                                    class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                    :class="
+                                        r.deposit_status === 'paid'
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                                    "
+                                >
+                                    💰 Cọc
+                                    {{
+                                        Number(r.deposit_amount).toLocaleString(
+                                            'vi-VN',
+                                        )
+                                    }}đ —
+                                    {{
+                                        r.deposit_status === 'paid'
+                                            ? 'đã trả'
+                                            : 'chờ trả'
+                                    }}
+                                </span>
+                            </div>
+                            <div
+                                class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+                            >
+                                <span class="flex items-center gap-1">
+                                    <Phone class="size-3" /> {{ r.guest_phone }}
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <Clock class="size-3" />
+                                    {{ r.reservation_time }}
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <Users class="size-3" />
+                                    {{ r.party_size }} khách
+                                </span>
+                                <span
+                                    v-if="r.table_name"
+                                    class="flex items-center gap-1"
+                                >
+                                    <Utensils class="size-3" />
+                                    {{ r.table_name }}
+                                </span>
+                            </div>
+                            <p
+                                v-if="r.special_requests"
+                                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+                            >
+                                ✨ {{ r.special_requests }}
+                            </p>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex shrink-0 items-center gap-2">
+                            <!-- Xác nhận -->
+                            <Button
+                                v-if="r.status === 'pending'"
+                                size="sm"
+                                variant="outline"
+                                :disabled="isProcessing"
+                                class="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                @click="openConfirmModal(r)"
+                            >
+                                <CheckCircle2 class="mr-1 size-3.5" />
+                                Xác nhận
+                            </Button>
+
+                            <!-- Dẫn vào bàn -->
+                            <Button
+                                v-if="r.status === 'confirmed'"
+                                size="sm"
+                                variant="outline"
+                                :disabled="isProcessing"
+                                class="border-sky-300 text-sky-700 hover:bg-sky-50"
+                                @click="seat(r)"
+                            >
+                                <Loader2
+                                    v-if="isProcessing"
+                                    class="mr-1 size-3.5 animate-spin"
+                                />
+                                <UserCheck v-else class="mr-1 size-3.5" />
+                                Vào bàn
+                            </Button>
+
+                            <!-- Không đến -->
+                            <Button
+                                v-if="r.status === 'confirmed'"
+                                size="sm"
+                                variant="outline"
+                                :disabled="isProcessing"
+                                class="border-gray-300 text-gray-600 hover:bg-gray-50"
+                                @click="noShow(r)"
+                            >
+                                <Loader2
+                                    v-if="isProcessing"
+                                    class="mr-1 size-3.5 animate-spin"
+                                />
+                                <AlertTriangle v-else class="mr-1 size-3.5" />
+                                Không đến
+                            </Button>
+
+                            <!-- Hủy -->
+                            <Button
+                                v-if="
+                                    ['pending', 'confirmed'].includes(r.status)
+                                "
+                                size="sm"
+                                variant="ghost"
+                                :disabled="isProcessing"
+                                class="text-rose-600 hover:bg-rose-50"
+                                @click="openCancelModal(r)"
+                            >
+                                <Ban class="mr-1 size-3.5" />
+                                Hủy
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal Xác Nhận ───────────────────────────────────────────────── -->
+    <Teleport to="body">
+        <div
+            v-if="showConfirmModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            @click.self="showConfirmModal = false"
+        >
+            <div
+                class="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-2xl"
+            >
+                <h3 class="mb-1 text-lg font-bold">Xác nhận đặt bàn</h3>
+                <p class="mb-4 text-sm text-muted-foreground">
+                    Khách: <strong>{{ selected?.guest_name }}</strong> —
+                    {{ selected?.party_size }} người lúc
+                    {{ selected?.reservation_time }}
+                </p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium"
+                            >Gán bàn (tuỳ chọn)</label
+                        >
+                        <select
+                            v-model="confirmForm.table_id"
+                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                        >
+                            <option :value="null">— Chưa gán bàn —</option>
+                            <option
+                                v-for="t in availableTables"
+                                :key="t.id"
+                                :value="t.id"
+                            >
+                                {{ t.name }} ({{ t.capacity }} chỗ)
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium"
+                            >Ghi chú nội bộ</label
+                        >
+                        <textarea
+                            v-model="confirmForm.internal_notes"
+                            rows="2"
+                            placeholder="Ghi chú cho nhân viên phục vụ..."
+                            class="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                        />
+                    </div>
+                </div>
+
+                <div class="mt-5 flex gap-3">
+                    <Button
+                        class="flex-1"
+                        @click="submitConfirm"
+                        :disabled="confirmForm.processing"
+                    >
+                        <Loader2
+                            v-if="confirmForm.processing"
+                            class="mr-1.5 size-4 animate-spin"
+                        />
+                        <CheckCircle2 v-else class="mr-1.5 size-4" />
+                        {{
+                            confirmForm.processing
+                                ? 'Đang xử lý...'
+                                : 'Xác nhận đặt bàn'
+                        }}
+                    </Button>
+                    <Button variant="outline" @click="showConfirmModal = false"
+                        >Đóng</Button
+                    >
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Hủy -->
+        <div
+            v-if="showCancelModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            @click.self="showCancelModal = false"
+        >
+            <div
+                class="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-2xl"
+            >
+                <h3 class="mb-1 text-lg font-bold text-rose-600">
+                    Hủy đặt bàn
+                </h3>
+                <p class="mb-4 text-sm text-muted-foreground">
+                    Khách: <strong>{{ selected?.guest_name }}</strong>
+                </p>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium"
+                        >Lý do hủy <span class="text-rose-500">*</span></label
+                    >
+                    <textarea
+                        v-model="cancelForm.reason"
+                        rows="3"
+                        placeholder="Nhập lý do hủy đặt bàn..."
+                        class="w-full resize-none rounded-lg border border-rose-300 bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-rose-300 focus:outline-none"
+                    />
+                    <p
+                        v-if="cancelForm.errors.reason"
+                        class="mt-1 text-xs text-rose-500"
+                    >
+                        {{ cancelForm.errors.reason }}
+                    </p>
+                </div>
+
+                <div class="mt-5 flex gap-3">
+                    <Button
+                        variant="destructive"
+                        class="flex-1"
+                        @click="submitCancel"
+                        :disabled="cancelForm.processing"
+                    >
+                        <Loader2
+                            v-if="cancelForm.processing"
+                            class="mr-1.5 size-4 animate-spin"
+                        />
+                        <XCircle v-else class="mr-1.5 size-4" />
+                        {{
+                            cancelForm.processing
+                                ? 'Đang xử lý...'
+                                : 'Xác nhận hủy'
+                        }}
+                    </Button>
+                    <Button variant="outline" @click="showCancelModal = false"
+                        >Đóng</Button
+                    >
+                </div>
+            </div>
+        </div>
+    </Teleport>
+</template>

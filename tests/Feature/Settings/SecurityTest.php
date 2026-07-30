@@ -26,9 +26,9 @@ class SecurityTest extends TestCase
 
         $this->actingAs($user)
             ->withSession(['auth.password_confirmed_at' => time()])
-            ->get(route('security.edit'))
+            ->get(route('profile.edit', ['tab' => 'security']))
             ->assertInertia(fn (Assert $page) => $page
-                ->component('settings/Security')
+                ->component('settings/Profile')
                 ->where('canManageTwoFactor', true)
                 ->where('twoFactorEnabled', false),
             );
@@ -46,7 +46,7 @@ class SecurityTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->get(route('security.edit'));
+            ->get(route('profile.edit', ['tab' => 'security']));
 
         $response->assertRedirect(route('password.confirm'));
     }
@@ -63,10 +63,10 @@ class SecurityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('security.edit'))
+            ->get(route('profile.edit', ['tab' => 'security']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('settings/Security'),
+                ->component('settings/Profile'),
             );
     }
 
@@ -79,10 +79,10 @@ class SecurityTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)
-            ->get(route('security.edit'))
+            ->get(route('profile.edit', ['tab' => 'security']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('settings/Security')
+                ->component('settings/Profile')
                 ->where('canManageTwoFactor', false)
                 ->missing('twoFactorEnabled')
                 ->missing('requiresConfirmation'),
@@ -95,7 +95,7 @@ class SecurityTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->from(route('security.edit'))
+            ->from(route('profile.edit', ['tab' => 'security']))
             ->put(route('user-password.update'), [
                 'current_password' => 'password',
                 'password' => 'new-password',
@@ -104,7 +104,7 @@ class SecurityTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('security.edit'));
+            ->assertRedirect(route('profile.edit', ['tab' => 'security']));
 
         $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
     }
@@ -115,7 +115,7 @@ class SecurityTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->from(route('security.edit'))
+            ->from(route('profile.edit', ['tab' => 'security']))
             ->put(route('user-password.update'), [
                 'current_password' => 'wrong-password',
                 'password' => 'new-password',
@@ -124,6 +124,6 @@ class SecurityTest extends TestCase
 
         $response
             ->assertSessionHasErrors('current_password')
-            ->assertRedirect(route('security.edit'));
+            ->assertRedirect(route('profile.edit', ['tab' => 'security']));
     }
 }

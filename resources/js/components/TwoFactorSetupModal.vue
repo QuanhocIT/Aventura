@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form } from '@inertiajs/vue3';
+import { Form, router, usePage } from '@inertiajs/vue3';
 import { useClipboard } from '@vueuse/core';
 import { Check, Copy, ScanLine } from 'lucide-vue-next';
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
@@ -40,6 +40,23 @@ const { qrCodeSvg, manualSetupKey, clearSetupData, fetchSetupData, errors } =
 
 const showVerificationStep = ref(false);
 const code = ref<string>('');
+
+const page = usePage();
+
+const handleSuccess = () => {
+    isOpen.value = false;
+
+    const roles = page.props.roles ?? [];
+    const isSuperAdmin = Array.isArray(roles)
+        ? roles.includes('super_admin')
+        : Object.values(roles).includes('super_admin');
+
+    if (isSuperAdmin) {
+        router.visit('/super-admin/dashboard');
+    } else {
+        router.visit('/dashboard');
+    }
+};
 
 const pinInputContainerRef = useTemplateRef('pinInputContainerRef');
 
@@ -242,7 +259,7 @@ watch(
                         error-bag="confirmTwoFactorAuthentication"
                         reset-on-error
                         @finish="code = ''"
-                        @success="isOpen = false"
+                        @success="handleSuccess"
                         v-slot="{ errors, processing }"
                     >
                         <input type="hidden" name="code" :value="code" />

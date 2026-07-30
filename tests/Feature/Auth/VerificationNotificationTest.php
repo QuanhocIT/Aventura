@@ -22,27 +22,30 @@ class VerificationNotificationTest extends TestCase
 
     public function test_sends_verification_notification(): void
     {
-        Notification::fake();
-
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $user = User::factory()->unverified()->create();
+        $user->assignRole('super_admin');
+
+        $mock = $this->mock(\App\Services\EmailVerificationService::class);
+        $mock->shouldReceive('send')
+            ->once()
+            ->with(\Mockery::on(fn($u) => $u->id === $user->id))
+            ->andReturn(true);
 
         $this->actingAs($user)
             ->post(route('verification.send'))
             ->assertRedirect(route('home'));
-
-        Notification::assertSentTo($user, VerifyEmail::class);
     }
 
     public function test_does_not_send_verification_notification_if_email_is_verified(): void
     {
-        Notification::fake();
-
         $user = User::factory()->create();
+
+        $mock = $this->mock(\App\Services\EmailVerificationService::class);
+        $mock->shouldNotReceive('send');
 
         $this->actingAs($user)
             ->post(route('verification.send'))
             ->assertRedirect(route('dashboard', absolute: false));
-
-        Notification::assertNothingSent();
     }
 }

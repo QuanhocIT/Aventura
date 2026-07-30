@@ -1,80 +1,140 @@
 <?php
 
-use App\Models\Employee;
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Str;
+use App\Models\AuditLog;
+use App\Models\Restaurant;
+use App\Models\Salary;
+use App\Services\BillingService;
+use App\Services\GoalTrackingService;
 use Illuminate\Support\Facades\Artisan;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+Artisan::command('billing:sync-statuses', function (BillingService $billing) {
+    $billing->markExpiredAndSuspended();
+    $this->info('Billing statuses synced.');
+})->purpose('Sync expired and suspended tenant statuses');
 
-Artisan::command('employees:migrate-job-title-to-role {--create-missing : Create role when not found}', function () {
-    $createMissing = (bool) $this->option('create-missing');
+Artisan::command('billing:send-reminders', function (BillingService $billing) {
+    $sent = $billing->sendExpiryReminders();
+    $this->info("Billing reminders queued: {$sent}");
+})->purpose('Queue reminders for subscriptions nearing expiration');
 
-    $updated = 0;
-    $skipped = 0;
+// Lịch chạy định kỳ (Task Scheduler) đã chuyển sang routes/schedule.php, đăng ký
+// qua bootstrap/app.php ->withSchedule(). File này chỉ còn giữ định nghĩa lệnh
+// Artisan::command() — xem routes/schedule.php để biết lịch chạy của từng lệnh.
 
-    Employee::query()
-        ->whereNull('role_id')
-        ->whereNotNull('job_title')
-        ->orderBy('id')
-        ->chunkById(200, function ($employees) use (&$updated, &$skipped, $createMissing) {
-            foreach ($employees as $employee) {
-                $jobTitle = trim((string) $employee->job_title);
+Artisan::command('system:audit-consistency', function () {
+    $this->info('Starting consistency audit...');
 
-                if ($jobTitle === '') {
-                    $skipped++;
-                    continue;
-                }
+    // 1. Kiểm tra đơn hàng vs thanh toán
+    $inconsistentOrders = [];
+    $rows = DB::table('orders as o')
+        ->leftJoin('payments as p', function ($join) {
+            $join->on('p.order_id', '=', 'o.id')
+                ->where('p.status', '=', 'paid');
+        })
+        ->where('o.status', 'completed')
+        ->where('o.payment_status', 'paid')
+        ->select(
+            'o.id',
+            'o.order_number',
+            'o.total_amount',
+            'o.refund_amount',
+            DB::raw('COALESCE(SUM(p.amount), 0) as payments_total')
+        )
+        ->groupBy('o.id', 'o.order_number', 'o.total_amount', 'o.refund_amount')
+        ->get();
 
-                $role = Role::query()
-                    ->where('guard_name', 'web')
-                    ->whereRaw('LOWER(name) = ?', [Str::lower($jobTitle)])
-                    ->first();
+    foreach ($rows as $row) {
+        $expected = max(0.0, (float) $row->total_amount - (float) ($row->refund_amount ?? 0));
+        $paymentsTotal = (float) $row->payments_total;
 
-                if (! $role && $createMissing) {
-                    $role = Role::query()->create([
-                        'name' => $jobTitle,
-                        'guard_name' => 'web',
-                    ]);
-                }
-
-                if (! $role) {
-                    $skipped++;
-                    continue;
-                }
-
-                $employee->role_id = $role->id;
-                $employee->save();
-                $updated++;
-            }
-        });
-
-    $this->info("Mapped role_id for {$updated} employees.");
-
-    if ($skipped > 0) {
-        $this->warn("Skipped {$skipped} employees (empty job_title or role not found).");
+        if (abs($paymentsTotal - $expected) > 0.01) {
+            $inconsistentOrders[] = [
+                'order_id' => $row->id,
+                'order_number' => $row->order_number,
+                'expected' => $expected,
+                'actual' => $paymentsTotal,
+            ];
+        }
     }
-})->purpose('Map employees.job_title to employees.role_id using roles table');
 
-Artisan::command('employees:sync-model-has-roles', function () {
-    $synced = 0;
+    // 2. Kiểm tra bảng lương vs adjustments
+    $inconsistentSalaries = [];
+    $salaries = Salary::withoutGlobalScopes()
+        ->with(['adjustments', 'employee'])
+        ->get();
 
-    Employee::query()
-        ->orderBy('id')
-        ->chunkById(200, function ($employees) use (&$synced) {
-            foreach ($employees as $employee) {
-                if ($employee->role_id) {
-                    $employee->syncRoles([$employee->role_id]);
-                } else {
-                    $employee->syncRoles([]);
-                }
+    foreach ($salaries as $salary) {
+        $adjustments = $salary->adjustments;
 
-                $synced++;
-            }
-        });
+        $expectedBonuses = (float) $adjustments->where('type', 'bonus')->sum('amount');
+        $expectedDeductions = (float) $adjustments
+            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
+            ->where('status', 'applied')
+            ->sum('amount');
 
-    $this->info("Synced model_has_roles for {$synced} employees.");
-})->purpose('Sync employees.role_id to Spatie model_has_roles table');
+        $expectedNet = max(0.0, (float) $salary->base_salary + $expectedBonuses - $expectedDeductions);
+
+        $bonusDiff = abs((float) $salary->bonus_amount - $expectedBonuses) > 0.01;
+        $deductionDiff = abs((float) $salary->deduction_amount - $expectedDeductions) > 0.01;
+        $netDiff = abs((float) $salary->net_salary - $expectedNet) > 0.01;
+
+        if ($bonusDiff || $deductionDiff || $netDiff) {
+            $inconsistentSalaries[] = [
+                'salary_id' => $salary->id,
+                'employee_name' => $salary->employee?->full_name ?? 'N/A',
+                'salary_bonus' => $salary->bonus_amount,
+                'expected_bonus' => $expectedBonuses,
+                'salary_deduction' => $salary->deduction_amount,
+                'expected_deduction' => $expectedDeductions,
+                'salary_net' => $salary->net_salary,
+                'expected_net' => $expectedNet,
+            ];
+        }
+    }
+
+    // Báo cáo kết quả
+    if (! empty($inconsistentOrders) || ! empty($inconsistentSalaries)) {
+        $errorMsg = "Phát hiện bất đồng nhất dữ liệu hệ thống: \n";
+        if (! empty($inconsistentOrders)) {
+            $errorMsg .= '- Đơn hàng bất nhất: '.json_encode($inconsistentOrders, JSON_UNESCAPED_UNICODE)."\n";
+        }
+        if (! empty($inconsistentSalaries)) {
+            $errorMsg .= '- Lương bất nhất: '.json_encode($inconsistentSalaries, JSON_UNESCAPED_UNICODE)."\n";
+        }
+
+        Log::error($errorMsg);
+
+        // Ghi nhận vào AuditLog hệ thống để báo cáo
+        AuditLog::create([
+            'restaurant_id' => null, // Hệ thống
+            'event' => 'audit_failed',
+            'action' => 'system_audit_inconsistency',
+            'new_values' => [
+                'orders' => $inconsistentOrders,
+                'salaries' => $inconsistentSalaries,
+            ],
+            'notes' => 'Phát hiện bất đồng nhất dữ liệu trong quá trình kiểm toán định kỳ.',
+        ]);
+
+        $this->error('Consistency audit completed with errors.');
+    } else {
+        $this->info('Consistency audit completed successfully. All data is consistent.');
+    }
+})->purpose('Audit data consistency between orders/payments and salaries/adjustments');
+
+Artisan::command('goals:sync', function () {
+    $this->info('Starting business goals sync...');
+
+    $restaurants = Restaurant::where('status', 'active')->get();
+    $tracker = app(GoalTrackingService::class);
+
+    $totalSynced = 0;
+    foreach ($restaurants as $restaurant) {
+        $count = $tracker->syncAllActive($restaurant->id);
+        $totalSynced += $count;
+    }
+
+    $this->info("Completed business goals sync. Synced {$totalSynced} active goals across all restaurants.");
+})->purpose('Synchronize all active business goals/OKRs progress');

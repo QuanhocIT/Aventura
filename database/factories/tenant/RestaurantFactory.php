@@ -20,6 +20,9 @@ class RestaurantFactory extends Factory
         $name = fake()->company().' Restaurant';
 
         return [
+            // Test cần gói có đầy đủ tính năng để không bị FeatureGate chặn → giữ
+            // SubscriptionPlan::factory() (features rộng). Các SEEDER demo phải tự gán
+            // gói THẬT khi tạo nhà hàng để tránh sinh gói rác (xem RestaurantDemoSeeder).
             'plan_id' => SubscriptionPlan::factory(),
             'owner_user_id' => User::factory(),
             'code' => strtoupper(fake()->unique()->lexify('RST???')),

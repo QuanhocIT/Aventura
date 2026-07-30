@@ -2,16 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Database\Factories\Restaurant\AreaFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 
 class Area extends Model
 {
+    use BelongsToRestaurant;
     use HasFactory;
+    use SoftDeletes;
 
     protected $guarded = [];
 
@@ -28,6 +33,18 @@ class Area extends Model
     public function tables(): HasMany
     {
         return $this->hasMany(RestaurantTable::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function ($area) {
+            Cache::forget("restaurant_{$area->restaurant_id}_areas");
+            Cache::forget("quota_summary:{$area->restaurant_id}");
+        });
+        static::deleted(function ($area) {
+            Cache::forget("restaurant_{$area->restaurant_id}_areas");
+            Cache::forget("quota_summary:{$area->restaurant_id}");
+        });
     }
 
     protected static function newFactory(): Factory

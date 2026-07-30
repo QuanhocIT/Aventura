@@ -28,7 +28,7 @@ return new class extends Migration
             });
         }
 
-        if (Schema::hasTable('units')) {
+        if (DB::getDriverName() !== 'sqlite' && Schema::hasTable('units')) {
             if ($this->hasForeignKey('units', 'units_base_unit_id_foreign')) {
                 DB::statement('ALTER TABLE units DROP FOREIGN KEY units_base_unit_id_foreign');
             }
@@ -46,7 +46,7 @@ return new class extends Migration
             }
         }
 
-        if (Schema::hasTable('audit_logs')) {
+        if (DB::getDriverName() !== 'sqlite' && Schema::hasTable('audit_logs')) {
             if ($this->hasIndex('audit_logs', 'audit_logs_restaurant_created_at_action_index')) {
                 DB::statement('ALTER TABLE audit_logs DROP INDEX audit_logs_restaurant_created_at_action_index');
             }
@@ -59,6 +59,10 @@ return new class extends Migration
 
     private function ensureOrderForeignKeys(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('orders') || ! Schema::hasTable('customers') || ! Schema::hasTable('users')) {
             return;
         }
@@ -78,6 +82,10 @@ return new class extends Migration
 
     private function optimizeAuditLogIndex(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('audit_logs')) {
             return;
         }
@@ -93,6 +101,10 @@ return new class extends Migration
 
     private function enhanceUnitsForConversion(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('units')) {
             return;
         }
@@ -112,6 +124,10 @@ return new class extends Migration
 
     private function addPaymentGatewayTransactionCode(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('payments') || Schema::hasColumn('payments', 'gateway_transaction_code')) {
             return;
         }
@@ -141,6 +157,10 @@ return new class extends Migration
 
     private function hasForeignKey(string $tableName, string $constraintName): bool
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return false;
+        }
+
         $result = DB::selectOne(
             'SELECT COUNT(*) AS aggregate
              FROM information_schema.TABLE_CONSTRAINTS
@@ -157,6 +177,10 @@ return new class extends Migration
 
     private function hasIndex(string $tableName, string $indexName): bool
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return false;
+        }
+
         $result = DB::selectOne(
             'SELECT COUNT(*) AS aggregate
              FROM information_schema.STATISTICS

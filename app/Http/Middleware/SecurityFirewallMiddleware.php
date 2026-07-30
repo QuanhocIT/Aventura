@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
+use Symfony\Component\HttpFoundation\Response;
+
+class SecurityFirewallMiddleware
+{
+    /**
+     * The URIs that should be excluded from rate limiting.
+     *
+     * @var array<int, string>
+     */
+    protected array $exceptRateLimit = [
+        'up',
+        'api/health',
+        'webhooks/payments',
+        'api/webhooks/payments/*',
+        'api/webhooks/delivery/*',
+        'api/pos/*',
+        'api/online/*',
+    ];
+
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $ip = $request->ip();
+
+        // 1. Whitelist Check: If IP is whitelisted, bypass all WAF and Rate Limiting
+        $whitelist = json_decode(\App\Models\SystemSetting::get('firewall_whitelist', '[]'), true);
+        if (in_array($ip, $whitelist, true)) {
+            return $next($request);
+        }
+
+        // 2. WAF Check: Check if the IP is blocked
+        if (Cache::has("waf:blocked:{$ip}")) {
+            $message = 'IP của bạn đã bị chặn tạm thời do phát hiện hành vi spam hoặc tấn công. Vui lòng thử lại sau 30 phút.';
+
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'message' => $message,
+                ], 403);
+            }
+
+            return response($message, 403);
+        }
+
+        // 3. Skip Rate Limiting for excluded routes
+        if ($this->shouldSkipRateLimit($request)) {
+            return $next($request);
+        }
+
+        // 4. Determine Rate Limiting limits
+        $maxAttempts = (int) (\App\Models\SystemSetting::get('rate_limit_global_max') ?? config('firewall.rate_limit.global.max_attempts', 60));
+        $decaySeconds = (int) (\App\Models\SystemSetting::get('rate_limit_global_decay') ?? config('firewall.rate_limit.global.decay_seconds', 60));
+
+        // Route-specific Rate Limits overrides: Chặn spam login & brute force (tối đa 5 lần thử trong 15 phút)
+        $rateLimitKeyPrefix = 'rate_limit';
+        $isAuthRoute = ($request->is('login') || $request->is('register') || $request->is('forgot-password') || $request->is('reset-password') || $request->is('two-factor-challenge') || $request->is('lock-screen') || $request->is('api/v1/auth/*')) && $request->isMethod('POST');
+
+        if ($isAuthRoute) {
+            $maxAttempts = 5;
+            $decaySeconds = 900; // 15 phút
+            $rateLimitKeyPrefix = 'rate_limit:auth:' . str_replace('/', '_', $request->path());
+        }
+
+        $user = $request->user();
+        $token = $request->bearerToken();
+
+        if ($request->is('register') || $request->is('forgot-password')) {
+            $key = $rateLimitKeyPrefix . ':ip:' . $ip;
+        } elseif ($user) {
+            $key = $rateLimitKeyPrefix . ':user:' . $user->id;
+        } elseif ($token) {
+            $key = $rateLimitKeyPrefix . ':token:' . sha1($token);
+        } else {
+            $key = $rateLimitKeyPrefix . ':ip:' . $ip;
+        }
+
+        if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+            $retryAfter = RateLimiter::availableIn($key);
+            $message = 'Vượt quá giới hạn request. Vui lòng thử lại sau.';
+
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'message' => $message,
+                    'retry_after' => $retryAfter,
+                ], 429)->withHeaders([
+                    'X-RateLimit-Limit'     => $maxAttempts,
+                    'X-RateLimit-Remaining' => 0,
+                    'Retry-After'           => $retryAfter,
+                ]);
+            }
+
+            return response($message, 429)->withHeaders([
+                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Remaining' => 0,
+                'Retry-After'           => $retryAfter,
+            ]);
+        }
+
+        RateLimiter::hit($key, $decaySeconds);
+
+        $response = $next($request);
+
+        $remaining = max(0, $maxAttempts - RateLimiter::attempts($key));
+
+        if (method_exists($response, 'withHeaders')) {
+            return $response->withHeaders([
+                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Remaining' => $remaining,
+            ]);
+        }
+
+        $response->headers->set('X-RateLimit-Limit', $maxAttempts);
+        $response->headers->set('X-RateLimit-Remaining', $remaining);
+
+        return $response;
+    }
+
+    /**
+     * Determine if the request has a URI that should bypass rate limiting.
+     */
+    protected function shouldSkipRateLimit(Request $request): bool
+    {
+        foreach ($this->exceptRateLimit as $except) {
+            if ($except !== '/') {
+                $except = trim($except, '/');
+            }
+
+            if ($request->fullUrlIs($except) || $request->is($except)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
