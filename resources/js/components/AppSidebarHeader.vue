@@ -47,6 +47,7 @@ const roles = computed(() => {
 });
 
 const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
+const canViewAllBranches = computed(() => roles.value.includes('owner') || isSuperAdmin.value);
 
 const tenant = computed(() => page.props.tenant as any);
 const branches = computed(() => tenant.value?.branches ?? []);
@@ -56,7 +57,10 @@ const showFeedbackModal = ref(false);
 
 const handleBranchChange = (e: Event) => {
     const val = (e.target as HTMLSelectElement).value;
-    router.post('/branch/switch', { branch_id: parseInt(val) });
+    router.post(
+        '/branch/switch',
+        val === 'all' ? { scope: 'all' } : { branch_id: parseInt(val) },
+    );
 };
 </script>
 
@@ -92,7 +96,7 @@ const handleBranchChange = (e: Event) => {
         <div class="flex items-center gap-4">
             <!-- Branch context switcher -->
             <div
-                v-if="branches && branches.length > 1"
+                v-if="branches && (branches.length > 1 || canViewAllBranches)"
                 class="mr-2 flex items-center gap-1.5"
             >
                 <span
@@ -100,10 +104,13 @@ const handleBranchChange = (e: Event) => {
                     >Chi nhánh:</span
                 >
                 <select
-                    :value="activeBranchId"
+                    :value="activeBranchId ?? 'all'"
                     @change="handleBranchChange"
                     class="h-8 cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-accent focus:ring-1 focus:ring-ring focus:outline-none dark:text-slate-200"
                 >
+                    <option v-if="canViewAllBranches" value="all">
+                        Toàn chuỗi
+                    </option>
                     <option v-for="b in branches" :key="b.id" :value="b.id">
                         {{ b.name }}
                     </option>

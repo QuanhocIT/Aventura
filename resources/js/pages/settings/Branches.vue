@@ -37,13 +37,21 @@ type Branch = {
     email: string | null;
     address: string | null;
     status: 'active' | 'inactive';
+    manager_user_id: number | null;
     manager_name: string | null;
     employees_count: number;
     tables_count: number;
 };
 
+type ManagerCandidate = {
+    id: number;
+    name: string;
+    assigned_branch_name: string | null;
+};
+
 const props = defineProps<{
     branches: Branch[];
+    managerCandidates: ManagerCandidate[];
     limit: number | null;
     canAddMore: boolean;
 }>();
@@ -344,6 +352,40 @@ defineOptions({
                             class="rounded-xl"
                         />
                         <InputError :message="errors.address" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label
+                            for="manager_user_id"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Quản lý chi nhánh</Label
+                        >
+                        <Select
+                            name="manager_user_id"
+                            :default-value="
+                                editingBranch?.manager_user_id
+                                    ? String(editingBranch.manager_user_id)
+                                    : '0'
+                            "
+                        >
+                            <SelectTrigger class="rounded-xl">
+                                <SelectValue placeholder="Chưa gán quản lý" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="0">Chưa gán quản lý</SelectItem>
+                                <SelectItem
+                                    v-for="manager in managerCandidates"
+                                    :key="manager.id"
+                                    :value="String(manager.id)"
+                                >
+                                    {{ manager.name }}
+                                    <template v-if="manager.assigned_branch_name">
+                                        — {{ manager.assigned_branch_name }}
+                                    </template>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError :message="errors.manager_user_id" />
                     </div>
 
                     <DialogFooter>

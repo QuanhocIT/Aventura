@@ -59,6 +59,8 @@ type Employee = {
     address?: string | null;
     citizen_id_front_url?: string | null;
     citizen_id_back_url?: string | null;
+    branch_id?: number | null;
+    branch_name?: string | null;
 };
 type Shift = { id: number; name: string; start: string; end: string };
 type Assignment = { day: string; employee_name: string; shift_name: string };
@@ -104,6 +106,9 @@ const props = defineProps<{
             }>;
         }
     >;
+    branches: Array<{ id: number; name: string }>;
+    activeBranchId: number | null;
+    branchScope: string;
 }>();
 
 const showAddEmployee = ref(false);
@@ -141,6 +146,7 @@ const employeeForm = useForm({
     citizen_id_front: null as File | null,
     citizen_id_back: null as File | null,
     hire_date: new Date().toISOString().split('T')[0],
+    branch_id: props.branches[0]?.id ?? '',
 });
 
 const editForm = useForm({
@@ -157,6 +163,7 @@ const editForm = useForm({
     citizen_id_number: '',
     citizen_id_front: null as File | null,
     citizen_id_back: null as File | null,
+    branch_id: '',
 });
 
 const openEditEmployee = (emp: any) => {
@@ -174,6 +181,7 @@ const openEditEmployee = (emp: any) => {
     editForm.citizen_id_number = emp.citizen_id_number ?? '';
     editForm.citizen_id_front = null;
     editForm.citizen_id_back = null;
+    editForm.branch_id = emp.branch_id ?? '';
 };
 
 const submitEditEmployee = () => {
@@ -1200,6 +1208,19 @@ const submitSwapReject = () => {
                             </div>
                         </div>
 
+                        <div class="grid gap-1.5">
+                            <Label>Chi nhánh làm việc <span class="text-rose-500">*</span></Label>
+                            <select
+                                v-model="employeeForm.branch_id"
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                            >
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- CCCD Front / Back File Upload Section -->
                         <div class="grid grid-cols-2 gap-4 border-t pt-3">
                             <div class="grid gap-1.5">
@@ -1483,6 +1504,19 @@ const submitSwapReject = () => {
                                 <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Đơn giá lương ca (VNĐ/ca)</Label>
                                 <Input type="number" step="5000" v-model="editForm.pay_rate" placeholder="Ví dụ: 200000" required class="h-9 text-xs font-bold font-mono text-amber-600" />
                             </div>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label>Chi nhánh làm việc <span class="text-rose-500">*</span></Label>
+                            <select
+                                v-model="editForm.branch_id"
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                            >
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
                         </div>
 
                         <!-- Optional CCCD Front / Back File Upload Section -->

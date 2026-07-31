@@ -35,7 +35,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type Area = { id: number; name: string; code: string; tables_count: number };
+type Area = { id: number; name: string; code: string; tables_count: number; branch_id: number | null; branch_name?: string | null };
 type PendingItem = {
     name: string;
     quantity: number;
@@ -53,6 +53,8 @@ type ActiveOrder = {
 type Table = {
     id: number;
     restaurant_id: number;
+    branch_id: number | null;
+    branch_name?: string | null;
     name: string;
     capacity: number;
     status: string; // 'available', 'occupied', 'reserved', 'inactive', 'cleaning'
@@ -67,6 +69,9 @@ type Table = {
 const props = defineProps<{
     areas: Area[];
     tables: Table[];
+    branches: Array<{ id: number; name: string }>;
+    activeBranchId: number | null;
+    branchScope: string;
 }>();
 
 const page = usePage();
@@ -88,13 +93,32 @@ const tooltipCoords = ref({ x: 0, y: 0 });
 const activeDragTable = ref<Table | null>(null);
 const dragOffset = ref({ x: 0, y: 0 });
 
-const areaForm = useForm({ name: '' });
+const areaForm = useForm({
+    name: '',
+    branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
+});
 const tableForm = useForm({
     name: '',
-    area_id: props.areas[0]?.id ? String(props.areas[0].id) : '',
+    area_id: props.areas.find((area) => Number(area.branch_id) === Number(props.activeBranchId ?? props.branches[0]?.id))?.id
+        ? String(props.areas.find((area) => Number(area.branch_id) === Number(props.activeBranchId ?? props.branches[0]?.id))?.id)
+        : '',
     capacity: '4',
+    branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
 });
 const editForm = useForm({ name: '', capacity: '', status: '' });
+
+const availableAreas = computed(() =>
+    props.areas.filter((area) => Number(area.branch_id) === Number(tableForm.branch_id)),
+);
+
+watch(
+    () => tableForm.branch_id,
+    () => {
+        if (!availableAreas.value.some((area) => String(area.id) === String(tableForm.area_id))) {
+            tableForm.area_id = availableAreas.value[0]?.id ? String(availableAreas.value[0].id) : '';
+        }
+    },
+);
 
 const filteredTables = computed(() =>
     selectedArea.value === 'all'
@@ -647,6 +671,18 @@ const vnd = (value: number) => {
                                 autofocus
                             />
                         </div>
+                        <div class="grid gap-1.5">
+                            <Label>Chi nhánh <span class="text-rose-500">*</span></Label>
+                            <select
+                                v-model="areaForm.branch_id"
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                            >
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                        </div>
                         <div class="flex justify-end gap-2">
                             <Button
                                 type="button"
@@ -705,6 +741,18 @@ const vnd = (value: number) => {
                                 required
                             />
                         </div>
+                        <div class="grid gap-1.5">
+                            <Label>Chi nhánh <span class="text-rose-500">*</span></Label>
+                            <select
+                                v-model="tableForm.branch_id"
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                            >
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                        </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div class="grid gap-1.5">
                                 <Label
@@ -720,7 +768,7 @@ const vnd = (value: number) => {
                                         Chọn khu vực
                                     </option>
                                     <option
-                                        v-for="a in areas"
+                                        v-for="a in availableAreas"
                                         :key="a.id"
                                         :value="a.id"
                                     >

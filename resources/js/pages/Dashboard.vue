@@ -190,9 +190,9 @@ const roles = computed(() => (page.props as any).roles ?? []);
 const selectedBranch = ref(props.branchId || 'all');
 
 watch(selectedBranch, (newVal) => {
-    router.get(
-        '/dashboard',
-        { branch_id: newVal },
+    router.post(
+        '/branch/switch',
+        newVal === 'all' ? { scope: 'all' } : { branch_id: Number(newVal) },
         {
             preserveState: true,
             preserveScroll: true,

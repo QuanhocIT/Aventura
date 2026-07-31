@@ -50,7 +50,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type Category = { id: number; name: string; description: string | null };
+type Category = { id: number; name: string; description: string | null; branch_id?: number | null; branch_name?: string | null };
 type Product = {
     id: number;
     code: string;
@@ -62,11 +62,17 @@ type Product = {
     category: Category | null;
     is_available: boolean;
     image_url: string | null;
+    branch_id?: number | null;
+    branch_name?: string | null;
 };
 
 const props = defineProps<{
     categories: Category[];
     products: Product[];
+    branches: Array<{ id: number; name: string }>;
+    activeBranchId: number | null;
+    branchScope: string;
+    canCreateShared: boolean;
 }>();
 
 // ── AI Menu Insights ──────────────────────────────────────────────────────────
@@ -263,7 +269,12 @@ const searchQuery = ref('');
 const selectedCategory = ref<number | ''>('');
 
 // ── Forms ──────────────────────────────────────────────────────────────────────
-const categoryForm = useForm({ name: '', description: '' });
+const categoryForm = useForm({
+    name: '',
+    description: '',
+    scope: 'branch',
+    branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
+});
 
 const productForm = useForm({
     category_id: props.categories[0]?.id ? String(props.categories[0].id) : '',
@@ -273,6 +284,8 @@ const productForm = useForm({
     redeem_points: 0,
     description: '',
     image: null as File | null,
+    scope: 'branch',
+    branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
 });
 
 const editForm = useForm({
@@ -1849,6 +1862,21 @@ const toggleAvailability = (p: Product) => {
                             class="rounded-xl"
                         />
                     </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Phạm vi</Label>
+                            <select v-model="categoryForm.scope" class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground">
+                                <option value="branch">Theo chi nhánh</option>
+                                <option v-if="canCreateShared" value="shared">Dùng chung toàn chuỗi</option>
+                            </select>
+                        </div>
+                        <div v-if="categoryForm.scope === 'branch'" class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Chi nhánh <span class="text-rose-500">*</span></Label>
+                            <select v-model="categoryForm.branch_id" required class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground">
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="grid gap-1.5">
                         <Label
                             for="cat-desc"
@@ -1914,6 +1942,21 @@ const toggleAvailability = (p: Product) => {
             </CardHeader>
             <CardContent class="p-5">
                 <form @submit.prevent="submitProduct" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Phạm vi</Label>
+                            <select v-model="productForm.scope" class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground">
+                                <option value="branch">Theo chi nhánh</option>
+                                <option v-if="canCreateShared" value="shared">Dùng chung toàn chuỗi</option>
+                            </select>
+                        </div>
+                        <div v-if="productForm.scope === 'branch'" class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Chi nhánh <span class="text-rose-500">*</span></Label>
+                            <select v-model="productForm.branch_id" required class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground">
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="grid gap-1.5">
                         <Label
                             for="prod-cat"
