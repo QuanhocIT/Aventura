@@ -148,4 +148,67 @@ class BranchManagementTest extends TestCase
 
         $response->assertNotFound();
     }
+
+    public function test_branch_manager_assignment_requires_manager_role(): void
+    {
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'manager_user_id' => null,
+        ]);
+        $candidate = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+
+        $this->actingAs($this->owner);
+
+        $response = $this->patch(route('branches.update', $branch), [
+            'code' => $branch->code,
+            'name' => $branch->name,
+            'status' => 'active',
+            'manager_user_id' => $candidate->id,
+        ]);
+
+        $response->assertSessionHasErrors('manager_user_id');
+        $this->assertDatabaseHas('restaurant_branches', [
+            'id' => $branch->id,
+            'manager_user_id' => null,
+        ]);
+    }
+
+    public function test_assigning_branch_manager_syncs_user_and_employee_branch(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'manager_user_id' => null,
+        ]);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $manager->id,
+            'branch_id' => null,
+        ]);
+
+        $this->actingAs($this->owner);
+
+        $response = $this->patch(route('branches.update', $branch), [
+            'code' => $branch->code,
+            'name' => $branch->name,
+            'status' => 'active',
+            'manager_user_id' => $manager->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('restaurant_branches', [
+            'id' => $branch->id,
+            'manager_user_id' => $manager->id,
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $manager->id,
+            'branch_id' => $branch->id,
+        ]);
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'branch_id' => $branch->id,
+        ]);
+    }
 }

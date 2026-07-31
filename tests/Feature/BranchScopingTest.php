@@ -231,4 +231,62 @@ class BranchScopingTest extends TestCase
         $this->post(route('branch.switch'), ['branch_id' => $this->branchA->id])->assertRedirect();
         $this->post(route('branch.switch'), ['branch_id' => $this->branchB->id])->assertRedirect();
     }
+
+    public function test_owner_can_switch_to_all_branches(): void
+    {
+        $this->actingAs($this->owner);
+
+        $this->post(route('branch.switch'), ['branch_id' => $this->branchA->id])->assertRedirect();
+        $this->post(route('branch.switch'), ['scope' => 'all'])->assertRedirect();
+
+        $this->assertFalse(session()->has('active_branch_id'));
+        $this->assertSame('all', session('active_branch_scope'));
+    }
+
+    public function test_manager_cannot_switch_to_all_branches(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+        Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchA->id,
+            'user_id' => $manager->id,
+        ]);
+
+        $this->actingAs($manager);
+
+        $response = $this->post(route('branch.switch'), ['scope' => 'all']);
+        $response->assertForbidden();
+    }
+
+    public function test_manager_session_cannot_override_assigned_branch(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+        Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchA->id,
+            'user_id' => $manager->id,
+        ]);
+
+        $response = $this->withSession(['active_branch_id' => $this->branchB->id])
+            ->actingAs($manager)
+            ->get(route('orders.index'));
+
+        $response->assertOk();
+        $this->assertSame($this->branchA->id, session('active_branch_id'));
+    }
+
+    public function test_unassigned_manager_is_denied_tenant_pages(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+
+        $this->actingAs($manager)
+            ->get(route('dashboard'))
+            ->assertForbidden();
+    }
 }
