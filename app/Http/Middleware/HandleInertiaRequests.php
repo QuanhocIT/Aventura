@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
@@ -39,6 +40,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
 
         // Spatie tự động invalidate cache khi roles/permissions thay đổi
         // Không cần forgetCachedPermissions() trên mỗi request
@@ -50,13 +52,19 @@ class HandleInertiaRequests extends Middleware
             $restaurant = $user->restaurant;
             if ($restaurant) {
                 // Cache branches per restaurant (5 phút) — không query DB mỗi request
-                $branches = ($user->hasAnyRole(['owner', 'manager']))
+                $branches = $user->canViewAllBranches()
                     ? Cache::remember(
-                        "tenant_branches:{$restaurant->id}",
+                        "tenant_branches:v2:{$restaurant->id}:all",
                         300,
                         fn () => $restaurant->branches()->select('id', 'name')->get()->toArray()
                     )
-                    : [];
+                    : ($tenantContext->isBranchScoped()
+                        ? $restaurant->branches()
+                            ->whereKey($tenantContext->activeBranchId())
+                            ->select('id', 'name')
+                            ->get()
+                            ->toArray()
+                        : []);
 
                 $tenant = [
                     'id'                   => $restaurant->id,
@@ -78,7 +86,9 @@ class HandleInertiaRequests extends Middleware
                         fn () => app(\App\Services\QuotaService::class)->getSummary($restaurant)
                     ),
                     'branches'             => $branches,
-                    'active_branch_id'     => $user->branch_id,
+                    'active_branch_id'     => $tenantContext->activeBranchId(),
+                    'scope'                => $tenantContext->scope(),
+                    'scope_key'            => $tenantContext->scopeKey(),
                 ];
             }
         }
@@ -110,7 +120,8 @@ class HandleInertiaRequests extends Middleware
             'phone'             => $user->phone,
             'avatar_url'        => $user->avatar_url,
             'restaurant_id'     => $user->restaurant_id,
-            'branch_id'         => $user->branch_id,
+            'branch_id'         => $user->getRawOriginal('branch_id'),
+            'assigned_branch_id'=> $user->assignedBranchId(),
             'supplier_id'       => $user->supplier_id,
             'status'            => $user->status,
             'onboarding_status' => $user->onboarding_status,

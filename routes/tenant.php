@@ -16,7 +16,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\ViolationReportController;
 
-Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'])->group(function () {
+Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit', 'tenant.branch'])->group(function () {
     Route::get('dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
 
     // Onboarding API
@@ -497,4 +497,3 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Chi nhánh làm việc
     Route::post('branch/switch', [\App\Http\Controllers\BranchSwitchController::class, 'switchBranch'])->name('branch.switch');
 });
-

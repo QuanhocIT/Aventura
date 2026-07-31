@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\RestaurantBranch;
 use App\Support\Tenant\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -57,17 +58,58 @@ class SetTenantContext
             }
         }
 
-        if ($user) {
-            // Branch Context Switching: set active branch ID from session
-            $activeBranchId = session('active_branch_id', $user->branch_id);
-            if (!session()->has('active_branch_id') && $user->branch_id) {
-                session(['active_branch_id' => $user->branch_id]);
+        $tenantContext = app(TenantContext::class);
+        $tenantContext->beginRequest($user?->restaurant_id);
+
+        if ($user && $user->restaurant_id) {
+            $tenantContext->setRestaurantId($user->restaurant_id);
+            $assignedBranchId = $user->assignedBranchId();
+            $requestedBranchId = session('active_branch_id');
+
+            if ($user->canViewAllBranches()) {
+                // Owner/super-admin may explicitly choose a branch or "all".
+                $validBranchId = $this->validActiveBranchId($requestedBranchId, $user->restaurant_id);
+                if ($validBranchId !== null) {
+                    $tenantContext->setActiveBranchId($validBranchId);
+                } else {
+                    session()->forget('active_branch_id');
+                    session(['active_branch_scope' => TenantContext::SCOPE_ALL]);
+                    $tenantContext->setAllBranches();
+                }
+            } else {
+                // Every non-owner tenant user is permanently branch-scoped.
+                $validBranchId = $this->validActiveBranchId($assignedBranchId, $user->restaurant_id);
+                if ($validBranchId === null) {
+                    session()->forget('active_branch_id');
+                    session()->forget('active_branch_scope');
+                    $tenantContext->setUnassigned();
+                } else {
+                    session([
+                        'active_branch_id' => $validBranchId,
+                        'active_branch_scope' => TenantContext::SCOPE_BRANCH,
+                    ]);
+                    $tenantContext->setActiveBranchId($validBranchId);
+                }
             }
-            app(TenantContext::class)->setActiveBranchId($activeBranchId);
+        } else {
+            $tenantContext->setAllBranches();
         }
 
-        app(TenantContext::class)->setRestaurantId($user?->restaurant_id);
-
         return $next($request);
+    }
+
+    private function validActiveBranchId(mixed $branchId, int $restaurantId): ?int
+    {
+        if (! is_numeric($branchId) || (int) $branchId <= 0) {
+            return null;
+        }
+
+        $id = (int) $branchId;
+
+        return RestaurantBranch::query()
+            ->where('restaurant_id', $restaurantId)
+            ->whereKey($id)
+            ->where('status', 'active')
+            ->value('id');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\EmailVerificationService;
+use App\Support\Tenant\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -150,6 +151,52 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasAnyRole(config('auth.super_admin_roles', ['super_admin']));
     }
 
+    public function isOwner(): bool
+    {
+        return $this->hasRole('owner');
+    }
+
+    /**
+     * A manager is branch-scoped. Owners may also have legacy manager data in
+     * old records, but they retain the owner-wide scope.
+     */
+    public function isBranchManager(): bool
+    {
+        return ! $this->isSuperAdmin()
+            && ! $this->isOwner()
+            && $this->hasAnyRole(['manager', 'quản lý', 'quan_ly', 'quanly']);
+    }
+
+    public function canViewAllBranches(): bool
+    {
+        return $this->isSuperAdmin() || $this->isOwner();
+    }
+
+    public function canAccessBranch(?int $branchId): bool
+    {
+        if ($this->canViewAllBranches()) {
+            return true;
+        }
+
+        return $branchId !== null && $this->assignedBranchId() === $branchId;
+    }
+
+    /**
+     * Employee assignment is the source of truth for staff and managers;
+     * user.branch_id is retained as a compatibility fallback for legacy data.
+     */
+    public function assignedBranchId(): ?int
+    {
+        $employee = $this->relationLoaded('employee')
+            ? $this->getRelation('employee')
+            : $this->employee;
+
+        $branchId = $employee?->getRawOriginal('branch_id')
+            ?? $this->getRawOriginal('branch_id');
+
+        return $branchId ? (int) $branchId : null;
+    }
+
     public function isExemptFromShiftLock(): bool
     {
         if ($this->isSuperAdmin()) {
@@ -200,9 +247,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function getBranchIdAttribute($value)
     {
-        if (session()->has('active_branch_id')) {
-            if ($this->isSuperAdmin() || $this->hasAnyRole(['owner', 'manager'])) {
-                return (int) session('active_branch_id');
+        if ($this->canViewAllBranches() || $this->isBranchManager()) {
+            $context = app(TenantContext::class);
+            if ($context->restaurantId() === $this->restaurant_id) {
+                if ($context->isBranchScoped()) {
+                    return $context->activeBranchId();
+                }
+
+                if ($context->isAllBranches()) {
+                    return null;
+                }
             }
         }
 

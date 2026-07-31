@@ -8,6 +8,7 @@ use App\Http\Middleware\CheckTenantSubscription;
 use App\Http\Middleware\ClearPermissionCache;
 use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\EnforceImpersonateReadOnly;
+use App\Http\Middleware\EnsureBranchContext;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -71,8 +72,8 @@ return Application::configure(basePath: dirname(__DIR__))
             CompressResponse::class,
             EnforceImpersonateReadOnly::class,
             HandleAppearance::class,
-            HandleInertiaRequests::class,
             SetTenantContext::class,
+            HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
@@ -80,6 +81,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.active' => CheckTenantSubscription::class,
             'tenant.subscription' => CheckTenantSubscription::class,
             'tenant.ratelimit' => TenantRateLimit::class,
+            'tenant.branch' => EnsureBranchContext::class,
             'tenant.quota' => TenantQuotaMiddleware::class,
             'auth.apikey' => AuthenticateApiKey::class,
             'role' => RoleMiddleware::class,
