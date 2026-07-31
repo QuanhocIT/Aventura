@@ -20,6 +20,7 @@ use App\Services\InventoryReplenishService;
 use App\Services\PriceAnalyticsService;
 use App\Services\QuotaService;
 use App\Services\SupplierSlaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -35,6 +36,7 @@ class SupplierController extends Controller
     public function __construct(
         protected PriceAnalyticsService $priceAnalytics,
         protected SupplierSlaService $slaService,
+        protected TenantContext $tenantContext,
     ) {}
 
     // =========================================================================
@@ -65,10 +67,14 @@ class SupplierController extends Controller
         }
 
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->withCount(['ingredients', 'purchaseOrders'])
             ->get();
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->with(['unit'])
             ->get()
             ->map(fn ($ing) => [
@@ -81,6 +87,7 @@ class SupplierController extends Controller
             ]);
 
         $purchaseOrders = PurchaseOrder::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->with(['supplier', 'creator', 'reviewer', 'items.ingredient.unit'])
             ->latest()
             ->get()
@@ -220,13 +227,18 @@ class SupplierController extends Controller
         ]);
 
         $user = $request->user();
+        $branchId = $this->resolveOperationalBranch($user);
+        abort_if($supplier->restaurant_id !== $user->restaurant_id, 403);
 
-        DB::transaction(function () use ($request, $supplier, $user) {
+        DB::transaction(function () use ($request, $supplier, $user, $branchId) {
             $totalAmount = 0;
             $itemsData = [];
 
             foreach ($request->input('items') as $item) {
-                $ingredient = Ingredient::findOrFail($item['ingredient_id']);
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->whereKey($item['ingredient_id'])
+                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
+                    ->firstOrFail();
                 $qty = (float) $item['quantity'];
                 $price = (float) $ingredient->average_cost;
                 $cost = $qty * $price;
@@ -258,6 +270,7 @@ class SupplierController extends Controller
 
             $po = PurchaseOrder::create([
                 'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $branchId,
                 'supplier_id' => $supplier->id,
                 'po_number' => 'PO-'.now()->format('Ymd').'-'.Str::upper(Str::random(5)),
                 'status' => $status,
@@ -296,6 +309,7 @@ class SupplierController extends Controller
     public function approveOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasRole('owner'), 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
 
         $purchaseOrder->update([
             'status' => 'approved',
@@ -325,6 +339,7 @@ class SupplierController extends Controller
     public function verifyOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
 
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
@@ -539,7 +554,10 @@ class SupplierController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
         return response()->json([
-            'suppliers' => $this->slaService->calculateForRestaurant($request->user()->restaurant_id),
+            'suppliers' => $this->slaService->calculateForRestaurant(
+                $request->user()->restaurant_id,
+                $this->tenantContext->activeBranchId(),
+            ),
         ]);
     }
 
@@ -551,15 +569,19 @@ class SupplierController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // Fetch active ingredients of the restaurant
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->with(['unit', 'supplier'])
             ->get();
 
         // Get total stock levels grouped by ingredient across all branches
         $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
             ->groupBy('ingredient_id')
             ->get()
@@ -657,6 +679,7 @@ class SupplierController extends Controller
         ]);
 
         $user = $request->user();
+        $branchId = $this->resolveOperationalBranch($user);
         $items = $request->input('items');
 
         // Group by supplier
@@ -664,7 +687,7 @@ class SupplierController extends Controller
 
         $createdCount = 0;
 
-        DB::transaction(function () use ($grouped, $user, &$createdCount) {
+        DB::transaction(function () use ($grouped, $user, $branchId, &$createdCount) {
             foreach ($grouped as $supplierId => $poItems) {
                 $totalAmount = 0;
                 $itemsData = [];
@@ -686,6 +709,7 @@ class SupplierController extends Controller
                 // Create draft PO (pending_approval)
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId,
                     'supplier_id' => $supplierId,
                     'po_number' => 'PO-'.now()->format('Ymd').'-DRAFT-'.Str::upper(Str::random(4)),
                     'status' => 'pending_approval',
@@ -714,9 +738,9 @@ class SupplierController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
-        $forecasts = $replenishService->getForecastAndReplenish($user->restaurant_id);
-        $pos = $replenishService->generateReplenishmentOrders($user->restaurant_id, $forecasts, $user->id);
-
+        $branchId = $this->resolveOperationalBranch($user);
+        $forecasts = $replenishService->getForecastAndReplenish($user->restaurant_id, $branchId);
+        $pos = $replenishService->generateReplenishmentOrders($user->restaurant_id, $forecasts, $user->id, $branchId);
         if (empty($pos)) {
             return back()->with('info', 'Tồn kho hiện tại vẫn ở mức an toàn. Không có nguyên liệu nào chạm ngưỡng cần bổ sung.');
         }
@@ -798,6 +822,7 @@ class SupplierController extends Controller
     public function releaseEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
         // Price variance owner approval enforcement (> 10%)
@@ -824,6 +849,7 @@ class SupplierController extends Controller
     public function refundEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
         $purchaseOrder->update([
@@ -833,5 +859,25 @@ class SupplierController extends Controller
         ]);
 
         return back()->with('success', 'Đã hoàn trả tiền ký quỹ (Escrow Refunded) về tài khoản nhà hàng thành công.');
+    }
+    private function resolveOperationalBranch($user): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? ($user->assignedBranchId() ?? $user->getRawOriginal('branch_id')) : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ kho.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        return $branchId;
+    }
+
+    private function authorizePurchaseOrderBranch($user, PurchaseOrder $purchaseOrder): void
+    {
+        abort_unless($purchaseOrder->restaurant_id === $user->restaurant_id, 403);
+        abort_if($purchaseOrder->branch_id === null, 422, 'Đơn mua hàng cũ chưa được gắn chi nhánh. Hãy chạy backfill dữ liệu trước khi xử lý.');
+        abort_unless($user->canAccessBranch((int) $purchaseOrder->branch_id), 403);
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $purchaseOrder->branch_id === $this->tenantContext->activeBranchId(), 403);
+        }
     }
 }

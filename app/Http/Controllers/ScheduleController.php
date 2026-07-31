@@ -58,6 +58,7 @@ class ScheduleController extends Controller
         // lịch trực/roster của MỌI chi nhánh — ScheduleAssignment::create() (dòng
         // ~899) đã ghi đúng branch_id từ trước, chỉ đường đọc chưa lọc theo nó.
         $branchId = $this->tenantContext->activeBranchId();
+        $scopeKey = $this->tenantContext->scopeKey();
 
         // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
         if ($user->hasAnyRole(['owner', 'manager'])) {
@@ -122,6 +123,9 @@ class ScheduleController extends Controller
                 ]);
 
             $shifts = WorkShift::where('restaurant_id', $restaurantId)
+                ->when($branchId, fn ($q) => $q->where(function ($q) use ($branchId) {
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }))
                 ->where('status', 'active')
                 ->get()
                 ->map(fn ($s) => [
@@ -132,18 +136,21 @@ class ScheduleController extends Controller
                 ]);
 
             $employees = Employee::where('restaurant_id', $restaurantId)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('status', 'active')
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
-            $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments) {
-                return Cache::remember("schedule_staffing_tips:{$restaurantId}", 300, function () use ($restaurantId, $shifts, $assignments) {
+            $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
+                return Cache::remember("schedule_staffing_tips:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $shifts, $assignments, $branchId) {
                     $isSqlite = DB::connection()->getDriverName() === 'sqlite';
                     $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : 'HOUR(completed_at)';
 
-                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}", 3600, function () use ($restaurantId, $hourExpr) {
+                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}:{$scopeKey}", 3600, function () use ($restaurantId, $hourExpr, $branchId) {
                         return DB::table('orders_unified')
                             ->where('restaurant_id', $restaurantId)
+                            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                             ->where('status', 'completed')
                             ->where('completed_at', '>=', now()->subDays(30))
                             ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
@@ -202,6 +209,7 @@ class ScheduleController extends Controller
 
             $registrations = ScheduleRegistration::where('restaurant_id', $restaurantId)
                 ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                ->when($branchId, fn ($query) => $query->whereHas('employee', fn ($employee) => $employee->where('branch_id', $branchId)))
                 ->with(['employee:id,full_name,employee_code,job_title', 'shift:id,name'])
                 ->get()
                 ->map(fn ($r) => [
@@ -218,6 +226,7 @@ class ScheduleController extends Controller
 
             $allPendingSwaps = ShiftSwap::where('restaurant_id', $restaurantId)
                 ->where('status', 'accepted')
+                ->when($branchId, fn ($query) => $query->whereHas('requesterAssignment', fn ($assignment) => $assignment->where('branch_id', $branchId)))
                 ->with([
                     'requesterAssignment.employee:id,full_name,employee_code',
                     'requesterAssignment.shift:id,name,start_time,end_time',
@@ -240,10 +249,11 @@ class ScheduleController extends Controller
             $startOfMonth = Carbon::now()->startOfMonth()->toDateString();
             $endOfMonth = Carbon::now()->endOfMonth()->toDateString();
 
-            $monthlyAssignments = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant) {
-                return Cache::remember("schedule_monthly_assignments:{$restaurantId}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant) {
+            $monthlyAssignments = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId, $scopeKey) {
+                return Cache::remember("schedule_monthly_assignments:{$restaurantId}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId) {
                     return ScheduleAssignment::where('restaurant_id', $restaurantId)
                         ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
+                        ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                         ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
                         ->get()
                         ->map(function ($a) use ($restaurant) {
@@ -626,6 +636,7 @@ class ScheduleController extends Controller
                 foreach ($data['registrations'] as $reg) {
                     ScheduleRegistration::create([
                         'restaurant_id' => $employee->restaurant_id,
+                        'branch_id' => $employee->branch_id,
                         'employee_id' => $employee->id,
                         'shift_id' => $reg['shift_id'],
                         'scheduled_date' => $reg['date'],

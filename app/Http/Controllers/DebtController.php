@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,8 @@ use Inertia\Response;
 
 class DebtController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     /**
      * Display the debts dashboard & list of accounts payable/receivable.
      */
@@ -195,6 +198,8 @@ class DebtController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($payable->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->resolveOperationalBranch($user);
+        abort_if($payable->purchaseOrder?->branch_id !== null && (int) $payable->purchaseOrder->branch_id !== $branchId, 403);
 
         $remaining = (float) $payable->amount - (float) $payable->paid_amount;
         $request->validate([
@@ -208,7 +213,7 @@ class DebtController extends Controller
         $notes = $request->input('notes');
 
         try {
-            DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user) {
+            DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user, $branchId) {
                 $lockedPayable = AccountPayable::where('id', $payable->id)->lockForUpdate()->firstOrFail();
                 $rem = (float) $lockedPayable->amount - (float) $lockedPayable->paid_amount;
                 if ($payAmount > $rem) {
@@ -234,14 +239,14 @@ class DebtController extends Controller
                 // Record cash transaction if cash register is open and payment method is cash
                 if ($method === 'cash') {
                     $register = CashRegister::where('restaurant_id', $lockedPayable->restaurant_id)
-                        ->where('branch_id', $user->branch_id)
+                        ->where('branch_id', $branchId)
                         ->where('status', 'open')
                         ->first();
 
                     if ($register) {
                         CashTransaction::create([
                             'restaurant_id' => $lockedPayable->restaurant_id,
-                            'branch_id' => $user->branch_id,
+                            'branch_id' => $branchId,
                             'cash_register_id' => $register->id,
                             'type' => 'out',
                             'amount' => $payAmount,
@@ -270,6 +275,8 @@ class DebtController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($receivable->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->resolveOperationalBranch($user);
+        abort_if($receivable->order?->branch_id !== null && (int) $receivable->order->branch_id !== $branchId, 403);
 
         $remaining = (float) $receivable->amount - (float) $receivable->received_amount;
         $request->validate([
@@ -283,7 +290,7 @@ class DebtController extends Controller
         $notes = $request->input('notes');
 
         try {
-            DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user) {
+            DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user, $branchId) {
                 // Khóa bản ghi AccountReceivable
                 $lockedReceivable = AccountReceivable::where('id', $receivable->id)->lockForUpdate()->firstOrFail();
                 $rem = (float) $lockedReceivable->amount - (float) $lockedReceivable->received_amount;
@@ -314,14 +321,14 @@ class DebtController extends Controller
                 // Record cash transaction if cash register is open and payment method is cash
                 if ($method === 'cash') {
                     $register = CashRegister::where('restaurant_id', $lockedReceivable->restaurant_id)
-                        ->where('branch_id', $user->branch_id)
+                        ->where('branch_id', $branchId)
                         ->where('status', 'open')
                         ->first();
 
                     if ($register) {
                         CashTransaction::create([
                             'restaurant_id' => $lockedReceivable->restaurant_id,
-                            'branch_id' => $user->branch_id,
+                            'branch_id' => $branchId,
                             'cash_register_id' => $register->id,
                             'type' => 'in',
                             'amount' => $collectAmount,
@@ -364,5 +371,16 @@ class DebtController extends Controller
         ]);
 
         return back()->with('success', 'Đã cập nhật cấu hình hạn mức tín dụng khách hàng.');
+    }
+
+    private function resolveOperationalBranch($user): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? $user->assignedBranchId() : null);
+
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ công nợ.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        return $branchId;
     }
 }

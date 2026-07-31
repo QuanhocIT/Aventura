@@ -23,7 +23,7 @@ class InternalTransferController extends Controller
      */
     public function transferRecommendations(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->isOwner(), 403);
 
         $user = $request->user();
 
@@ -190,7 +190,7 @@ class InternalTransferController extends Controller
      */
     public function storeInternalTransfer(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->isOwner(), 403);
 
         $user = $request->user();
 
@@ -303,7 +303,7 @@ class InternalTransferController extends Controller
      */
     public function listInternalTransfers(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->isOwner(), 403);
 
         $transfers = InternalTransfer::where('restaurant_id', $request->user()->restaurant_id)
             ->with(['fromBranch', 'toBranch', 'ingredient.unit', 'creator'])

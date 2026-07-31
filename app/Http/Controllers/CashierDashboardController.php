@@ -12,6 +12,7 @@ use App\Models\ProductCategory;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -24,6 +25,8 @@ class CashierDashboardController extends Controller
         $user = auth()->user();
         $restaurant = $user?->restaurant;
         $employee = $user?->employee;
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
 
         $tablesData = [];
         $products = [];
@@ -36,27 +39,30 @@ class CashierDashboardController extends Controller
         $colleagues = [];
 
         if ($restaurant) {
+            abort_if($branchId === null, 403, 'POS phải được mở trong một chi nhánh cụ thể.');
             // Ensure default 20 tables exist (A1-A10, B1-B10) — chỉ chạy 1 lần
-            $cacheKey = "restaurant_{$restaurant->id}_tables_initialized";
+            $cacheKey = "restaurant_{$restaurant->id}_tables_initialized:branch:{$branchId}";
             if (! Cache::has($cacheKey)) {
                 $areaA = Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-A'],
+                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-A'],
                     ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
                 );
                 $areaB = Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'code' => 'SANH-B'],
+                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-B'],
                     ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
                 );
 
-                $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)->count();
+                $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)
+                    ->where('branch_id', $branchId)
+                    ->count();
                 if ($tableCount < 20) {
                     for ($i = 1; $i <= 10; $i++) {
                         RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'name' => "A{$i}"],
+                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "A{$i}"],
                             ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
                         );
                         RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'name' => "B{$i}"],
+                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "B{$i}"],
                             ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
                         );
                     }
@@ -67,6 +73,7 @@ class CashierDashboardController extends Controller
             // Query tables along with their active unpaid orders (eager load activeOrder relationship)
             $tablesData = RestaurantTable::with(['area', 'activeOrder.items.product'])
                 ->where('restaurant_id', $restaurant->id)
+                ->where('branch_id', $branchId)
                 ->orderBy('name')
                 ->get()
                 ->map(function ($t) {
@@ -109,6 +116,9 @@ class CashierDashboardController extends Controller
 
             // Load active products
             $products = Product::where('restaurant_id', $restaurant->id)
+                ->where(function ($query) use ($branchId) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
                 ->where('is_active', true)
                 ->where('is_available', true)
                 ->get()
@@ -125,6 +135,9 @@ class CashierDashboardController extends Controller
 
             // Load active categories
             $categories = ProductCategory::where('restaurant_id', $restaurant->id)
+                ->where(function ($query) use ($branchId) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
                 ->where('status', 'active')
                 ->orderBy('display_order')
                 ->get()
@@ -150,11 +163,13 @@ class CashierDashboardController extends Controller
                     ];
 
                     $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
+                        ->where('branch_id', $branchId)
                         ->where('status', 'paid')
                         ->where('paid_at', '>=', $assignment->check_in_at)
                         ->sum('amount');
 
                     $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
+                        ->where('branch_id', $branchId)
                         ->where('cashier_user_id', $user->id)
                         ->where('status', 'completed')
                         ->where('completed_at', '>=', $assignment->check_in_at);
@@ -171,6 +186,7 @@ class CashierDashboardController extends Controller
                 $startOfWeek = now()->startOfWeek(Carbon::MONDAY)->toDateString();
                 $endOfWeek = now()->endOfWeek(Carbon::SUNDAY)->toDateString();
                 $weeklySchedules = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('branch_id', $branchId)
                     ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
                     ->with('shift')
                     ->orderBy('scheduled_date')
@@ -187,6 +203,7 @@ class CashierDashboardController extends Controller
 
             // Query pending QR orders
             $qrOrders = Order::where('restaurant_id', $restaurant->id)
+                ->where('branch_id', $branchId)
                 ->where('channel', 'qr')
                 ->where('status', 'pending')
                 ->with(['table', 'items.product'])
@@ -206,6 +223,7 @@ class CashierDashboardController extends Controller
 
             // Delivery & takeaway orders (external/third-party channels)
             $externalOrders = Order::where('restaurant_id', $restaurant->id)
+                ->where('branch_id', $branchId)
                 ->whereIn('channel', ['delivery', 'takeaway'])
                 ->whereNotIn('status', ['completed', 'cancelled'])
                 ->with(['table', 'items.product'])
@@ -228,6 +246,7 @@ class CashierDashboardController extends Controller
 
             // Load cashier completed history
             $completedHistory = Order::where('restaurant_id', $restaurant->id)
+                ->where('branch_id', $branchId)
                 ->where('cashier_user_id', $user->id)
                 ->where('status', 'completed')
                 ->with(['table'])
@@ -245,6 +264,9 @@ class CashierDashboardController extends Controller
 
             // Active shifts list for registration
             $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)
+                ->where(function ($query) use ($branchId) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
                 ->where('status', 'active')
                 ->get()
                 ->map(fn ($s) => [
@@ -271,6 +293,7 @@ class CashierDashboardController extends Controller
 
             // Đồng nghiệp cùng nhà hàng (để chọn đối tượng khi gửi khiếu nại ẩn danh)
             $colleagues = Employee::where('restaurant_id', $restaurant->id)
+                ->where('branch_id', $branchId)
                 ->where('status', 'active')
                 ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
                 ->orderBy('full_name')

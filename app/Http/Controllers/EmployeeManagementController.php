@@ -11,6 +11,7 @@ use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
@@ -32,6 +34,8 @@ class EmployeeManagementController extends Controller
     public function employeesPage(Request $request): Response
     {
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
 
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -50,7 +54,9 @@ class EmployeeManagementController extends Controller
         $canViewSensitivePii = $user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin');
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
             ->with(['user.roles'])
+            ->with('branch:id,name')
             ->get()
             ->map(fn ($e) => [
                 'id' => $e->id,
@@ -74,11 +80,17 @@ class EmployeeManagementController extends Controller
                 'base_salary' => (float) ($e->base_salary ?? 0),
                 'rating_star' => (float) ($e->rating_star ?? 5.0),
                 'rating_count' => (int) ($e->rating_count ?? 0),
+                'branch_id' => $e->branch_id,
+                'branch_name' => $e->branch?->name,
             ]);
 
         // Query or seed shifts dynamically
         $shiftsQuery = $user->restaurant_id
-            ? WorkShift::where('restaurant_id', $user->restaurant_id)->get()
+            ? WorkShift::where('restaurant_id', $user->restaurant_id)
+                ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($branchId) {
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }))
+                ->get()
             : collect();
         if ($shiftsQuery->isEmpty() && $user->restaurant_id) {
             $defaultShifts = [
@@ -89,7 +101,11 @@ class EmployeeManagementController extends Controller
             foreach ($defaultShifts as $ds) {
                 WorkShift::create(array_merge($ds, ['restaurant_id' => $user->restaurant_id]));
             }
-            $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)->get();
+            $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)
+                ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($branchId) {
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }))
+                ->get();
         }
 
         $shifts = $shiftsQuery->map(fn ($s) => [
@@ -104,6 +120,7 @@ class EmployeeManagementController extends Controller
         $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
         $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->with(['employee', 'shift'])
             ->get();
@@ -115,6 +132,7 @@ class EmployeeManagementController extends Controller
         ]);
 
         $leaveRequests = LeaveRequest::where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->with(['employee'])
             ->latest()
             ->get()
@@ -131,6 +149,7 @@ class EmployeeManagementController extends Controller
             ]);
 
         $registrations = ScheduleRegistration::where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->with(['employee:id,full_name', 'shift:id,name'])
             ->get()
@@ -141,6 +160,9 @@ class EmployeeManagementController extends Controller
             ]);
 
         $pendingSwaps = ShiftSwap::where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q
+                ->whereHas('requesterAssignment', fn ($assignmentQuery) => $assignmentQuery->where('branch_id', $branchId))
+                ->whereHas('receiverAssignment', fn ($assignmentQuery) => $assignmentQuery->where('branch_id', $branchId)))
             ->where('status', 'accepted')
             ->with([
                 'requesterAssignment.employee',
@@ -168,6 +190,7 @@ class EmployeeManagementController extends Controller
 
         $peakHours = DB::table('orders_unified')
             ->where('restaurant_id', $user->restaurant_id)
+            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->where('completed_at', '>=', now()->subDays(30))
             ->selectRaw("{$hourExpr} as hour, SUM(total_amount) as revenue")
@@ -314,6 +337,11 @@ class EmployeeManagementController extends Controller
             'pendingSwaps' => $pendingSwaps,
             'autoSchedule' => (bool) $user->restaurant->auto_schedule,
             'dailyForecasts' => $dailyForecasts,
+            'branches' => $user->isOwner()
+                ? $restaurant->branches()->where('status', 'active')->get(['id', 'name'])
+                : $restaurant->branches()->whereKey($branchId)->get(['id', 'name']),
+            'activeBranchId' => $branchId,
+            'branchScope' => $tenantContext->scope(),
         ]);
     }
 
@@ -345,7 +373,7 @@ class EmployeeManagementController extends Controller
             // mặc định lấy theo chi nhánh đang xem của người tạo (session
             // active_branch_id qua User::getBranchIdAttribute()) khi bỏ trống.
             'branch_id' => [
-                'nullable', 'integer',
+                'sometimes', 'nullable', 'integer',
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
         ]);
@@ -353,7 +381,18 @@ class EmployeeManagementController extends Controller
         // $user->branch_id (owner/manager) chỉ có giá trị nếu đã từng bấm nút
         // chuyển chi nhánh trong phiên hiện tại (session active_branch_id) —
         // nếu chưa, rơi về chi nhánh đầu tiên của nhà hàng làm mặc định hợp lý.
-        $branchId = $data['branch_id'] ?? $user->branch_id ?? $user->restaurant->branches()->value('id');
+        $tenantContext = app(TenantContext::class);
+        $branchId = (int) ($data['branch_id'] ?? $tenantContext->activeBranchId() ?? $user->assignedBranchId() ?? 0);
+        $data['branch_id'] = $branchId;
+        if (! $user->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
+        }
+        if ($tenantContext->isBranchScoped() && $branchId !== $tenantContext->activeBranchId()) {
+            throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+        }
+        if ($data['role'] === 'manager') {
+            $this->assertManagerSlotAvailable($user->restaurant_id, $branchId);
+        }
 
         // Disk 'local' (private) — KHÔNG dùng disk public: ảnh CCCD truy cập được
         // qua /storage/... không cần đăng nhập là lộ PII nghiêm trọng.
@@ -375,7 +414,7 @@ class EmployeeManagementController extends Controller
             'password' => bcrypt($tempPassword),
             'phone' => $data['phone'],
             'restaurant_id' => $user->restaurant_id,
-            'branch_id' => $branchId,
+            'branch_id' => $branchId ?: null,
             'status' => 'inactive',
             'email_verified_at' => null,
         ]);
@@ -390,7 +429,7 @@ class EmployeeManagementController extends Controller
         // Tạo hồ sơ nhân viên Employee ở trạng thái Chờ xác nhận
         $newEmployee = Employee::create([
             'restaurant_id' => $user->restaurant_id,
-            'branch_id' => $branchId,
+            'branch_id' => $branchId ?: null,
             'user_id' => $newUser->id,
             'employee_code' => 'EMP-'.Str::upper(Str::random(5)),
             'full_name' => $data['name'],
@@ -410,6 +449,13 @@ class EmployeeManagementController extends Controller
             'status' => 'inactive',
             'role_id' => $role->id,
         ]);
+
+        if ($data['role'] === 'manager') {
+            DB::table('restaurant_branches')
+                ->where('id', $branchId)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->update(['manager_user_id' => $newUser->id]);
+        }
 
         // Tạo signed URL hạn dùng 3 ngày để xác nhận lời mời nhận việc
         $verificationUrl = URL::temporarySignedRoute(
@@ -896,6 +942,11 @@ class EmployeeManagementController extends Controller
     {
         $user = $request->user();
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $employee->branch_id), 403);
+
+        $tenantContext = app(TenantContext::class);
+        $oldBranchId = $employee->branch_id ? (int) $employee->branch_id : null;
+        $oldRole = $employee->user?->roles?->first()?->name;
 
         $data = $request->validate([
             'status' => ['sometimes', 'in:active,inactive'],
@@ -917,8 +968,19 @@ class EmployeeManagementController extends Controller
             ],
         ]);
 
-        if (array_key_exists('branch_id', $data) && $employee->user) {
-            $employee->user->update(['branch_id' => $data['branch_id']]);
+        $newBranchId = $oldBranchId;
+        if (array_key_exists('branch_id', $data)) {
+            $newBranchId = $data['branch_id'] !== null ? (int) $data['branch_id'] : null;
+            if ($newBranchId === null || ! $user->canAccessBranch($newBranchId)) {
+                throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
+            }
+            if ($tenantContext->isBranchScoped() && $newBranchId !== $tenantContext->activeBranchId()) {
+                throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+            }
+        }
+
+        if ($employee->user) {
+            $employee->user->update(['branch_id' => $newBranchId]);
         }
 
         if ($request->hasFile('citizen_id_front')) {
@@ -948,8 +1010,28 @@ class EmployeeManagementController extends Controller
         unset($employeeData['role']);
         unset($employeeData['citizen_id_front']);
         unset($employeeData['citizen_id_back']);
+        if (array_key_exists('branch_id', $data)) {
+            $employeeData['branch_id'] = $newBranchId;
+        }
         $employee->update($employeeData);
         $employee->save();
+
+        $newRole = $data['role'] ?? $oldRole;
+        if ($newRole === 'manager' && $newBranchId) {
+            $this->assertManagerSlotAvailable($user->restaurant_id, $newBranchId, $employee->user_id);
+        }
+        if ($oldRole === 'manager' && ($newRole !== 'manager' || $oldBranchId !== $newBranchId)) {
+            DB::table('restaurant_branches')
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('manager_user_id', $employee->user_id)
+                ->update(['manager_user_id' => null]);
+        }
+        if ($newRole === 'manager' && $newBranchId) {
+            DB::table('restaurant_branches')
+                ->where('id', $newBranchId)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->update(['manager_user_id' => $employee->user_id]);
+        }
 
         return back()->with('success', 'Đã cập nhật thông tin nhân viên.');
     }
@@ -960,6 +1042,10 @@ class EmployeeManagementController extends Controller
     public function syncShifts(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi cấu hình ca làm.');
+        abort_unless($user->canAccessBranch($branchId), 403);
         $data = $request->validate([
             'shifts' => ['required', 'array'],
             'shifts.*.name' => ['required', 'string', 'max:100'],
@@ -970,6 +1056,9 @@ class EmployeeManagementController extends Controller
         $existingIds = [];
         $shiftIds = collect($data['shifts'])->pluck('id')->filter()->toArray();
         $existingShifts = WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->whereIn('id', $shiftIds)
             ->get()
             ->keyBy('id');
@@ -984,6 +1073,7 @@ class EmployeeManagementController extends Controller
 
             if ($shift) {
                 $shift->update([
+                    'branch_id' => $branchId,
                     'name' => $s['name'],
                     'start_time' => $s['start'],
                     'end_time' => $s['end'],
@@ -991,6 +1081,7 @@ class EmployeeManagementController extends Controller
             } else {
                 $shift = WorkShift::create([
                     'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId,
                     'name' => $s['name'],
                     'code' => $code,
                     'start_time' => $s['start'],
@@ -1003,9 +1094,25 @@ class EmployeeManagementController extends Controller
 
         // Delete shifts that are not in the payload
         WorkShift::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)
             ->whereNotIn('id', $existingIds)
             ->delete();
 
         return back()->with('success', 'Đã lưu cấu hình ca làm việc mới.');
+    }
+    private function assertManagerSlotAvailable(int $restaurantId, int $branchId, ?int $exceptUserId = null): void
+    {
+        $occupied = DB::table('restaurant_branches')
+            ->where('restaurant_id', $restaurantId)
+            ->where('id', $branchId)
+            ->whereNotNull('manager_user_id')
+            ->when($exceptUserId !== null, fn ($q) => $q->where('manager_user_id', '!=', $exceptUserId))
+            ->exists();
+
+        if ($occupied) {
+            throw ValidationException::withMessages([
+                'role' => 'Chi nhánh này đã có quản lý. Vui lòng gỡ quản lý hiện tại trước khi gán người mới.',
+            ]);
+        }
     }
 }

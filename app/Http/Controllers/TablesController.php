@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Area;
 use App\Models\RestaurantTable;
+use App\Models\User;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,24 +23,31 @@ class TablesController extends Controller
 
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $context = app(TenantContext::class);
+        $scopeKey = $context->scopeKey();
 
-        $areas = Cache::remember("restaurant_{$restaurantId}_areas", 3600, function () use ($restaurantId) {
+        $areas = Cache::remember("restaurant_{$restaurantId}_areas:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context) {
             return Area::where('restaurant_id', $restaurantId)
+                ->when($context->isBranchScoped(), fn ($q) => $q->where('branch_id', $context->activeBranchId()))
                 ->where('status', 'active')
                 ->orderBy('display_order')
                 ->withCount('tables')
+                ->with('branch:id,name')
                 ->get()
                 ->map(fn ($a) => [
                     'id' => $a->id,
                     'name' => $a->name,
                     'code' => $a->code,
                     'tables_count' => $a->tables_count,
+                    'branch_id' => $a->branch_id,
+                    'branch_name' => $a->branch?->name,
                 ])->toArray();
         });
 
-        $tables = Cache::remember("restaurant_{$restaurantId}_tables", 3600, function () use ($restaurantId) {
+        $tables = Cache::remember("restaurant_{$restaurantId}_tables:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context) {
             return RestaurantTable::where('restaurant_id', $restaurantId)
-                ->with(['area', 'activeOrder.creator', 'activeOrder.items.product'])
+                ->when($context->isBranchScoped(), fn ($q) => $q->where('branch_id', $context->activeBranchId()))
+                ->with(['area', 'branch:id,name', 'activeOrder.creator', 'activeOrder.items.product'])
                 ->whereNull('deleted_at')
                 ->orderBy('area_id')
                 ->orderBy('name')
@@ -44,6 +55,8 @@ class TablesController extends Controller
                 ->map(fn ($t) => [
                     'id' => $t->id,
                     'restaurant_id' => $t->restaurant_id,
+                    'branch_id' => $t->branch_id,
+                    'branch_name' => $t->branch?->name,
                     'name' => $t->name,
                     'capacity' => $t->capacity,
                     'status' => $t->status,
@@ -71,6 +84,11 @@ class TablesController extends Controller
         return Inertia::render('tables/Index', [
             'areas' => $areas,
             'tables' => $tables,
+            'branches' => $user->isOwner()
+                ? $user->restaurant->branches()->where('status', 'active')->get(['id', 'name'])
+                : $user->restaurant->branches()->whereKey($context->activeBranchId())->get(['id', 'name']),
+            'activeBranchId' => $context->activeBranchId(),
+            'branchScope' => $context->scope(),
         ]);
     }
 
@@ -79,16 +97,23 @@ class TablesController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
+        $context = app(TenantContext::class);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
+            'branch_id' => [
+                'required', 'integer',
+                Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
         ]);
+        $branchId = $this->resolveWriteBranch($user, $context, (int) $data['branch_id']);
 
         Area::create([
             'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $branchId,
             'name' => $data['name'],
             'code' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
-            'display_order' => Area::where('restaurant_id', $user->restaurant_id)->count() + 1,
+            'display_order' => Area::where('restaurant_id', $user->restaurant_id)->where('branch_id', $branchId)->count() + 1,
             'status' => 'active',
         ]);
 
@@ -99,6 +124,7 @@ class TablesController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($area->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $area->branch_id), 403);
 
         $tablesCount = $area->tables()->whereNull('deleted_at')->count();
         if ($tablesCount > 0) {
@@ -115,15 +141,24 @@ class TablesController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
+        $context = app(TenantContext::class);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:50'],
             'area_id' => ['required', \App\Support\TenantRule::exists('areas')],
             'capacity' => ['required', 'integer', 'min:1', 'max:100'],
+            'branch_id' => [
+                'required', 'integer',
+                Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
         ]);
+        $branchId = $this->resolveWriteBranch($user, $context, (int) $data['branch_id']);
+        $area = Area::where('restaurant_id', $user->restaurant_id)->findOrFail($data['area_id']);
+        abort_if((int) $area->branch_id !== $branchId, 422, 'Khu vực phải thuộc đúng chi nhánh đã chọn.');
 
         RestaurantTable::create([
             'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $branchId,
             'area_id' => $data['area_id'],
             'name' => $data['name'],
             'capacity' => $data['capacity'],
@@ -139,6 +174,7 @@ class TablesController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $table->branch_id), 403);
 
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:50'],
@@ -158,6 +194,7 @@ class TablesController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $table->branch_id), 403);
 
         $table->delete();
 
@@ -168,11 +205,29 @@ class TablesController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $table->branch_id), 403);
 
         $table->update([
             'qr_token' => Str::random(32),
         ]);
 
         return back()->with('success', 'Đã tạo lại mã QR mới cho bàn.');
+    }
+
+    private function resolveWriteBranch(User $user, TenantContext $context, int $requestedBranchId): int
+    {
+        if (! $user->canAccessBranch($requestedBranchId)) {
+            throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền thao tác tại chi nhánh này.']);
+        }
+
+        if ($context->isBranchScoped() && $requestedBranchId !== $context->activeBranchId()) {
+            throw ValidationException::withMessages(['branch_id' => 'Chi nhánh thao tác phải trùng chi nhánh hiện tại.']);
+        }
+
+        if (! $context->isBranchScoped() && ! $user->isOwner()) {
+            throw ValidationException::withMessages(['branch_id' => 'Tài khoản quản lý phải thao tác trong chi nhánh được gán.']);
+        }
+
+        return $requestedBranchId;
     }
 }

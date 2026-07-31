@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Employee;
 use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -17,6 +16,7 @@ use App\Services\Dashboard\DashboardSummaryService;
 use App\Services\ForecastService;
 use App\Services\OrderStatsCacheService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -32,6 +32,7 @@ class DashboardController extends Controller
         private DashboardHealthService $healthService,
         private DashboardSummaryService $summaryService,
         private DashboardAlertService $alertService,
+        private TenantContext $tenantContext,
     ) {}
 
     private function deferProp(callable $callback, ?string $group = null)
@@ -71,11 +72,33 @@ class DashboardController extends Controller
         $hasHrTimekeeping = $restaurant && $this->quotaService->hasFeature($restaurant, 'hr_timekeeping');
         $hasInventoryBasic = $restaurant && $this->quotaService->hasFeature($restaurant, 'inventory_basic');
 
-        $branchId = $request->query('branch_id');
-        if ($branchId === 'all' || $branchId === '') {
-            $branchId = null;
-        } elseif ($branchId !== null) {
-            $branchId = (int) $branchId;
+        // The session/context is the single source of truth. Dashboard no
+        // longer keeps an independent query-string scope. The query fallback
+        // below only migrates links from the old dashboard selector.
+        $branchId = $this->tenantContext->activeBranchId();
+
+        if ($restaurant && $user->canViewAllBranches() && $request->has('branch_id')) {
+            $requestedBranch = $request->query('branch_id');
+            if ($requestedBranch === 'all' || $requestedBranch === '') {
+                session()->forget('active_branch_id');
+                session(['active_branch_scope' => TenantContext::SCOPE_ALL]);
+                $this->tenantContext->setAllBranches();
+                $branchId = null;
+            } elseif (is_numeric($requestedBranch)) {
+                $requestedBranchId = (int) $requestedBranch;
+                $isValidBranch = $restaurant->branches()
+                    ->whereKey($requestedBranchId)
+                    ->where('status', 'active')
+                    ->exists();
+
+                abort_unless($isValidBranch, 403, 'Chi nhánh không thuộc nhà hàng của bạn.');
+                session([
+                    'active_branch_id' => $requestedBranchId,
+                    'active_branch_scope' => TenantContext::SCOPE_BRANCH,
+                ]);
+                $this->tenantContext->setActiveBranchId($requestedBranchId);
+                $branchId = $requestedBranchId;
+            }
         }
 
         // Enforce branch limits: Free plan allows only 1 branch
@@ -83,10 +106,8 @@ class DashboardController extends Controller
             $branchId = null;
         }
 
-        // Restrict non-owners to their assigned branch if employee profile exists
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id && ! $user->hasRole('owner')) {
-            $branchId = $employee->branch_id;
+        if (! $user->canViewAllBranches()) {
+            $branchId = $this->tenantContext->activeBranchId();
         }
 
         $stats = null;
@@ -107,7 +128,12 @@ class DashboardController extends Controller
 
         $rid = $restaurant?->id;
         if ($restaurant) {
-            $branches = $restaurant->branches()->get(['id', 'name'])->toArray();
+            $branches = $user->canViewAllBranches()
+                ? $restaurant->branches()->get(['id', 'name'])->toArray()
+                : $restaurant->branches()
+                    ->whereKey($branchId)
+                    ->get(['id', 'name'])
+                    ->toArray();
 
             // Today summary & Yesterday summary for active branch/consolidated
             $todaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
@@ -438,7 +464,8 @@ class DashboardController extends Controller
 
     private function getForecastData(int $rid, ?int $branchId = null): ?array
     {
-        $key = "dashboard:forecast:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:forecast:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             return $this->forecast->forecastTomorrow($rid, $branchId);

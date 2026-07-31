@@ -110,7 +110,9 @@ class SalaryController extends Controller
         ];
 
         // Lấy danh sách chi nhánh phục vụ bộ lọc ở Frontend
-        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)->get(['id', 'name']);
+        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->when(! $user->canViewAllBranches(), fn ($q) => $q->where('id', $branchId))
+            ->get(['id', 'name']);
 
         return Inertia::render('salaries/Index', [
             'salaries' => $salaries,
@@ -133,7 +135,8 @@ class SalaryController extends Controller
         $approvedCount = $this->salaryService->bulkApprove(
             $request->user()->restaurant_id,
             $data['salary_ids'],
-            $request->user()->id
+            $request->user()->id,
+            $this->tenantContext->activeBranchId(),
         );
 
         return back()->with('success', "Đã phê duyệt thành công {$approvedCount} bảng lương.");
@@ -144,7 +147,11 @@ class SalaryController extends Controller
         abort_unless($request->user()->can('manage_salary'), 403);
 
         $period = $request->input('period', today()->format('Y-m'));
-        $result = $this->salaryService->generateMonthlyDrafts($request->user()->restaurant_id, $period);
+        $result = $this->salaryService->generateMonthlyDrafts(
+            $request->user()->restaurant_id,
+            $period,
+            $this->tenantContext->activeBranchId(),
+        );
 
         $msg = "Đã tạo {$result['created']} bảng lương, bỏ qua {$result['skipped']} (đã tồn tại).";
 
@@ -154,6 +161,7 @@ class SalaryController extends Controller
     public function approve(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_if($salary->status === 'paid', 422);
 
         $salary->update([
@@ -176,6 +184,7 @@ class SalaryController extends Controller
     public function markPaid(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary') && $request->user()->can('approve_requests'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_unless($salary->status === 'approved', 422);
 
         $salary->update([
@@ -198,6 +207,7 @@ class SalaryController extends Controller
     public function storeAdjustment(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_if($salary->status === 'paid', 422);
 
         $data = $request->validate([
@@ -278,6 +288,7 @@ class SalaryController extends Controller
             ->with('employee')
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->whereIn('id', $data['salary_ids'])
+            ->when($this->tenantContext->activeBranchId(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->get();
 
         $canApprove = $request->user()->can('approve_requests');
@@ -387,5 +398,15 @@ class SalaryController extends Controller
         }
 
         return back()->with('success', 'Đã gửi khiếu nại cấn trừ lương thành công. Khoản phạt này đã tạm thời được đóng băng chờ Owner giải quyết.');
+    }
+    private function authorizeSalaryBranch(User $user, Salary $salary): void
+    {
+        abort_unless($salary->restaurant_id === $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($salary->branch_id !== null ? (int) $salary->branch_id : null), 403);
+
+        $activeBranchId = $this->tenantContext->activeBranchId();
+        if ($activeBranchId !== null && (int) $salary->branch_id !== $activeBranchId) {
+            abort(403, 'Bảng lương không thuộc chi nhánh hiện tại.');
+        }
     }
 }

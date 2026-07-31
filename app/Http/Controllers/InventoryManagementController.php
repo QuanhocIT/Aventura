@@ -247,6 +247,7 @@ class InventoryManagementController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
 
         $data = $request->validate([
             'product_id' => ['required', \App\Support\TenantRule::exists('products')],
@@ -257,11 +258,19 @@ class InventoryManagementController extends Controller
         ]);
 
         $productId = $data['product_id'];
+        Product::where('restaurant_id', $user->restaurant_id)
+            ->whereKey($productId)
+            ->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
+            ->firstOrFail();
         $submittedIngredientIds = [];
 
         if (! empty($data['items'])) {
             foreach ($data['items'] as $item) {
-                $ingredient = Ingredient::findOrFail($item['ingredient_id']);
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $branchId)
+                    ->findOrFail($item['ingredient_id']);
 
                 ProductRecipe::updateOrCreate([
                     'product_id' => $productId,
@@ -297,7 +306,12 @@ class InventoryManagementController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
+        $branchId = $this->requireActiveBranch($request);
         $recipe = ProductRecipe::where('restaurant_id', $request->user()->restaurant_id)
+            ->whereHas('product', function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
+            ->whereHas('ingredient', fn ($q) => $q->where('branch_id', $branchId))
             ->findOrFail($id);
 
         $productId = (int) $recipe->product_id;
@@ -316,6 +330,7 @@ class InventoryManagementController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -325,6 +340,7 @@ class InventoryManagementController extends Controller
 
         Ingredient::create([
             'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $branchId,
             'name' => $data['name'],
             'sku' => 'ING-'.strtoupper(Str::random(6)),
             'unit_id' => $data['unit_id'],
@@ -342,6 +358,8 @@ class InventoryManagementController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
+        $branchId = $this->requireActiveBranch($request);
+
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $data = $request->validate([
             'ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
@@ -356,6 +374,7 @@ class InventoryManagementController extends Controller
 
         $ingredientId = $data['ingredient_id'];
         $unitCost = (float) $data['unit_cost'];
+        $data['branch_id'] = $branchId;
 
         // 1. Profit Margin Validation
         $recipes = ProductRecipe::where('ingredient_id', $ingredientId)
@@ -412,11 +431,16 @@ class InventoryManagementController extends Controller
         try {
             DB::transaction(function () use ($user, $ingredientId, $newQty, $newCost, $data) {
                 // Lock the ingredient row to prevent average cost recalculation collisions
-                $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $data['branch_id'])
+                    ->where('id', $ingredientId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 // Find or create inventory row, then lock it
                 $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
                     ->where('ingredient_id', $ingredientId)
+                    ->where('branch_id', $data['branch_id'])
                     ->lockForUpdate()
                     ->first();
 
@@ -425,7 +449,7 @@ class InventoryManagementController extends Controller
                         'restaurant_id' => $user->restaurant_id,
                         // TRƯỚC ĐÂY KHÔNG GHI branch_id — kế thừa từ ingredient
                         // (ingredients cũng thuộc 1 chi nhánh cụ thể).
-                        'branch_id' => $ingredient->branch_id,
+                        'branch_id' => $data['branch_id'],
                         'ingredient_id' => $ingredientId,
                         'quantity_on_hand' => 0,
                         'theoretical_quantity' => 0,
@@ -446,7 +470,7 @@ class InventoryManagementController extends Controller
                     'restaurant_id' => $user->restaurant_id,
                     // TRƯỚC ĐÂY KHÔNG GHI branch_id — cùng bug class với Salary,
                     // khiến lọc lịch sử nhập/xuất kho theo chi nhánh luôn rỗng.
-                    'branch_id' => $ingredient->branch_id,
+                    'branch_id' => $data['branch_id'],
                     'ingredient_id' => $ingredient->id,
                     'inventory_id' => $inventory->id,
                     'supplier_id' => $data['supplier_id'] ?? null,
@@ -483,20 +507,24 @@ class InventoryManagementController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // Lấy tất cả nguyên liệu của nhà hàng
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['unit'])
             ->get();
 
         // Fix N+1: batch load inventories
         $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get()
             ->keyBy('ingredient_id');
 
         // Fix N+1: batch load 30-day transactions grouped by ingredient_id
         $thirtyDaysAgo = now()->subDays(30);
         $transactionsGrouped = InventoryTransaction::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('type', 'usage')
             ->where('direction', 'out')
             ->where('occurred_at', '>=', $thirtyDaysAgo)
@@ -569,23 +597,25 @@ class InventoryManagementController extends Controller
             return response()->json($result);
         }
 
-        return $this->runFallbackForecast($ingredients, $restaurantId);
+        return $this->runFallbackForecast($ingredients, $restaurantId, $branchId);
     }
 
     /**
      * Fallback PHP (đảm bảo hệ thống vẫn luôn hoạt động):
      */
-    private function runFallbackForecast($ingredients, int $restaurantId): JsonResponse
+    private function runFallbackForecast($ingredients, int $restaurantId, ?int $branchId = null): JsonResponse
     {
         $thirtyDaysAgo = now()->subDays(30);
 
         // Fix N+1: Pre-load all inventories for this restaurant
         $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get()
             ->keyBy('ingredient_id');
 
         // Fix N+1: Pre-load total usages in the last 30 days grouped by ingredient_id
         $totalUsages = InventoryTransaction::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('type', 'usage')
             ->where('direction', 'out')
             ->where('occurred_at', '>=', $thirtyDaysAgo)
@@ -650,6 +680,8 @@ class InventoryManagementController extends Controller
         ]);
 
         $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
+        $data['branch_id'] = $branchId;
 
         if (! $user->can('approve_requests')) {
             $this->approvalService->submitRequest('inventory_waste', $data, $user);
@@ -663,10 +695,15 @@ class InventoryManagementController extends Controller
         try {
             DB::transaction(function () use ($user, $ingredientId, $wasteQty, $data) {
                 // Lock ingredient and inventory records
-                $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $data['branch_id'])
+                    ->where('id', $ingredientId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
                     ->where('ingredient_id', $ingredientId)
+                    ->where('branch_id', $data['branch_id'])
                     ->lockForUpdate()
                     ->first();
 
@@ -674,7 +711,7 @@ class InventoryManagementController extends Controller
 
                 $transaction = InventoryTransaction::create([
                     'restaurant_id' => $user->restaurant_id,
-                    'branch_id' => $ingredient->branch_id,
+                    'branch_id' => $data['branch_id'],
                     'ingredient_id' => $ingredient->id,
                     'inventory_id' => $inventory?->id,
                     'performed_by' => $user->id,
@@ -696,7 +733,9 @@ class InventoryManagementController extends Controller
 
                 // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
                 if (! empty($data['employee_id']) && $wasteCost > 0) {
-                    $employee = Employee::find($data['employee_id']);
+                    $employee = Employee::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $data['branch_id'])
+                        ->find($data['employee_id']);
                     if ($employee) {
                         $salaryService = app(SalaryService::class);
                         $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
@@ -725,6 +764,8 @@ class InventoryManagementController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
+        $branchId = $this->requireActiveBranch($request);
+
         $data = $request->validate([
             'reconcile_items' => ['required', 'array'],
             'reconcile_items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
@@ -735,22 +776,27 @@ class InventoryManagementController extends Controller
         $user = $request->user();
 
         try {
-            DB::transaction(function () use ($user, $data) {
+            DB::transaction(function () use ($user, $data, $branchId) {
                 foreach ($data['reconcile_items'] as $item) {
                     $ingredientId = $item['ingredient_id'];
                     $physicalQty = (float) $item['physical_qty'];
 
                     // Lock ingredient and inventory
-                    $ingredient = Ingredient::where('id', $ingredientId)->lockForUpdate()->firstOrFail();
+                    $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $branchId)
+                        ->where('id', $ingredientId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
                     $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
                         ->where('ingredient_id', $ingredientId)
+                        ->where('branch_id', $branchId)
                         ->lockForUpdate()
                         ->first();
 
                     if (! $inventory) {
                         $inventory = Inventory::create([
                             'restaurant_id' => $user->restaurant_id,
-                            'branch_id' => $ingredient->branch_id,
+                            'branch_id' => $branchId,
                             'ingredient_id' => $ingredientId,
                             'quantity_on_hand' => 0,
                             'theoretical_quantity' => 0,
@@ -770,7 +816,7 @@ class InventoryManagementController extends Controller
 
                         InventoryTransaction::create([
                             'restaurant_id' => $user->restaurant_id,
-                            'branch_id' => $ingredient->branch_id,
+                            'branch_id' => $branchId,
                             'ingredient_id' => $ingredientId,
                             'inventory_id' => $inventory->id,
                             'performed_by' => $user->id,
@@ -816,5 +862,14 @@ class InventoryManagementController extends Controller
         }
 
         return back()->with('success', 'Đã hoàn thành kiểm kho và đối chiếu lệch.');
+    }
+    private function requireActiveBranch(Request $request): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($request->user()->isOwner() ? $request->user()->assignedBranchId() : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ kho.');
+        abort_unless($request->user()->canAccessBranch($branchId), 403);
+
+        return $branchId;
     }
 }

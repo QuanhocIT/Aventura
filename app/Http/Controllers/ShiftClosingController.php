@@ -17,6 +17,7 @@ use App\Models\ShiftClosing;
 use App\Models\WorkShift;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +29,8 @@ use Inertia\Response;
 
 class ShiftClosingController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -47,6 +50,7 @@ class ShiftClosingController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $statusFilter = $request->input('status', 'all');
         $monthFilter = $request->input('month', today()->format('Y-m'));
@@ -55,6 +59,7 @@ class ShiftClosingController extends Controller
 
         $query = ShiftClosing::where('restaurant_id', $restaurantId)
             ->with(['shift', 'cashier', 'confirmedBy'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereYear('closing_date', $year)
             ->whereMonth('closing_date', $month)
             ->latest('closing_date');
@@ -98,6 +103,9 @@ class ShiftClosingController extends Controller
         // Auto-seed ca mặc định nếu chưa có
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
             ->get(['id', 'name', 'code', 'start_time', 'end_time', 'is_overnight']);
 
         if ($shifts->isEmpty() && $restaurantId) {
@@ -108,11 +116,14 @@ class ShiftClosingController extends Controller
             ] as $ds) {
                 WorkShift::withoutGlobalScopes()->firstOrCreate(
                     ['restaurant_id' => $restaurantId, 'code' => $ds['code']],
-                    array_merge($ds, ['restaurant_id' => $restaurantId, 'status' => 'active', 'is_overnight' => false])
+                    array_merge($ds, ['restaurant_id' => $restaurantId, 'branch_id' => $branchId, 'status' => 'active', 'is_overnight' => false])
                 );
             }
             $shifts = WorkShift::where('restaurant_id', $restaurantId)
                 ->where('status', 'active')
+                ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                    ->where('branch_id', $branchId)
+                    ->orWhereNull('branch_id')))
                 ->get(['id', 'name', 'code', 'start_time', 'end_time', 'is_overnight']);
         }
 
@@ -121,6 +132,8 @@ class ShiftClosingController extends Controller
             'shifts' => $shifts,
             'kpi' => $kpi,
             'filters' => ['status' => $statusFilter, 'month' => $monthFilter],
+            'activeBranchId' => $branchId,
+            'branchScope' => $this->tenantContext->scopeKey(),
             'canConfirm' => $user->hasAnyRole(['owner', 'manager']),
         ]);
     }
@@ -133,8 +146,10 @@ class ShiftClosingController extends Controller
         ]);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->resolveOperationalBranch($request->user());
 
         $shift = WorkShift::where('restaurant_id', $restaurantId)
+            ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
             ->findOrFail($request->integer('shift_id'));
 
         $closingDate = Carbon::parse($request->input('closing_date'));
@@ -142,12 +157,13 @@ class ShiftClosingController extends Controller
         [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
 
         $unpaidTableOrders = collect();
-        $isLastShift = $this->checkIsLastShift($restaurantId, $shift->id);
-        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId);
+        $isLastShift = $this->checkIsLastShift($restaurantId, $shift->id, $branchId);
+        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId, $branchId);
 
         if ($isLastShift && $autoPayEnabled) {
             $unpaidTableOrders = Order::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->where('branch_id', $branchId)
                 ->whereNotNull('table_id')
                 ->where('payment_status', 'unpaid')
                 ->whereIn('status', ['pending', 'confirmed', 'preparing'])
@@ -156,6 +172,7 @@ class ShiftClosingController extends Controller
 
         $completedOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDt, $endDt])
             ->get(['id', 'total_amount', 'discount_amount']);
@@ -169,6 +186,7 @@ class ShiftClosingController extends Controller
 
         $payments = Payment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('status', 'paid')
             ->whereBetween('paid_at', [$startDt, $endDt])
             ->whereIn('order_id', $completedOrders->pluck('id')->all())
@@ -186,6 +204,7 @@ class ShiftClosingController extends Controller
         // Tính phạt đơn tách chưa đối soát (bao gồm đơn đã hoàn thành và đơn chưa thanh toán)
         $splitPenaltyTotal = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
             ->where(function ($q) use ($startDt, $endDt) {
@@ -195,14 +214,8 @@ class ShiftClosingController extends Controller
             ->sum('total_amount');
 
         // Cash register checking
-        $branchId = $request->user()->branch_id;
-        $employee = Employee::where('user_id', $request->user()->id)->first();
-        if ($employee && $employee->branch_id) {
-            $branchId = $employee->branch_id;
-        }
-
         $register = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('branch_id', $branchId)
             ->where('shift_id', $shift->id)
             ->where('status', 'open')
             ->where(function ($q) use ($request) {
@@ -233,6 +246,7 @@ class ShiftClosingController extends Controller
 
         $splitOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('is_split', true)
             ->where(function ($q) use ($startDt, $endDt) {
                 $q->where(fn ($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
@@ -249,6 +263,7 @@ class ShiftClosingController extends Controller
 
         $pendingOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->whereIn('status', ['pending', 'confirmed', 'preparing'])
             ->whereBetween('created_at', [$startDt, $endDt])
             ->count();
@@ -260,6 +275,7 @@ class ShiftClosingController extends Controller
 
         $alreadyClosed = ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('shift_id', $shift->id)
             ->whereDate('closing_date', $closingDate)
             ->exists();
@@ -308,16 +324,12 @@ class ShiftClosingController extends Controller
 
         $restaurantId = $user->restaurant_id;
 
-        $branchId = $user->branch_id;
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id) {
-            $branchId = $employee->branch_id;
-        }
+        $branchId = $this->resolveOperationalBranch($user);
 
         $status = $request->boolean('submit') ? 'submitted' : 'draft';
         $notes = $data['notes'];
-        $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id']);
-        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId);
+        $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id'], $branchId);
+        $autoPayEnabled = $this->isAutoPayEnabled($restaurantId, $branchId);
 
         try {
             DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, &$notes) {
@@ -336,12 +348,16 @@ class ShiftClosingController extends Controller
 
                 // Tự động thanh toán các đơn chưa thanh toán tại bàn nếu là ca cuối & bật chế độ auto-pay
                 if ($isLastShift && $autoPayEnabled) {
-                    $shift = WorkShift::withoutGlobalScopes()->findOrFail($data['shift_id']);
+                    $shift = WorkShift::withoutGlobalScopes()
+                        ->where('restaurant_id', $restaurantId)
+                        ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
+                        ->findOrFail($data['shift_id']);
                     $closingDate = Carbon::parse($data['closing_date']);
                     [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
 
                     $unpaidOrders = Order::withoutGlobalScopes()
                         ->where('restaurant_id', $restaurantId)
+                        ->where('branch_id', $branchId)
                         ->whereNotNull('table_id')
                         ->where('payment_status', 'unpaid')
                         ->whereIn('status', ['pending', 'confirmed', 'preparing'])
@@ -349,7 +365,7 @@ class ShiftClosingController extends Controller
                         ->get();
 
                     // Lưu snapshot trước khi auto-pay
-                    $this->saveBeforeAutoPaySnapshot($restaurantId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
+                    $this->saveBeforeAutoPaySnapshot($restaurantId, $branchId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
 
                     foreach ($unpaidOrders as $order) {
                         $this->processAutoPay($order, $user->id, $endDt);
@@ -381,7 +397,9 @@ class ShiftClosingController extends Controller
                 ]);
 
                 if ($calculated['register_id'] && $status === 'submitted') {
-                    $register = CashRegister::find($calculated['register_id']);
+                    $register = CashRegister::where('restaurant_id', $restaurantId)
+                        ->where('branch_id', $branchId)
+                        ->find($calculated['register_id']);
                     if ($register) {
                         $register->update([
                             'status' => 'closed',
@@ -409,13 +427,18 @@ class ShiftClosingController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($closing->status !== 'submitted', 422);
+        $this->authorizeClosingBranch($request->user(), $closing);
 
         $restaurantId = $request->user()->restaurant_id;
         $user = $request->user();
 
         DB::transaction(function () use ($closing, $restaurantId, $user) {
             // Khóa bản ghi closing trong transaction để tránh confirm đồng thời
-            $closing = ShiftClosing::where('id', $closing->id)->lockForUpdate()->firstOrFail();
+            $closing = ShiftClosing::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $closing->branch_id)
+                ->where('id', $closing->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
             if ($closing->status !== 'submitted') {
                 return; // Đã được xử lý bởi request khác
@@ -430,6 +453,7 @@ class ShiftClosingController extends Controller
             if ((float) $closing->cash_difference < 0 && $closing->cashier_user_id) {
                 $employee = Employee::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $closing->branch_id)
                     ->where('user_id', $closing->cashier_user_id)
                     ->first();
 
@@ -467,6 +491,7 @@ class ShiftClosingController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_unless(in_array($closing->status, ['submitted', 'confirmed']), 422);
+        $this->authorizeClosingBranch($request->user(), $closing);
 
         $request->validate(['dispute_notes' => ['required', 'string', 'max:1000']]);
 
@@ -482,19 +507,26 @@ class ShiftClosingController extends Controller
 
     private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null): array
     {
-        $shift = WorkShift::withoutGlobalScopes()->findOrFail($shiftId);
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
+            ->findOrFail($shiftId);
         $closingDate = Carbon::parse($date);
 
         [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
 
         $orderIds = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDt, $endDt])
             ->pluck('id');
 
         $payments = Payment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'paid')
             ->whereBetween('paid_at', [$startDt, $endDt])
             ->whereIn('order_id', $orderIds->all())
@@ -502,6 +534,7 @@ class ShiftClosingController extends Controller
 
         $splitPenaltyTotal = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('is_split', true)
             ->where('is_override_split_penalty', false)
             ->where(function ($q) use ($startDt, $endDt) {
@@ -513,7 +546,7 @@ class ShiftClosingController extends Controller
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
 
         $register = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('branch_id', $branchId)
             ->where('shift_id', $shiftId)
             ->where('status', 'open')
             ->where(function ($q) {
@@ -560,11 +593,15 @@ class ShiftClosingController extends Controller
         return [$startDt, $endDt];
     }
 
-    private function isAutoPayEnabled(int $restaurantId): bool
+    private function isAutoPayEnabled(int $restaurantId, ?int $branchId = null): bool
     {
         $setting = DB::table('restaurant_settings')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
             ->where('key_name', 'auto_pay_on_last_shift_close')
+            ->orderByRaw('branch_id IS NULL')
             ->value('value');
 
         if (is_null($setting)) {
@@ -574,9 +611,14 @@ class ShiftClosingController extends Controller
         return filter_var(json_decode($setting) ?? $setting, FILTER_VALIDATE_BOOLEAN);
     }
 
-    private function checkIsLastShift(int $restaurantId, int $shiftId): bool
+    private function checkIsLastShift(int $restaurantId, int $shiftId, ?int $branchId = null): bool
     {
-        $activeShifts = WorkShift::where('restaurant_id', $restaurantId)->where('status', 'active')->get();
+        $activeShifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
+            ->get();
         if ($activeShifts->isEmpty()) {
             return false;
         }
@@ -705,7 +747,7 @@ class ShiftClosingController extends Controller
     /**
      * Tạo file snapshot lưu trữ trạng thái các đơn hàng trước khi thực hiện auto-pay lúc chốt ca.
      */
-    private function saveBeforeAutoPaySnapshot(int $restaurantId, int $shiftId, string $closingDate, $orders): void
+    private function saveBeforeAutoPaySnapshot(int $restaurantId, int $branchId, int $shiftId, string $closingDate, $orders): void
     {
         if ($orders->isEmpty()) {
             return;
@@ -713,6 +755,7 @@ class ShiftClosingController extends Controller
 
         $snapshot = [
             'restaurant_id' => $restaurantId,
+            'branch_id' => $branchId,
             'shift_id' => $shiftId,
             'closing_date' => $closingDate,
             'created_at' => now()->toIso8601String(),
@@ -733,9 +776,30 @@ class ShiftClosingController extends Controller
 
         // Loại bỏ ký tự lạ để tránh directory traversal
         $cleanDate = preg_replace('/[^0-9\-]/', '', $closingDate);
-        $filename = "{$dir}/shift_closing_{$restaurantId}_{$shiftId}_{$cleanDate}_before_autopay.json";
+        $filename = "{$dir}/shift_closing_{$restaurantId}_branch_{$branchId}_{$shiftId}_{$cleanDate}_before_autopay.json";
         file_put_contents($filename, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         Log::info('ShiftClosingController: Đã lưu snapshot trước auto-pay', ['file' => $filename]);
+    }
+
+    private function resolveOperationalBranch($user): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? $user->assignedBranchId() : null);
+
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi thao tác chốt ca.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        return $branchId;
+    }
+
+    private function authorizeClosingBranch($user, ShiftClosing $closing): void
+    {
+        abort_if($closing->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($closing->branch_id), 403);
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless($this->tenantContext->activeBranchId() === (int) $closing->branch_id, 403);
+        }
     }
 }

@@ -38,8 +38,13 @@ class OrdersController extends Controller
         $user = $request->user();
         abort_unless($user->can('create_orders'), 403);
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+        abort_if($branchId === null, 403, 'POS phải được mở trong một chi nhánh cụ thể.');
 
         $categories = ProductCategory::where('restaurant_id', $restaurantId)
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->where('status', 'active')
             ->get()
             ->map(fn ($c) => [
@@ -48,6 +53,9 @@ class OrdersController extends Controller
             ]);
 
         $products = Product::where('restaurant_id', $restaurantId)
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->where('is_active', true)
             ->where('is_available', true)
             ->with(['category'])
@@ -66,6 +74,7 @@ class OrdersController extends Controller
             ]);
 
         $tables = RestaurantTable::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
             ->where('status', 'available')
             ->get()
             ->map(fn ($t) => [
@@ -91,11 +100,11 @@ class OrdersController extends Controller
         $rid = $user->restaurant_id;
         $data = $request->validate([
             'channel' => ['nullable', 'in:dine_in,takeaway,delivery'],
-            'table_id' => ['nullable', "exists:restaurant_tables,id,restaurant_id,{$rid}"],
+            'table_id' => ['nullable', 'integer'],
             'customer_id' => ['nullable', "exists:customers,id,restaurant_id,{$rid}"],
             'note' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', "exists:products,id,restaurant_id,{$rid}"],
+            'items.*.product_id' => ['required', 'integer'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
             'items.*.client_item_id' => ['nullable', 'string', 'max:100'],
@@ -110,6 +119,23 @@ class OrdersController extends Controller
             'cod_amount' => ['nullable', 'numeric', 'min:0'],
             'delivery_notes' => ['nullable', 'string', 'max:500'],
         ]);
+        $branchId = $this->tenantContext->activeBranchId();
+        abort_if($branchId === null, 403, 'POS phải được mở trong một chi nhánh cụ thể.');
+
+        if (! empty($data['table_id']) && ! RestaurantTable::where('restaurant_id', $rid)->where('branch_id', $branchId)->whereKey($data['table_id'])->exists()) {
+            return back()->withErrors(['table_id' => 'Bàn không thuộc chi nhánh hiện tại.']);
+        }
+
+        $productIds = collect($data['items'])->pluck('product_id')->unique()->values();
+        $validProductCount = Product::where('restaurant_id', $rid)
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
+            ->whereIn('id', $productIds)
+            ->count();
+        if ($validProductCount !== $productIds->count()) {
+            return back()->withErrors(['items' => 'Có món không thuộc thực đơn của chi nhánh hiện tại.']);
+        }
 
         if (isset($data['table_id']) && isset($data['guests_count'])) {
             $table = RestaurantTable::find($data['table_id']);
@@ -121,7 +147,12 @@ class OrdersController extends Controller
         // Check kitchen availability status for products
         if (isset($data['items'])) {
             $productIds = collect($data['items'])->pluck('product_id')->toArray();
-            $products = Product::whereIn('id', $productIds)->where('restaurant_id', $user->restaurant_id)->get();
+            $products = Product::whereIn('id', $productIds)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where(function ($query) use ($branchId) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
+                ->get();
             foreach ($products as $product) {
                 $isKitchenPaused = $product->paused_until && $product->paused_until->isFuture();
                 $isKitchenOutOfStock = $product->out_of_stock_until && $product->out_of_stock_until->isFuture();
@@ -240,6 +271,7 @@ class OrdersController extends Controller
     public function updateStatus(Request $request, Order $order): RedirectResponse
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('manage_kitchen') || $user->can('create_orders'), 403);
@@ -274,6 +306,7 @@ class OrdersController extends Controller
     public function split(Request $request, Order $order): RedirectResponse
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('split_orders'), 403);
@@ -298,6 +331,7 @@ class OrdersController extends Controller
         $user = $request->user();
         abort_unless($user->can('override_split_penalty'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
         abort_unless((bool) $order->is_split, 422);
 
         $this->orderService->overrideSplitPenalty($order, $user);
@@ -311,6 +345,7 @@ class OrdersController extends Controller
     public function update(Request $request, Order $order): RedirectResponse
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('create_orders'), 403);
@@ -329,7 +364,9 @@ class OrdersController extends Controller
         ]);
 
         if (isset($data['guests_count']) && $order->table_id) {
-            $table = RestaurantTable::find($order->table_id);
+            $table = RestaurantTable::where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->find($order->table_id);
             if ($table && (int) $data['guests_count'] > (int) $table->capacity) {
                 return back()->withErrors(['guests_count' => "Số lượng khách ({$data['guests_count']}) vượt quá sức chứa tối đa của bàn {$table->name} (Tối đa {$table->capacity} chỗ). Vui lòng chọn ghép bàn hoặc chuyển bàn lớn hơn."]);
             }
@@ -337,7 +374,13 @@ class OrdersController extends Controller
 
         if (isset($data['items'])) {
             $productIds = collect($data['items'])->pluck('product_id')->filter()->unique()->toArray();
-            $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+            $products = Product::where('restaurant_id', $order->restaurant_id)
+                ->where(function ($query) use ($order) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $order->branch_id);
+                })
+                ->whereIn('id', $productIds)
+                ->get()
+                ->keyBy('id');
 
             foreach ($data['items'] as $itemData) {
                 if (! empty($itemData['product_id'])) {
@@ -413,6 +456,7 @@ class OrdersController extends Controller
     public function confirmQr(Request $request, Order $order): JsonResponse
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
         abort_if($order->status !== 'pending', 422, 'Đơn hàng này đã được xác nhận trước đó.');
 
         $user = $request->user();
@@ -443,6 +487,7 @@ class OrdersController extends Controller
         $user = $request->user();
         abort_unless($user->can('process_payments'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
         abort_if($order->payment_status === 'paid', 422, 'Đơn hàng này đã được thanh toán rồi.');
 
         $data = $request->validate([
@@ -638,6 +683,7 @@ class OrdersController extends Controller
         $user = $request->user();
         abort_unless($user->can('process_payments') || $user->can('approve_requests'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
         abort_unless($order->payment_status === 'paid', 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
 
         $data = $request->validate([

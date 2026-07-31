@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\RestaurantTable;
 use App\Services\OrderSplitService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,7 @@ class OrderActionsController extends Controller
 
         $target = Order::withoutGlobalScopes()
             ->where('restaurant_id', $request->user()->restaurant_id)
+            ->where('branch_id', $order->branch_id)
             ->findOrFail($data['target_order_id']);
 
         $this->service->mergeOrders($order, $target, $request->user());
@@ -77,9 +79,12 @@ class OrderActionsController extends Controller
     public function availableTables(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('manage_orders'), 403);
+        $branchId = app(TenantContext::class)->activeBranchId();
+        abort_if($branchId === null, 403, 'Vui lòng chọn chi nhánh trước khi chuyển bàn.');
 
         return response()->json(
             RestaurantTable::where('restaurant_id', $request->user()->restaurant_id)
+                ->where('branch_id', $branchId)
                 ->where('status', 'available')
                 ->orderBy('name')
                 ->get(['id', 'name', 'capacity'])
@@ -90,5 +95,6 @@ class OrderActionsController extends Controller
     {
         abort_unless($request->user()->can('manage_orders'), 403);
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
     }
 }

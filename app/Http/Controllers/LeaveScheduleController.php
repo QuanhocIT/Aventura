@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeaveRequest;
+use App\Models\Employee;
 use App\Models\ShiftSwap;
 use App\Services\LeaveRequestService;
 use App\Services\QuotaService;
@@ -39,7 +40,6 @@ class LeaveScheduleController extends Controller
         $data = $request->validate([
             'enabled' => ['required', 'boolean'],
         ]);
-
         $message = $this->assignments->toggleAutoSchedule($restaurant, $user, $data['enabled']);
 
         return back()->with('success', $message);
@@ -125,6 +125,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
 
         $result = $this->leaveRequests->getReplacementSuggestions($user->restaurant_id, $leave);
 
@@ -143,6 +144,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
 
         // Self-Approval Prevention Check
@@ -170,6 +172,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
 
         $data = $request->validate([
@@ -206,6 +209,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
         abort_unless($swap->status === 'accepted', 422);
 
         // Self-Approval Prevention Check
@@ -234,6 +238,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
 
         $result = $this->shiftSwap->rejectSwap($user, $swap, $request->input('notes'));
 

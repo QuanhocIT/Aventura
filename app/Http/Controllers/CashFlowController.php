@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
-use App\Models\Employee;
 use App\Models\WorkShift;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\MaterializedViewReader;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +18,7 @@ class CashFlowController extends Controller
 {
     public function __construct(
         private MaterializedViewReader $mvReader,
+        private TenantContext $tenantContext,
     ) {}
 
     public function index(Request $request): Response
@@ -39,13 +40,7 @@ class CashFlowController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
-        $branchId = $user->branch_id;
-
-        // Restrict non-owners/managers to their branch if employee profile exists
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id && ! $user->hasRole('owner')) {
-            $branchId = $employee->branch_id;
-        }
+        $branchId = $this->tenantContext->activeBranchId();
 
         // Active registers for this restaurant & branch
         $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
@@ -133,13 +128,7 @@ class CashFlowController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
-        $branchId = $user->branch_id;
-
-        // Auto assign branch from employee profile
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id) {
-            $branchId = $employee->branch_id;
-        }
+        $branchId = $this->requireActiveBranch($user);
 
         $data = $request->validate([
             'shift_id' => ['required', 'integer', \App\Support\TenantRule::exists('work_shifts')],
@@ -180,12 +169,7 @@ class CashFlowController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
-        $branchId = $user->branch_id;
-
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id) {
-            $branchId = $employee->branch_id;
-        }
+        $branchId = $this->requireActiveBranch($user);
 
         $data = $request->validate([
             'type' => ['required', 'string', 'in:in,out'],
@@ -238,13 +222,7 @@ class CashFlowController extends Controller
         if (! $restaurantId) {
             abort(403, 'Không tìm thấy nhà hàng.');
         }
-        $branchId = $user->branch_id;
-
-        // Match index(): restrict non-owners to their branch if they have a profile.
-        $employee = Employee::where('user_id', $user->id)->first();
-        if ($employee && $employee->branch_id && ! $user->hasRole('owner')) {
-            $branchId = $employee->branch_id;
-        }
+        $branchId = $this->tenantContext->activeBranchId();
 
         $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -324,5 +302,15 @@ class CashFlowController extends Controller
             'status' => $status,
             'message' => $message,
         ];
+    }
+
+    private function requireActiveBranch($user): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? $user->assignedBranchId() : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ két tiền.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        return $branchId;
     }
 }

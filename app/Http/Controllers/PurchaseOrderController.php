@@ -6,6 +6,7 @@ use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Illuminate\Support\Str;
 
 class PurchaseOrderController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     /**
      * Tự động tạo bản nháp đơn đặt hàng (Auto Purchase Order) 1-Click khi nguyên liệu dưới ngưỡng tối thiểu.
      */
@@ -23,10 +26,14 @@ class PurchaseOrderController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->resolveOperationalBranch($user);
 
         // Fetch all ingredients for restaurant with inventory and unit
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
-            ->with(['unit', 'inventories' => fn ($q) => $q->where('restaurant_id', $restaurantId)])
+            ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
+            ->with(['unit', 'inventories' => fn ($q) => $q
+                ->where('restaurant_id', $restaurantId)
+                ->where('branch_id', $branchId)])
             ->get();
 
         $lowStockIngredients = collect();
@@ -67,12 +74,13 @@ class PurchaseOrderController extends Controller
         $groupedBySupplier = $lowStockIngredients->groupBy('supplier_id');
         $createdPoCount = 0;
 
-        DB::transaction(function () use ($groupedBySupplier, $restaurantId, $user, &$createdPoCount) {
+        DB::transaction(function () use ($groupedBySupplier, $restaurantId, $branchId, $user, &$createdPoCount) {
             foreach ($groupedBySupplier as $supplierId => $items) {
                 $totalAmount = $items->sum('total_cost');
 
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
                     'supplier_id' => $supplierId ?: null,
                     'po_number' => 'PO-AUTO-'.strtoupper(Str::random(6)),
                     'status' => 'draft',
@@ -108,5 +116,16 @@ class PurchaseOrderController extends Controller
         }
 
         return back()->with('success', $msg);
+    }
+
+    private function resolveOperationalBranch($user): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? $user->assignedBranchId() : null);
+
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo đơn mua hàng.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        return $branchId;
     }
 }

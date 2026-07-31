@@ -317,6 +317,7 @@ class EmployeePortalController extends Controller
 
         $leave = LeaveRequest::create([
             'restaurant_id' => $employee->restaurant_id,
+            'branch_id' => $employee->branch_id,
             'employee_id' => $employee->id,
             'requested_by' => $user->id,
             'leave_type' => $data['leave_type'],
@@ -463,6 +464,7 @@ class EmployeePortalController extends Controller
 
         $swap = ShiftSwap::create([
             'restaurant_id' => $employee->restaurant_id,
+            'branch_id' => $employee->branch_id,
             'requester_assignment_id' => $data['requester_assignment_id'],
             'receiver_assignment_id' => $data['receiver_assignment_id'],
             'status' => 'pending',

@@ -10,6 +10,7 @@ use App\Models\RfpBid;
 use App\Models\RfpItem;
 use App\Models\Supplier;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,8 @@ use Inertia\Response;
 
 class RfpController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     // =========================================================================
     // RESTAURANT ADMIN ENDPOINTS (Owners, Managers)
     // =========================================================================
@@ -48,6 +51,11 @@ class RfpController extends Controller
         }
 
         $rfps = RequestForProposal::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), function ($q) {
+                $q->where(function ($query) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId());
+                });
+            })
             ->with([
                 'items',
                 'bids.supplier.purchaseOrders' => function ($q) {
@@ -168,10 +176,12 @@ class RfpController extends Controller
         ]);
 
         $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
 
-        DB::transaction(function () use ($request, $user) {
+        DB::transaction(function () use ($request, $user, $branchId) {
             $rfp = RequestForProposal::create([
                 'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $branchId,
                 'title' => $request->input('title'),
                 'description' => $request->input('description'),
                 'due_date' => Carbon::parse($request->input('due_date')),
@@ -197,6 +207,8 @@ class RfpController extends Controller
     public function close(Request $request, RequestForProposal $rfp): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $rfp->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($rfp->branch_id), 403);
+        $this->assertActiveBranchMatches($rfp->branch_id);
 
         $rfp->update(['status' => 'closed']);
 
@@ -210,6 +222,8 @@ class RfpController extends Controller
     {
         $rfp = $bid->rfp;
         abort_unless($request->user()->hasRole('owner') && $rfp->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($rfp->branch_id), 403);
+        $this->assertActiveBranchMatches($rfp->branch_id);
 
         try {
             DB::transaction(function () use ($bid, $rfp, $request) {
@@ -228,6 +242,7 @@ class RfpController extends Controller
                 // 2. Generate approved Purchase Order automatically
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $lockedRfp->restaurant_id,
+                    'branch_id' => $lockedRfp->branch_id,
                     'supplier_id' => $bid->supplier_id,
                     'po_number' => 'PO-'.now()->format('Ymd').'-RFP-'.$lockedRfp->id,
                     'status' => 'approved',
@@ -244,11 +259,15 @@ class RfpController extends Controller
                 $itemNames = $bid->items->map(fn ($item) => $item->rfpItem->ingredient_name)->toArray();
 
                 $ingredientsByName = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->when($lockedRfp->branch_id, fn ($q) => $q->where(fn ($scope) => $scope
+                        ->whereNull('branch_id')->orWhere('branch_id', $lockedRfp->branch_id)))
                     ->whereIn('name', $itemNames)
                     ->get()
                     ->keyBy('name');
 
                 $fallbackIngredient = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->when($lockedRfp->branch_id, fn ($q) => $q->where(fn ($scope) => $scope
+                        ->whereNull('branch_id')->orWhere('branch_id', $lockedRfp->branch_id)))
                     ->where('supplier_id', $bid->supplier_id)
                     ->first();
 
@@ -366,5 +385,22 @@ class RfpController extends Controller
         });
 
         return back()->with('success', 'Đã nộp hồ sơ báo giá thầu thành công. Chủ nhà hàng sẽ đánh giá và phản hồi bạn.');
+    }
+    private function requireActiveBranch(Request $request): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($request->user()->isOwner() ? $request->user()->assignedBranchId() : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.');
+        abort_unless($request->user()->canAccessBranch($branchId), 403);
+
+        return $branchId;
+    }
+
+    private function assertActiveBranchMatches(?int $branchId): void
+    {
+        $activeBranchId = $this->tenantContext->activeBranchId();
+        if ($activeBranchId !== null && (int) $branchId !== $activeBranchId) {
+            abort(403, 'RFP không thuộc chi nhánh hiện tại.');
+        }
     }
 }
