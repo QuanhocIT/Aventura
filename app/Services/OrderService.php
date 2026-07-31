@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Repositories\OrderRepositoryInterface;
 use App\Services\Integrations\TrackingService;
 use App\Services\Integrations\WebhookDispatchService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,20 +38,37 @@ class OrderService
     {
         return DB::transaction(function () use ($data, $user) {
             $restaurantId = $user->restaurant_id;
-            $branchId = $user->branch_id;
+            $branchId = app(TenantContext::class)->activeBranchId();
+            abort_if($branchId === null, 403, 'Đơn hàng phải được tạo trong một chi nhánh cụ thể.');
             $orderNumber = 'ORD-'.strtoupper(uniqid());
 
             // Pre-load các sản phẩm kèm recipes — tránh N+1 query trong loop bên dưới
             $productIds = array_column($data['items'], 'product_id');
             $products = Product::with('recipes')
                 ->where('restaurant_id', $restaurantId)
+                ->where(function ($query) use ($branchId) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
                 ->whereIn('id', $productIds)
                 ->get()
                 ->keyBy('id');
 
+            if ($products->count() !== count(array_unique($productIds))) {
+                abort(422, 'Một hoặc nhiều món không thuộc thực đơn của chi nhánh hiện tại.');
+            }
+
+            $table = null;
+            if (! empty($data['table_id'])) {
+                $table = RestaurantTable::where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $branchId)
+                    ->find($data['table_id']);
+                abort_unless($table, 422, 'Bàn không thuộc chi nhánh hiện tại.');
+            }
+
             // Conflict Resolution: Check if table already has an active order (pending/preparing/ready/served)
             if (! empty($data['table_id'])) {
                 $existingActiveOrder = Order::where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $branchId)
                     ->where('table_id', $data['table_id'])
                     ->whereIn('status', ['pending', 'preparing', 'ready', 'served'])
                     ->first();
@@ -85,6 +103,7 @@ class OrderService
                                             $totalUsed = ($recipe->quantity * $diff) * (1 + ($recipe->waste_rate / 100));
                                             InventoryReservation::create([
                                                 'restaurant_id' => $restaurantId,
+                                                'branch_id' => $branchId,
                                                 'order_id' => $existingActiveOrder->id,
                                                 'ingredient_id' => $recipe->ingredient_id,
                                                 'reserved_quantity' => $totalUsed,
@@ -129,6 +148,7 @@ class OrderService
                                 $totalUsed = ($recipe->quantity * $itemData['quantity']) * (1 + ($recipe->waste_rate / 100));
                                 InventoryReservation::create([
                                     'restaurant_id' => $restaurantId,
+                                    'branch_id' => $branchId,
                                     'order_id' => $existingActiveOrder->id,
                                     'ingredient_id' => $recipe->ingredient_id,
                                     'reserved_quantity' => $totalUsed,
@@ -170,9 +190,9 @@ class OrderService
                 $lineTotal = (float) $product->price * (float) $itemData['quantity'];
                 $subtotal += $lineTotal;
 
-                $itemsToCreate[] = [
-                    'restaurant_id' => $restaurantId,
-                    'product_id' => $product->id,
+                        $itemsToCreate[] = [
+                            'restaurant_id' => $restaurantId,
+                            'product_id' => $product->id,
                     'quantity' => (float) $itemData['quantity'],
                     'unit_price' => (float) $product->price,
                     'discount_amount' => 0,
@@ -226,6 +246,7 @@ class OrderService
                         $totalUsed = ($recipe->quantity * $item['quantity']) * (1 + ($recipe->waste_rate / 100));
                         InventoryReservation::create([
                             'restaurant_id' => $restaurantId,
+                            'branch_id' => $branchId,
                             'order_id' => $order->id,
                             'ingredient_id' => $recipe->ingredient_id,
                             'reserved_quantity' => $totalUsed,
@@ -241,7 +262,10 @@ class OrderService
             $this->fireStockUpdatedDebounced($restaurantId);
 
             if ($order->table_id) {
-                RestaurantTable::where('id', $order->table_id)->update(['status' => 'occupied']);
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->update(['status' => 'occupied']);
             }
 
             AuditLog::log('order_created', 'created', $order, null, [
@@ -262,7 +286,11 @@ class OrderService
     {
         DB::transaction(function () use ($order, $newStatus, $user) {
             // Khóa dòng order để tránh race condition khi cập nhật trạng thái từ nhiều luồng/thiết bị
-            $order = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
+            $order = Order::where('id', $order->id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->lockForUpdate()
+                ->firstOrFail();
             $oldStatus = $order->status;
 
             if ($oldStatus === $newStatus) {
@@ -299,7 +327,10 @@ class OrderService
             ]);
 
             if (in_array($newStatus, ['completed', 'cancelled']) && $order->table_id) {
-                RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->update(['status' => 'available']);
             }
 
             event(new KitchenUpdated($order->restaurant_id));
@@ -313,10 +344,20 @@ class OrderService
     {
         return DB::transaction(function () use ($order, $data, $user) {
             // Khóa dòng order gốc để tránh thay đổi đồng thời
-            $order = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
+            $order = Order::where('id', $order->id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->lockForUpdate()
+                ->firstOrFail();
             $oldAmount = (float) $order->total_amount;
 
             // 1. Tạo đơn hàng mới ở bàn trống
+            $targetTable = RestaurantTable::where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->where('status', 'available')
+                ->find($data['table_id']);
+            abort_unless($targetTable, 422, 'Bàn tách đơn phải thuộc cùng chi nhánh và đang trống.');
+
             $newOrder = $this->orderRepository->create([
                 'restaurant_id' => $order->restaurant_id,
                 'branch_id' => $order->branch_id,
@@ -438,10 +479,16 @@ class OrderService
                 foreach ($cancelledItems as $cItem) {
                     $cItem->update(['status' => 'cancelled']);
 
-                    $product = Product::with('recipes')->find($cItem->product_id);
+                    $product = Product::with('recipes')
+                        ->where('restaurant_id', $restaurantId)
+                        ->where(function ($query) use ($order) {
+                            $query->whereNull('branch_id')->orWhere('branch_id', $order->branch_id);
+                        })
+                        ->find($cItem->product_id);
                     if ($product && $product->track_inventory) {
                         foreach ($product->recipes as $recipe) {
                             InventoryReservation::where('order_id', $order->id)
+                                ->where('branch_id', $order->branch_id)
                                 ->where('ingredient_id', $recipe->ingredient_id)
                                 ->where('status', 'holding')
                                 ->update(['status' => 'released']);
@@ -463,6 +510,9 @@ class OrderService
                     } else {
                         // Thêm món mới tinh
                         $product = Product::where('restaurant_id', $restaurantId)
+                            ->where(function ($query) use ($order) {
+                                $query->whereNull('branch_id')->orWhere('branch_id', $order->branch_id);
+                            })
                             ->findOrFail($itemData['product_id']);
 
                         $unitPrice = $itemData['unit_price'] ?? (float) $product->price;
@@ -557,7 +607,10 @@ class OrderService
             ]);
 
             if ($order->table_id) {
-                RestaurantTable::where('id', $order->table_id)->update(['status' => 'occupied']);
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->update(['status' => 'occupied']);
             }
 
             AuditLog::log('order_confirmed', 'updated', $order, ['status' => 'pending'], ['status' => 'confirmed']);
@@ -572,7 +625,11 @@ class OrderService
         $paid = DB::transaction(function () use ($order, $data, $user, $queuePostPayment) {
             // Khóa row + đọc lại trạng thái mới nhất trong transaction để tránh 2 webhook
             // trùng lặp (retry gateway) cùng lúc vượt qua check payment_status và xử lý 2 lần.
-            $order = Order::where('id', $order->id)->lockForUpdate()->first();
+            $order = Order::where('id', $order->id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->lockForUpdate()
+                ->first();
 
             if (! $order || $order->payment_status === 'paid') {
                 return false;
@@ -654,7 +711,10 @@ class OrderService
 
             // 4. Giải phóng bàn
             if ($order->table_id) {
-                RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->update(['status' => 'available']);
             }
 
             if ($queuePostPayment) {

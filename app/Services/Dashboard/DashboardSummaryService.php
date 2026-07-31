@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\ScheduleAssignment;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -19,7 +20,8 @@ class DashboardSummaryService
 {
     public function getOwnerSummary(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:owner_summary:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:owner_summary:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             $topTodayProducts = OrderItem::query()
@@ -84,7 +86,8 @@ class DashboardSummaryService
 
     public function getCashFlowSummary(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:cash_flow:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:cash_flow:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             $activeRegister = CashRegister::where('restaurant_id', $rid)

@@ -28,7 +28,7 @@ class SalaryService
         $periodStart = Carbon::parse($date)->startOfMonth()->toDateString();
         $periodEnd = Carbon::parse($date)->endOfMonth()->toDateString();
 
-        return Salary::withoutGlobalScopes()->firstOrCreate(
+        $salary = Salary::withoutGlobalScopes()->firstOrCreate(
             [
                 'restaurant_id' => $restaurantId,
                 'employee_id' => $employee->id,
@@ -36,6 +36,7 @@ class SalaryService
                 'pay_period_end' => $periodEnd,
             ],
             [
+                'branch_id' => $employee->branch_id,
                 'base_salary' => $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd),
                 'bonus_amount' => 0,
                 'deduction_amount' => 0,
@@ -43,6 +44,12 @@ class SalaryService
                 'status' => 'draft',
             ]
         );
+
+        if ($salary->branch_id === null && $employee->branch_id !== null) {
+            $salary->update(['branch_id' => $employee->branch_id]);
+        }
+
+        return $salary;
     }
 
     /**
@@ -301,7 +308,7 @@ class SalaryService
      * Tạo bản nháp lương cho tất cả nhân viên active của nhà hàng trong tháng.
      * Dùng cho nút "Tạo bảng lương" trên trang salaries.
      */
-    public function generateMonthlyDrafts(int $restaurantId, string $yearMonth): array
+    public function generateMonthlyDrafts(int $restaurantId, string $yearMonth, ?int $branchId = null): array
     {
         $periodStart = Carbon::parse($yearMonth.'-01')->startOfMonth()->toDateString();
         $periodEnd = Carbon::parse($yearMonth.'-01')->endOfMonth()->toDateString();
@@ -313,6 +320,7 @@ class SalaryService
         $employees = Employee::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get();
 
         $employeeIds = $employees->pluck('id')->toArray();
@@ -327,12 +335,16 @@ class SalaryService
         // 2. Ingredients
         $context['ingredients'] = Ingredient::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
             ->get()
             ->keyBy('id');
 
         // 3. Assignments (eager load employee and shift)
         $context['assignments'] = ScheduleAssignment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('scheduled_date', [$periodStart, $periodEnd])
             ->with(['employee', 'shift'])
             ->get();
@@ -350,6 +362,7 @@ class SalaryService
         // 6. Shift shortages
         $context['shortages'] = empty($userIds) ? collect() : ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereIn('cashier_user_id', $userIds)
             ->whereBetween('closing_date', [$periodStart, $periodEnd])
             ->where('cash_difference', '<', 0)
@@ -358,6 +371,7 @@ class SalaryService
         // 7. Waste transactions
         $context['waste_transactions'] = InventoryTransaction::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('type', 'waste')
             ->whereBetween('occurred_at', [$periodStartDateTime, $periodEndDateTime])
             ->where('total_cost', '>', 0)
@@ -366,6 +380,7 @@ class SalaryService
         // 8. Violations
         $context['violations'] = ViolationReport::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereIn('employee_id', $employeeIds)
             ->whereBetween('occurred_at', [$periodStartDateTime, $periodEndDateTime])
             ->where('penalty_amount', '>', 0)
@@ -870,12 +885,13 @@ class SalaryService
     /**
      * Phê duyệt hàng loạt danh sách bảng lương.
      */
-    public function bulkApprove(int $restaurantId, array $salaryIds, int $approvedById): int
+    public function bulkApprove(int $restaurantId, array $salaryIds, int $approvedById, ?int $branchId = null): int
     {
         $salaries = Salary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('id', $salaryIds)
             ->where('status', 'draft')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get();
 
         $count = 0;

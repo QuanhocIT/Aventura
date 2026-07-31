@@ -118,12 +118,18 @@ class ApprovalService
     {
         $transaction = $this->inventoryService->executeWaste($data, $restaurantId, $performedBy);
 
-        $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
+        $ingredientQuery = Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']));
+        $ingredient = $ingredientQuery->findOrFail($data['ingredient_id']);
         $wasteQty = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
         if ($transaction && ! empty($data['employee_id']) && $wasteCost > 0) {
-            $employee = Employee::withoutGlobalScopes()->find($data['employee_id']);
+            $employee = Employee::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']))
+                ->find($data['employee_id']);
             if ($employee) {
                 $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
                 $penaltyAmount = $wasteCost * (1 - $allowedRatio / 100);

@@ -10,6 +10,7 @@ use App\Models\ScheduleAssignment;
 use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use App\Support\Tenant\TenantContext;
 
 /**
  * Chuyển nguyên logic từ app/Http/Controllers/DashboardController.php (các
@@ -140,13 +141,14 @@ class DashboardHealthService
 
     public function getHealthScore(int $rid, ?int $branchId = null): int
     {
-        $cached = Cache::get("health_score:{$rid}".($branchId ? ":{$branchId}" : ''));
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $cached = Cache::get("health_score:{$rid}:{$scopeKey}");
         if ($cached !== null) {
             return (int) $cached;
         }
 
         $score = $this->calculateBranchHealthScore($rid, $branchId);
-        Cache::put("health_score:{$rid}".($branchId ? ":{$branchId}" : ''), $score, 300);
+        Cache::put("health_score:{$rid}:{$scopeKey}", $score, 300);
 
         return $score;
     }
@@ -159,7 +161,8 @@ class DashboardHealthService
         $scores = [];
         $uncachedIds = [];
         foreach ($branchIds as $id) {
-            $cached = Cache::get("health_score:{$rid}".($id ? ":{$id}" : ''));
+            $scopeKey = TenantContext::branchScopeKey((int) $id);
+            $cached = Cache::get("health_score:{$rid}:{$scopeKey}");
             if ($cached !== null) {
                 $scores[$id] = (int) $cached;
             } else {
@@ -305,7 +308,8 @@ class DashboardHealthService
                 ))
             );
 
-            Cache::put("health_score:{$rid}".($bId ? ":{$bId}" : ''), $score, 300);
+            $scopeKey = TenantContext::branchScopeKey((int) $bId);
+            Cache::put("health_score:{$rid}:{$scopeKey}", $score, 300);
             $scores[$bId] = $score;
         }
 

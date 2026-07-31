@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\WorkShift;
 use App\Services\ForecastService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +24,8 @@ class DashboardChartService
 
     public function getRevenueChartData(int $rid, ?int $branchId = null, bool $hasAiForecasting = false): array
     {
-        $key = "dashboard:revenue_chart:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString().':'.($hasAiForecasting ? '1' : '0');
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:revenue_chart:{$rid}:{$scopeKey}:".today()->toDateString().':'.($hasAiForecasting ? '1' : '0');
 
         return Cache::remember($key, 300, function () use ($rid, $branchId, $hasAiForecasting) {
             $sevenDaysAgo = now()->subDays(6)->startOfDay();
@@ -63,7 +65,8 @@ class DashboardChartService
 
     public function getChannelChartData(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:channel_chart:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:channel_chart:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             $sevenDaysAgo = now()->subDays(6)->startOfDay();
@@ -99,7 +102,8 @@ class DashboardChartService
 
     public function getTopProductsChartData(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:top_products:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:top_products:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             return OrderItem::query()
@@ -125,7 +129,8 @@ class DashboardChartService
 
     public function getPeakHoursChartData(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:peak_hours:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:peak_hours:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             $thirtyDaysAgo = now()->subDays(30)->startOfDay();
@@ -155,7 +160,8 @@ class DashboardChartService
 
     public function getShiftRevenue(int $rid, ?int $branchId = null): array
     {
-        $key = "dashboard:shift_revenue:{$rid}".($branchId ? ":{$branchId}" : '').':'.today()->toDateString();
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $key = "dashboard:shift_revenue:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             $shifts = WorkShift::where('restaurant_id', $rid)

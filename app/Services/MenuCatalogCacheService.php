@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\RestaurantBranch;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -16,12 +18,15 @@ class MenuCatalogCacheService
     /**
      * Lấy danh sách sản phẩm đang kinh doanh theo nhà hàng (có cache Redis).
      */
-    public function getActiveMenu(int $restaurantId): array
+    public function getActiveMenu(int $restaurantId, ?int $branchId = null): array
     {
-        $key = $this->buildKey($restaurantId);
+        $key = $this->buildKey($restaurantId, $branchId);
 
-        return Cache::remember($key, self::TTL_SECONDS, function () use ($restaurantId) {
+        return Cache::remember($key, self::TTL_SECONDS, function () use ($restaurantId, $branchId) {
             return Product::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($q) => $q->where(function ($q) use ($branchId) {
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }))
                 ->where('is_active', true)
                 ->with(['category:id,name'])
                 ->get()
@@ -43,13 +48,24 @@ class MenuCatalogCacheService
     /**
      * Invalidate cache menu khi sản phẩm hoặc danh mục có thay đổi.
      */
-    public function invalidate(int $restaurantId): void
+    public function invalidate(int $restaurantId, ?int $branchId = null): void
     {
         Cache::forget($this->buildKey($restaurantId));
+        Cache::forget("menu_catalog:restaurant:{$restaurantId}:scope:none");
+
+        if ($branchId !== null) {
+            Cache::forget($this->buildKey($restaurantId, $branchId));
+
+            return;
+        }
+
+        RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->pluck('id')
+            ->each(fn ($id) => Cache::forget($this->buildKey($restaurantId, (int) $id)));
     }
 
-    private function buildKey(int $restaurantId): string
+    private function buildKey(int $restaurantId, ?int $branchId = null): string
     {
-        return "menu_catalog:restaurant:{$restaurantId}";
+        return "menu_catalog:restaurant:{$restaurantId}:scope:".TenantContext::branchScopeKey($branchId);
     }
 }

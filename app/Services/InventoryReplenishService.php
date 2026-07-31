@@ -18,11 +18,13 @@ class InventoryReplenishService
     /**
      * Thu thập lịch sử tiêu thụ và dự báo tồn kho nguyên liệu.
      */
-    public function getForecastAndReplenish(int $restaurantId): array
+    public function getForecastAndReplenish(int $restaurantId, ?int $branchId = null): array
     {
         // 1. Get all active ingredients of the restaurant
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->get();
 
         if ($ingredients->isEmpty()) {
@@ -35,6 +37,8 @@ class InventoryReplenishService
 
         // Fetch completed orders
         $orders = Order::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate, $endDate])
             ->with(['items.product.recipes'])
@@ -68,6 +72,7 @@ class InventoryReplenishService
 
         // 3. Prepare payload
         $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get()
             ->keyBy('ingredient_id');
 
@@ -132,7 +137,7 @@ class InventoryReplenishService
     /**
      * Tự động tạo PO nháp cho những nguyên liệu có cảnh báo từ AI.
      */
-    public function generateReplenishmentOrders(int $restaurantId, array $forecasts, int $creatorId): array
+    public function generateReplenishmentOrders(int $restaurantId, array $forecasts, int $creatorId, ?int $branchId = null): array
     {
         $createdPos = [];
 
@@ -140,7 +145,12 @@ class InventoryReplenishService
         $replenishBySupplier = []; // [supplier_id][] = ['ingredient_id' => x, 'qty' => y, 'price' => z]
 
         $ingredientIds = collect($forecasts)->pluck('ingredient_id')->toArray();
-        $ingredients = Ingredient::whereIn('id', $ingredientIds)->get()->keyBy('id');
+        $ingredients = Ingredient::whereIn('id', $ingredientIds)
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->get()
+            ->keyBy('id');
 
         foreach ($forecasts as $f) {
             if (! $f['needs_replenishment'] || $f['suggested_replenish_quantity'] <= 0) {
@@ -173,7 +183,7 @@ class InventoryReplenishService
         $suppliers = Supplier::whereIn('id', $supplierIds)->get()->keyBy('id');
 
         // Create POs
-        DB::transaction(function () use ($restaurantId, $replenishBySupplier, $creatorId, $suppliers, &$createdPos) {
+        DB::transaction(function () use ($restaurantId, $branchId, $replenishBySupplier, $creatorId, $suppliers, &$createdPos) {
             foreach ($replenishBySupplier as $supplierId => $items) {
                 $supplier = $suppliers->get($supplierId);
                 if (! $supplier) {
@@ -184,6 +194,7 @@ class InventoryReplenishService
 
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
                     'supplier_id' => $supplier->id,
                     'po_number' => 'PO-'.now()->format('Ymd').'-AI-'.strtoupper(Str::random(4)),
                     'status' => 'pending_approval', // Draft PO awaiting Owner approval

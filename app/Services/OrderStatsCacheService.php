@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Support\Tenant\TenantContext;
 
 /**
  * Cache live order statistics (today) để tránh nhiều query COUNT đồng thời
@@ -57,16 +58,16 @@ class OrderStatsCacheService
         }
 
         foreach ($branchesToClear as $bId) {
-            $suffix = $bId ? ":{$bId}" : '';
-            Cache::forget("dashboard:revenue_chart:{$restaurantId}{$suffix}:{$date}:0");
-            Cache::forget("dashboard:revenue_chart:{$restaurantId}{$suffix}:{$date}:1");
-            Cache::forget("dashboard:channel_chart:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:top_products:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:peak_hours:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:forecast:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:shift_revenue:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:owner_summary:{$restaurantId}{$suffix}:{$date}");
-            Cache::forget("dashboard:cash_flow:{$restaurantId}{$suffix}:{$date}");
+            $scopeKey = TenantContext::branchScopeKey($bId);
+            Cache::forget("dashboard:revenue_chart:{$restaurantId}:{$scopeKey}:{$date}:0");
+            Cache::forget("dashboard:revenue_chart:{$restaurantId}:{$scopeKey}:{$date}:1");
+            Cache::forget("dashboard:channel_chart:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:top_products:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:peak_hours:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:forecast:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:shift_revenue:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:owner_summary:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:cash_flow:{$restaurantId}:{$scopeKey}:{$date}");
         }
     }
 
@@ -88,9 +89,9 @@ class OrderStatsCacheService
     public function buildKey(int $restaurantId, ?int $branchId, ?string $date = null): string
     {
         $date ??= today()->toDateString();
-        $suffix = $branchId ? ":{$branchId}" : '';
+        $scopeKey = TenantContext::branchScopeKey($branchId);
 
-        return "order_stats:{$restaurantId}:{$date}{$suffix}";
+        return "order_stats:{$restaurantId}:{$date}:{$scopeKey}";
     }
 
     /**

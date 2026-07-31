@@ -361,7 +361,6 @@ class DemoDataSeederService
                     'user_id' => $user->id,
                 ],
                 [
-                    'branch_id' => null,
                     'role_id' => $roleId,
                     'employee_code' => 'EMP-'.strtoupper(Str::random(6)),
                     'full_name' => $name,
@@ -397,7 +396,6 @@ class DemoDataSeederService
             $shift = WorkShift::updateOrCreate(
                 ['restaurant_id' => $restaurant->id, 'code' => $code],
                 [
-                    'branch_id' => null,
                     'name' => $name,
                     'start_time' => $start,
                     'end_time' => $end,

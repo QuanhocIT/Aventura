@@ -42,9 +42,13 @@ class ShiftSwapService
         if ($reqAssignment->restaurant_id !== $employee->restaurant_id || $recAssignment->restaurant_id !== $employee->restaurant_id) {
             return ['success' => false, 'message' => 'Ca trực không hợp lệ.'];
         }
+        if ($reqAssignment->branch_id !== $employee->branch_id || $recAssignment->branch_id !== $employee->branch_id) {
+            return ['success' => false, 'message' => 'Không thể đổi ca giữa các chi nhánh khác nhau.'];
+        }
 
         // Check duplicate swap request
         $exists = ShiftSwap::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('requester_assignment_id', $data['requester_assignment_id'])
             ->where('receiver_assignment_id', $data['receiver_assignment_id'])
             ->whereIn('status', ['pending', 'accepted'])
@@ -56,6 +60,7 @@ class ShiftSwapService
 
         $swap = ShiftSwap::create([
             'restaurant_id' => $employee->restaurant_id,
+            'branch_id' => $employee->branch_id,
             'requester_assignment_id' => $data['requester_assignment_id'],
             'receiver_assignment_id' => $data['receiver_assignment_id'],
             'status' => 'pending',

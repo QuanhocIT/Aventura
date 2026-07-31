@@ -31,9 +31,11 @@ class LeaveRequestService
     public function storeLeaveRequest(User $actingUser, array $data, ?string $bypassCode, ?string $bypassReason, string $ip, string $userAgent): array
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)->findOrFail($data['employee_id']);
+        abort_unless($actingUser->canAccessBranch((int) $employee->branch_id), 403);
 
         // 1. Overlapping Leave Check
         $overlapping = LeaveRequest::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('employee_id', $employee->id)
             ->where(function ($query) use ($data) {
                 $query->whereBetween('start_date', [$data['start_date'], $data['end_date']])
@@ -50,7 +52,8 @@ class LeaveRequestService
         }
 
         // 2. Department/Role Quota Check (Max 30% role limit)
-        $totalRoleEmployees = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            $totalRoleEmployees = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('role_id', $employee->role_id)
             ->where('status', 'active')
             ->count();
@@ -60,6 +63,7 @@ class LeaveRequestService
             $endDate = Carbon::parse($data['end_date']);
 
             $activeLeaves = LeaveRequest::where('restaurant_id', $actingUser->restaurant_id)
+                ->where('branch_id', $employee->branch_id)
                 ->whereIn('status', ['approved', 'pending'])
                 ->whereDate('start_date', '<=', $endDate->toDateString())
                 ->whereDate('end_date', '>=', $startDate->toDateString())
@@ -134,6 +138,7 @@ class LeaveRequestService
 
         LeaveRequest::create([
             'restaurant_id' => $actingUser->restaurant_id,
+            'branch_id' => $employee->branch_id,
             'employee_id' => $data['employee_id'],
             'requested_by' => $actingUser->id,
             'leave_type' => $data['leave_type'],

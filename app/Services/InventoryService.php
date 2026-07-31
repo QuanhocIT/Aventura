@@ -99,6 +99,7 @@ class InventoryService
 
                     // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
                     InventoryReservation::where('order_id', $order->id)
+                        ->where('branch_id', $order->branch_id)
                         ->where('ingredient_id', $recipe->ingredient_id)
                         ->where('status', 'holding')
                         ->update(['status' => 'committed']);
@@ -120,6 +121,7 @@ class InventoryService
     public function releaseInventoryReservations(Order $order): void
     {
         InventoryReservation::where('order_id', $order->id)
+            ->where('branch_id', $order->branch_id)
             ->where('status', 'holding')
             ->update(['status' => 'released']);
     }
@@ -130,18 +132,23 @@ class InventoryService
     public function executePurchase(array $data, int $restaurantId, int $performedBy): void
     {
         $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
+        $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : (int) $ingredient->branch_id;
+        if (! $branchId || (int) $ingredient->branch_id !== $branchId) {
+            throw new \RuntimeException('Nguyên liệu không thuộc chi nhánh nghiệp vụ hiện tại.');
+        }
 
         // Áp dụng lockForUpdate để tránh tranh chấp khi cộng kho mua hàng đồng thời
         $inventory = Inventory::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
             ->lockForUpdate()
             ->first();
 
         if (! $inventory) {
             $inventory = Inventory::create([
                 'restaurant_id' => $restaurantId,
-                'branch_id' => $ingredient->branch_id,
+                'branch_id' => $branchId,
                 'ingredient_id' => $ingredient->id,
                 'quantity_on_hand' => 0,
                 'theoretical_quantity' => 0,
@@ -155,7 +162,7 @@ class InventoryService
 
         InventoryTransaction::create([
             'restaurant_id' => $restaurantId,
-            'branch_id' => $ingredient->branch_id,
+            'branch_id' => $branchId,
             'ingredient_id' => $ingredient->id,
             'inventory_id' => $inventory->id,
             'supplier_id' => $data['supplier_id'] ?? null,
@@ -187,11 +194,16 @@ class InventoryService
     public function executeWaste(array $data, int $restaurantId, int $performedBy): ?InventoryTransaction
     {
         $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
+        $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : (int) $ingredient->branch_id;
+        if (! $branchId || (int) $ingredient->branch_id !== $branchId) {
+            throw new \RuntimeException('Nguyên liệu không thuộc chi nhánh nghiệp vụ hiện tại.');
+        }
 
         // Áp dụng lockForUpdate khi trừ kho hao hụt
         $inventory = Inventory::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
             ->lockForUpdate()
             ->first();
 
@@ -200,7 +212,7 @@ class InventoryService
         if (! $inventory) {
             $inventory = Inventory::create([
                 'restaurant_id' => $restaurantId,
-                'branch_id' => $ingredient->branch_id,
+                'branch_id' => $branchId,
                 'ingredient_id' => $ingredient->id,
                 'quantity_on_hand' => 0,
                 'theoretical_quantity' => 0,
@@ -213,7 +225,7 @@ class InventoryService
 
         $transaction = InventoryTransaction::create([
             'restaurant_id' => $restaurantId,
-            'branch_id' => $ingredient->branch_id,
+            'branch_id' => $branchId,
             'ingredient_id' => $ingredient->id,
             'inventory_id' => $inventory->id,
             'performed_by' => $performedBy,
@@ -246,6 +258,7 @@ class InventoryService
 
         // Kiểm tra xem đã có RFP tự động nào được tạo trong ngày cho nguyên liệu này chưa
         $existingRfp = RequestForProposal::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $ingredient->branch_id)
             ->whereDate('created_at', now()->toDateString())
             ->where('title', 'like', 'AI Tự động gom hàng%')
             ->whereHas('items', function ($query) use ($ingredient) {
@@ -266,6 +279,7 @@ class InventoryService
         DB::transaction(function () use ($restaurantId, $ingredient, $title, $qtyRequired) {
             $rfp = RequestForProposal::create([
                 'restaurant_id' => $restaurantId,
+                'branch_id' => $ingredient->branch_id,
                 'title' => $title,
                 'description' => "Yêu cầu chào thầu tự động từ AI do tồn kho nguyên liệu '{$ingredient->name}' dưới ngưỡng an toàn.",
                 'due_date' => now()->addDays(3),
@@ -356,6 +370,7 @@ class InventoryService
                         ]);
 
                         InventoryReservation::where('order_id', $order->id)
+                            ->where('branch_id', $order->branch_id)
                             ->where('ingredient_id', $recipe->ingredient_id)
                             ->where('status', 'committed')
                             ->update(['status' => 'released']);

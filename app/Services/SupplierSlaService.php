@@ -135,7 +135,7 @@ class SupplierSlaService
      * Tính SLA cho toàn bộ nhà cung cấp active của 1 nhà hàng — preload theo lô
      * (pos/ingredients/histories) để tránh N+1 khi lặp qua từng nhà cung cấp.
      */
-    public function calculateForRestaurant(int $restaurantId): array
+    public function calculateForRestaurant(int $restaurantId, ?int $branchId = null): array
     {
         $suppliers = Supplier::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
@@ -146,15 +146,22 @@ class SupplierSlaService
         $context = [];
 
         $context['pos'] = PurchaseOrder::whereIn('supplier_id', $supplierIds)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereIn('status', ['delivered', 'frozen'])
             ->get()
             ->groupBy('supplier_id');
 
         $context['ingredients'] = Ingredient::whereIn('supplier_id', $supplierIds)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->get()
             ->groupBy('supplier_id');
 
-        $allIngredientIds = Ingredient::whereIn('supplier_id', $supplierIds)->pluck('id')->toArray();
+        $allIngredientIds = Ingredient::whereIn('supplier_id', $supplierIds)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->pluck('id')
+            ->toArray();
         $context['histories'] = SupplierPriceHistory::whereIn('supplier_id', $supplierIds)
             ->whereIn('ingredient_id', $allIngredientIds)
             ->orderBy('effective_date')

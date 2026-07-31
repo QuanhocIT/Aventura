@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use App\Support\Tenant\TenantContext;
 
 class ForecastService
 {
@@ -23,7 +24,8 @@ class ForecastService
             return $this->cachedForecasts[$key];
         }
 
-        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data".($branchId ? ":{$branchId}" : '');
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data:{$scopeKey}";
         $this->cachedForecasts[$key] = Cache::remember($cacheKey, 7200, function () use ($restaurantId, $branchId) {
             $historicals = RestaurantRevenueSummary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)

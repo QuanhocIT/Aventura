@@ -51,16 +51,21 @@ class ScheduleAssignmentService
 
         // 1. Xóa tất cả lịch xếp ca hiện tại trong tuần này
         ScheduleAssignment::where('restaurant_id', $restaurant->id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
             ->delete();
 
         // 2. Lấy danh sách nhân viên đang hoạt động
         $activeEmployees = Employee::where('restaurant_id', $restaurant->id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('status', 'active')
             ->get();
 
         // 3. Lấy danh sách các ca làm việc đang hoạt động
         $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where(function ($q) {
+                $q->whereNull('branch_id')->orWhere('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId());
+            }))
             ->where('status', 'active')
             ->get();
 
@@ -76,12 +81,14 @@ class ScheduleAssignmentService
 
         // Eager load approved leaves and registrations for the entire week outside the day loop
         $approvedLeavesThisWeek = LeaveRequest::where('restaurant_id', $restaurant->id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('status', 'approved')
             ->where('start_date', '<=', $endOfWeek->toDateString())
             ->where('end_date', '>=', $startOfWeek->toDateString())
             ->get();
 
         $registrationsThisWeek = ScheduleRegistration::where('restaurant_id', $restaurant->id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->whereBetween('scheduled_date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
             ->get()
             ->groupBy(function ($r) {
@@ -219,6 +226,7 @@ class ScheduleAssignmentService
     public function storeAssignment(User $actingUser, array $data, ?string $bypassCode, ?string $bypassReason, string $ip, string $userAgent): array
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('full_name', $data['employee_name'])
             ->first();
 
@@ -226,7 +234,17 @@ class ScheduleAssignmentService
             return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
         }
 
+        $assignmentBranchId = (int) $employee->branch_id;
+        $activeBranchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+        if (! $assignmentBranchId || ($activeBranchId !== null && $assignmentBranchId !== $activeBranchId)) {
+            return ['success' => false, 'field' => 'employee_name', 'message' => 'NhÃ¢n viÃªn khÃ´ng thuá»™c chi nhÃ¡nh hiá»‡n táº¡i.'];
+        }
+
         $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+            ->where(function ($q) {
+                $branchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->where('name', 'like', $data['shift_name'].'%')
             ->first();
 
@@ -327,6 +345,7 @@ class ScheduleAssignmentService
         // Save schedule
         ScheduleAssignment::updateOrCreate([
             'restaurant_id' => $actingUser->restaurant_id,
+            'branch_id' => $assignmentBranchId,
             'employee_id' => $employee->id,
             'shift_id' => $shift->id,
             'scheduled_date' => $scheduledDate,
@@ -353,6 +372,7 @@ class ScheduleAssignmentService
     public function destroyAssignment(User $actingUser, array $data): void
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('full_name', $data['employee_name'])
             ->first();
 
@@ -361,6 +381,10 @@ class ScheduleAssignmentService
         }
 
         $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+            ->where(function ($q) {
+                $branchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->where('name', 'like', $data['shift_name'].'%')
             ->first();
 
@@ -373,6 +397,7 @@ class ScheduleAssignmentService
         $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
 
         ScheduleAssignment::where('restaurant_id', $actingUser->restaurant_id)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('employee_id', $employee->id)
             ->where('shift_id', $shift->id)
             ->where('scheduled_date', $scheduledDate)
@@ -397,6 +422,7 @@ class ScheduleAssignmentService
 
         // Get all assignments from last week
         $lastWeekAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->whereBetween('scheduled_date', [$startOfLastWeek->toDateString(), $endOfLastWeek->toDateString()])
             ->get();
 
@@ -406,6 +432,7 @@ class ScheduleAssignmentService
 
         // Delete current week schedules first
         ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->whereBetween('scheduled_date', [$startOfCurrentWeek->toDateString(), $endOfCurrentWeek->toDateString()])
             ->delete();
 
@@ -413,6 +440,7 @@ class ScheduleAssignmentService
 
         // Fetch all approved leaves for the current week to avoid N+1 queries in the loop
         $currentWeekLeaves = LeaveRequest::where('restaurant_id', $restaurantId)
+            ->when(app(\App\Support\Tenant\TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(\App\Support\Tenant\TenantContext::class)->activeBranchId()))
             ->where('status', 'approved')
             ->whereDate('start_date', '<=', $endOfCurrentWeek->toDateString())
             ->whereDate('end_date', '>=', $startOfCurrentWeek->toDateString())
