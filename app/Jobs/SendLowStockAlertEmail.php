@@ -21,16 +21,17 @@ class SendLowStockAlertEmail implements ShouldQueue
     public int $timeout = 60;
 
     public function __construct(
-        public readonly int $restaurantId
+        public readonly int $restaurantId,
+        public readonly ?int $branchId = null,
     ) {}
 
     public function handle(EmailMicroserviceClient $client): void
     {
         // 1. Clear pending flag
-        Cache::forget("low_stock_pending:{$this->restaurantId}");
+        Cache::forget($this->cacheKey('low_stock_pending'));
 
         // 2. Set cooldown lock to prevent another mail for 30 minutes
-        Cache::put("low_stock_cooldown:{$this->restaurantId}", true, 1800);
+        Cache::put($this->cacheKey('low_stock_cooldown'), true, 1800);
 
         // 3. Find all inventories of this restaurant where stock is low
         $restaurant = Restaurant::with(['owner'])->find($this->restaurantId);
@@ -40,6 +41,7 @@ class SendLowStockAlertEmail implements ShouldQueue
 
         // Fetch low stock items: quantity_on_hand < min_stock_level
         $lowStockInventories = Inventory::where('inventories.restaurant_id', $this->restaurantId)
+            ->when($this->branchId, fn ($q) => $q->where('inventories.branch_id', $this->branchId))
             ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
             ->whereColumn('inventories.quantity_on_hand', '<', 'ingredients.min_stock_level')
             ->select('inventories.*', 'ingredients.name as ingredient_name', 'ingredients.min_stock_level', 'ingredients.unit_id')
@@ -85,6 +87,11 @@ class SendLowStockAlertEmail implements ShouldQueue
 
     public function tags(): array
     {
-        return ["restaurant:{$this->restaurantId}", "low-stock-alert"];
+        return ["restaurant:{$this->restaurantId}", "branch:".($this->branchId ?? 'all'), "low-stock-alert"];
+    }
+
+    private function cacheKey(string $prefix): string
+    {
+        return "{$prefix}:{$this->restaurantId}:".($this->branchId ?? 'all');
     }
 }

@@ -40,12 +40,20 @@ class AutoReplenishCommand extends Command
             }
 
             try {
-                // 1. Get forecasts
-                $forecasts = $replenishService->getForecastAndReplenish($restaurant->id);
+                $forecasts = [];
+                // Forecasts and replenishment orders are generated per branch.
                 $this->info("Đã nhận dự báo cho " . count($forecasts) . " nguyên vật liệu.");
 
-                // 2. Generate replenishment orders (Draft POs)
-                $pos = $replenishService->generateReplenishmentOrders($restaurant->id, $forecasts, $owner->id);
+                // Generate replenishment orders (Draft POs) per branch.
+                $pos = [];
+                foreach ($restaurant->branches()->where('status', 'active')->get(['id', 'name']) as $branch) {
+                    $branchForecasts = $replenishService->getForecastAndReplenish($restaurant->id, $branch->id);
+                    $this->info("Forecast branch {$branch->name}: ".count($branchForecasts)." ingredients.");
+                    $pos = array_merge(
+                        $pos,
+                        $replenishService->generateReplenishmentOrders($restaurant->id, $branchForecasts, $owner->id, $branch->id),
+                    );
+                }
 
                 if (empty($pos)) {
                     $this->info("Tồn kho ở mức an toàn. Không có đơn đặt hàng đề xuất nào được tạo.");

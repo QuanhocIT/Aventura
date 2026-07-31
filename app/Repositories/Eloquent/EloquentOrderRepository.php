@@ -4,6 +4,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Models\Order;
 use App\Repositories\OrderRepositoryInterface;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
 class EloquentOrderRepository implements OrderRepositoryInterface
@@ -31,7 +32,10 @@ class EloquentOrderRepository implements OrderRepositoryInterface
         // TRƯỚC ĐÂY KHÔNG LỌC THEO CHI NHÁNH: owner chuyển chi nhánh đang xem
         // (BranchSwitchController) nhưng trang đơn hàng vẫn hiện đơn của MỌI
         // chi nhánh — không đồng bộ với Dashboard/CashFlow đã lọc đúng.
-        if (! empty($filters['branch_id'])) {
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
+            $tenantContext->applyBranchScope($query);
+        } elseif (! empty($filters['branch_id'])) {
             $query->where('branch_id', $filters['branch_id']);
         }
 
@@ -49,7 +53,10 @@ class EloquentOrderRepository implements OrderRepositoryInterface
                 $date.' 23:59:59',
             ]);
 
-        if ($branchId) {
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
+            $tenantContext->applyBranchScope($query);
+        } elseif ($branchId) {
             $query->where('branch_id', $branchId);
         }
 

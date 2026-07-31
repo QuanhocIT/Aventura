@@ -31,9 +31,12 @@ class AutoCloseExpiredShifts extends Command
 
         foreach ($shifts as $shift) {
             try {
+                $branchId = $shift->branch_id;
+
                 // Check if shift is already closed for today
                 $exists = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $shift->restaurant_id)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->where('shift_id', $shift->id)
                     ->whereDate('closing_date', $todayStr)
                     ->exists();
@@ -54,12 +57,14 @@ class AutoCloseExpiredShifts extends Command
                 // 2. Calculate revenue (same logic as ShiftClosingController::calculateShiftRevenue)
                 $orderIds = Order::withoutGlobalScopes()
                     ->where('restaurant_id', $shift->restaurant_id)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->where('status', 'completed')
                     ->whereBetween('completed_at', [$startDt, $endDt])
                     ->pluck('id');
 
                 $payments = Payment::withoutGlobalScopes()
                     ->where('restaurant_id', $shift->restaurant_id)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->where('status', 'paid')
                     ->whereBetween('paid_at', [$startDt, $endDt])
                     ->whereIn('order_id', $orderIds->all())
@@ -67,6 +72,7 @@ class AutoCloseExpiredShifts extends Command
 
                 $splitPenaltyTotal = Order::withoutGlobalScopes()
                     ->where('restaurant_id', $shift->restaurant_id)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->where('is_split', true)
                     ->where('is_override_split_penalty', false)
                     ->where(function ($q) use ($startDt, $endDt) {
@@ -84,6 +90,7 @@ class AutoCloseExpiredShifts extends Command
                 $cashierUserId = null;
                 $assignment = ScheduleAssignment::withoutGlobalScopes()
                     ->where('restaurant_id', $shift->restaurant_id)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->where('shift_id', $shift->id)
                     ->whereDate('scheduled_date', $todayStr)
                     ->first();
@@ -91,6 +98,7 @@ class AutoCloseExpiredShifts extends Command
                 if ($assignment) {
                     $employee = Employee::withoutGlobalScopes()
                         ->where('restaurant_id', $shift->restaurant_id)
+                        ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                         ->find($assignment->employee_id);
                     if ($employee && $employee->user_id) {
                         $cashierUserId = $employee->user_id;
