@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
+use App\Support\Tenant\TenantContext;
 
 class RestaurantTable extends Model
 {
@@ -51,15 +52,31 @@ class RestaurantTable extends Model
     protected static function booted(): void
     {
         static::saved(function ($table) {
-            Cache::forget("restaurant_{$table->restaurant_id}_tables");
-            Cache::forget("restaurant_{$table->restaurant_id}_areas");
+            self::forgetScopedCaches($table);
             Cache::forget("quota_summary:{$table->restaurant_id}");
         });
         static::deleted(function ($table) {
-            Cache::forget("restaurant_{$table->restaurant_id}_tables");
-            Cache::forget("restaurant_{$table->restaurant_id}_areas");
+            self::forgetScopedCaches($table);
             Cache::forget("quota_summary:{$table->restaurant_id}");
         });
+    }
+
+    private static function forgetScopedCaches(self $table): void
+    {
+        foreach (['tables', 'areas'] as $resource) {
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}");
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:all");
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:none");
+
+            if ($table->branch_id) {
+                Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:".TenantContext::branchScopeKey((int) $table->branch_id));
+            }
+
+            $originalBranchId = $table->getOriginal('branch_id');
+            if ($originalBranchId && (int) $originalBranchId !== (int) $table->branch_id) {
+                Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:".TenantContext::branchScopeKey((int) $originalBranchId));
+            }
+        }
     }
 
     protected static function newFactory(): Factory

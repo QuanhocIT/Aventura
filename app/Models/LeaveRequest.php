@@ -14,6 +14,17 @@ class LeaveRequest extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $leave): void {
+            if ($leave->branch_id === null && $leave->employee_id) {
+                $leave->branch_id = Employee::withoutGlobalScopes()
+                    ->whereKey($leave->employee_id)
+                    ->value('branch_id');
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [

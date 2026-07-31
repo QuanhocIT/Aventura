@@ -33,6 +33,31 @@ class Employee extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (self $employee): void {
+            if ($employee->restaurant_id === null) {
+                return;
+            }
+
+            $branchBelongsToRestaurant = $employee->branch_id !== null
+                && RestaurantBranch::where('restaurant_id', $employee->restaurant_id)
+                    ->whereKey($employee->branch_id)
+                    ->exists();
+
+            if ($branchBelongsToRestaurant) {
+                return;
+            }
+
+            $userBranchId = $employee->user_id
+                ? User::withoutGlobalScopes()->whereKey($employee->user_id)->value('branch_id')
+                : null;
+
+            $employee->branch_id = $userBranchId
+                ?? RestaurantBranch::where('restaurant_id', $employee->restaurant_id)
+                    ->where('status', 'active')
+                    ->orderBy('id')
+                    ->value('id');
+        });
+
         static::saved(function (self $employee): void {
             // Keep Spatie pivot table consistent with employees.role_id.
             if ($employee->role_id) {

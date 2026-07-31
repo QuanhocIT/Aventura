@@ -14,6 +14,17 @@ class ScheduleRegistration extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $registration): void {
+            if ($registration->branch_id === null && $registration->employee_id) {
+                $registration->branch_id = Employee::withoutGlobalScopes()
+                    ->whereKey($registration->employee_id)
+                    ->value('branch_id');
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [

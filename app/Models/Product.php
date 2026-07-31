@@ -63,6 +63,11 @@ class Product extends Model
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
     public function recipes(): HasMany
     {
         return $this->hasMany(ProductRecipe::class);
@@ -128,13 +133,13 @@ class Product extends Model
         static::saved(function ($product) {
             Cache::forget("restaurant_{$product->restaurant_id}_products");
             if ($product->restaurant_id) {
-                app(MenuCatalogCacheService::class)->invalidate($product->restaurant_id);
+                app(MenuCatalogCacheService::class)->invalidate($product->restaurant_id, $product->branch_id ? (int) $product->branch_id : null);
             }
         });
         static::deleted(function ($product) {
             Cache::forget("restaurant_{$product->restaurant_id}_products");
             if ($product->restaurant_id) {
-                app(MenuCatalogCacheService::class)->invalidate($product->restaurant_id);
+                app(MenuCatalogCacheService::class)->invalidate($product->restaurant_id, $product->branch_id ? (int) $product->branch_id : null);
             }
         });
     }

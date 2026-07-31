@@ -125,6 +125,28 @@ class Order extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (self $order): void {
+            if (! $order->restaurant_id) {
+                return;
+            }
+
+            $branchBelongsToRestaurant = $order->branch_id
+                && RestaurantBranch::where('restaurant_id', $order->restaurant_id)
+                    ->whereKey($order->branch_id)
+                    ->exists();
+
+            if ($branchBelongsToRestaurant) {
+                return;
+            }
+
+            $contextBranchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+            $order->branch_id = $contextBranchId
+                ?: RestaurantBranch::where('restaurant_id', $order->restaurant_id)
+                    ->where('status', 'active')
+                    ->orderBy('id')
+                    ->value('id');
+        });
+
         // Xóa cache danh sách bàn khi đơn thay đổi
         $clearTableCache = fn ($order) => Cache::forget("restaurant_{$order->restaurant_id}_tables");
         static::saved($clearTableCache);

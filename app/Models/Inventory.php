@@ -48,13 +48,14 @@ class Inventory extends Model
                     if ($ingredient && (float) $inventory->quantity_on_hand < (float) $ingredient->min_stock_level) {
                         $restaurantId = $inventory->restaurant_id;
 
-                        $cooldown = Cache::has("low_stock_cooldown:{$restaurantId}");
-                        $pending = Cache::has("low_stock_pending:{$restaurantId}");
+                        $branchId = $inventory->branch_id;
+                        $cooldown = Cache::has("low_stock_cooldown:{$restaurantId}:".($branchId ?? 'all'));
+                        $pending = Cache::has("low_stock_pending:{$restaurantId}:".($branchId ?? 'all'));
 
                         if (! $cooldown && ! $pending) {
-                            Cache::put("low_stock_pending:{$restaurantId}", true, 1800);
-                            SendLowStockAlertEmail::dispatch($restaurantId)->delay(now()->addMinutes(30));
-                            Log::info("InventoryObserver: Dispatched SendLowStockAlertEmail with 30m delay for restaurant {$restaurantId}");
+                            Cache::put("low_stock_pending:{$restaurantId}:".($branchId ?? 'all'), true, 1800);
+                            SendLowStockAlertEmail::dispatch($restaurantId, $branchId)->delay(now()->addMinutes(30));
+                            Log::info("InventoryObserver: Dispatched SendLowStockAlertEmail with 30m delay for restaurant {$restaurantId}, branch ".($branchId ?? 'all'));
                         }
                     }
                 } catch (\Throwable $e) {

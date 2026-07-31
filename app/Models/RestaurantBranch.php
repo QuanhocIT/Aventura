@@ -24,6 +24,7 @@ class RestaurantBranch extends Model
     {
         // Xóa cache branches trong Inertia share khi branch thay đổi
         $invalidate = function (self $branch) {
+            Cache::forget("tenant_branches:v2:{$branch->restaurant_id}:all");
             Cache::forget("tenant_branches:{$branch->restaurant_id}");
         };
 

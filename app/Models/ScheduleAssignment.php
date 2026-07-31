@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use App\Support\Tenant\TenantContext;
 
 class ScheduleAssignment extends Model
 {
@@ -21,6 +22,14 @@ class ScheduleAssignment extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (self $assignment): void {
+            if ($assignment->branch_id === null && $assignment->employee_id) {
+                $assignment->branch_id = Employee::withoutGlobalScopes()
+                    ->whereKey($assignment->employee_id)
+                    ->value('branch_id');
+            }
+        });
+
         $lockCheck = function (self $model) {
             $date = $model->scheduled_date instanceof Carbon
                 ? $model->scheduled_date->toDateString()
@@ -37,8 +46,15 @@ class ScheduleAssignment extends Model
                 $startOfMonth = $date->copy()->startOfMonth()->toDateString();
                 $endOfMonth = $date->copy()->endOfMonth()->toDateString();
 
-                Cache::forget("schedule_monthly_assignments:{$model->restaurant_id}:{$startOfMonth}:{$endOfMonth}");
-                Cache::forget("schedule_staffing_tips:{$model->restaurant_id}");
+                $scopeKeys = [TenantContext::SCOPE_ALL];
+                if ($model->branch_id) {
+                    $scopeKeys[] = TenantContext::branchScopeKey((int) $model->branch_id);
+                }
+
+                foreach ($scopeKeys as $scopeKey) {
+                    Cache::forget("schedule_monthly_assignments:{$model->restaurant_id}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}");
+                    Cache::forget("schedule_staffing_tips:{$model->restaurant_id}:{$scopeKey}");
+                }
             } catch (\Exception $e) {
                 // Prevent model failures if cache issues arise
             }
