@@ -4,6 +4,8 @@ import {
     Activity,
     Building2,
     Check,
+    ChevronDown,
+    ChevronUp,
     Coins,
     Crown,
     Database,
@@ -105,6 +107,17 @@ const totalPages = computed(() => {
 const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
 const showComparison = ref(false);
 const restaurantSearch = ref('');
+const expandedPlanIds = ref<number[]>([]);
+
+function isPlanExpanded(planId: number) {
+    return expandedPlanIds.value.includes(planId);
+}
+
+function togglePlanDetails(planId: number) {
+    expandedPlanIds.value = isPlanExpanded(planId)
+        ? expandedPlanIds.value.filter((id) => id !== planId)
+        : [...expandedPlanIds.value, planId];
+}
 
 const planToDelete = ref<Plan | null>(null);
 const isDeleteModalOpen = ref(false);
@@ -623,7 +636,7 @@ const planIcon: Record<string, any> = {
                 class="flex flex-col gap-0"
             >
                 <Card
-                    class="group flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl"
+                    class="group flex flex-col overflow-hidden rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl"
                     :class="{
                         'border-primary/50 bg-gradient-to-b from-primary/[0.03] to-transparent shadow-md ring-1 ring-primary/20':
                             plan.code === 'pro' && !plan.is_deleted,
@@ -633,8 +646,8 @@ const planIcon: Record<string, any> = {
                             plan.is_deleted || plan.status === 'inactive',
                     }"
                 >
-                    <CardHeader class="pb-4">
-                        <div class="mb-2 flex items-center justify-between">
+                    <CardHeader class="min-h-[218px] pb-4">
+                        <div class="mb-2 flex min-h-12 items-start justify-between">
                             <CardTitle
                                 class="flex items-center gap-1.5 text-xl font-black"
                                 :class="{
@@ -708,7 +721,7 @@ const planIcon: Record<string, any> = {
                             </div>
                         </div>
 
-                        <div class="mt-1 flex items-end gap-1">
+                        <div class="mt-1 flex min-h-10 items-end gap-1">
                             <span
                                 class="font-mono text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100"
                                 :class="{
@@ -748,7 +761,7 @@ const planIcon: Record<string, any> = {
                         <!-- Yearly savings badge -->
                         <div
                             v-if="billingPeriod === 'yearly' && plan.price > 0"
-                            class="mt-1 animate-in text-[10px] font-black tracking-wider text-emerald-500 uppercase duration-200 slide-in-from-top-1"
+                            class="mt-1 min-h-[15px] animate-in text-[10px] font-black tracking-wider text-emerald-500 uppercase duration-200 slide-in-from-top-1"
                         >
                             Tiết kiệm
                             {{
@@ -773,7 +786,7 @@ const planIcon: Record<string, any> = {
                         </CardDescription>
                     </CardHeader>
 
-                    <CardContent class="flex-grow space-y-4 pt-0">
+                    <CardContent class="space-y-4 pt-0">
                         <!-- Limits metrics grid -->
                         <div
                             class="grid grid-cols-2 gap-2 rounded-xl border border-border/30 bg-muted/40 p-2.5"
@@ -883,8 +896,39 @@ const planIcon: Record<string, any> = {
                             >
                         </div>
 
+                        <button
+                            type="button"
+                            class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-dashed border-border/50 bg-muted/10 px-3 py-2 text-left text-[10px] font-bold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                            :aria-expanded="isPlanExpanded(plan.id)"
+                            @click="togglePlanDetails(plan.id)"
+                        >
+                            <span class="flex items-center gap-1.5">
+                                <component
+                                    :is="
+                                        isPlanExpanded(plan.id)
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-3.5 text-primary"
+                                />
+                                {{
+                                    isPlanExpanded(plan.id)
+                                        ? 'Thu gọn tính năng'
+                                        : 'Xem chi tiết tính năng'
+                                }}
+                            </span>
+                            <span class="font-mono text-[9px] tabular-nums">
+                                {{
+                                    ALL_FEATURES.filter(
+                                        (f) => plan.features?.[f.key],
+                                    ).length
+                                }}/{{ ALL_FEATURES.length }}
+                            </span>
+                        </button>
+
                         <!-- Features list checklist -->
                         <div
+                            v-if="isPlanExpanded(plan.id)"
                             class="flex-grow space-y-2 border-t border-dashed border-border/40 pt-4"
                         >
                             <!-- Enabled boolean features -->
