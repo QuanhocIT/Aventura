@@ -90,6 +90,7 @@ class ProfitLossTest extends TestCase
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
+        $user->assignRole('owner');
 
         $this->actingAs($user)
             ->get('/reports/profit-loss')

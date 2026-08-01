@@ -72,9 +72,9 @@ class DashboardController extends Controller
         $hasHrTimekeeping = $restaurant && $this->quotaService->hasFeature($restaurant, 'hr_timekeeping');
         $hasInventoryBasic = $restaurant && $this->quotaService->hasFeature($restaurant, 'inventory_basic');
 
-        // The session/context is the single source of truth. Dashboard no
-        // longer keeps an independent query-string scope. The query fallback
-        // below only migrates links from the old dashboard selector.
+        // TenantContext is the single source of truth for the active scope.
+        // Keep the query parameter as a backwards-compatible migration path
+        // for old bookmarked dashboard links; the UI no longer owns this state.
         $branchId = $this->tenantContext->activeBranchId();
 
         if ($restaurant && $user->canViewAllBranches() && $request->has('branch_id')) {
@@ -99,11 +99,6 @@ class DashboardController extends Controller
                 $this->tenantContext->setActiveBranchId($requestedBranchId);
                 $branchId = $requestedBranchId;
             }
-        }
-
-        // Enforce branch limits: Free plan allows only 1 branch
-        if ($restaurant && $this->quotaService->getLimit($restaurant, 'branches') <= 1) {
-            $branchId = null;
         }
 
         if (! $user->canViewAllBranches()) {
@@ -240,6 +235,10 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'branchId' => $branchId,
             'branches' => $branches,
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
             'stats' => $stats,
             'onboardingComplete' => $onboardingComplete,
             'recentOrders' => $recentOrders,

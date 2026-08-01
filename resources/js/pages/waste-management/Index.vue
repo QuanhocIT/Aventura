@@ -60,6 +60,7 @@ const props = defineProps<{
         days_left: number;
     }[];
     days: number;
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 const benchmarkColor: Record<string, string> = {
@@ -285,6 +286,12 @@ return 1;
     <Head title="Hao hụt & Lãng phí" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-8">
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+            Đang xem <strong>Toàn chuỗi</strong>. Hao hụt và hủy hàng được tổng hợp từ các chi nhánh.
+        </div>
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <div
             class="flex flex-col gap-4 border-b border-border/80 pb-6 sm:flex-row sm:items-center sm:justify-between"

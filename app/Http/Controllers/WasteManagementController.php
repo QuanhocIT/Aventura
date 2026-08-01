@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\QuotaService;
 use App\Services\WasteAnalyticsService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,7 +14,7 @@ class WasteManagementController extends Controller
 {
     public function __construct(private WasteAnalyticsService $analytics) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, TenantContext $tenantContext): Response
     {
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -31,11 +32,12 @@ class WasteManagementController extends Controller
 
         $restaurantId = $request->user()->restaurant_id;
         $days = max(1, min(365, (int) ($request->days ?? 30)));
+        $branchId = $tenantContext->activeBranchId();
 
-        $dashboard = $this->analytics->getDashboard($restaurantId, $days);
-        $trend = $this->analytics->getTrendData($restaurantId, 6);
-        $suggestions = $this->analytics->getAiSuggestions($restaurantId);
-        $expiring = $this->analytics->getExpiringItems($restaurantId, 3);
+        $dashboard = $this->analytics->getDashboard($restaurantId, $days, $branchId);
+        $trend = $this->analytics->getTrendData($restaurantId, 6, $branchId);
+        $suggestions = $this->analytics->getAiSuggestions($restaurantId, $branchId);
+        $expiring = $this->analytics->getExpiringItems($restaurantId, 3, $branchId);
 
         return Inertia::render('waste-management/Index', [
             'dashboard' => $dashboard,
@@ -43,6 +45,10 @@ class WasteManagementController extends Controller
             'suggestions' => $suggestions,
             'expiring' => $expiring,
             'days' => $days,
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -51,7 +57,7 @@ class WasteManagementController extends Controller
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         return response()->json(
-            $this->analytics->getDashboard($request->user()->restaurant_id, $days)
+            $this->analytics->getDashboard($request->user()->restaurant_id, $days, app(TenantContext::class)->activeBranchId())
         );
     }
 
@@ -60,14 +66,14 @@ class WasteManagementController extends Controller
         $months = (int) ($request->months ?? 6);
 
         return response()->json(
-            $this->analytics->getTrendData($request->user()->restaurant_id, $months)
+            $this->analytics->getTrendData($request->user()->restaurant_id, $months, app(TenantContext::class)->activeBranchId())
         );
     }
 
     public function apiSuggestions(Request $request): JsonResponse
     {
         return response()->json(
-            $this->analytics->getAiSuggestions($request->user()->restaurant_id)
+            $this->analytics->getAiSuggestions($request->user()->restaurant_id, app(TenantContext::class)->activeBranchId())
         );
     }
 
@@ -76,7 +82,7 @@ class WasteManagementController extends Controller
         $days = (int) ($request->days ?? 3);
 
         return response()->json(
-            $this->analytics->getExpiringItems($request->user()->restaurant_id, $days)
+            $this->analytics->getExpiringItems($request->user()->restaurant_id, $days, app(TenantContext::class)->activeBranchId())
         );
     }
 }

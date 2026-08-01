@@ -58,8 +58,14 @@ const props = defineProps<{
             net_profit: number;
         };
         trend: TrendPoint[];
+        branch_reconciliation?: {
+            is_consistent: boolean;
+            revenue_difference: number;
+            profit_difference: number;
+        };
     };
     filters: { year: number; month: number };
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 defineOptions({
@@ -195,6 +201,15 @@ const lines = computed(() => [
     <Head title="Báo cáo Lãi/Lỗ" />
 
     <div class="mx-auto w-full max-w-5xl space-y-6 px-6 py-6">
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
+        >
+            <span v-if="props.report.branch_reconciliation" class="ml-1 font-semibold">
+                {{ props.report.branch_reconciliation.is_consistent ? '✓ Khớp với tổng từng chi nhánh' : '⚠ Có dữ liệu chưa xác định chi nhánh' }}
+            </span>
+            Đang xem <strong>Toàn chuỗi</strong>. Lãi/lỗ được tổng hợp theo từng chi nhánh.
+        </div>
         <!-- Header + bộ chọn kỳ -->
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-4">

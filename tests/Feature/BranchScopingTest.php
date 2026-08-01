@@ -243,6 +243,32 @@ class BranchScopingTest extends TestCase
         $this->assertSame('all', session('active_branch_scope'));
     }
 
+    public function test_shared_branch_context_matches_owner_and_manager_scope(): void
+    {
+        $ownerResponse = $this->actingAs($this->owner)->get(route('dashboard'));
+        $ownerProps = $ownerResponse->original->getData()['page']['props'];
+
+        $this->assertSame('all', $ownerProps['tenant']['scope']);
+        $this->assertCount(2, $ownerProps['tenant']['branches']);
+
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+        Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchA->id,
+            'user_id' => $manager->id,
+        ]);
+
+        $managerResponse = $this->actingAs($manager)->get(route('orders.index'));
+        $managerProps = $managerResponse->original->getData()['page']['props'];
+
+        $this->assertSame('branch', $managerProps['tenant']['scope']);
+        $this->assertSame($this->branchA->id, $managerProps['tenant']['active_branch_id']);
+        $this->assertCount(1, $managerProps['tenant']['branches']);
+        $this->assertSame($this->branchA->id, $managerProps['tenant']['branches'][0]['id']);
+    }
+
     public function test_manager_cannot_switch_to_all_branches(): void
     {
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);

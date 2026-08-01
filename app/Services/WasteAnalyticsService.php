@@ -6,16 +6,18 @@ use App\Models\InventoryBatch;
 use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Support\Tenant\TenantContext;
 
 class WasteAnalyticsService
 {
-    public function getDashboard(int $restaurantId, int $days = 30): array
+    public function getDashboard(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        return Cache::remember("waste_dashboard:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
+        return Cache::remember($this->cacheKey('waste_dashboard', $restaurantId, $days, $branchId), 300, function () use ($restaurantId, $days, $branchId) {
             $totalWasteCost = (float) InventoryTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'waste')
                 ->where('occurred_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_cost');
 
             $totalRevenue = (float) DB::table('orders')
@@ -23,11 +25,13 @@ class WasteAnalyticsService
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount') +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->where('completed_at', '>=', now()->subDays($days))
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->sum('total_amount');
 
             $wasteRatio = $totalRevenue > 0 ? round(($totalWasteCost / $totalRevenue) * 100, 2) : 0;
@@ -37,6 +41,7 @@ class WasteAnalyticsService
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'waste')
                 ->where('occurred_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
             return [
@@ -50,18 +55,19 @@ class WasteAnalyticsService
                     'normal' => 'Bình thường (5-10%)',
                     'high' => 'Cao — cần cải thiện (>10%)',
                 },
-                'by_category' => $this->getWasteByCategory($restaurantId, $days),
-                'top_ingredients' => $this->getTopWasteIngredients($restaurantId, $days),
+                'by_category' => $this->getWasteByCategory($restaurantId, $days, $branchId),
+                'top_ingredients' => $this->getTopWasteIngredients($restaurantId, $days, $branchId),
             ];
         });
     }
 
-    public function getWasteByCategory(int $restaurantId, int $days = 30): array
+    public function getWasteByCategory(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         return InventoryTransaction::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
             ->where('occurred_at', '>=', now()->subDays($days))
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(
                 DB::raw("COALESCE(waste_category, 'other') as category"),
                 DB::raw('COUNT(*) as count'),
@@ -80,13 +86,14 @@ class WasteAnalyticsService
             ->all();
     }
 
-    public function getTopWasteIngredients(int $restaurantId, int $days = 30): array
+    public function getTopWasteIngredients(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         return DB::table('inventory_transactions')
             ->join('ingredients', 'inventory_transactions.ingredient_id', '=', 'ingredients.id')
             ->where('inventory_transactions.restaurant_id', $restaurantId)
             ->where('inventory_transactions.type', 'waste')
             ->where('inventory_transactions.occurred_at', '>=', now()->subDays($days))
+            ->when($branchId !== null, fn ($query) => $query->where('inventory_transactions.branch_id', $branchId))
             ->select(
                 'ingredients.id',
                 'ingredients.name',
@@ -108,18 +115,23 @@ class WasteAnalyticsService
             ->all();
     }
 
-    public function getTrendData(int $restaurantId, int $months = 6): array
+    public function getTrendData(int $restaurantId, int $months = 6, ?int $branchId = null): array
     {
+        $monthExpression = DB::connection()->getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', occurred_at)"
+            : "DATE_FORMAT(occurred_at, '%Y-%m')";
+
         return DB::table('inventory_transactions')
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
             ->where('occurred_at', '>=', now()->subMonths($months))
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(
-                DB::raw("DATE_FORMAT(occurred_at, '%Y-%m') as month"),
+                DB::raw("{$monthExpression} as month"),
                 DB::raw('SUM(total_cost) as total_cost'),
                 DB::raw('COUNT(*) as count')
             )
-            ->groupBy(DB::raw("DATE_FORMAT(occurred_at, '%Y-%m')"))
+            ->groupBy(DB::raw($monthExpression))
             ->orderBy('month')
             ->get()
             ->map(fn ($r) => [
@@ -130,10 +142,10 @@ class WasteAnalyticsService
             ->all();
     }
 
-    public function getAiSuggestions(int $restaurantId): array
+    public function getAiSuggestions(int $restaurantId, ?int $branchId = null): array
     {
-        $topWaste = $this->getTopWasteIngredients($restaurantId, 30);
-        $byCategory = $this->getWasteByCategory($restaurantId, 30);
+        $topWaste = $this->getTopWasteIngredients($restaurantId, 30, $branchId);
+        $byCategory = $this->getWasteByCategory($restaurantId, 30, $branchId);
         $suggestions = [];
 
         foreach (array_slice($topWaste, 0, 3) as $item) {
@@ -178,10 +190,11 @@ class WasteAnalyticsService
         return $suggestions;
     }
 
-    public function getExpiringItems(int $restaurantId, int $days = 3): array
+    public function getExpiringItems(int $restaurantId, int $days = 3, ?int $branchId = null): array
     {
         return InventoryBatch::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->expiringSoon($days)
             ->with('ingredient:id,name')
             ->orderBy('expiry_date')
@@ -208,5 +221,15 @@ class WasteAnalyticsService
             'theft' => 'Thất thoát/Mất cắp',
             default => 'Khác',
         };
+    }
+
+    private function cacheKey(string $prefix, int $restaurantId, int $period, ?int $branchId): string
+    {
+        return implode(':', [
+            $prefix,
+            $restaurantId,
+            $period,
+            TenantContext::branchScopeKey($branchId),
+        ]);
     }
 }

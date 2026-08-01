@@ -116,6 +116,7 @@ const props = defineProps<{
     reviews: PerformanceReview[];
     period: string;
     canManage: boolean;
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 // --- Active Tab ---
@@ -301,6 +302,12 @@ const getRoleText = (role: string | null) => {
     <div
         class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 text-slate-800 dark:text-slate-100"
     >
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+            Đang xem <strong>Toàn chuỗi</strong>. KPI được tổng hợp từ nhân sự của tất cả chi nhánh.
+        </div>
         <!-- Header -->
         <div
             class="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"

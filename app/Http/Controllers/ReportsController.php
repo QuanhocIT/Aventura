@@ -6,9 +6,12 @@ use App\Jobs\SendDailyReportEmail;
 use App\Models\OperatingExpense;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\Salary;
+use App\Models\RestaurantBranch;
+use App\Services\BranchReportService;
 use App\Services\DailyReportService;
 use App\Services\MenuInsightService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +23,11 @@ use Inertia\Response;
 
 class ReportsController extends Controller
 {
-    public function __construct(private MenuInsightService $menuInsight) {}
+    public function __construct(
+        private MenuInsightService $menuInsight,
+        private BranchReportService $branchReports,
+        private TenantContext $tenantContext,
+    ) {}
 
     public function generate(Request $request): RedirectResponse
     {
@@ -52,6 +59,7 @@ class ReportsController extends Controller
 
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $period = $request->input('period', '7days');
 
@@ -66,11 +74,12 @@ class ReportsController extends Controller
         $dayCount = $startDate->diffInDays($endDate) + 1;
 
         // ── Current period summaries ───────────────────────────────────────────
-        $rawSummaries = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->whereBetween('summary_date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->get()
-            ->keyBy(fn ($s) => $s->summary_date->toDateString());
+        $rawSummaries = $this->branchReports->dailyRevenue(
+            $restaurantId,
+            $startDate,
+            $endDate,
+            $branchId,
+        )->keyBy('date_full');
 
         $summaries = collect();
         for ($date = $startDate->copy(); $date->lte($endDate); $date = $date->addDay()) {
@@ -78,21 +87,21 @@ class ReportsController extends Controller
             if ($rawSummaries->has($dateString)) {
                 $s = $rawSummaries->get($dateString);
                 $summaries->push([
-                    'date' => $s->summary_date->format('d/m'),
-                    'date_full' => $s->summary_date->toDateString(),
-                    'order_count' => (int) $s->order_count,
-                    'completed_order_count' => (int) $s->completed_order_count,
-                    'cancelled_count' => (int) $s->cancelled_order_count,
-                    'net_revenue' => (float) $s->net_revenue,
-                    'gross_revenue' => (float) $s->gross_revenue,
-                    'discount_total' => (float) $s->discount_total,
-                    'cogs_amount' => (float) $s->cogs_amount,
-                    'gross_profit' => (float) $s->gross_profit,
-                    'cash_revenue' => (float) $s->cash_revenue,
-                    'bank_transfer_revenue' => (float) $s->bank_transfer_revenue,
-                    'card_revenue' => (float) $s->card_revenue,
-                    'ewallet_revenue' => (float) $s->ewallet_revenue,
-                    'average_order_value' => (float) $s->average_order_value,
+                    'date' => $s['date'],
+                    'date_full' => $s['date_full'],
+                    'order_count' => (int) $s['order_count'],
+                    'completed_order_count' => (int) $s['completed_order_count'],
+                    'cancelled_count' => (int) $s['cancelled_count'],
+                    'net_revenue' => (float) $s['net_revenue'],
+                    'gross_revenue' => (float) $s['gross_revenue'],
+                    'discount_total' => (float) $s['discount_total'],
+                    'cogs_amount' => (float) $s['cogs_amount'],
+                    'gross_profit' => (float) $s['gross_profit'],
+                    'cash_revenue' => (float) $s['cash_revenue'],
+                    'bank_transfer_revenue' => (float) $s['bank_transfer_revenue'],
+                    'card_revenue' => (float) $s['card_revenue'],
+                    'ewallet_revenue' => (float) $s['ewallet_revenue'],
+                    'average_order_value' => (float) $s['average_order_value'],
                 ]);
             } else {
                 $summaries->push([
@@ -126,6 +135,18 @@ class ReportsController extends Controller
             'cancelled_count' => $summaries->sum('cancelled_count'),
         ];
 
+        $branchReconciliation = null;
+        if ($this->tenantContext->isAllBranches()) {
+            $branchReconciliation = $this->branchReports->reconcile(
+                $restaurantId,
+                $startDate,
+                $endDate,
+                RestaurantBranch::where('restaurant_id', $restaurantId)
+                    ->where('status', 'active')
+                    ->get(['id', 'name']),
+            );
+        }
+
         // ── Payment breakdown (kỳ này) ────────────────────────────────────────
         $totalPayment = max(
             $summaries->sum('cash_revenue')
@@ -150,10 +171,12 @@ class ReportsController extends Controller
         $prevEnd = $startDate->copy()->subDay();
         $prevStart = $prevEnd->copy()->subDays($dayCount - 1);
 
-        $prevSummaries = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->whereBetween('summary_date', [$prevStart, $prevEnd])
-            ->get();
+        $prevSummaries = $this->branchReports->dailyRevenue(
+            $restaurantId,
+            $prevStart,
+            $prevEnd,
+            $branchId,
+        );
 
         $prevNet = (float) $prevSummaries->sum('net_revenue');
         $prevOrders = (int) $prevSummaries->sum('completed_order_count');
@@ -195,13 +218,19 @@ class ReportsController extends Controller
         // mặt dùng lưu lượng lớn. Cache theo restaurant + period + date.
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
         $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : 'HOUR(completed_at)';
-        $peakCacheKey = "reports_peak:{$restaurantId}:{$period}:".today()->toDateString();
+        $peakCacheKey = $this->tenantContext->cacheKey(
+            'reports_peak',
+            $restaurantId,
+            $period,
+            today()->toDateString(),
+        );
 
-        $peakHours = Cache::remember($peakCacheKey, 600, function () use ($restaurantId, $startDate, $endDate, $hourExpr) {
+        $peakHours = Cache::remember($peakCacheKey, 600, function () use ($restaurantId, $startDate, $endDate, $hourExpr, $branchId) {
             $peakRows = DB::table('orders_unified')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereBetween('completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->selectRaw("{$hourExpr} as hour, SUM(total_amount) as revenue, COUNT(*) as order_count")
                 ->groupBy(DB::raw($hourExpr))
                 ->orderBy('hour')
@@ -219,15 +248,24 @@ class ReportsController extends Controller
         });
 
         // ── Top 10 products (P1: cache 10 phút) ────────────────────────────────
-        $topProductsCacheKey = "reports_top_products:{$restaurantId}:{$period}:".today()->toDateString();
+        $topProductsCacheKey = $this->tenantContext->cacheKey(
+            'reports_top_products',
+            $restaurantId,
+            $period,
+            today()->toDateString(),
+        );
 
-        $topProducts = Cache::remember($topProductsCacheKey, 600, function () use ($restaurantId, $startDate, $endDate) {
+        $topProducts = Cache::remember($topProductsCacheKey, 600, function () use ($restaurantId, $startDate, $endDate, $branchId) {
             return DB::table('order_items_unified')
-                ->join('orders_unified', 'order_items_unified.order_id', '=', 'orders_unified.id')
+                ->join('orders_unified', function ($join) {
+                    $join->on('order_items_unified.order_id', '=', 'orders_unified.id')
+                        ->on('order_items_unified.restaurant_id', '=', 'orders_unified.restaurant_id');
+                })
                 ->join('products', 'order_items_unified.product_id', '=', 'products.id')
                 ->where('orders_unified.restaurant_id', $restaurantId)
                 ->where('orders_unified.status', 'completed')
                 ->whereBetween('orders_unified.completed_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+                ->when($branchId !== null, fn ($query) => $query->where('orders_unified.branch_id', $branchId))
                 ->select('products.name', DB::raw('SUM(order_items_unified.quantity) as total_qty'), DB::raw('SUM(order_items_unified.line_total) as total_revenue'))
                 ->groupBy('products.id', 'products.name')
                 ->orderByDesc('total_revenue')
@@ -241,38 +279,35 @@ class ReportsController extends Controller
         });
 
         // ── Today summary ─────────────────────────────────────────────────────
-        $todayRecord = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->whereDate('summary_date', today())
+        $todayRecord = $this->branchReports
+            ->dailyRevenue($restaurantId, today(), today(), $branchId)
             ->first();
-
-        $yesterdayRecord = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->whereDate('summary_date', today()->subDay())
+        $yesterdayRecord = $this->branchReports
+            ->dailyRevenue($restaurantId, today()->subDay(), today()->subDay(), $branchId)
             ->first();
 
         $todaySummary = $todayRecord ? [
-            'net_revenue' => (float) $todayRecord->net_revenue,
-            'gross_revenue' => (float) $todayRecord->gross_revenue,
-            'completed_count' => (int) $todayRecord->completed_order_count,
-            'order_count' => (int) $todayRecord->order_count,
-            'average_order_value' => (float) $todayRecord->average_order_value,
-            'calculated_at' => $todayRecord->calculated_at?->format('H:i d/m/Y'),
+            'net_revenue' => (float) $todayRecord['net_revenue'],
+            'gross_revenue' => (float) $todayRecord['gross_revenue'],
+            'completed_count' => (int) $todayRecord['completed_order_count'],
+            'order_count' => (int) $todayRecord['order_count'],
+            'average_order_value' => (float) $todayRecord['average_order_value'],
+            'calculated_at' => now()->format('H:i d/m/Y'),
         ] : null;
 
         $comparisonCards = null;
         if ($todayRecord && $yesterdayRecord) {
-            $revDelta = $todayRecord->net_revenue - $yesterdayRecord->net_revenue;
-            $prevNet2 = (float) $yesterdayRecord->net_revenue;
+            $revDelta = $todayRecord['net_revenue'] - $yesterdayRecord['net_revenue'];
+            $prevNet2 = (float) $yesterdayRecord['net_revenue'];
             $revDeltaPct = $prevNet2 > 0 ? round(($revDelta / $prevNet2) * 100, 1) : 0.0;
-            $orderDelta = $todayRecord->completed_order_count - $yesterdayRecord->completed_order_count;
+            $orderDelta = $todayRecord['completed_order_count'] - $yesterdayRecord['completed_order_count'];
 
             $comparisonCards = [
                 'revenue_delta' => (float) $revDelta,
                 'revenue_delta_pct' => $revDeltaPct,
                 'order_delta' => (int) $orderDelta,
-                'yesterday_revenue' => (float) $yesterdayRecord->net_revenue,
-                'yesterday_orders' => (int) $yesterdayRecord->completed_order_count,
+                'yesterday_revenue' => (float) $yesterdayRecord['net_revenue'],
+                'yesterday_orders' => (int) $yesterdayRecord['completed_order_count'],
             ];
         }
 
@@ -283,9 +318,12 @@ class ReportsController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->whereIn('status', ['approved', 'paid'])
             ->whereBetween('pay_period_start', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('net_salary');
 
         $totalOpex = (float) OperatingExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
 
         $grossProfit = (float) $totals['gross_profit'];
@@ -316,6 +354,7 @@ class ReportsController extends Controller
         return Inertia::render('reports/Index', [
             'summaries' => $summaries->values(),
             'totals' => $totals,
+            'branchReconciliation' => $branchReconciliation,
             'topProducts' => collect($topProducts)->values()->all(),
             'period' => $period,
             'dateRange' => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
@@ -328,9 +367,13 @@ class ReportsController extends Controller
             'profitBreakdown' => $profitBreakdown,
             'canGenerate' => $user->hasAnyRole(['owner', 'manager']),
             'canSendEmail' => $user->hasAnyRole(['owner']),
-            'bcgData' => Inertia::defer(fn () => collect($this->menuInsight->getBcgData($restaurantId, $days))->values()->all()),
-            'productMargins' => Inertia::defer(fn () => collect($this->menuInsight->getProductMargins($restaurantId, $days))->values()->all()),
-            'todayRealtimeStats' => Inertia::defer(function () use ($restaurantId) {
+            'bcgData' => Inertia::defer(fn () => collect($this->menuInsight->getBcgData($restaurantId, $days, $branchId))->values()->all()),
+            'productMargins' => Inertia::defer(fn () => collect($this->menuInsight->getProductMargins($restaurantId, $days, $branchId))->values()->all()),
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
+            'todayRealtimeStats' => Inertia::defer(function () use ($restaurantId, $branchId) {
                 $todayStart = Carbon::today()->startOfDay();
                 $todayEnd = Carbon::today()->endOfDay();
 
@@ -339,6 +382,7 @@ class ReportsController extends Controller
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->whereBetween('completed_at', [$todayStart, $todayEnd])
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
                     ->first();
                 $todayPaidCount = (int) ($todayPaidOrders->count ?? 0);
@@ -349,6 +393,7 @@ class ReportsController extends Controller
                     ->where('restaurant_id', $restaurantId)
                     ->whereBetween('created_at', [$todayStart, $todayEnd])
                     ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->selectRaw('COUNT(*) as count, SUM(total_amount) as revenue')
                     ->first();
                 $todayActiveCount = (int) ($todayActiveOrders->count ?? 0);
@@ -359,12 +404,14 @@ class ReportsController extends Controller
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'cancelled')
                     ->whereBetween('created_at', [$todayStart, $todayEnd])
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->count();
 
                 // 4. Tổng số đơn hàng hôm nay
                 $todayTotalOrdersCount = DB::table('orders')
                     ->where('restaurant_id', $restaurantId)
                     ->whereBetween('created_at', [$todayStart, $todayEnd])
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->count();
 
                 // 5. Tổng doanh thu hôm nay (Paid + Active)
@@ -408,11 +455,20 @@ class ReportsController extends Controller
 
         $date = $request->input('date', today()->toDateString());
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
-        $summary = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->where('summary_date', $date)
+        $summary = $this->branchReports
+            ->dailyRevenue($restaurantId, Carbon::parse($date), Carbon::parse($date), $branchId)
             ->first();
+        $summary = $summary ? (object) [
+            'net_revenue' => $summary['net_revenue'],
+            'gross_revenue' => $summary['gross_revenue'],
+            'completed_order_count' => $summary['completed_order_count'],
+            'cancelled_order_count' => $summary['cancelled_count'],
+            'order_count' => $summary['order_count'],
+            'discount_total' => $summary['discount_total'],
+            'cogs_amount' => $summary['cogs_amount'],
+        ] : null;
 
         $pdf = Pdf::loadView('reports.daily-pdf', [
             'restaurant' => $restaurant,
@@ -447,23 +503,25 @@ class ReportsController extends Controller
         };
         $startDate = today()->subDays($days);
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
-        $summaries = RestaurantRevenueSummary::where('restaurant_id', $restaurantId)
-            ->where('summary_type', 'daily')
-            ->whereBetween('summary_date', [$startDate, today()])
-            ->orderBy('summary_date')
-            ->get();
+        $summaries = $this->branchReports->dailyRevenue(
+            $restaurantId,
+            $startDate,
+            today(),
+            $branchId,
+        );
 
         $csv = "\xEF\xBB\xBF\"Ngày\",\"Tổng đơn\",\"Đơn hoàn thành\",\"Đơn hủy\",\"Doanh thu thuần (đ)\",\"Giảm giá (đ)\",\"Lợi nhuận gộp (đ)\"\n";
         foreach ($summaries as $s) {
             $csv .= implode(',', [
-                '"'.$s->summary_date->format('d/m/Y').'"',
-                $s->order_count,
-                $s->completed_order_count,
-                $s->cancelled_order_count,
-                (float) $s->net_revenue,
-                (float) $s->discount_total,
-                (float) $s->gross_profit,
+                '"'.Carbon::parse($s['date_full'])->format('d/m/Y').'"',
+                $s['order_count'],
+                $s['completed_order_count'],
+                $s['cancelled_count'],
+                (float) $s['net_revenue'],
+                (float) $s['discount_total'],
+                (float) $s['gross_profit'],
             ])."\n";
         }
 
@@ -487,6 +545,7 @@ class ReportsController extends Controller
 
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $period = $request->input('period', '7days');
 
@@ -502,6 +561,7 @@ class ReportsController extends Controller
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('order_items.restaurant_id', $restaurantId)
             ->whereBetween('order_items.created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
             ->select(
                 'products.id as product_id',
                 'products.name as product_name',
@@ -537,6 +597,10 @@ class ReportsController extends Controller
             'totals' => $totals,
             'period' => $period,
             'dateRange' => ['start' => $startDate->format('d/m/Y'), 'end' => $endDate->format('d/m/Y')],
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 }

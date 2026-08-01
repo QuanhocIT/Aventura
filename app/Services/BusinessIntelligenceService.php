@@ -5,12 +5,13 @@ namespace App\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Support\Tenant\TenantContext;
 
 class BusinessIntelligenceService
 {
-    public function getRevenueTrend(int $restaurantId, int $months = 12): array
+    public function getRevenueTrend(int $restaurantId, int $months = 12, ?int $branchId = null): array
     {
-        return Cache::remember("bi_revenue_trend:{$restaurantId}:{$months}", 300, function () use ($restaurantId, $months) {
+        return Cache::remember($this->cacheKey('bi_revenue_trend', $restaurantId, $months, $branchId), 300, function () use ($restaurantId, $months, $branchId) {
             $isSqlite = DB::connection()->getDriverName() === 'sqlite';
             $monthFormat = $isSqlite ? "strftime('%Y-%m', completed_at)" : "DATE_FORMAT(completed_at, '%Y-%m')";
 
@@ -19,6 +20,7 @@ class BusinessIntelligenceService
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subMonths($months))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->select(
                     DB::raw("{$monthFormat} as month"),
                     DB::raw('1 as order_count'),
@@ -29,6 +31,7 @@ class BusinessIntelligenceService
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subMonths($months))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->select(
                     DB::raw("{$monthFormat} as month"),
                     DB::raw('1 as order_count'),
@@ -67,40 +70,46 @@ class BusinessIntelligenceService
         });
     }
 
-    public function getUnitEconomics(int $restaurantId, int $days = 30): array
+    public function getUnitEconomics(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        return Cache::remember("bi_unit_economics:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
+        return Cache::remember($this->cacheKey('bi_unit_economics', $restaurantId, $days, $branchId), 300, function () use ($restaurantId, $days, $branchId) {
             $totalRevenue = (float) DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount') +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->where('completed_at', '>=', now()->subDays($days))
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->sum('total_amount');
 
             $newCustomers = (int) DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
                 ->where('created_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
             $totalCost = (float) DB::table('inventory_transactions')
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'purchase')
                 ->where('occurred_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_cost');
 
             $wasteCost = (float) DB::table('inventory_transactions')
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'waste')
                 ->where('occurred_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_cost');
 
             $totalCustomers = (int) DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
             $avgOrdersPerCustomer = $totalCustomers > 0
@@ -108,10 +117,12 @@ class BusinessIntelligenceService
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->whereNull('deleted_at')
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->count() +
                     DB::table('orders_archive')
                         ->where('restaurant_id', $restaurantId)
                         ->where('status', 'completed')
+                        ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                         ->count()) / $totalCustomers
                 : 0;
 
@@ -120,22 +131,26 @@ class BusinessIntelligenceService
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount');
             $sum2 = (float) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount');
             $count1 = (int) DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
             $count2 = (int) DB::table('orders_archive')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
             $avgOrderValue = ($count1 + $count2) > 0 ? ($sum1 + $sum2) / ($count1 + $count2) : 0;
@@ -162,9 +177,9 @@ class BusinessIntelligenceService
         });
     }
 
-    public function getCohortAnalysis(int $restaurantId): array
+    public function getCohortAnalysis(int $restaurantId, ?int $branchId = null): array
     {
-        return Cache::remember("bi_cohort_analysis:{$restaurantId}", 300, function () use ($restaurantId) {
+        return Cache::remember($this->cacheKey('bi_cohort_analysis', $restaurantId, $branchId), 300, function () use ($restaurantId, $branchId) {
             $isSqlite = DB::connection()->getDriverName() === 'sqlite';
             $startDate = now()->subMonths(6)->startOfMonth();
 
@@ -173,6 +188,7 @@ class BusinessIntelligenceService
             $cohorts = DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
                 ->where('created_at', '>=', $startDate)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->select(DB::raw("{$cohortFormat} as cohort_month"), DB::raw('COUNT(*) as count'))
                 ->groupBy('cohort_month')
                 ->orderBy('cohort_month')
@@ -192,6 +208,7 @@ class BusinessIntelligenceService
                 ->where('o.status', 'completed')
                 ->whereNull('o.deleted_at')
                 ->where('c.created_at', '>=', $startDate)
+                ->when($branchId !== null, fn ($query) => $query->where('c.branch_id', $branchId)->where('o.branch_id', $branchId))
                 ->whereRaw("{$monthDiffRaw} BETWEEN 0 AND 5")
                 ->select(
                     DB::raw("{$cohortRaw} as cohort_month"),
@@ -204,6 +221,7 @@ class BusinessIntelligenceService
                 ->where('c.restaurant_id', $restaurantId)
                 ->where('o.status', 'completed')
                 ->where('c.created_at', '>=', $startDate)
+                ->when($branchId !== null, fn ($query) => $query->where('c.branch_id', $branchId)->where('o.branch_id', $branchId))
                 ->whereRaw("{$monthDiffRaw} BETWEEN 0 AND 5")
                 ->select(
                     DB::raw("{$cohortRaw} as cohort_month"),
@@ -255,31 +273,35 @@ class BusinessIntelligenceService
         });
     }
 
-    public function getBreakEvenAnalysis(int $restaurantId, int $days = 30): array
+    public function getBreakEvenAnalysis(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        return Cache::remember("bi_break_even:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
+        return Cache::remember($this->cacheKey('bi_break_even', $restaurantId, $days, $branchId), 300, function () use ($restaurantId, $days, $branchId) {
             $revenue = (float) DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount') +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->where('completed_at', '>=', now()->subDays($days))
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->sum('total_amount');
 
             $variableCost = (float) DB::table('inventory_transactions')
                 ->where('restaurant_id', $restaurantId)
                 ->whereIn('type', ['purchase', 'usage'])
                 ->where('occurred_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_cost');
 
             $fixedCost = (float) DB::table('operating_expenses')
                 ->where('restaurant_id', $restaurantId)
                 ->whereNotNull('recurring_expense_id')
                 ->where('expense_date', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('amount');
 
             $ordersCount = (int) DB::table('orders')
@@ -287,11 +309,13 @@ class BusinessIntelligenceService
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->where('completed_at', '>=', now()->subDays($days))
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count() +
                 (int) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
                     ->where('completed_at', '>=', now()->subDays($days))
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->count();
 
             $avgOrderValue = $ordersCount > 0 ? $revenue / $ordersCount : 0;
@@ -319,9 +343,9 @@ class BusinessIntelligenceService
         });
     }
 
-    public function getBenchmark(int $restaurantId, int $days = 30): array
+    public function getBenchmark(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        $economics = $this->getUnitEconomics($restaurantId, $days);
+        $economics = $this->getUnitEconomics($restaurantId, $days, $branchId);
 
         $benchmarks = [
             ['metric' => 'Tỷ suất Lợi nhuận gộp (Gross Margin)', 'value' => $economics['gross_margin'], 'unit' => '%', 'industry_low' => 55, 'industry_high' => 70, 'good_direction' => 'higher'],
@@ -342,5 +366,16 @@ class BusinessIntelligenceService
         }
 
         return $benchmarks;
+    }
+
+    private function cacheKey(string $prefix, int $restaurantId, mixed ...$parts): string
+    {
+        $branchId = array_pop($parts);
+        $parts[] = TenantContext::branchScopeKey($branchId);
+
+        return implode(':', array_merge([$prefix, $restaurantId], array_map(
+            static fn ($part): string => (string) $part,
+            $parts,
+        )));
     }
 }

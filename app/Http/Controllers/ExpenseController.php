@@ -7,6 +7,7 @@ use App\Models\OperatingExpense;
 use App\Models\RecurringExpense;
 use App\Services\ProfitLossService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,8 @@ use Inertia\Response;
 
 class ExpenseController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     /**
      * Display a listing of the resources.
      */
@@ -39,12 +42,14 @@ class ExpenseController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // 1. Fetch Categories (includes system-shared ones)
         $categories = ExpenseCategory::all();
 
         // 2. Build Expenses Query with Filters
-        $query = OperatingExpense::with(['category', 'creator']);
+        $query = OperatingExpense::with(['category', 'creator', 'branch'])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
 
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
@@ -63,7 +68,10 @@ class ExpenseController extends Controller
             ->withQueryString();
 
         // 3. Fetch Recurring Expenses
-        $recurringExpenses = RecurringExpense::with('category')->latest()->get();
+        $recurringExpenses = RecurringExpense::with(['category', 'branch'])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->latest()
+            ->get();
 
         // 4. Calculate Analytics (This Month vs Last Month)
         $now = now();
@@ -73,8 +81,12 @@ class ExpenseController extends Controller
         $lastMonthEnd = $now->copy()->subMonth()->endOfMonth()->toDateString();
 
         // Total sum
-        $totalThisMonth = (float) OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])->sum('amount');
-        $totalLastMonth = (float) OperatingExpense::whereBetween('expense_date', [$lastMonthStart, $lastMonthEnd])->sum('amount');
+        $totalThisMonth = (float) OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->sum('amount');
+        $totalLastMonth = (float) OperatingExpense::whereBetween('expense_date', [$lastMonthStart, $lastMonthEnd])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->sum('amount');
 
         // MoM Delta
         $momDelta = 0.0;
@@ -87,6 +99,7 @@ class ExpenseController extends Controller
         // Recurring share ratio
         $recurringTotalThisMonth = (float) OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
             ->whereNotNull('recurring_expense_id')
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
         $recurringRatio = $totalThisMonth > 0 ? round(($recurringTotalThisMonth / $totalThisMonth) * 100, 1) : 0.0;
 
@@ -96,7 +109,9 @@ class ExpenseController extends Controller
             $monthDate = $now->copy()->subMonths($i);
             $mStart = $monthDate->copy()->startOfMonth()->toDateString();
             $mEnd = $monthDate->copy()->endOfMonth()->toDateString();
-            $mAmount = (float) OperatingExpense::whereBetween('expense_date', [$mStart, $mEnd])->sum('amount');
+            $mAmount = (float) OperatingExpense::whereBetween('expense_date', [$mStart, $mEnd])
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                ->sum('amount');
             $sixMonthsMom[] = [
                 'month' => $monthDate->format('m/Y'),
                 'label' => 'Tháng '.$monthDate->format('m/Y'),
@@ -106,6 +121,7 @@ class ExpenseController extends Controller
 
         // Category breakdown this month
         $rawBreakdown = OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select('category_id', DB::raw('SUM(amount) as total_amount'))
             ->groupBy('category_id')
             ->get();
@@ -147,8 +163,13 @@ class ExpenseController extends Controller
                 'category_id' => $categoryId,
                 'year' => $year,
                 'month' => $month,
+                'branch_id' => $branchId,
             ],
-            'profitLossReport' => Inertia::defer(fn () => $profitLossService->buildWithComparison($restaurantId, $year, $month)),
+            'profitLossReport' => Inertia::defer(fn () => $profitLossService->buildWithComparison($restaurantId, $year, $month, $branchId)),
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -175,6 +196,7 @@ class ExpenseController extends Controller
 
         OperatingExpense::create([
             'restaurant_id' => $request->user()->restaurant_id,
+            'branch_id' => $this->tenantContext->activeBranchId(),
             'category_id' => $data['category_id'],
             'amount' => $data['amount'],
             'expense_date' => $data['expense_date'],
@@ -193,6 +215,7 @@ class ExpenseController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
         $data = $request->validate([
             'category_id' => ['nullable', \App\Support\TenantRule::exists('expense_categories')],
@@ -224,6 +247,7 @@ class ExpenseController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
         if ($expense->invoice_path && str_starts_with($expense->invoice_path, '/storage/')) {
             $oldPath = str_replace('/storage/', '', $expense->invoice_path);
@@ -254,6 +278,7 @@ class ExpenseController extends Controller
 
         RecurringExpense::create([
             'restaurant_id' => $request->user()->restaurant_id,
+            'branch_id' => $this->tenantContext->activeBranchId(),
             'category_id' => $data['category_id'],
             'name' => $data['name'],
             'amount' => $data['amount'],
@@ -274,6 +299,7 @@ class ExpenseController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
         $data = $request->validate([
             'category_id' => ['sometimes', 'required', \App\Support\TenantRule::exists('expense_categories')],
@@ -298,6 +324,7 @@ class ExpenseController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
         $recurring->delete();
 

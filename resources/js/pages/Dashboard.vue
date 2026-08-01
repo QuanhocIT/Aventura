@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage, router, Deferred } from '@inertiajs/vue3';
+import { Head, Link, usePage, Deferred } from '@inertiajs/vue3';
 import {
     Building2,
     ArrowRight,
@@ -19,7 +19,7 @@ import {
     ChevronRight,
     ShoppingCart,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 
 // Subcomponents
 import AIInsightsCard from '@/components/dashboard/charts/AIInsightsCard.vue';
@@ -34,6 +34,7 @@ import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
 import QuickActions from '@/components/dashboard/QuickActions.vue';
 import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
+import { useBranchContext } from '@/composables/useBranchContext';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -186,30 +187,21 @@ const availablePlans = computed(
     () => (page.props as any).available_plans ?? [],
 );
 const roles = computed(() => (page.props as any).roles ?? []);
+const { isAllBranches, switchBranch } = useBranchContext();
 
-const selectedBranch = ref(props.branchId || 'all');
+const currentBranchName = computed(() => {
+    if (isAllBranches.value || props.branchId === null || props.branchId === undefined) {
+        return 'Toàn chuỗi';
+    }
 
-watch(selectedBranch, (newVal) => {
-    router.post(
-        '/branch/switch',
-        newVal === 'all' ? { scope: 'all' } : { branch_id: Number(newVal) },
-        {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        },
+    return (
+        props.branches?.find((branch) => branch.id === props.branchId)?.name ??
+        'Chi nhánh hiện tại'
     );
 });
 
-watch(
-    () => props.branchId,
-    (newVal) => {
-        selectedBranch.value = newVal || 'all';
-    },
-);
-
 const selectBranchDirectly = (id: number) => {
-    selectedBranch.value = id;
+    switchBranch(id);
 };
 
 const formatVND = (value: number) => {
@@ -271,54 +263,24 @@ function getTableStatusInfo(status: string) {
 
     <!-- Main Content Section -->
     <div class="relative mx-auto max-w-7xl space-y-5 px-4 py-4 lg:px-6">
-        <!-- Branch selection dropdown (Only if owner has multiple branches) -->
+        <!-- Branch context comes from the global selector in AppSidebarHeader. -->
         <div
-            v-if="props.branches && props.branches.length > 1"
-            class="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+            v-if="props.branches?.length"
+            class="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
         >
             <div>
                 <h2
-                    class="text-slate-850 flex items-center gap-2.5 text-xl font-black tracking-tight dark:text-slate-100"
+                    class="flex items-center gap-2.5 text-xl font-black tracking-tight text-slate-850 dark:text-slate-100"
                 >
                     <span
                         class="size-2.5 animate-pulse rounded-full bg-teal-500 shadow-sm shadow-teal-500"
                     />
-                    {{
-                        branchId
-                            ? 'Báo cáo chi nhánh'
-                            : 'Trung tâm chỉ huy chuỗi'
-                    }}
+                    {{ isAllBranches ? 'Trung tâm chỉ huy chuỗi' : 'Báo cáo chi nhánh' }}
                 </h2>
-                <p
-                    class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
-                >
-                    {{
-                        branchId
-                            ? 'Giám sát vận hành và hiệu suất của chi nhánh hiện tại.'
-                            : 'Tổng quan hiệu suất và sức khỏe hoạt động của toàn chuỗi.'
-                    }}
+                <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Đang xem: <strong class="text-slate-700 dark:text-slate-200">{{ currentBranchName }}</strong>
+                    <span class="ml-1">· Header là nơi chuyển đổi chi nhánh.</span>
                 </p>
-            </div>
-
-            <div class="flex items-center gap-2.5">
-                <span
-                    class="text-xs font-bold tracking-wider text-slate-500 uppercase"
-                    >Chi nhánh:</span
-                >
-                <select
-                    id="branch-selector"
-                    v-model="selectedBranch"
-                    class="min-w-[220px] cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold shadow-sm transition-all outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
-                >
-                    <option value="all">🌐 Toàn chuỗi (Hợp nhất)</option>
-                    <option
-                        v-for="b in props.branches"
-                        :key="b.id"
-                        :value="b.id"
-                    >
-                        📍 {{ b.name }}
-                    </option>
-                </select>
             </div>
         </div>
 

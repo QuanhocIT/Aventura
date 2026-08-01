@@ -39,9 +39,11 @@ const props = defineProps<{
     completions: Record<number, any>;
     stats: Record<
         number,
-        { total: number; completed: number; percent: number }
+        { total: number; completed: number; expected?: number; percent: number }
     >;
     date: string;
+    canComplete?: boolean;
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 const page = usePage();
@@ -132,6 +134,11 @@ async function submitPhotoItem() {
 
 // Complete item
 async function completeItem(itemId: number, photo: string | null = null) {
+    if (props.canComplete === false) {
+        toast.error('Hãy chọn một chi nhánh cụ thể để cập nhật checklist.');
+        return;
+    }
+
     completing.value = itemId;
 
     try {
@@ -154,6 +161,11 @@ async function completeItem(itemId: number, photo: string | null = null) {
 }
 
 async function uncompleteItem(itemId: number) {
+    if (props.canComplete === false) {
+        toast.error('Hãy chọn một chi nhánh cụ thể để cập nhật checklist.');
+        return;
+    }
+
     try {
         await axios.post('/operations-checklist/uncomplete', {
             item_id: itemId,
@@ -171,6 +183,10 @@ function isCompleted(itemId: number): boolean {
 }
 
 function completedPercent(templateId: number): number {
+    if (props.branchContext?.scope === 'all') {
+        return props.stats[templateId]?.percent ?? 0;
+    }
+
     const template = props.templates.find((t) => t.id === templateId);
 
     if (!template) {
@@ -214,10 +230,24 @@ function submitTemplate() {
 const totalTemplates = computed(() => props.templates.length);
 
 const totalAllItems = computed(() => {
+    if (props.branchContext?.scope === 'all') {
+        return Object.values(props.stats).reduce(
+            (sum, stat) => sum + (stat.expected ?? stat.total),
+            0,
+        );
+    }
+
     return props.templates.reduce((sum, t) => sum + (t.items?.length ?? 0), 0);
 });
 
 const totalCompletedItems = computed(() => {
+    if (props.branchContext?.scope === 'all') {
+        return Object.values(props.stats).reduce(
+            (sum, stat) => sum + stat.completed,
+            0,
+        );
+    }
+
     return props.templates.reduce((sum, t) => {
         const done = t.items?.filter((i: any) => isCompleted(i.id)).length ?? 0;
 
@@ -267,6 +297,12 @@ const overallPercent = computed(() => {
             </div>
 
             <div class="flex items-center gap-2">
+                <p
+                    v-if="props.canComplete === false"
+                    class="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                >
+                    Đang xem toàn chuỗi — chọn chi nhánh để cập nhật
+                </p>
                 <Button
                     @click="showCreateDialog = true"
                     class="flex h-10 items-center gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
@@ -409,10 +445,16 @@ const overallPercent = computed(() => {
                             "
                         >
                             {{
-                                template.items.filter((i: any) =>
-                                    isCompleted(i.id),
-                                ).length
-                            }}/{{ template.items.length }}
+                                props.branchContext?.scope === 'all'
+                                    ? (stats[template.id]?.completed ?? 0)
+                                    : template.items.filter((i: any) =>
+                                          isCompleted(i.id),
+                                      ).length
+                            }}/{{
+                                props.branchContext?.scope === 'all'
+                                    ? (stats[template.id]?.expected ?? 0)
+                                    : template.items.length
+                            }}
                         </span>
                     </div>
                 </div>
@@ -430,7 +472,7 @@ const overallPercent = computed(() => {
                                     ? openCamera(item.id)
                                     : completeItem(item.id)
                             "
-                            :disabled="completing === item.id"
+                            :disabled="completing === item.id || props.canComplete === false"
                             class="shrink-0 focus:outline-none"
                         >
                             <Loader2
@@ -445,6 +487,7 @@ const overallPercent = computed(() => {
                         <button
                             v-else
                             @click="uncompleteItem(item.id)"
+                            :disabled="props.canComplete === false"
                             class="shrink-0 focus:outline-none"
                         >
                             <CheckCircle2 class="size-5 text-indigo-500" />

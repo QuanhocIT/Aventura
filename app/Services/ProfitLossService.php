@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\OperatingExpense;
 use App\Models\Order;
+use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -15,15 +16,15 @@ use Illuminate\Support\Facades\DB;
  */
 class ProfitLossService
 {
-    public function buildMonthly(int $restaurantId, int $year, int $month): array
+    public function buildMonthly(int $restaurantId, int $year, int $month, ?int $branchId = null): array
     {
         $start = CarbonImmutable::create($year, $month, 1)->startOfDay();
         $end = $start->endOfMonth();
 
-        $revenue = $this->revenueForPeriod($restaurantId, $start, $end);
-        $cogs = $this->cogsForPeriod($restaurantId, $start, $end);
-        $labor = $this->laborCostForPeriod($restaurantId, $start, $end);
-        $opex = $this->operatingExpensesForPeriod($restaurantId, $start, $end);
+        $revenue = $this->revenueForPeriod($restaurantId, $start, $end, $branchId);
+        $cogs = $this->cogsForPeriod($restaurantId, $start, $end, $branchId);
+        $labor = $this->laborCostForPeriod($restaurantId, $start, $end, $branchId);
+        $opex = $this->operatingExpensesForPeriod($restaurantId, $start, $end, $branchId);
 
         $grossProfit = $revenue['net_revenue'] - $cogs;
         $netProfit = $grossProfit - $labor - $opex['total'];
@@ -40,23 +41,24 @@ class ProfitLossService
             'operating_expenses' => $opex,
             'net_profit' => round($netProfit),
             'net_margin' => $revenue['net_revenue'] > 0 ? round($netProfit / $revenue['net_revenue'] * 100, 1) : 0,
+            'branch_id' => $branchId,
         ];
     }
 
     /** P&L tháng hiện tại + so sánh tháng trước + chuỗi 6 tháng cho biểu đồ. */
-    public function buildWithComparison(int $restaurantId, int $year, int $month): array
+    public function buildWithComparison(int $restaurantId, int $year, int $month, ?int $branchId = null): array
     {
-        $current = $this->buildMonthly($restaurantId, $year, $month);
+        $current = $this->buildMonthly($restaurantId, $year, $month, $branchId);
 
         $prevDate = CarbonImmutable::create($year, $month, 1)->subMonth();
-        $previous = $this->buildMonthly($restaurantId, $prevDate->year, $prevDate->month);
+        $previous = $this->buildMonthly($restaurantId, $prevDate->year, $prevDate->month, $branchId);
 
         // Chuỗi 6 tháng gần nhất (kể cả tháng đang xem) cho sparkline
         $trend = [];
         $cursor = CarbonImmutable::create($year, $month, 1)->subMonths(5);
 
         for ($i = 0; $i < 6; $i++) {
-            $point = $this->buildMonthly($restaurantId, $cursor->year, $cursor->month);
+            $point = $this->buildMonthly($restaurantId, $cursor->year, $cursor->month, $branchId);
             $trend[] = [
                 'period' => $point['period'],
                 'net_revenue' => $point['revenue']['net_revenue'],
@@ -65,7 +67,7 @@ class ProfitLossService
             $cursor = $cursor->addMonth();
         }
 
-        return [
+        $result = [
             'current' => $current,
             'previous' => [
                 'period' => $previous['period'],
@@ -75,14 +77,53 @@ class ProfitLossService
             ],
             'trend' => $trend,
         ];
+
+        if ($branchId === null) {
+            $result['branch_reconciliation'] = $this->reconcileMonthly($restaurantId, $year, $month);
+        }
+
+        return $result;
     }
 
-    private function revenueForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end): array
+    public function reconcileMonthly(int $restaurantId, int $year, int $month): array
+    {
+        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get(['id', 'name']);
+        $reports = $branches->map(function (RestaurantBranch $branch) use ($restaurantId, $year, $month) {
+            $report = $this->buildMonthly($restaurantId, $year, $month, (int) $branch->id);
+
+            return [
+                'branch_id' => (int) $branch->id,
+                'branch_name' => $branch->name,
+                'net_revenue' => $report['revenue']['net_revenue'],
+                'net_profit' => $report['net_profit'],
+            ];
+        })->values();
+        $all = $this->buildMonthly($restaurantId, $year, $month);
+        $sumRevenue = (float) $reports->sum('net_revenue');
+        $sumProfit = (float) $reports->sum('net_profit');
+
+        return [
+            'branches' => $reports->all(),
+            'all' => [
+                'net_revenue' => $all['revenue']['net_revenue'],
+                'net_profit' => $all['net_profit'],
+            ],
+            'revenue_difference' => $all['revenue']['net_revenue'] - $sumRevenue,
+            'profit_difference' => $all['net_profit'] - $sumProfit,
+            'is_consistent' => abs($all['revenue']['net_revenue'] - $sumRevenue) < 0.01
+                && abs($all['net_profit'] - $sumProfit) < 0.01,
+        ];
+    }
+
+    private function revenueForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): array
     {
         $row = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$start, $end])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw('
                 COUNT(*) as order_count,
                 COALESCE(SUM(subtotal), 0) as gross_revenue,
@@ -102,7 +143,7 @@ class ProfitLossService
     }
 
     /** Cùng công thức COGS với DailyReportService: định lượng BOM x (1 + hao hụt) x giá vốn TB. */
-    private function cogsForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end): float
+    private function cogsForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): float
     {
         $result = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
@@ -111,6 +152,7 @@ class ProfitLossService
             ->where('orders.restaurant_id', $restaurantId)
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$start, $end])
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
             ->whereNull('ingredients.deleted_at')
             ->selectRaw('
                 SUM(
@@ -129,22 +171,24 @@ class ProfitLossService
      * Lương thuộc về tháng có pay_period_end rơi vào tháng đó (đã duyệt/đã trả).
      * net_salary là cast encrypted — bắt buộc cộng trong PHP, không SUM được bằng SQL.
      */
-    private function laborCostForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end): float
+    private function laborCostForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): float
     {
         return Salary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('status', ['approved', 'paid'])
             ->whereBetween('pay_period_end', [$start->toDateString(), $end->toDateString()])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get(['id', 'net_salary'])
             ->sum(fn (Salary $s) => (float) $s->net_salary);
     }
 
-    private function operatingExpensesForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end): array
+    private function operatingExpensesForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): array
     {
         $expenses = OperatingExpense::withoutGlobalScopes()
             ->with('category:id,name')
             ->where('restaurant_id', $restaurantId)
             ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get(['id', 'category_id', 'amount']);
 
         $byCategory = $expenses

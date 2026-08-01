@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\BusinessIntelligenceService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,7 +13,7 @@ class BIDashboardController extends Controller
 {
     public function __construct(private BusinessIntelligenceService $bi) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, TenantContext $tenantContext): Response
     {
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -30,14 +31,19 @@ class BIDashboardController extends Controller
 
         $restaurantId = $request->user()->restaurant_id;
         $days = max(1, min(365, (int) ($request->days ?? 30)));
+        $branchId = $tenantContext->activeBranchId();
 
         return Inertia::render('bi-dashboard/Index', [
-            'revenueTrend' => Inertia::defer(fn () => $this->bi->getRevenueTrend($restaurantId, 12)),
-            'unitEconomics' => Inertia::defer(fn () => $this->bi->getUnitEconomics($restaurantId, $days)),
-            'cohorts' => Inertia::defer(fn () => $this->bi->getCohortAnalysis($restaurantId)),
-            'breakEven' => Inertia::defer(fn () => $this->bi->getBreakEvenAnalysis($restaurantId, $days)),
-            'benchmarks' => Inertia::defer(fn () => $this->bi->getBenchmark($restaurantId, $days)),
+            'revenueTrend' => Inertia::defer(fn () => $this->bi->getRevenueTrend($restaurantId, 12, $branchId)),
+            'unitEconomics' => Inertia::defer(fn () => $this->bi->getUnitEconomics($restaurantId, $days, $branchId)),
+            'cohorts' => Inertia::defer(fn () => $this->bi->getCohortAnalysis($restaurantId, $branchId)),
+            'breakEven' => Inertia::defer(fn () => $this->bi->getBreakEvenAnalysis($restaurantId, $days, $branchId)),
+            'benchmarks' => Inertia::defer(fn () => $this->bi->getBenchmark($restaurantId, $days, $branchId)),
             'days' => $days,
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 }

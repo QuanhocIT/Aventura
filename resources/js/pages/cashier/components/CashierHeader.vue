@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Coffee, User, Clock } from 'lucide-vue-next';
+import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import { Button } from '@/components/ui/button';
 
 defineProps<{
@@ -38,6 +39,8 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
                 </span>
             </h1>
             <p class="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                <BranchContextSelector compact :selectable="false" />
+                <span class="text-slate-300 dark:text-slate-700">|</span>
                 <span>Nhân viên phục vụ:
                     <span class="font-bold text-slate-700 dark:text-slate-300">
                         {{ employee?.full_name ?? 'Chưa cập nhật' }}

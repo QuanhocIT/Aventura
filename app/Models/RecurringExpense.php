@@ -33,4 +33,9 @@ class RecurringExpense extends Model
     {
         return $this->hasMany(OperatingExpense::class, 'recurring_expense_id');
     }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
 }

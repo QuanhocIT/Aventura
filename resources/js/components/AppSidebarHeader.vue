@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Link, usePage, router } from '@inertiajs/vue3';
-import { Bell, Star } from 'lucide-vue-next';
+import { Link, usePage } from '@inertiajs/vue3';
+import { AlertTriangle, Bell, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import UserMenuContent from '@/components/UserMenuContent.vue';
+import { useBranchContext } from '@/composables/useBranchContext';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, User } from '@/types';
 
@@ -47,21 +49,9 @@ const roles = computed(() => {
 });
 
 const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
-const canViewAllBranches = computed(() => roles.value.includes('owner') || isSuperAdmin.value);
-
-const tenant = computed(() => page.props.tenant as any);
-const branches = computed(() => tenant.value?.branches ?? []);
-const activeBranchId = computed(() => tenant.value?.active_branch_id ?? null);
+const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);
-
-const handleBranchChange = (e: Event) => {
-    const val = (e.target as HTMLSelectElement).value;
-    router.post(
-        '/branch/switch',
-        val === 'all' ? { scope: 'all' } : { branch_id: parseInt(val) },
-    );
-};
 </script>
 
 <template>
@@ -94,28 +84,8 @@ const handleBranchChange = (e: Event) => {
         </div>
 
         <div class="flex items-center gap-4">
-            <!-- Branch context switcher -->
-            <div
-                v-if="branches && (branches.length > 1 || canViewAllBranches)"
-                class="mr-2 flex items-center gap-1.5"
-            >
-                <span
-                    class="hidden text-[11px] font-medium tracking-wider text-muted-foreground uppercase sm:inline"
-                    >Chi nhánh:</span
-                >
-                <select
-                    :value="activeBranchId ?? 'all'"
-                    @change="handleBranchChange"
-                    class="h-8 cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-accent focus:ring-1 focus:ring-ring focus:outline-none dark:text-slate-200"
-                >
-                    <option v-if="canViewAllBranches" value="all">
-                        Toàn chuỗi
-                    </option>
-                    <option v-for="b in branches" :key="b.id" :value="b.id">
-                        {{ b.name }}
-                    </option>
-                </select>
-            </div>
+            <!-- The only global branch selector. Non-owners see a read-only context. -->
+            <BranchContextSelector class="mr-2" />
 
             <AppearanceToggleInline />
 
@@ -169,6 +139,17 @@ const handleBranchChange = (e: Event) => {
             </DropdownMenu>
         </div>
     </header>
+
+    <div
+        v-if="isAllBranches"
+        class="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        role="status"
+    >
+        <AlertTriangle class="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span>
+            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang được tổng hợp từ các chi nhánh.
+        </span>
+    </div>
 
     <PlatformFeedbackModal v-model:open="showFeedbackModal" />
 </template>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MenuPriceTest;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -11,9 +12,9 @@ class MenuInsightService
     /**
      * Phân tích hiệu suất sản phẩm và trả về danh sách insights có thể hành động.
      */
-    public function getInsights(int $restaurantId, int $days = 30): array
+    public function getInsights(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        $products = $this->queryProductPerformance($restaurantId, $days);
+        $products = $this->queryProductPerformance($restaurantId, $days, 0, $branchId);
 
         if ($products->isEmpty()) {
             return [];
@@ -89,9 +90,9 @@ class MenuInsightService
     /**
      * Dữ liệu BCG matrix: xếp sản phẩm vào 4 ô.
      */
-    public function getBcgData(int $restaurantId, int $days = 30): array
+    public function getBcgData(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        $products = $this->queryProductPerformance($restaurantId, $days);
+        $products = $this->queryProductPerformance($restaurantId, $days, 0, $branchId);
 
         if ($products->isEmpty()) {
             return [];
@@ -161,9 +162,9 @@ class MenuInsightService
     /**
      * Hiệu suất sản phẩm + biên lợi nhuận cho chart.
      */
-    public function getProductMargins(int $restaurantId, int $days = 30): array
+    public function getProductMargins(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        $products = $this->queryProductPerformance($restaurantId, $days);
+        $products = $this->queryProductPerformance($restaurantId, $days, 0, $branchId);
 
         return $products
             ->filter(fn ($p) => (int) $p->total_qty > 0)
@@ -186,11 +187,13 @@ class MenuInsightService
      * Menu Scoring: điểm tổng hợp cho mỗi món (popularity × profitability × trend).
      * Score 0-100, kèm AI suggestion cho từng món.
      */
-    public function getMenuScoring(int $restaurantId, int $days = 30): array
+    public function getMenuScoring(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        return Cache::remember("menu_scoring:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
-            $current = $this->queryProductPerformance($restaurantId, $days);
-            $previous = $this->queryProductPerformance($restaurantId, $days, $days);
+        $scopeKey = TenantContext::branchScopeKey($branchId);
+
+        return Cache::remember("menu_scoring:{$restaurantId}:{$days}:{$scopeKey}", 300, function () use ($restaurantId, $days, $branchId) {
+            $current = $this->queryProductPerformance($restaurantId, $days, 0, $branchId);
+            $previous = $this->queryProductPerformance($restaurantId, $days, $days, $branchId);
 
             if ($current->isEmpty()) {
                 return [];
@@ -332,7 +335,7 @@ class MenuInsightService
         return "📊 {$name} ở mức trung bình. Theo dõi thêm 2-4 tuần để đánh giá xu hướng.";
     }
 
-    private function queryProductPerformance(int $restaurantId, int $days, int $offsetDays = 0)
+    private function queryProductPerformance(int $restaurantId, int $days, int $offsetDays = 0, ?int $branchId = null)
     {
         $from = now()->subDays($days + $offsetDays);
         $to = now()->subDays($offsetDays);
@@ -345,6 +348,7 @@ class MenuInsightService
             ->where('orders.status', 'completed')
             ->whereNull('orders.deleted_at')
             ->whereBetween('orders.completed_at', [$from, $to])
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
             ->select(
                 'products.id as product_id',
                 'products.name',
@@ -363,6 +367,7 @@ class MenuInsightService
             ->where('orders_archive.restaurant_id', $restaurantId)
             ->where('orders_archive.status', 'completed')
             ->whereBetween('orders_archive.completed_at', [$from, $to])
+            ->when($branchId !== null, fn ($query) => $query->where('orders_archive.branch_id', $branchId))
             ->select(
                 'products.id as product_id',
                 'products.name',

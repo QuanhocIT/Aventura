@@ -120,6 +120,7 @@ const props = defineProps<{
         month?: number;
     };
     profitLossReport?: any;
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 // --- Active Tab State ---
@@ -443,6 +444,12 @@ const chartMaxVal = computed(() => {
     <Head title="Quản Lý Chi Phí Vận Hành (OPEX)" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6">
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+            Đang xem <strong>Toàn chuỗi</strong>. Chi phí và lãi/lỗ được tổng hợp từ các chi nhánh.
+        </div>
         <!-- Page Header -->
         <div
             class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"

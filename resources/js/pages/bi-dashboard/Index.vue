@@ -74,6 +74,7 @@ const props = withDefaults(
             status: string;
         }[];
         days: number;
+        branchContext?: { scope: string; active_branch_id: number | null };
     }>(),
     {
         revenueTrend: () => [],
@@ -305,6 +306,12 @@ function toastSuccess(msg: string) {
     <Head title="BI Dashboard & Analytics" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6 text-slate-800 dark:text-slate-100">
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
+        >
+            Đang xem <strong>Toàn chuỗi</strong>. Chỉ số BI và điểm hòa vốn được tính trên toàn bộ chi nhánh.
+        </div>
         <!-- Dashboard Premium Hero Header -->
         <div class="relative overflow-hidden rounded-3xl border border-slate-100 bg-gradient-to-r from-indigo-55/30 via-slate-50/10 to-transparent p-6 shadow-xs dark:border-slate-800/80 dark:from-slate-900/60 dark:via-slate-900/10 dark:to-transparent">
             <!-- Glow points -->

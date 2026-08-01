@@ -34,4 +34,9 @@ class OperatingExpense extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
 }

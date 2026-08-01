@@ -161,16 +161,19 @@ class KpiService
         $endStr = $end->toDateString();
         $startDt = $start->copy()->startOfDay();
         $endDt = $end->copy()->endOfDay();
+        $branchId = $employee->branch_id ? (int) $employee->branch_id : null;
 
         switch ($code) {
             // Waiter Metrics
             case 'waiter_orders_served':
                 $shifts = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('scheduled_date', [$startStr, $endStr])
                     ->where('status', 'completed')
                     ->count();
 
                 $orders = Order::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('created_at', [$startDt, $endDt])
                     ->where('created_by', $employee->user_id)
                     ->count();
@@ -179,6 +182,7 @@ class KpiService
 
             case 'waiter_customer_rating':
                 $orderIds = Order::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('created_at', [$startDt, $endDt])
                     ->where('created_by', $employee->user_id)
                     ->pluck('id');
@@ -193,6 +197,7 @@ class KpiService
 
             case 'waiter_service_speed':
                 $orderIds = Order::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('created_at', [$startDt, $endDt])
                     ->where('created_by', $employee->user_id)
                     ->pluck('id');
@@ -216,6 +221,7 @@ class KpiService
                 // Chef / Kitchen Metrics
             case 'chef_prep_time':
                 $shifts = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('scheduled_date', [$startStr, $endStr])
                     ->where('status', 'completed')
                     ->whereNotNull('check_in_at')
@@ -234,6 +240,7 @@ class KpiService
                 }
 
                 $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->where('branch_id', $branchId)))
                     ->where('status', '!=', 'cancelled')
                     ->whereNotNull('sent_to_kitchen_at')
                     ->whereNotNull('prepared_at')
@@ -265,6 +272,7 @@ class KpiService
 
             case 'chef_rejection_rate':
                 $shifts = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('scheduled_date', [$startStr, $endStr])
                     ->where('status', 'completed')
                     ->whereNotNull('check_in_at')
@@ -283,6 +291,7 @@ class KpiService
                 }
 
                 $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->where('branch_id', $branchId)))
                     ->whereBetween('created_at', [$minCheckIn, $maxCheckOut])
                     ->with('order')
                     ->get();
@@ -307,6 +316,7 @@ class KpiService
 
             case 'chef_food_rating':
                 $shifts = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('scheduled_date', [$startStr, $endStr])
                     ->where('status', 'completed')
                     ->whereNotNull('check_in_at')
@@ -325,6 +335,7 @@ class KpiService
                 }
 
                 $items = OrderItem::where('restaurant_id', $employee->restaurant_id)
+                    ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($order) => $order->where('branch_id', $branchId)))
                     ->whereNotNull('prepared_at')
                     ->whereBetween('prepared_at', [$minCheckIn, $maxCheckOut])
                     ->with('order')
@@ -356,6 +367,7 @@ class KpiService
                 // Cashier Metrics
             case 'cashier_processed_revenue':
                 $revenue = Payment::where('processed_by', $employee->user_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('status', 'paid')
                     ->whereBetween('paid_at', [$startDt, $endDt])
                     ->sum('amount');
@@ -364,6 +376,7 @@ class KpiService
 
             case 'cashier_error_rate':
                 $closings = ShiftClosing::where('cashier_user_id', $employee->user_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->whereBetween('closing_date', [$startStr, $endStr])
                     ->get();
 
@@ -377,6 +390,7 @@ class KpiService
 
             case 'cashier_checkout_speed':
                 $payments = Payment::where('processed_by', $employee->user_id)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('status', 'paid')
                     ->whereBetween('created_at', [$startDt, $endDt])
                     ->with('order')

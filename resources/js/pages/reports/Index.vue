@@ -163,6 +163,12 @@ const props = defineProps<{
         qty: number;
     }[];
     todayRealtimeStats: TodayRealtimeStats;
+    branchContext?: { scope: string; active_branch_id: number | null };
+    branchReconciliation?: {
+        is_consistent: boolean;
+        revenue_difference: number;
+        gross_profit_difference: number;
+    } | null;
 }>();
 
 // ── Period ───────────────────────────────────────────────────────────────────
@@ -598,6 +604,16 @@ function deltaBadge(pct: number | null) {
                     Xuất CSV
                 </button>
             </div>
+        </div>
+
+        <div
+            v-if="props.branchContext?.scope === 'all'"
+            class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
+        >
+            Đang xem <strong>Toàn chuỗi</strong>. Tổng doanh thu được đối soát với tổng các chi nhánh.
+            <span v-if="branchReconciliation" class="ml-1 font-semibold">
+                {{ branchReconciliation.is_consistent ? '✓ Khớp số liệu' : '⚠ Có dữ liệu chưa xác định chi nhánh' }}
+            </span>
         </div>
 
         <!-- ── Daily Report Status Bar ─────────────────────────────────────── -->

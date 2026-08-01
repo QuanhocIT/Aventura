@@ -8,6 +8,7 @@ use App\Models\KpiMetric;
 use App\Models\PerformanceReview;
 use App\Services\KpiService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,7 @@ class KpiController extends Controller
         protected KpiService $kpiService
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, TenantContext $tenantContext): Response
     {
         $user = $request->user();
 
@@ -38,6 +39,7 @@ class KpiController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $tenantContext->activeBranchId();
 
         $period = $request->input('period', now()->format('Y-m'));
 
@@ -47,6 +49,7 @@ class KpiController extends Controller
         // 2. Fetch employees and eager load their finalized/draft KPIs for the target period
         $employees = Employee::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->with(['role', 'kpis' => function ($query) use ($period) {
                 $query->where('period', $period)->with('metrics');
             }])
@@ -82,6 +85,7 @@ class KpiController extends Controller
         // 3. Leaderboard list (Sorted by total_score from employee_kpis)
         $leaderboard = EmployeeKpi::where('restaurant_id', $restaurantId)
             ->where('period', $period)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employee) => $employee->where('branch_id', $branchId)))
             ->with('employee:id,full_name,job_title')
             ->orderByDesc('total_score')
             ->get()
@@ -97,6 +101,7 @@ class KpiController extends Controller
         // 4. Eager load 360-degree reviews for the period
         $reviews = PerformanceReview::where('restaurant_id', $restaurantId)
             ->where('period', $period)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employee) => $employee->where('branch_id', $branchId)))
             ->with(['employee:id,full_name', 'reviewer:id,name'])
             ->get()
             ->map(fn ($rev) => [
@@ -119,6 +124,10 @@ class KpiController extends Controller
             'reviews' => $reviews,
             'period' => $period,
             'canManage' => $user->hasAnyRole(['owner', 'manager']),
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -131,9 +140,11 @@ class KpiController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
 
         $period = $request->input('period', now()->format('Y-m'));
+        $branchId = app(TenantContext::class)->activeBranchId();
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get();
 
         $calculatedCount = 0;
@@ -155,6 +166,7 @@ class KpiController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
         abort_if($kpi->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($kpi->employee?->branch_id), 403);
 
         $kpi->update([
             'status' => 'finalized',
@@ -184,6 +196,9 @@ class KpiController extends Controller
             'ratings.skills' => ['required', 'integer', 'between:1,5'],
             'comments' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $employee = Employee::where('restaurant_id', $restaurantId)->findOrFail($data['employee_id']);
+        abort_unless($user->canAccessBranch($employee->branch_id), 403);
 
         $ratings = $data['ratings'];
         $avgScore = array_sum($ratings) / count($ratings);
