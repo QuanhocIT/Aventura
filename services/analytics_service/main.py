@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from typing import List
 import json
-from sklearn.linear_model import LinearRegression
 from models import (
     BasketAnalysisRequest,
     UpsellSuggestionRequest,
@@ -16,6 +15,25 @@ from models import (
     CohortRetentionRequest
 )
 from auth import require_api_key
+
+
+def fit_linear_regression(x_values, y_values):
+    x_array = np.asarray(x_values, dtype=float)
+    y_array = np.asarray(y_values, dtype=float)
+
+    if x_array.size == 0:
+        return 0.0, 0.0
+
+    if x_array.size == 1:
+        return float(y_array[0]), 0.0
+
+    slope, intercept = np.polyfit(x_array, y_array, 1)
+    return float(intercept), float(slope)
+
+
+def predict_linear(intercept: float, slope: float, x_values):
+    x_array = np.asarray(x_values, dtype=float)
+    return (slope * x_array) + intercept
 
 
 app = FastAPI(
@@ -262,17 +280,16 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
             avg_daily = float(history_df["qty"].mean())
             
             if len(history_df) >= 3:
-                X = np.arange(len(history_df)).reshape(-1, 1)
+                x_values = np.arange(len(history_df), dtype=float)
                 y = history_df["qty"].values
-                
-                model = LinearRegression().fit(X, y)
-                
-                future_X = np.arange(len(history_df), len(history_df) + 7).reshape(-1, 1)
-                future_preds = model.predict(future_X)
+
+                intercept, slope = fit_linear_regression(x_values, y)
+
+                future_x = np.arange(len(history_df), len(history_df) + 7, dtype=float)
+                future_preds = predict_linear(intercept, slope, future_x)
                 future_preds = np.clip(future_preds, 0, None)
                 predicted_usage = float(np.sum(future_preds))
-                
-                slope = float(model.coef_[0])
+
                 trend_direction = "tăng" if slope >= 0 else "giảm"
                 pct_change = abs(slope / (avg_daily if avg_daily > 0 else 1.0)) * 100.0
                 reason = f"Dự báo hồi quy tuyến tính (AI LinearRegression) phát hiện xu hướng tiêu thụ đang {trend_direction} {round(pct_change, 1)}% mỗi ngày. Tồn kho hiện tại ({current_stock} {ing.unit_symbol}) sắp chạm ngưỡng tối thiểu."
@@ -325,16 +342,16 @@ def perform_revenue_forecast(request: RevenueForecastRequest):
     history_df["date"] = pd.to_datetime(history_df["date"])
     history_df = history_df.sort_values(by="date")
     
-    X = np.arange(len(history_df)).reshape(-1, 1)
+    x_values = np.arange(len(history_df), dtype=float)
     y = history_df["revenue"].values
-    
-    model = LinearRegression().fit(X, y)
-    
+
+    intercept, slope = fit_linear_regression(x_values, y)
+
     tomorrow_idx = len(history_df)
-    tomorrow_pred = max(0.0, float(model.predict([[tomorrow_idx]])[0]))
-    
-    future_indices = np.arange(len(history_df), len(history_df) + 7).reshape(-1, 1)
-    future_preds = np.clip(model.predict(future_indices), 0, None)
+    tomorrow_pred = max(0.0, float(predict_linear(intercept, slope, [tomorrow_idx])[0]))
+
+    future_indices = np.arange(len(history_df), len(history_df) + 7, dtype=float)
+    future_preds = np.clip(predict_linear(intercept, slope, future_indices), 0, None)
     
     if len(history_df) >= 14:
         last_week = y[-7:].sum()
