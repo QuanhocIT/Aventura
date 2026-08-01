@@ -197,7 +197,7 @@ const groupedSections = computed(() => {
     });
 
     if (unmatchedSection.items.length > 0) {
-        sections.unshift(unmatchedSection);
+        sections.push(unmatchedSection);
     }
 
     return sections.filter((sec) => sec.items.length > 0);
@@ -233,7 +233,7 @@ const groupedSections = computed(() => {
                                     .replace('=', '')
                             "
                             :href="item.href"
-                            prefetch
+                            :prefetch="item.prefetch ?? false"
                             class="relative flex w-full items-center gap-2 pl-3"
                         >
                             <!-- Active left border marker -->
@@ -288,7 +288,7 @@ const groupedSections = computed(() => {
                                     .replace('=', '')
                             "
                             :href="item.href"
-                            prefetch
+                            :prefetch="item.prefetch ?? false"
                             class="relative flex w-full items-center gap-2 pl-3"
                         >
                             <!-- Active left border marker -->
