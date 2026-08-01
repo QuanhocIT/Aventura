@@ -103,6 +103,11 @@ class Restaurant extends Model
         return $this->hasMany(RestaurantBranch::class);
     }
 
+    public function featureFlags(): HasMany
+    {
+        return $this->hasMany(RestaurantFeatureFlag::class);
+    }
+
     public function employees(): HasMany
     {
         return $this->hasMany(Employee::class);
@@ -183,6 +188,22 @@ class Restaurant extends Model
     public function isExpired(): bool
     {
         return $this->status === 'expired';
+    }
+
+    public function lifecycleStatus(): string
+    {
+        return $this->lifecycle_status
+            ?: ($this->sandbox_mode ? 'sandbox' : ($this->status === 'suspended' ? 'suspended' : 'active'));
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->lifecycleStatus() === 'archived';
+    }
+
+    public function isSandbox(): bool
+    {
+        return $this->lifecycleStatus() === 'sandbox';
     }
 
     public function currentAccessStatus(): string

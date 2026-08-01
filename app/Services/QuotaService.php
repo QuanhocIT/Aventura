@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\MediaAsset;
 use App\Models\Product;
 use App\Models\Restaurant;
+use App\Support\TenantFeatureFlags;
 
 class QuotaService
 {
@@ -98,6 +99,14 @@ class QuotaService
 
     public function hasFeature(Restaurant $restaurant, string $feature): bool
     {
+        $override = $restaurant->featureFlags()
+            ->where('feature', $feature)
+            ->value('enabled');
+
+        if ($override !== null) {
+            return (bool) $override;
+        }
+
         // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ)
         $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
         $snapshot = $subscription?->meta['snapshot'] ?? null;
@@ -156,19 +165,9 @@ class QuotaService
                 'dishes' => $format('dishes'),
             ],
             'features' => [
-                'kitchen_display' => $this->hasFeature($restaurant, 'kitchen_display'),
-                'qr_ordering' => $this->hasFeature($restaurant, 'qr_ordering'),
-                'inventory_basic' => $this->hasFeature($restaurant, 'inventory_basic'),
-                'hr_timekeeping' => $this->hasFeature($restaurant, 'hr_timekeeping'),
-                'hr_full' => $this->hasFeature($restaurant, 'hr_full'),
-                'advanced_analytics' => $this->hasFeature($restaurant, 'advanced_analytics'),
-                'realtime' => $this->hasFeature($restaurant, 'realtime'),
-                'fraud_detection' => $this->hasFeature($restaurant, 'fraud_detection'),
-                'email_reports' => $this->hasFeature($restaurant, 'email_reports'),
-                'ai_advisor' => $this->hasFeature($restaurant, 'ai_advisor'),
-                'supplier_portal' => $this->hasFeature($restaurant, 'supplier_portal'),
-                'ai_forecasting' => $this->hasFeature($restaurant, 'ai_forecasting'),
-                'api_access' => $this->hasFeature($restaurant, 'api_access'),
+                ...collect(TenantFeatureFlags::keys())
+                    ->mapWithKeys(fn (string $feature) => [$feature => $this->hasFeature($restaurant, $feature)])
+                    ->all(),
             ],
             'rate_limit' => $this->getRateLimit($restaurant),
         ];

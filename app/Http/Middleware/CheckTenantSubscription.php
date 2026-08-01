@@ -22,10 +22,16 @@ class CheckTenantSubscription
             return $next($request);
         }
 
-        if ($restaurant->status === 'suspended') {
+        if ($restaurant->status === 'suspended' || $restaurant->lifecycleStatus() === 'suspended') {
             return $request->expectsJson()
                 ? response()->json(['message' => 'Tài khoản doanh nghiệp đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.'], 403)
                 : abort(403, 'Tài khoản doanh nghiệp đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.');
+        }
+
+        if ($restaurant->lifecycleStatus() === 'archived') {
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Tenant đã được lưu trữ và không còn hoạt động.'], 403)
+                : abort(403, 'Tenant đã được lưu trữ và không còn hoạt động.');
         }
 
         if ($restaurant->status === 'expired' && ! $request->isMethod('GET') && ! $request->isMethod('HEAD') && ! $request->isMethod('OPTIONS')) {

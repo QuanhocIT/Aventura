@@ -191,6 +191,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::delete('/devices/{device}', [\App\Http\Controllers\PosDeviceController::class, 'destroy'])->name('devices.destroy');
         Route::post('/api-keys', [\App\Http\Controllers\ApiKeyController::class, 'store'])->name('api-keys.store');
         Route::patch('/api-keys/{apiKey}/toggle', [\App\Http\Controllers\ApiKeyController::class, 'toggle'])->name('api-keys.toggle');
+        Route::post('/api-keys/{apiKey}/rotate', [\App\Http\Controllers\ApiKeyController::class, 'rotate'])->name('api-keys.rotate');
         Route::delete('/api-keys/{apiKey}', [\App\Http\Controllers\ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
         Route::post('/webhooks', [\App\Http\Controllers\WebhookEndpointController::class, 'store'])->name('webhooks.store');
         Route::patch('/webhooks/{endpoint}/toggle', [\App\Http\Controllers\WebhookEndpointController::class, 'toggle'])->name('webhooks.toggle');

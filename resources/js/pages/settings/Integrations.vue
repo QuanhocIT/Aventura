@@ -21,6 +21,7 @@ import {
     Download,
     KeyRound,
     Loader2,
+    RotateCw,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -402,6 +403,21 @@ function toggleApiKey(k: ApiKeyRow) {
         {},
         { preserveScroll: true },
     );
+}
+
+async function rotateApiKey(k: ApiKeyRow) {
+    if (
+        !(await confirmDialog({
+            title: 'Rotation API key?',
+            description: `Key cũ của "${k.name}" sẽ mất hiệu lực ngay lập tức.`,
+        }))
+    ) {
+        return;
+    }
+
+    router.post(`/settings/integrations/api-keys/${k.id}/rotate`, {}, {
+        preserveScroll: true,
+    });
 }
 
 async function deleteApiKey(k: ApiKeyRow) {
@@ -1081,6 +1097,12 @@ const platformOrderColumns: DataTableColumn[] = [
                             @click="toggleApiKey(k)"
                             >{{ k.is_active ? 'Thu hồi' : 'Kích hoạt' }}</Button
                         >
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            class="h-7 gap-1 text-[11px]"
+                            @click="rotateApiKey(k)"
+                        ><RotateCw class="h-3.5 w-3.5" /> Rotate</Button>
                         <Button
                             size="sm"
                             variant="ghost"
