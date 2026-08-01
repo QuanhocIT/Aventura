@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 import pandas as pd
 import numpy as np
 from typing import List
@@ -46,8 +47,142 @@ app = FastAPI(
 _auth = [Depends(require_api_key)]
 
 @app.get("/")
-def read_root():
-    return {"status": "online", "service": "analytics_service"}
+def read_root(request: Request):
+    payload = {"status": "online", "service": "analytics_service"}
+    accept = request.headers.get("accept", "")
+
+    if "text/html" not in accept:
+        return JSONResponse(payload)
+
+    return HTMLResponse(
+        """
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Aventura Analytics Service</title>
+            <style>
+                :root {
+                    color-scheme: dark;
+                    --bg: #08111f;
+                    --panel: rgba(10, 22, 40, 0.92);
+                    --line: rgba(125, 211, 252, 0.24);
+                    --text: #e6f4ff;
+                    --muted: #9fb6cc;
+                    --accent: #34d399;
+                    --accent2: #38bdf8;
+                }
+                * { box-sizing: border-box; }
+                body {
+                    margin: 0;
+                    min-height: 100vh;
+                    font-family: "Segoe UI", Tahoma, sans-serif;
+                    color: var(--text);
+                    background:
+                        radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 35%),
+                        linear-gradient(180deg, #06101b 0%, #08111f 45%, #030712 100%);
+                    display: grid;
+                    place-items: center;
+                    padding: 24px;
+                }
+                .card {
+                    width: min(760px, 100%);
+                    padding: 32px;
+                    border: 1px solid var(--line);
+                    border-radius: 24px;
+                    background: var(--panel);
+                    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
+                    backdrop-filter: blur(12px);
+                }
+                .badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 14px;
+                    border-radius: 999px;
+                    background: rgba(52, 211, 153, 0.12);
+                    color: #c8ffe7;
+                    font-size: 14px;
+                }
+                .dot {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    background: var(--accent);
+                    box-shadow: 0 0 16px rgba(52, 211, 153, 0.95);
+                }
+                h1 {
+                    margin: 18px 0 10px;
+                    font-size: clamp(30px, 4vw, 44px);
+                    line-height: 1.1;
+                }
+                p {
+                    margin: 0 0 18px;
+                    color: var(--muted);
+                    line-height: 1.65;
+                }
+                .grid {
+                    display: grid;
+                    gap: 14px;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    margin: 24px 0;
+                }
+                .panel {
+                    padding: 18px;
+                    border-radius: 18px;
+                    border: 1px solid rgba(148, 163, 184, 0.15);
+                    background: rgba(15, 23, 42, 0.74);
+                }
+                .label {
+                    margin-bottom: 8px;
+                    color: #7dd3fc;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.08em;
+                }
+                code {
+                    color: #f8fafc;
+                    font-family: Consolas, "Courier New", monospace;
+                    word-break: break-word;
+                }
+                a {
+                    color: var(--accent2);
+                    text-decoration: none;
+                }
+                a:hover {
+                    text-decoration: underline;
+                }
+            </style>
+        </head>
+        <body>
+            <main class="card">
+                <div class="badge"><span class="dot"></span>Analytics service online</div>
+                <h1>Aventura Analytics Service</h1>
+                <p>Microservice FastAPI cho phan tich doanh thu, gio hang, ton kho va goi y AI. Domain nay dung de Laravel va Postman goi API, khong phai giao dien nguoi dung cuoi.</p>
+                <section class="grid">
+                    <div class="panel">
+                        <div class="label">Health Check</div>
+                        <code>GET /</code>
+                    </div>
+                    <div class="panel">
+                        <div class="label">Swagger Docs</div>
+                        <code><a href="/docs">/docs</a></code>
+                    </div>
+                    <div class="panel">
+                        <div class="label">Base API</div>
+                        <code>/api/analytics/*</code>
+                    </div>
+                    <div class="panel">
+                        <div class="label">Auth Header</div>
+                        <code>X-Internal-API-Key</code>
+                    </div>
+                </section>
+            </main>
+        </body>
+        </html>
+        """
+    )
 
 @app.post("/api/analytics/basket-analysis", dependencies=_auth)
 def perform_basket_analysis(request: BasketAnalysisRequest):
@@ -55,49 +190,49 @@ def perform_basket_analysis(request: BasketAnalysisRequest):
         return {"rules": []}
 
     total_orders = len(request.orders)
-    
+
     # 1. Đưa dữ liệu giỏ hàng vào cấu trúc phẳng để phân tích dễ dàng
     records = []
     for order in request.orders:
         for item in order.items:
             records.append({"order_id": order.order_id, "item": item})
-            
+
     df = pd.DataFrame(records)
     if df.empty:
         return {"rules": []}
 
     # 2. Đếm số lần xuất hiện của từng món đơn lẻ
     item_counts = df["item"].value_counts().to_dict()
-    
+
     # 3. Đếm số lần xuất hiện đồng thời của các cặp món ăn trong cùng đơn hàng
     # Tự liên kết (self-join) trên order_id để tạo các cặp món ăn
     joined = pd.merge(df, df, on="order_id")
-    
+
     # Chỉ giữ lại các cặp khác nhau và loại bỏ trùng lặp thứ tự bằng cách lọc item_x < item_y
     pairs = joined[joined["item_x"] != joined["item_y"]].copy()
     if pairs.empty:
         return {"rules": []}
-        
+
     # Tính tần suất của từng cặp
     pair_counts = pairs.groupby(["item_x", "item_y"]).size().reset_index(name="count")
-    
+
     rules = []
     for _, row in pair_counts.iterrows():
         item_a = row["item_x"]
         item_b = row["item_y"]
         count_ab = int(row["count"])
-        
+
         count_a = item_counts.get(item_a, 0)
         count_b = item_counts.get(item_b, 0)
-        
+
         if count_a == 0 or count_b == 0:
             continue
-            
+
         support = count_ab / total_orders
         confidence = count_ab / count_a
         expected_confidence = count_b / total_orders
         lift = confidence / expected_confidence if expected_confidence > 0 else 0
-        
+
         if support >= request.min_support and confidence >= request.min_confidence:
             rules.append({
                 "item_a": item_a,
@@ -107,10 +242,10 @@ def perform_basket_analysis(request: BasketAnalysisRequest):
                 "lift": round(lift, 4),
                 "co_occurrence": count_ab
             })
-            
+
     # Sắp xếp các quy tắc kết hợp theo lift giảm dần, sau đó đến confidence giảm dần
     rules = sorted(rules, key=lambda x: (x["lift"], x["confidence"]), reverse=True)
-    
+
     return {
         "total_orders": total_orders,
         "rules": rules[:30] # Lấy tối đa 30 gợi ý tốt nhất
@@ -144,10 +279,10 @@ def get_upsell_suggestion(request: UpsellSuggestionRequest):
     if best_match:
         item_a = best_match["item_a"]
         item_b = best_match["item_b"]
-        
+
         # Gợi ý câu thoại thông minh kết hợp Combo ưu đãi đã cấu hình
         suggestion = f"AI đề xuất: Khách đang gọi {item_a}, mời dùng thêm {item_b} để được áp dụng mã giảm giá Combo ưu đãi đã cấu hình."
-        
+
         return {
             "suggestion": suggestion,
             "recommended_item": item_b,
@@ -266,19 +401,19 @@ def perform_fraud_detection(request: FraudDetectionRequest):
 @app.post("/api/analytics/inventory-forecast", dependencies=_auth)
 def perform_inventory_forecast(request: InventoryForecastRequest):
     forecast_results = []
-    
+
     for ing in request.ingredients:
         current_stock = ing.current_stock
         min_stock = ing.min_stock_level
         avg_daily = 0.0
-        
+
         if ing.history:
             history_df = pd.DataFrame([{"date": h.date, "qty": h.quantity} for h in ing.history])
             history_df["date"] = pd.to_datetime(history_df["date"])
             history_df = history_df.sort_values(by="date")
-            
+
             avg_daily = float(history_df["qty"].mean())
-            
+
             if len(history_df) >= 3:
                 x_values = np.arange(len(history_df), dtype=float)
                 y = history_df["qty"].values
@@ -321,7 +456,7 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
             "confidence_score": confidence_score,
             "reason": reason
         })
-        
+
     return {"success": True, "forecast": forecast_results}
 
 # --- AI Revenue Forecast Endpoint ---
@@ -341,7 +476,7 @@ def perform_revenue_forecast(request: RevenueForecastRequest):
     history_df = pd.DataFrame([{"date": h.date, "revenue": h.net_revenue} for h in request.history])
     history_df["date"] = pd.to_datetime(history_df["date"])
     history_df = history_df.sort_values(by="date")
-    
+
     x_values = np.arange(len(history_df), dtype=float)
     y = history_df["revenue"].values
 
@@ -352,7 +487,7 @@ def perform_revenue_forecast(request: RevenueForecastRequest):
 
     future_indices = np.arange(len(history_df), len(history_df) + 7, dtype=float)
     future_preds = np.clip(predict_linear(intercept, slope, future_indices), 0, None)
-    
+
     if len(history_df) >= 14:
         last_week = y[-7:].sum()
         prev_week = y[-14:-7].sum()
@@ -420,7 +555,7 @@ def perform_price_analytics(request: PriceAnalyticsRequest):
 @app.post("/api/analytics/inventory-forecast-replenish", dependencies=_auth)
 def forecast_inventory(request: InventoryForecastRequest):
     forecasts = []
-    
+
     for ing in request.ingredients:
         if not ing.history:
             avg_daily_usage = 1.0
@@ -431,18 +566,18 @@ def forecast_inventory(request: InventoryForecastRequest):
             avg_daily_usage = float(df["qty"].mean())
             if avg_daily_usage <= 0:
                 avg_daily_usage = 0.5
-            
+
             target_stock = max(0.0, ing.min_stock_level)
             stock_to_consume = max(0.0, ing.current_stock - target_stock)
             days_left = stock_to_consume / avg_daily_usage
-            
+
         needs_replenishment = ing.current_stock <= ing.min_stock_level or days_left <= 7.0
-        
+
         suggested_qty = 0.0
         if needs_replenishment:
             suggested_qty = max(1.0, (ing.min_stock_level * 1.5) - ing.current_stock + (avg_daily_usage * 7))
             suggested_qty = float(np.round(suggested_qty, 3))
-            
+
         forecasts.append({
             "ingredient_id": ing.ingredient_id,
             "ingredient_name": ing.ingredient_name,
@@ -455,7 +590,7 @@ def forecast_inventory(request: InventoryForecastRequest):
             "needs_replenishment": needs_replenishment,
             "suggested_replenish_quantity": suggested_qty
         })
-        
+
     return {"forecasts": forecasts}
 
 @app.post("/api/analytics/ocr-invoice", dependencies=_auth)
@@ -465,7 +600,7 @@ def ocr_invoice(
 ):
     # Read the file
     contents = file.file.read()
-    
+
     items = []
     if po_context:
         try:
@@ -479,13 +614,13 @@ def ocr_invoice(
                 })
         except Exception as e:
             pass
-            
+
     if not items:
         items = [
             {"ingredient_id": 1, "ingredient_name": "Rau xà lách Romaine", "quantity": 2.0, "unit_price": 35000.0},
             {"ingredient_id": 2, "ingredient_name": "Cà chua Beef", "quantity": 5.0, "unit_price": 28000.0}
         ]
-        
+
     return {
         "invoice_number": "INV-202606-9999",
         "items": items,
@@ -513,7 +648,7 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
 
         # 2. Find candidates of the same ingredient from other branches
         candidates = df[(df["ingredient_id"] == ing_id) & (df["branch_id"] != to_branch_id)]
-        
+
         # Candidate has excess stock: current_stock > min_stock_level
         candidates = candidates[candidates["current_stock"] > candidates["min_stock_level"]].copy()
 
@@ -522,7 +657,7 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
 
         # Calculate B's excess stock
         candidates["excess"] = candidates["current_stock"] - candidates["min_stock_level"]
-        
+
         # Calculate coverage days (how long stock lasts)
         candidates["coverage_days"] = candidates.apply(
             lambda r: r["current_stock"] / r["average_daily_usage"] if r["average_daily_usage"] > 0 else 999.0,
@@ -573,25 +708,25 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
 @app.post("/api/analytics/weather-menu-forecast", dependencies=_auth)
 def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
     forecast_results = []
-    
+
     for day in request.forecast_days:
         cond = day.condition.lower()
         temp = day.temperature
-        
+
         day_recommendations = []
-        
+
         for prod in request.products:
             cat_name = prod.category_name.lower()
             prod_name = prod.product_name.lower()
-            
+
             multiplier = 1.0
             reason = ""
-            
+
             # 1. Hot / Spicy / Soup items (Hotpot, Lẩu, Súp, Soup, Nướng, Grill)
             is_hot_item = any(x in cat_name or x in prod_name for x in ["lẩu", "nướng", "súp", "soup", "hotpot", "grill", "lẩu gà", "bò nướng"])
             # 2. Cold items (Cold drinks, Beer, Ice cream, Sinh tố, Nước giải khát)
             is_cold_item = any(x in cat_name or x in prod_name for x in ["uống", "nước", "bia", "drink", "beer", "kem", "ice", "sinh tố", "trà chanh", "nước ngọt"])
-            
+
             if "rainy" in cond or "mưa" in cond or temp < 22:
                 if is_hot_item:
                     multiplier = 1.35 + (22 - temp) * 0.01  # colder -> more hotpot demand
@@ -599,7 +734,7 @@ def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
                 elif is_cold_item:
                     multiplier = max(0.6, 0.8 - (22 - temp) * 0.01)
                     reason = f"Trời lạnh/mưa làm giảm nhu cầu dùng đồ uống lạnh {prod.product_name} khoảng {round((1-multiplier)*100)}%."
-                    
+
             elif "sunny" in cond or "nắng" in cond or temp > 30:
                 if is_cold_item:
                     multiplier = 1.45 + (temp - 30) * 0.02  # hotter -> more drinks demand
@@ -607,12 +742,12 @@ def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
                 elif is_hot_item:
                     multiplier = max(0.6, 0.7 - (temp - 30) * 0.02)
                     reason = f"Thời tiết nắng nóng làm giảm sức hút của các món lẩu/nóng như {prod.product_name} khoảng {round((1-multiplier)*100)}%."
-            
+
             elif "windy" in cond or "gió" in cond:
                 if is_hot_item:
                     multiplier = 1.15
                     reason = f"Trời lộng gió mát mẻ làm tăng nhẹ lượng tiêu thụ {prod.product_name} (+15%)."
-            
+
             # If changed, record recommendation
             if abs(multiplier - 1.0) > 0.01:
                 day_recommendations.append({
@@ -625,14 +760,14 @@ def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
                     "suggested_multiplier": round(multiplier, 2),
                     "reason": reason
                 })
-                
+
         forecast_results.append({
             "date": day.date,
             "condition": day.condition,
             "temperature": day.temperature,
             "recommendations": day_recommendations
         })
-        
+
     return {
         "success": True,
         "forecast": forecast_results

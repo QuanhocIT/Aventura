@@ -89,8 +89,21 @@ AWS_ENDPOINT=http://127.0.0.1:9000
 ```env
 CHATBOT_SERVICE_URL=http://localhost:8002
 EMAIL_SERVICE_URL=http://localhost:8001
-UPSELL_SERVICE_URL=http://localhost:8003
+ANALYTICS_SERVICE_URL=http://localhost:8003
+INTERNAL_API_KEY=                # dùng chung với Python services, gửi qua header X-Internal-API-Key
 ```
+
+Production Vercel hien tai cua analytics service:
+
+```env
+ANALYTICS_SERVICE_URL=https://aventura-two-delta.vercel.app
+```
+
+Test nhanh:
+
+- Mo `/` de kiem tra service online.
+- Mo `/docs` de xem Swagger UI.
+- Goi `POST /api/analytics/*` kem header `X-Internal-API-Key` neu da bat khoa.
 
 ---
 
